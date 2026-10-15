@@ -28,6 +28,7 @@ import type { GridContextMenuAction, GridContextMenuActionItem } from '../../gri
 import { WorkspaceRowContextMenu, type WorkspaceContextItem } from '../WorkspaceRowContextMenu';
 import { useDocumentoDetalleData } from '../DocumentoDetalleContent';
 import { getStatusToneColor } from '../../status/status.semantics';
+import { workspaceRailContactNameSx } from '../workspaceRailStyles';
 import type { StatusTone } from '../../status/status.types';
 import { desaplicarAplicacionDocumental, fetchAplicacionesDocumento } from '../../../services/finanzasService';
 import { DesaplicarPagoDialog } from '../../../modules/finanzas/DesaplicarPagoDialog';
@@ -368,7 +369,7 @@ export default function AjustesSaldoWorkspaceView(props: Props) {
                   <Typography variant="figure" sx={{ fontSize: 16, color: 'inherit', lineHeight: 1.1 }}>{formatFolio(row)}</Typography>
                   <Typography sx={{ fontSize: 13.5, fontWeight: 750, fontVariantNumeric: 'tabular-nums', color: 'inherit' }}>{currency.format(totalAjuste)}</Typography>
                 </Box>
-                <Typography variant="figure" sx={{ fontSize: 14, mt: 0.25, color: tokens.navigation.foreground, lineHeight: 1.2 }} noWrap>{row.nombre_cliente || 'Sin contacto'}</Typography>
+                <Typography variant="figure" sx={[workspaceRailContactNameSx, { fontSize: 14, mt: 0.25, color: tokens.navigation.foreground, lineHeight: 1.2 }]}>{row.nombre_cliente || 'Sin contacto'}</Typography>
                 <Box sx={{ display: 'flex', gap: 0.7, alignItems: 'center', mt: 0.3 }}>
                   <Typography sx={{ fontSize: 11.5, fontWeight: 700, color: tokens.navigation.foreground }}>{estatusEtiqueta(row.estatus_documento)}</Typography>
                   <Box component="span" aria-label={estatusEtiqueta(row.estatus_documento)} sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: getStatusToneColor(theme, tono) }} />

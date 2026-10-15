@@ -1275,9 +1275,10 @@ async function _obtenerMovimientosPorPeriodo(
     contactoId?: number | null;
     productoId?: number | null;
     origenContactoId?: number | null;
+    vendedorId?: number | null;
   }
 ): Promise<MovimientosPorPeriodoResult> {
-  const { empresaId, fechaInicio, fechaFin, agrupacion, contactoId, productoId, origenContactoId } = params;
+  const { empresaId, fechaInicio, fechaFin, agrupacion, contactoId, productoId, origenContactoId, vendedorId } = params;
 
   const trunc = AGRUPACION_TRUNC[agrupacion];
   const sinCancelados = `LOWER(COALESCE(d.estatus_documento, '')) NOT IN ('cancelado', 'cancelada')`;
@@ -1288,6 +1289,12 @@ async function _obtenerMovimientosPorPeriodo(
   if (contactoId) {
     args.push(contactoId);
     filtroContacto = `AND d.contacto_principal_id = $${args.length}`;
+  }
+  // Vendedor/agente que realizó la venta (documentos.agente_id → contactos tipo vendedor)
+  let filtroVendedor = '';
+  if (vendedorId) {
+    args.push(vendedorId);
+    filtroVendedor = `AND d.agente_id = $${args.length}`;
   }
 
   // Cuando hay filtro de producto, se restringe qué documentos incluir via subquery
@@ -1331,6 +1338,7 @@ async function _obtenerMovimientosPorPeriodo(
          AND d.fecha_documento <= $3::date
          AND ${sinCancelados}
          ${filtroContacto}
+         ${filtroVendedor}
          ${filtroProducto}
          ${filtroOrigen}
      ),
@@ -1372,6 +1380,7 @@ async function _obtenerMovimientosPorPeriodo(
          AND d.fecha_documento <= $3::date
          AND ${sinCancelados}
          ${filtroContacto}
+         ${filtroVendedor}
          ${filtroProducto}
          ${filtroOrigen}
      )
@@ -1465,6 +1474,7 @@ export async function obtenerVentasPorPeriodo(params: {
   contactoId?: number | null;
   productoId?: number | null;
   origenContactoId?: number | null;
+  vendedorId?: number | null;
 }): Promise<MovimientosPorPeriodoResult> {
   return _obtenerMovimientosPorPeriodo('factura', params);
 }
@@ -2274,6 +2284,38 @@ export const obtenerPagosClientes = (p: Omit<Parameters<typeof obtenerPagosBase>
 export const obtenerPagosProveedores = (p: Omit<Parameters<typeof obtenerPagosBase>[0], 'naturaleza'>) =>
   obtenerPagosBase({ ...p, naturaleza: 'pago_proveedor' });
 
+export type MovimientosPorConceptoParams = { empresaId: number; fechaInicio: string; fechaFin: string; cuentaId?: number | null; conceptoId?: number | null; moneda?: string | null; tipoMovimiento?: 'todos' | 'entradas' | 'salidas' | null };
+export type MovimientoPorConceptoResumen = { id: number | null; concepto: string; moneda: string; movimientos: number; entradas: number; salidas: number; neto: number };
+export type MovimientoPorConceptoDetalle = { id: number; fecha: string; cuenta: string; contacto: string | null; referencia: string | null; observaciones: string | null; entrada: number; salida: number; estado_conciliacion: string };
+export type MovimientosPorConceptoResult = { fecha_inicio: string; fecha_fin: string; resumen: MovimientoPorConceptoResumen[]; totales_por_moneda: Array<{ moneda: string; movimientos: number; entradas: number; salidas: number; neto: number }>; detalle: MovimientoPorConceptoDetalle[] };
+
+function filtrosMovimientosPorConcepto(p: MovimientosPorConceptoParams, concepto: boolean) {
+  const args: unknown[] = [p.empresaId, p.fechaInicio, p.fechaFin];
+  const filtros = ['fo.empresa_id = $1', 'fo.fecha BETWEEN $2 AND $3'];
+  if (concepto) filtros.push(p.conceptoId === null ? 'fo.concepto_id IS NULL' : `fo.concepto_id = $${args.push(p.conceptoId)}`);
+  if (p.cuentaId) filtros.push(`fo.cuenta_id = $${args.push(p.cuentaId)}`);
+  if (p.moneda) filtros.push(`fc.moneda = $${args.push(p.moneda)}`);
+  if (p.tipoMovimiento === 'entradas') filtros.push("fo.tipo_movimiento = 'Deposito'");
+  if (p.tipoMovimiento === 'salidas') filtros.push("fo.tipo_movimiento = 'Retiro'");
+  return { args, where: filtros.join(' AND ') };
+}
+
+export async function obtenerMovimientosPorConcepto(p: MovimientosPorConceptoParams, detalle = false): Promise<MovimientosPorConceptoResult> {
+  const { args, where } = filtrosMovimientosPorConcepto(p, false);
+  const resumenRes = await pool.query(`SELECT fo.concepto_id AS id, COALESCE(co.nombre_concepto, 'Sin concepto') AS concepto, COALESCE(fc.moneda, 'MXN') AS moneda, COUNT(*)::int AS movimientos, COALESCE(SUM(CASE WHEN fo.tipo_movimiento = 'Deposito' THEN fo.monto ELSE 0 END), 0) AS entradas, COALESCE(SUM(CASE WHEN fo.tipo_movimiento = 'Retiro' THEN fo.monto ELSE 0 END), 0) AS salidas FROM finanzas_operaciones fo JOIN finanzas_cuentas fc ON fc.id = fo.cuenta_id AND fc.empresa_id = fo.empresa_id LEFT JOIN conceptos co ON co.id = fo.concepto_id AND co.empresa_id = fo.empresa_id WHERE ${where} GROUP BY fo.concepto_id, COALESCE(co.nombre_concepto, 'Sin concepto'), COALESCE(fc.moneda, 'MXN') ORDER BY COUNT(*) DESC, SUM(CASE WHEN fo.tipo_movimiento IN ('Deposito', 'Retiro') THEN fo.monto ELSE 0 END) DESC, COALESCE(co.nombre_concepto, 'Sin concepto') ASC`, args);
+  const totalesRes = await pool.query(`SELECT COALESCE(fc.moneda, 'MXN') AS moneda, COUNT(*)::int AS movimientos, COALESCE(SUM(CASE WHEN fo.tipo_movimiento = 'Deposito' THEN fo.monto ELSE 0 END), 0) AS entradas, COALESCE(SUM(CASE WHEN fo.tipo_movimiento = 'Retiro' THEN fo.monto ELSE 0 END), 0) AS salidas FROM finanzas_operaciones fo JOIN finanzas_cuentas fc ON fc.id = fo.cuenta_id AND fc.empresa_id = fo.empresa_id WHERE ${where} GROUP BY COALESCE(fc.moneda, 'MXN') ORDER BY moneda`, args);
+  const map = (r: any) => ({ movimientos: Number(r.movimientos), entradas: Number(r.entradas), salidas: Number(r.salidas), neto: Number(r.entradas) - Number(r.salidas) });
+  const resumen = resumenRes.rows.map((r) => ({ id: r.id == null ? null : Number(r.id), concepto: String(r.concepto), moneda: String(r.moneda), ...map(r) }));
+  const totales_por_moneda = totalesRes.rows.map((r) => ({ moneda: String(r.moneda), ...map(r) }));
+  return { fecha_inicio: p.fechaInicio, fecha_fin: p.fechaFin, resumen, totales_por_moneda, detalle: detalle ? await obtenerDetalleMovimientosPorConcepto(p) : [] };
+}
+
+export async function obtenerDetalleMovimientosPorConcepto(p: MovimientosPorConceptoParams): Promise<MovimientoPorConceptoDetalle[]> {
+  const { args, where } = filtrosMovimientosPorConcepto(p, true);
+  const { rows } = await pool.query(`SELECT fo.id, fo.fecha, fc.identificador AS cuenta, c.nombre AS contacto, fo.referencia, fo.observaciones, CASE WHEN fo.tipo_movimiento = 'Deposito' THEN fo.monto ELSE 0 END AS entrada, CASE WHEN fo.tipo_movimiento = 'Retiro' THEN fo.monto ELSE 0 END AS salida, fo.estado_conciliacion FROM finanzas_operaciones fo JOIN finanzas_cuentas fc ON fc.id = fo.cuenta_id AND fc.empresa_id = fo.empresa_id LEFT JOIN contactos c ON c.id = fo.contacto_id AND c.empresa_id = fo.empresa_id WHERE ${where} ORDER BY fo.fecha DESC, fo.id DESC`, args);
+  return rows.map((r) => ({ id: Number(r.id), fecha: toFecha(r.fecha), cuenta: String(r.cuenta ?? ''), contacto: r.contacto ? String(r.contacto) : null, referencia: r.referencia ? String(r.referencia) : null, observaciones: r.observaciones ? String(r.observaciones) : null, entrada: Number(r.entrada ?? 0), salida: Number(r.salida ?? 0), estado_conciliacion: String(r.estado_conciliacion ?? '') }));
+}
+
 // ── Posición de Tesorería ──────────────────────────────────────────────────────
 
 export type CuentaTesoreria = {
@@ -2798,7 +2840,11 @@ export async function obtenerKardexProducto(params: {
     ),
     pool.query(
       `SELECT
-         mp.fecha_movimiento::date                                          AS fecha,
+         -- fecha_movimiento es TIMESTAMPTZ, pero representa la fecha civil
+         -- efectiva persistida para el movimiento. Igual que el reporte de
+         -- movimientos por período, se interpreta en UTC para que el día no
+         -- dependa de la zona horaria de la sesión PostgreSQL.
+         (mp.fecha_movimiento AT TIME ZONE 'UTC')::date                     AS fecha,
          m.tipo_movimiento,
          d.serie                                                            AS doc_serie,
          d.numero                                                           AS doc_numero,

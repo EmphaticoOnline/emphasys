@@ -32,6 +32,7 @@ import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import type { GridContextMenuAction, GridContextMenuActionItem } from '../../grids/GridContextMenu';
 import { WorkspaceRowContextMenu, type WorkspaceContextItem } from '../WorkspaceRowContextMenu';
+import { workspaceRailContactNameSx } from '../workspaceRailStyles';
 import { useDocumentoDetalleData } from '../DocumentoDetalleContent';
 import { fetchAplicacionesDocumento } from '../../../services/finanzasService';
 import { fetchConceptos } from '../../../services/conceptosService';
@@ -588,7 +589,7 @@ export default function NotasCreditoWorkspaceView({
                   {currency.format(total)}
                 </Typography>
               </Box>
-              <Typography variant="figure" sx={{ fontSize: 14, mt: 0.25, color: tokens.navigation.foreground, lineHeight: 1.2 }} noWrap>
+              <Typography variant="figure" sx={[workspaceRailContactNameSx, { fontSize: 14, mt: 0.25, color: tokens.navigation.foreground, lineHeight: 1.2 }]}>
                 {row.nombre_cliente || 'Sin contacto'}
               </Typography>
               <Box sx={{ display: 'flex', gap: 0.7, alignItems: 'center', mt: 0.3, flexWrap: 'wrap' }}>

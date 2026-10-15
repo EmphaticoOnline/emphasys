@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Alert,
   Autocomplete,
+  type AutocompleteRenderInputParams,
   Box,
   Button,
   CircularProgress,
@@ -45,6 +46,8 @@ import type {
   Agrupacion,
 } from '../../services/reportesService';
 import { fetchOrigenesContacto, type OrigenContacto } from '../../services/reportesService';
+import { fetchVendedores } from '../../services/contactosService';
+import type { Contacto } from '../../types/contactos.types';
 
 // ── Configuración del reporte (inyectada desde el wrapper) ────────────────────
 
@@ -91,6 +94,55 @@ const AGRUPACIONES: { value: Agrupacion; label: string }[] = [
   { value: 'anio',   label: 'Año'    },
 ];
 
+// Exportación (Ventas): PDF anaranjado, Excel verde Excel
+const PDF_NARANJA       = '#d9622b';
+const PDF_NARANJA_HOVER = '#bf5321';
+const EXCEL_VERDE       = '#217346';
+const EXCEL_VERDE_HOVER = '#1a5c38';
+
+// Color fijo por mes (enero → diciembre) para la gráfica de evolución de Ventas
+const COLORES_MES = [
+  '#3d5f86', '#6b86a8', '#4e8784', '#5f8a68', '#86965a', '#b39552',
+  '#c27f4e', '#ad6250', '#96586a', '#775f92', '#59658f', '#7b7266',
+];
+
+/** Color del mes en que inicia el período (`periodo_key` = YYYY-MM-DD). */
+function colorMes(periodoKey: string, fallback: string): string {
+  const mes = Number(periodoKey.slice(5, 7));
+  return COLORES_MES[mes - 1] ?? fallback;
+}
+
+// ── Filtros compactos (Ventas) ────────────────────────────────────────────────
+
+function FiltroLabel({ children, color, sx }: { children: React.ReactNode; color: string; sx?: SxProps<Theme> }) {
+  return (
+    <Box component="span" sx={[
+      { flexShrink: 0, fontSize: 10.5, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color, lineHeight: 1, whiteSpace: 'nowrap' },
+      ...(Array.isArray(sx) ? sx : [sx]),
+    ]}>
+      {children}
+    </Box>
+  );
+}
+
+function FiltroCompactoInput({ params, label, color }: { params: AutocompleteRenderInputParams; label: string; color: string }) {
+  const { InputProps, ...rest } = params;
+  return (
+    <TextField
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      {...(rest as any)}
+      size="small"
+      placeholder="Todos"
+      slotProps={{
+        input: {
+          ...InputProps,
+          startAdornment: <><FiltroLabel color={color}>{label}</FiltroLabel>{InputProps.startAdornment}</>,
+        },
+      }}
+    />
+  );
+}
+
 // ── Tarjeta KPI ───────────────────────────────────────────────────────────────
 
 function KpiCard({
@@ -124,7 +176,7 @@ function KpiCard({
 
 // ── Gráfica de barras SVG ─────────────────────────────────────────────────────
 
-function PeriodosChart({ periodos, color, campo = 'total' }: { periodos: PeriodoResumen[]; color: string; campo?: 'total' | 'subtotal' }) {
+function PeriodosChart({ periodos, color, campo = 'total', colorPorMes = false }: { periodos: PeriodoResumen[]; color: string; campo?: 'total' | 'subtotal'; colorPorMes?: boolean }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerW, setContainerW] = useState(640);
 
@@ -188,7 +240,7 @@ function PeriodosChart({ periodos, color, campo = 'total' }: { periodos: Periodo
           return (
             <g key={p.periodo_key}>
               <title>{`${p.periodo_label}: $${formatMXN(monto(p))}`}</title>
-              <rect x={bx} y={by} width={barW} height={barH} fill={color} rx={2} opacity={0.9} />
+              <rect x={bx} y={by} width={barW} height={barH} fill={colorPorMes ? colorMes(p.periodo_key, color) : color} rx={2} opacity={0.9} />
               {rotate ? (
                 <text x={labelX} y={labelY} fontSize={8} fill="#6b7280"
                   textAnchor="end" transform={`rotate(-40, ${labelX}, ${labelY})`}>
@@ -360,6 +412,8 @@ export default function MovimientosPorPeriodoPage({ config }: { config: Movimien
   const [producto,    setProducto]    = useState<ProductoOpcion | null>(null);
   const [origen, setOrigen] = useState<OrigenContacto | null>(null);
   const [origenes, setOrigenes] = useState<OrigenContacto[]>([]);
+  const [vendedor, setVendedor] = useState<Contacto | null>(null);
+  const [vendedores, setVendedores] = useState<Contacto[]>([]);
 
   const [opcionesProveedor, setOpcionesProveedor] = useState<ContactoOpcion[]>([]);
   const [opcionesProducto,  setOpcionesProducto]  = useState<ProductoOpcion[]>([]);
@@ -376,6 +430,7 @@ export default function MovimientosPorPeriodoPage({ config }: { config: Movimien
   const proveedorTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const productoTimer  = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => { if (config.tiposContacto.includes('cliente')) fetchOrigenesContacto().then(setOrigenes).catch(() => undefined); }, [config.tiposContacto]);
+  useEffect(() => { if (config.tiposContacto.includes('cliente')) fetchVendedores().then(setVendedores).catch(() => setVendedores([])); }, [config.tiposContacto]);
 
   // La cantidad sólo es significativa cuando hay un único producto seleccionado
   const mostrarCantidad = !!producto;
@@ -421,6 +476,7 @@ export default function MovimientosPorPeriodoPage({ config }: { config: Movimien
     ...(proveedor ? { contacto_id: proveedor.id } : {}),
     ...(producto  ? { producto_id: producto.id  } : {}),
     ...(origen ? { origen_contacto_id: origen.id } : {}),
+    ...(vendedor ? { vendedor_id: vendedor.id } : {}),
   });
 
   useEffect(() => {
@@ -442,7 +498,7 @@ export default function MovimientosPorPeriodoPage({ config }: { config: Movimien
     }, 500);
     return () => { if (fetchRef.current) clearTimeout(fetchRef.current); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fechaInicio, fechaFin, agrupacion, proveedor, producto, origen]);
+  }, [fechaInicio, fechaFin, agrupacion, proveedor, producto, origen, vendedor]);
 
   const handleExportar = async (formato: 'excel' | 'pdf') => {
     if (exportando) return;
@@ -500,171 +556,342 @@ export default function MovimientosPorPeriodoPage({ config }: { config: Movimien
   const totalColsHeader = (esVentas ? 5 : 7) + (mostrarCantidad ? 1 : 0);
   const ventas = totalSubtotal;
   const ticket = totalDocs > 0 ? (esVentas ? ventas / totalDocs : (kpis?.ticket_promedio ?? 0)) : 0;
-  const campoSx: SxProps<Theme> = esVentas ? {
+  // Controles compactos (32px) de la barra de filtros de Ventas
+  const campoCompactoSx = (activo: boolean): SxProps<Theme> => ({
     '& .MuiOutlinedInput-root': {
-      bgcolor: tokens.content.well,
+      height: 32,
+      bgcolor: activo ? tokens.action.wash : tokens.content.well,
       borderRadius: 2,
+      fontSize: 13,
       '& fieldset': { borderColor: tokens.content.border },
       '&:hover fieldset': { borderColor: tokens.content.muted },
-      '&.Mui-focused fieldset': { borderColor: tokens.action.info },
+      '&.Mui-focused fieldset': { borderColor: tokens.action.info, borderWidth: 1 },
     },
-    '& .MuiInputLabel-root': { color: tokens.content.muted },
-    '& .MuiInputBase-input': { color: tokens.content.foreground },
-  } : {};
+    '& .MuiAutocomplete-inputRoot': { py: '0 !important', pl: '10px !important' },
+    '& .MuiAutocomplete-input': { py: '0 !important', px: '4px !important', color: tokens.content.foreground },
+  });
+  const campoCompactoBoxSx: SxProps<Theme> = {
+    height: 32, boxSizing: 'border-box', display: 'flex', alignItems: 'center', gap: 0.75,
+    pl: 1.25, pr: 1, border: `1px solid ${tokens.content.border}`, borderRadius: 2,
+    bgcolor: tokens.content.well, minWidth: 0,
+    '&:hover': { borderColor: tokens.content.muted },
+    '&:focus-within': { borderColor: tokens.action.info },
+  };
+  const fechaInputSx: SxProps<Theme> = {
+    flex: '0 1 auto', width: 118, minWidth: 0, border: 0, outline: 0, p: 0, bgcolor: 'transparent',
+    font: 'inherit', fontSize: 13, color: tokens.content.foreground, fontVariantNumeric: 'tabular-nums',
+    colorScheme: 'inherit',
+    '&::-webkit-calendar-picker-indicator': { opacity: 0.55, cursor: 'pointer' },
+  };
+  const exportBtnSx: SxProps<Theme> = {
+    height: 32, px: 1.4, minWidth: 0, borderRadius: 2, textTransform: 'none', fontSize: 12.5, fontWeight: 600,
+    color: '#fff', boxShadow: 'none', '& .MuiButton-startIcon': { mr: 0.5 },
+  };
 
   return (
     <Box sx={esVentas
       ? { px: { xs: 2, md: 3 }, py: { xs: 2, md: 2.5 }, display: 'flex', flexDirection: 'column', gap: 1.5, width: '100%', minWidth: 0, boxSizing: 'border-box' }
       : { p: 2, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-      <Stack direction="row" alignItems="center" spacing={1} sx={{ minWidth: 0 }}>
-        {esVentas ? (
-          <Box component="button" type="button" onClick={() => navigate('/informes')} sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.4, border: 0, bgcolor: 'transparent', p: 0, cursor: 'pointer', font: 'inherit', fontSize: 11, fontWeight: 700, letterSpacing: '0.14em', color: tokens.content.muted, flexShrink: 0 }}>
-            <ArrowBackIcon sx={{ fontSize: 14 }} />
-            INFORMES
+      {esVentas ? (
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25, minWidth: 0 }}>
+          <Box sx={{ minWidth: 0 }}>
+            <Stack direction="row" alignItems="center" spacing={0.75} sx={{ minWidth: 0, fontSize: 10.5, fontWeight: 700, letterSpacing: '0.12em', lineHeight: '16px', textTransform: 'uppercase', color: tokens.content.muted, whiteSpace: 'nowrap' }}>
+              <Box component="button" type="button" onClick={() => navigate('/informes')} sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.4, border: 0, bgcolor: 'transparent', p: 0, cursor: 'pointer', font: 'inherit', letterSpacing: 'inherit', textTransform: 'inherit', color: 'inherit', flexShrink: 0 }}>
+                <ArrowBackIcon sx={{ fontSize: 13 }} />
+                Informes
+              </Box>
+              <Box component="span">/</Box>
+              <Box component="span" sx={{ flexShrink: 0 }}>{config.categoriaLabel}</Box>
+              <Box component="span">/</Box>
+              <Box component="span" sx={{ color: tokens.content.foreground, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{config.titulo}</Box>
+            </Stack>
+            <Typography component="h1" variant="figure" sx={{ mt: 0.75, fontSize: 20, lineHeight: '24px', letterSpacing: '-0.01em', color: tokens.content.foreground }}>
+              {config.titulo}
+            </Typography>
+            <Typography variant="body2" sx={{ mt: 0.25, fontSize: 12.5, lineHeight: '18px', color: tokens.content.muted, maxWidth: 720, whiteSpace: { lg: 'nowrap' }, overflow: { lg: 'hidden' }, textOverflow: { lg: 'ellipsis' } }}>
+              {config.descripcion}
+            </Typography>
           </Box>
-        ) : (
-          <Button size="small" startIcon={<ArrowBackIcon />} onClick={() => navigate('/informes')} sx={{ color: 'text.secondary' }}>
-            Informes
-          </Button>
-        )}
-        <Typography sx={esVentas ? { color: tokens.content.muted, fontSize: 11, lineHeight: 1 } : undefined} color={esVentas ? undefined : 'text.disabled'}>/</Typography>
-        <Typography variant="body2" noWrap sx={esVentas ? { fontSize: 11, fontWeight: 700, letterSpacing: '0.14em', color: tokens.content.muted, minWidth: 0 } : { color: 'text.secondary' }}>
-          {esVentas ? config.categoriaLabel.toUpperCase() : config.categoriaLabel}
-        </Typography>
-        <Typography sx={esVentas ? { color: tokens.content.muted, fontSize: 11, lineHeight: 1 } : undefined} color={esVentas ? undefined : 'text.disabled'}>/</Typography>
-        <Typography variant="body2" fontWeight={600} noWrap sx={esVentas ? { fontSize: 11, letterSpacing: '0.14em', color: tokens.content.foreground, minWidth: 0 } : undefined}>
-          {esVentas ? config.titulo.toUpperCase() : config.titulo}
-        </Typography>
-      </Stack>
 
-      <Box>
-        {esVentas ? (
-          <Typography variant="figure" sx={{ fontSize: { xs: 26, sm: 30 }, letterSpacing: '-0.02em', lineHeight: 1.05, color: tokens.content.foreground }}>{config.titulo}</Typography>
-        ) : (
-          <Typography variant="h6" fontWeight={700}>{config.titulo}</Typography>
-        )}
-        <Typography variant={esVentas ? 'body2' : 'caption'} sx={esVentas ? { mt: 0.6, fontSize: 13, lineHeight: 1.45, color: tokens.content.muted, display: 'block', maxWidth: 640 } : undefined} color={esVentas ? undefined : 'text.secondary'}>{config.descripcion}</Typography>
-      </Box>
+          {/* Filtros: una línea en contenedores amplios, dos líneas (cuándo / quién-qué) en medianos, apilados en móvil */}
+          <Paper elevation={0} sx={{
+            position: 'relative', overflow: 'hidden', p: 0.75, borderRadius: 2.5,
+            border: `1px solid ${tokens.content.border}`, bgcolor: tokens.content.elevated, boxShadow: 'none',
+            display: 'flex', flexDirection: 'column', gap: 0.75, containerType: 'inline-size',
+            '& .vp-when': { display: 'flex', alignItems: 'center', gap: 0.75, minWidth: 0 },
+            '& .vp-dims': { display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 0.75 },
+            '& .vp-spacer': { flex: 1 },
+            '@container (min-width: 1340px)': {
+              flexDirection: 'row', alignItems: 'center',
+              '& .vp-when, & .vp-dims': { display: 'contents' },
+              '& .vp-spacer': { display: 'none' },
+              '& .vp-range': { order: 1 },
+              '& .vp-cliente': { order: 2, flex: '1 1 0' },
+              '& .vp-vendedor': { order: 3, flex: '1 1 0' },
+              '& .vp-producto': { order: 4, flex: '1.35 1 0' },
+              '& .vp-origen': { order: 5, flex: '0.95 1 0' },
+              '& .vp-agrupacion': { order: 6 },
+              '& .vp-export': { order: 7, ml: 'auto' },
+            },
+            '@container (max-width: 900px)': { '& .vp-dims': { gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' } },
+            '@container (max-width: 640px)': {
+              '& .vp-when': { flexWrap: 'wrap' },
+              '& .vp-range': { flex: '1 1 100%' },
+              '& .vp-range input': { flex: '1 1 0', width: 'auto' },
+              '& .vp-agrupacion': { flex: '1 1 auto' },
+              '& .vp-agrupacion button': { flex: 1 },
+              '& .vp-spacer': { display: 'none' },
+              '& .vp-export': { ml: 'auto' },
+              '& .vp-dims': { gridTemplateColumns: 'minmax(0, 1fr)' },
+            },
+          }}>
+            {loading && <LinearProgress sx={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, bgcolor: tokens.metric.track, '& .MuiLinearProgress-bar': { bgcolor: tokens.action.info } }} />}
 
-      {/* Filtros */}
-      <Paper elevation={0} sx={esVentas
-        ? { position: 'relative', overflow: 'hidden', px: 1.25, py: 1.25, borderRadius: 2, border: `1px solid ${tokens.content.border}`, bgcolor: tokens.content.elevated, boxShadow: 'none' }
-        : { px: 2, py: 1, position: 'relative', overflow: 'hidden' }}>
-        {loading && <LinearProgress sx={esVentas ? { position: 'absolute', top: 0, left: 0, right: 0, height: 2, bgcolor: tokens.metric.track, '& .MuiLinearProgress-bar': { bgcolor: tokens.action.info } } : { position: 'absolute', top: 0, left: 0, right: 0 }} />}
-        <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center', flexWrap: 'wrap' }}>
-          <TextField
-            label="Fecha inicial" type="date" size="small"
-            value={fechaInicio} onChange={(e) => setFechaInicio(e.target.value)}
-            slotProps={{ inputLabel: { shrink: true } }} sx={{ width: esVentas ? { xs: '100%', sm: 155 } : 155, ...campoSx }}
-          />
-          <TextField
-            label="Fecha final" type="date" size="small"
-            value={fechaFin} onChange={(e) => setFechaFin(e.target.value)}
-            slotProps={{ inputLabel: { shrink: true } }} sx={{ width: esVentas ? { xs: '100%', sm: 155 } : 155, ...campoSx }}
-          />
+            <Box className="vp-when">
+              <Box component="label" className="vp-range" sx={{ ...campoCompactoBoxSx, cursor: 'text' }}>
+                <FiltroLabel color={tokens.content.muted}>Período</FiltroLabel>
+                <Box component="input" type="date" aria-label="Fecha inicial" value={fechaInicio} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFechaInicio(e.target.value)} sx={fechaInputSx} />
+                <Box component="span" aria-hidden sx={{ color: tokens.content.muted, fontSize: 12 }}>→</Box>
+                <Box component="input" type="date" aria-label="Fecha final" value={fechaFin} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFechaFin(e.target.value)} sx={fechaInputSx} />
+              </Box>
 
-          <Autocomplete<ContactoOpcion>
-            options={opcionesProveedor}
-            loading={buscandoProveedor}
-            value={proveedor}
-            onChange={(_, val) => setProveedor(val)}
-            onInputChange={(_, input) => buscarProveedores(input)}
-            onOpen={() => { if (!opcionesProveedor.length) buscarProveedores(''); }}
-            getOptionLabel={(o) => o.nombre}
-            getOptionKey={(o) => o.id}
-            isOptionEqualToValue={(a, b) => a.id === b.id}
-            sx={{ width: esVentas ? { xs: '100%', sm: 210 } : 210, ...campoSx }}
-            renderOption={(props, o) => (
-              <li {...props} key={o.id}>
-                <Box>
-                  <Typography variant="body2">{o.nombre}</Typography>
-                  {o.rfc && <Typography variant="caption" color="text.secondary">{o.rfc}</Typography>}
-                </Box>
-              </li>
-            )}
-            renderInput={(inputProps) => (
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              <TextField {...(inputProps as any)} label={`${config.contactoLabel} (todos)`} size="small" />
-            )}
-          />
+              <Box className="vp-spacer" />
 
-          <Autocomplete<ProductoOpcion>
-            options={opcionesProducto}
-            loading={buscandoProducto}
-            value={producto}
-            onChange={(_, val) => setProducto(val)}
-            onInputChange={(_, input) => buscarProductos(input)}
-            onOpen={() => { if (!opcionesProducto.length) buscarProductos(''); }}
-            getOptionLabel={(o) => `${o.clave} — ${o.descripcion}`}
-            getOptionKey={(o) => o.id}
-            isOptionEqualToValue={(a, b) => a.id === b.id}
-            sx={{ width: esVentas ? { xs: '100%', sm: 230 } : 230, ...campoSx }}
-            renderOption={(props, o) => (
-              <li {...props} key={o.id}>
-                <Box>
-                  <Typography variant="body2" fontWeight={600}>{o.clave}</Typography>
-                  <Typography variant="caption" color="text.secondary">{o.descripcion}</Typography>
-                </Box>
-              </li>
-            )}
-            renderInput={(inputProps) => (
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              <TextField {...(inputProps as any)} label="Producto (todos)" size="small" />
-            )}
-          />
+              <Box className="vp-agrupacion" role="radiogroup" aria-label="Agrupación" sx={{ ...campoCompactoBoxSx, px: 0.25, gap: 0.25, alignItems: 'stretch', py: 0.25, flexShrink: 0 }}>
+                <FiltroLabel color={tokens.content.muted} sx={{ alignSelf: 'center', px: 0.75 }}>Agrupar</FiltroLabel>
+                {AGRUPACIONES.map((a) => {
+                  const activo = a.value === agrupacion;
+                  return (
+                    <Box key={a.value} component="button" type="button" role="radio" aria-checked={activo} onClick={() => setAgrupacion(a.value)}
+                      sx={{ font: 'inherit', fontSize: 12.5, fontWeight: 500, border: 0, borderRadius: 1.5, px: 1.1, cursor: 'pointer', bgcolor: activo ? tokens.action.primary : 'transparent', color: activo ? tokens.action.primaryForeground : tokens.content.secondary, '&:hover': activo ? undefined : { bgcolor: tokens.content.hover }, '&:focus-visible': { outline: `2px solid ${tokens.action.info}`, outlineOffset: 1 } }}>
+                      {a.label}
+                    </Box>
+                  );
+                })}
+              </Box>
 
-          {config.tiposContacto.includes('cliente') && <Autocomplete<OrigenContacto>
-            options={origenes} value={origen} onChange={(_, val) => setOrigen(val)}
-            getOptionLabel={(o) => o.descripcion} getOptionKey={(o) => o.id}
-            isOptionEqualToValue={(a,b) => a.id === b.id} sx={{ width: esVentas ? { xs: '100%', sm: 190 } : 190, ...campoSx }}
-            renderInput={(p) => <TextField {...p} label="Origen de contacto (todos)" size="small" />}
-          />}
+              <Stack className="vp-export" direction="row" spacing={0.5} sx={{ flexShrink: 0 }}>
+                <Button
+                  size="small" variant="contained" disableElevation
+                  disabled={!resultado || !!exportando}
+                  startIcon={exportando === 'pdf' ? <CircularProgress size={13} color="inherit" /> : <FileDownloadIcon sx={{ fontSize: '15px !important' }} />}
+                  onClick={() => void handleExportar('pdf')}
+                  sx={{ ...exportBtnSx, bgcolor: PDF_NARANJA, '&:hover': { bgcolor: PDF_NARANJA_HOVER } }}
+                >
+                  PDF
+                </Button>
+                <Button
+                  size="small" variant="contained" disableElevation
+                  disabled={!resultado || !!exportando}
+                  startIcon={exportando === 'excel' ? <CircularProgress size={13} color="inherit" /> : <FileDownloadIcon sx={{ fontSize: '15px !important' }} />}
+                  onClick={() => void handleExportar('excel')}
+                  sx={{ ...exportBtnSx, bgcolor: EXCEL_VERDE, '&:hover': { bgcolor: EXCEL_VERDE_HOVER } }}
+                >
+                  Excel
+                </Button>
+              </Stack>
+            </Box>
 
-          {esVentas ? (
-            <TextField select label="Agrupación" size="small" value={agrupacion} onChange={(e) => setAgrupacion(e.target.value as Agrupacion)} sx={{ width: { xs: '100%', sm: 130 }, ...campoSx }}>
-              {AGRUPACIONES.map((a) => (
-                <MenuItem key={a.value} value={a.value}>{a.label}</MenuItem>
-              ))}
-            </TextField>
-          ) : (
-          <Tooltip title="Agrupar por">
-            <Select
-              size="small"
-              value={agrupacion}
-              onChange={(e) => setAgrupacion(e.target.value as Agrupacion)}
-              sx={{ minWidth: 100 }}
-            >
-              {AGRUPACIONES.map((a) => (
-                <MenuItem key={a.value} value={a.value}>{a.label}</MenuItem>
-              ))}
-            </Select>
-          </Tooltip>
-          )}
+            <Box className="vp-dims">
+              <Autocomplete<ContactoOpcion>
+                className="vp-cliente"
+                options={opcionesProveedor}
+                loading={buscandoProveedor}
+                value={proveedor}
+                onChange={(_, val) => setProveedor(val)}
+                onInputChange={(_, input) => buscarProveedores(input)}
+                onOpen={() => { if (!opcionesProveedor.length) buscarProveedores(''); }}
+                getOptionLabel={(o) => o.nombre}
+                getOptionKey={(o) => o.id}
+                isOptionEqualToValue={(a, b) => a.id === b.id}
+                sx={{ minWidth: 0, ...campoCompactoSx(!!proveedor) }}
+                renderOption={(props, o) => (
+                  <li {...props} key={o.id}>
+                    <Box>
+                      <Typography variant="body2">{o.nombre}</Typography>
+                      {o.rfc && <Typography variant="caption" color="text.secondary">{o.rfc}</Typography>}
+                    </Box>
+                  </li>
+                )}
+                renderInput={(p) => <FiltroCompactoInput params={p} label={config.contactoLabel} color={tokens.content.muted} />}
+              />
 
-          <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
+              {/* Vendedor / agente que realizó la venta (documentos.agente_id) */}
+              <Box className="vp-vendedor" sx={{ minWidth: 0 }}>
+                <Autocomplete<Contacto>
+                  options={vendedores}
+                  value={vendedor}
+                  onChange={(_, val) => setVendedor(val)}
+                  getOptionLabel={(o) => o.nombre}
+                  getOptionKey={(o) => o.id}
+                  isOptionEqualToValue={(a, b) => a.id === b.id}
+                  sx={{ minWidth: 0, ...campoCompactoSx(!!vendedor) }}
+                  renderInput={(p) => <FiltroCompactoInput params={p} label="Vendedor" color={tokens.content.muted} />}
+                />
+              </Box>
 
-          <Box sx={{ ml: { md: 'auto' }, display: 'flex', gap: 0.5, flexShrink: 0, width: esVentas ? { xs: '100%', md: 'auto' } : undefined, justifyContent: esVentas ? { xs: 'flex-end', md: 'flex-start' } : undefined }}>
-            <Button
-              size="small" variant="outlined" color={esVentas ? 'inherit' : 'error'}
-              disabled={!resultado || !!exportando}
-              startIcon={esVentas ? (exportando === 'pdf' ? <CircularProgress size={14} color="inherit" /> : undefined) : (exportando === 'pdf' ? <CircularProgress size={14} color="inherit" /> : <PictureAsPdfIcon />)}
-              onClick={() => void handleExportar('pdf')}
-              sx={esVentas ? { textTransform: 'none', fontWeight: 650, color: tokens.content.secondary, borderColor: tokens.content.border, borderRadius: 2, boxShadow: 'none' } : undefined}
-            >
-              PDF
-            </Button>
-            <Button
-              size="small" variant="outlined"
-              disabled={!resultado || !!exportando}
-              startIcon={esVentas ? (exportando === 'excel' ? <CircularProgress size={14} color="inherit" /> : undefined) : (exportando === 'excel' ? <CircularProgress size={14} color="inherit" /> : <FileDownloadIcon />)}
-              onClick={() => void handleExportar('excel')}
-              sx={esVentas ? { textTransform: 'none', fontWeight: 650, color: tokens.content.secondary, borderColor: tokens.content.border, borderRadius: 2, boxShadow: 'none' } : undefined}
-            >
-              Excel
-            </Button>
-          </Box>
+              <Autocomplete<ProductoOpcion>
+                className="vp-producto"
+                options={opcionesProducto}
+                loading={buscandoProducto}
+                value={producto}
+                onChange={(_, val) => setProducto(val)}
+                onInputChange={(_, input) => buscarProductos(input)}
+                onOpen={() => { if (!opcionesProducto.length) buscarProductos(''); }}
+                getOptionLabel={(o) => `${o.clave} — ${o.descripcion}`}
+                getOptionKey={(o) => o.id}
+                isOptionEqualToValue={(a, b) => a.id === b.id}
+                sx={{ minWidth: 0, ...campoCompactoSx(!!producto) }}
+                renderOption={(props, o) => (
+                  <li {...props} key={o.id}>
+                    <Box>
+                      <Typography variant="body2" fontWeight={600}>{o.clave}</Typography>
+                      <Typography variant="caption" color="text.secondary">{o.descripcion}</Typography>
+                    </Box>
+                  </li>
+                )}
+                renderInput={(p) => <FiltroCompactoInput params={p} label="Producto" color={tokens.content.muted} />}
+              />
+
+              <Tooltip title="Origen de contacto" placement="top" enterDelay={600}>
+                <Autocomplete<OrigenContacto>
+                  className="vp-origen"
+                  options={origenes} value={origen} onChange={(_, val) => setOrigen(val)}
+                  getOptionLabel={(o) => o.descripcion} getOptionKey={(o) => o.id}
+                  isOptionEqualToValue={(a, b) => a.id === b.id}
+                  sx={{ minWidth: 0, ...campoCompactoSx(!!origen) }}
+                  renderInput={(p) => <FiltroCompactoInput params={p} label="Origen" color={tokens.content.muted} />}
+                />
+              </Tooltip>
+            </Box>
+          </Paper>
         </Box>
-      </Paper>
+      ) : (
+        <>
+          <Stack direction="row" alignItems="center" spacing={1} sx={{ minWidth: 0 }}>
+            <Button size="small" startIcon={<ArrowBackIcon />} onClick={() => navigate('/informes')} sx={{ color: 'text.secondary' }}>
+              Informes
+            </Button>
+            <Typography color="text.disabled">/</Typography>
+            <Typography variant="body2" noWrap sx={{ color: 'text.secondary' }}>{config.categoriaLabel}</Typography>
+            <Typography color="text.disabled">/</Typography>
+            <Typography variant="body2" fontWeight={600} noWrap>{config.titulo}</Typography>
+          </Stack>
+
+          <Box>
+            <Typography variant="h6" fontWeight={700}>{config.titulo}</Typography>
+            <Typography variant="caption" color="text.secondary">{config.descripcion}</Typography>
+          </Box>
+
+          {/* Filtros */}
+          <Paper elevation={0} sx={{ px: 2, py: 1, position: 'relative', overflow: 'hidden' }}>
+            {loading && <LinearProgress sx={{ position: 'absolute', top: 0, left: 0, right: 0 }} />}
+            <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center', flexWrap: 'wrap' }}>
+              <TextField
+                label="Fecha inicial" type="date" size="small"
+                value={fechaInicio} onChange={(e) => setFechaInicio(e.target.value)}
+                slotProps={{ inputLabel: { shrink: true } }} sx={{ width: 155 }}
+              />
+              <TextField
+                label="Fecha final" type="date" size="small"
+                value={fechaFin} onChange={(e) => setFechaFin(e.target.value)}
+                slotProps={{ inputLabel: { shrink: true } }} sx={{ width: 155 }}
+              />
+
+              <Autocomplete<ContactoOpcion>
+                options={opcionesProveedor}
+                loading={buscandoProveedor}
+                value={proveedor}
+                onChange={(_, val) => setProveedor(val)}
+                onInputChange={(_, input) => buscarProveedores(input)}
+                onOpen={() => { if (!opcionesProveedor.length) buscarProveedores(''); }}
+                getOptionLabel={(o) => o.nombre}
+                getOptionKey={(o) => o.id}
+                isOptionEqualToValue={(a, b) => a.id === b.id}
+                sx={{ width: 210 }}
+                renderOption={(props, o) => (
+                  <li {...props} key={o.id}>
+                    <Box>
+                      <Typography variant="body2">{o.nombre}</Typography>
+                      {o.rfc && <Typography variant="caption" color="text.secondary">{o.rfc}</Typography>}
+                    </Box>
+                  </li>
+                )}
+                renderInput={(inputProps) => (
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  <TextField {...(inputProps as any)} label={`${config.contactoLabel} (todos)`} size="small" />
+                )}
+              />
+
+              <Autocomplete<ProductoOpcion>
+                options={opcionesProducto}
+                loading={buscandoProducto}
+                value={producto}
+                onChange={(_, val) => setProducto(val)}
+                onInputChange={(_, input) => buscarProductos(input)}
+                onOpen={() => { if (!opcionesProducto.length) buscarProductos(''); }}
+                getOptionLabel={(o) => `${o.clave} — ${o.descripcion}`}
+                getOptionKey={(o) => o.id}
+                isOptionEqualToValue={(a, b) => a.id === b.id}
+                sx={{ width: 230 }}
+                renderOption={(props, o) => (
+                  <li {...props} key={o.id}>
+                    <Box>
+                      <Typography variant="body2" fontWeight={600}>{o.clave}</Typography>
+                      <Typography variant="caption" color="text.secondary">{o.descripcion}</Typography>
+                    </Box>
+                  </li>
+                )}
+                renderInput={(inputProps) => (
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  <TextField {...(inputProps as any)} label="Producto (todos)" size="small" />
+                )}
+              />
+
+              {config.tiposContacto.includes('cliente') && <Autocomplete<OrigenContacto>
+                options={origenes} value={origen} onChange={(_, val) => setOrigen(val)}
+                getOptionLabel={(o) => o.descripcion} getOptionKey={(o) => o.id}
+                isOptionEqualToValue={(a,b) => a.id === b.id} sx={{ width: 190 }}
+                renderInput={(p) => <TextField {...p} label="Origen de contacto (todos)" size="small" />}
+              />}
+
+              <Tooltip title="Agrupar por">
+                <Select
+                  size="small"
+                  value={agrupacion}
+                  onChange={(e) => setAgrupacion(e.target.value as Agrupacion)}
+                  sx={{ minWidth: 100 }}
+                >
+                  {AGRUPACIONES.map((a) => (
+                    <MenuItem key={a.value} value={a.value}>{a.label}</MenuItem>
+                  ))}
+                </Select>
+              </Tooltip>
+
+              <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
+
+              <Box sx={{ ml: { md: 'auto' }, display: 'flex', gap: 0.5, flexShrink: 0 }}>
+                <Button
+                  size="small" variant="outlined" color="error"
+                  disabled={!resultado || !!exportando}
+                  startIcon={exportando === 'pdf' ? <CircularProgress size={14} color="inherit" /> : <PictureAsPdfIcon />}
+                  onClick={() => void handleExportar('pdf')}
+                >
+                  PDF
+                </Button>
+                <Button
+                  size="small" variant="outlined"
+                  disabled={!resultado || !!exportando}
+                  startIcon={exportando === 'excel' ? <CircularProgress size={14} color="inherit" /> : <FileDownloadIcon />}
+                  onClick={() => void handleExportar('excel')}
+                >
+                  Excel
+                </Button>
+              </Box>
+            </Box>
+          </Paper>
+        </>
+      )}
 
       {/* KPIs */}
       {kpis && (
@@ -717,7 +944,7 @@ export default function MovimientosPorPeriodoPage({ config }: { config: Movimien
               Evolución — {AGRUPACIONES.find((a) => a.value === agrupacion)?.label}
             </Typography>
           )}
-          <PeriodosChart periodos={periodos} color={esVentas ? tokens.action.info : '#1d2f68'} campo={esVentas ? 'subtotal' : 'total'} />
+          <PeriodosChart periodos={periodos} color={esVentas ? tokens.action.info : '#1d2f68'} campo={esVentas ? 'subtotal' : 'total'} colorPorMes={esVentas && agrupacion !== 'anio'} />
         </Paper>
       )}
 

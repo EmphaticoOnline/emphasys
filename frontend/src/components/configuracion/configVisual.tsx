@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { Box, ButtonBase, Stack, Typography } from '@mui/material';
+import { Box, Button, ButtonBase, Stack, Typography } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import type { SvgIconComponent } from '@mui/icons-material';
@@ -111,6 +111,38 @@ export function ConfigSection({
     </Box>
   );
 }
+
+/** Contenedor elevado común para formularios, tablas y estados de página. */
+export function ConfigSurface({
+  children,
+  sx,
+}: {
+  children: React.ReactNode;
+  sx?: object;
+}) {
+  const tokens = useTheme().emphasys;
+  return (
+    <Box sx={{
+      border: `1px solid ${tokens.content.border}`,
+      borderRadius: 2.5,
+      bgcolor: tokens.content.elevated,
+      overflow: 'hidden',
+      ...sx,
+    }}>
+      {children}
+    </Box>
+  );
+}
+
+export function ConfigActions({ children }: { children: React.ReactNode }) {
+  return <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'center' }}>{children}</Stack>;
+}
+
+export const configPrimaryButtonSx = (theme: { emphasys: { action: { primary: string; primaryHover: string } } }) => ({
+  bgcolor: theme.emphasys.action.primary,
+  color: '#fff',
+  '&:hover': { bgcolor: theme.emphasys.action.primaryHover },
+});
 
 export function ConfigNavRow({
   icon: Icon,

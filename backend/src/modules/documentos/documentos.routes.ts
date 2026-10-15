@@ -7,6 +7,7 @@ import {
   timbrarComplementoPagoHandler,
   prevalidarComplementoPagoHandler,
   obtenerDocumentoXML,
+  descargarAcuseCancelacion,
   enviarComplementoPagoPorCorreo,
   enviarCotizacionPorCorreo,
   enviarWhatsappCotizacion,
@@ -93,6 +94,7 @@ router.post('/:id/timbrar-cfdi', requireAuth, requireEmpresaActiva, timbrarDocum
 router.get('/:id/prevalidar-complemento-pago', requireAuth, requireEmpresaActiva, prevalidarComplementoPagoHandler);
 router.post('/:id/timbrar-complemento-pago', requireAuth, requireEmpresaActiva, timbrarComplementoPagoHandler);
 router.get('/:id/xml', requireAuth, requireEmpresaActiva, obtenerDocumentoXML);
+router.get('/:id/acuse-cancelacion', requireAuth, requireEmpresaActiva, descargarAcuseCancelacion);
 router.post('/:id/enviar-complemento-pago', requireAuth, requireEmpresaActiva, enviarComplementoPagoPorCorreo);
 
 // POST /api/documentos/:id/cancelar

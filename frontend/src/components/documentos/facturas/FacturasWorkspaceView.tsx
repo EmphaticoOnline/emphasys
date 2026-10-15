@@ -57,6 +57,7 @@ import type { TipoDocumento } from '../../../types/documentos.types';
 import type { DocumentoIndicatorModel } from '../indicadores';
 import { estadoVisualDocumento } from '../estadoVisualDocumento';
 import { getStatusToneColor } from '../../status/status.semantics';
+import { workspaceRailContactNameSx } from '../workspaceRailStyles';
 import type { GridContextMenuAction, GridContextMenuActionItem } from '../../grids/GridContextMenu';
 import { WorkspaceRowContextMenu, type WorkspaceContextItem } from '../WorkspaceRowContextMenu';
 import FacturaDocumentoResumenView from './FacturaDocumentoResumenView';
@@ -678,7 +679,7 @@ export default function FacturasWorkspaceView({
                           {currency.format(totalFila)}
                         </Typography>
                       </Box>
-                      <Typography variant="figure" sx={{ fontSize: 14, mt: 0.25, color: tokens.navigation.foreground, lineHeight: 1.2 }} noWrap>
+                      <Typography variant="figure" sx={[workspaceRailContactNameSx, { fontSize: 14, mt: 0.25, color: tokens.navigation.foreground, lineHeight: 1.2 }]}>
                         {row.nombre_cliente || 'Sin contacto'}
                       </Typography>
                       <Box sx={{ display: 'flex', gap: 0.7, alignItems: 'center', mt: 0.3 }}>

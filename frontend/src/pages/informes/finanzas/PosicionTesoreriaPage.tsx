@@ -145,7 +145,7 @@ export default function PosicionTesoreriaPage() {
           Informes
         </Button>
         <Typography color="text.disabled">/</Typography>
-        <Typography variant="body2" color="text.secondary">Finanzas</Typography>
+        <Typography variant="body2" color="text.secondary">Tesorería</Typography>
         <Typography color="text.disabled">/</Typography>
         <Typography variant="body2" fontWeight={600}>Posición de Tesorería</Typography>
       </Stack>

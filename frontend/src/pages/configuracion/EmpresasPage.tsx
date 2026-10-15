@@ -35,6 +35,7 @@ import type { EmpresaCfdiPacAssignment } from '../../services/cfdiPacConfigServi
 import { buildAssetUrl, fetchEmpresaAsset, uploadEmpresaAsset } from '../../services/empresasAssetsService';
 import type { Empresa, EmpresaPayload } from '../../types/empresa';
 import { apiFetch } from '../../services/apiFetch';
+import { ConfigPageHeader } from '../../components/configuracion/configVisual';
 
 const requiredFields: Array<keyof EmpresaPayload> = [
   'identificador',
@@ -550,24 +551,14 @@ export default function EmpresasPage() {
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <Toolbar disableGutters sx={{ justifyContent: 'space-between' }}>
-        <Box>
-          <Typography variant="h5" fontWeight={700} color="#1d2f68">
-            Empresas
-          </Typography>
-          <Typography variant="body2" color="#4b5563">
-            Administra las empresas registradas. Solo se listan las activas por orden de nombre.
-          </Typography>
-        </Box>
-        <Button
+      <ConfigPageHeader title="Empresas" description="Administra las empresas registradas. Solo se listan las activas por orden de nombre." actions={<Button
           variant="contained"
           startIcon={<AddIcon />}
           onClick={handleOpenCreate}
-          sx={{ textTransform: 'none', fontWeight: 700, backgroundColor: '#1d2f68' }}
+          sx={(theme) => ({ textTransform: 'none', fontWeight: 700, backgroundColor: theme.emphasys.action.primary, '&:hover': { backgroundColor: theme.emphasys.action.primaryHover } })}
         >
           Nueva empresa
-        </Button>
-      </Toolbar>
+        </Button>} />
 
       {error && (
         <Alert severity="error" onClose={() => setError(null)}>
@@ -575,7 +566,7 @@ export default function EmpresasPage() {
         </Alert>
       )}
 
-      <TableContainer sx={{ border: '1px solid #e5e7eb', borderRadius: 1, backgroundColor: '#fff' }}>
+      <TableContainer sx={(theme) => ({ border: `1px solid ${theme.emphasys.content.border}`, borderRadius: 2.5, backgroundColor: theme.emphasys.content.elevated })}>
         <Table size="small">
           <TableHead>
             <TableRow>
@@ -781,7 +772,7 @@ export default function EmpresasPage() {
             value={form.sitio_web || ''}
             onChange={(e) => handleChange('sitio_web', e.target.value)}
           />
-          <Box sx={{ gridColumn: '1 / -1', border: '1px solid #e5e7eb', borderRadius: 1, p: 2, backgroundColor: '#fafafa' }}>
+          <Box sx={(theme) => ({ gridColumn: '1 / -1', border: `1px solid ${theme.emphasys.content.border}`, borderRadius: 2, p: 2, backgroundColor: theme.emphasys.content.well })}>
             <Typography variant="h6" gutterBottom>
               CSD Facturama Multiemisor
             </Typography>
@@ -868,7 +859,7 @@ export default function EmpresasPage() {
             )}
           </Box>
 
-          <Box sx={{ gridColumn: '1 / -1', border: '1px solid #e5e7eb', borderRadius: 1, p: 2, backgroundColor: '#fafafa' }}>
+          <Box sx={(theme) => ({ gridColumn: '1 / -1', border: `1px solid ${theme.emphasys.content.border}`, borderRadius: 2, p: 2, backgroundColor: theme.emphasys.content.well })}>
             <Typography variant="h6" gutterBottom>
               Imagen corporativa
             </Typography>
@@ -919,7 +910,7 @@ export default function EmpresasPage() {
                     component="img"
                     src={buildAssetUrl(logoAsset.ruta)}
                     alt="Logo de la empresa"
-                    sx={{ maxWidth: 240, maxHeight: 120, objectFit: 'contain', border: '1px solid #e5e7eb', borderRadius: 1, p: 1, backgroundColor: '#fff' }}
+                    sx={(theme) => ({ maxWidth: 240, maxHeight: 120, objectFit: 'contain', border: `1px solid ${theme.emphasys.content.border}`, borderRadius: 1.5, p: 1, backgroundColor: theme.emphasys.content.elevated })}
                   />
                 </Stack>
               ) : (

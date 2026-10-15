@@ -52,6 +52,7 @@ import { fetchTiposDocumentoHabilitados, type TipoDocumentoEmpresa } from '../..
 import { fetchUsuariosHabilitados } from '../../services/usuariosService';
 import type { Usuario } from '../../types/usuario';
 import { useSession } from '../../session/useSession';
+import { ConfigPageFrame, ConfigPageHeader, ConfigSurface } from '../../components/configuracion/configVisual';
 
 const TAB_SERIES = 0;
 const TAB_ASIGNACIONES = 1;
@@ -352,7 +353,7 @@ export default function SeriesDocumentosPage() {
   };
 
   const renderSeriesTable = () => (
-    <TableContainer sx={{ border: '1px solid #e5e7eb', borderRadius: 1, backgroundColor: '#fff' }}>
+      <TableContainer sx={(theme) => ({ border: `1px solid ${theme.emphasys.content.border}`, borderRadius: 2.5, backgroundColor: theme.emphasys.content.elevated })}>
       <Table size="small">
         <TableHead>
           <TableRow>
@@ -408,7 +409,7 @@ export default function SeriesDocumentosPage() {
   );
 
   const renderAsignacionesTable = () => (
-    <TableContainer sx={{ border: '1px solid #e5e7eb', borderRadius: 1, backgroundColor: '#fff' }}>
+      <TableContainer sx={(theme) => ({ border: `1px solid ${theme.emphasys.content.border}`, borderRadius: 2.5, backgroundColor: theme.emphasys.content.elevated })}>
       <Table size="small">
         <TableHead>
           <TableRow>
@@ -458,19 +459,12 @@ export default function SeriesDocumentosPage() {
   );
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-      <Stack spacing={0.5}>
-        <Typography variant="h5" fontWeight={700} color="#1d2f68">
-          Series de documentos
-        </Typography>
-        <Typography variant="body2" color="#4b5563">
-          Administra las series por tipo de documento y sus asignaciones por usuario, sin cambiar el motor de resolución.
-        </Typography>
-      </Stack>
+    <ConfigPageFrame>
+      <ConfigPageHeader title="Series de documentos" description="Administra las series por tipo de documento y sus asignaciones por usuario, sin cambiar el motor de resolución." />
 
       {error && <Alert severity="error">{error}</Alert>}
 
-      <Paper variant="outlined" sx={{ borderColor: '#e5e7eb', borderRadius: 2 }}>
+      <ConfigSurface>
         <Tabs value={tab} onChange={(_event, nextValue) => setTab(nextValue)}>
           <Tab label="Series" />
           <Tab label="Asignaciones por usuario" />
@@ -484,32 +478,32 @@ export default function SeriesDocumentosPage() {
           ) : (
             <>
               <TabPanel value={tab} index={TAB_SERIES}>
-                <Toolbar disableGutters sx={{ justifyContent: 'space-between', pb: 2 }}>
-                  <Typography variant="subtitle1" fontWeight={700} color="#1d2f68">
+                <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ pb: 1.5 }}>
+                  <Typography variant="subtitle1" fontWeight={700} color="text.primary">
                     Series configuradas
                   </Typography>
                   <Button variant="contained" startIcon={<AddIcon />} onClick={handleOpenCreateSerie}>
                     Alta
                   </Button>
-                </Toolbar>
+                </Stack>
                 {renderSeriesTable()}
               </TabPanel>
 
               <TabPanel value={tab} index={TAB_ASIGNACIONES}>
-                <Toolbar disableGutters sx={{ justifyContent: 'space-between', pb: 2 }}>
-                  <Typography variant="subtitle1" fontWeight={700} color="#1d2f68">
+                <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ pb: 1.5 }}>
+                  <Typography variant="subtitle1" fontWeight={700} color="text.primary">
                     Asignaciones por usuario
                   </Typography>
                   <Button variant="contained" startIcon={<AddIcon />} onClick={handleOpenCreateAsignacion}>
                     Alta
                   </Button>
-                </Toolbar>
+                </Stack>
                 {renderAsignacionesTable()}
               </TabPanel>
             </>
           )}
         </Box>
-      </Paper>
+      </ConfigSurface>
 
       <Dialog open={serieDialogOpen} onClose={serieSaving ? undefined : handleCloseSerieDialog} fullWidth maxWidth="sm">
         <DialogTitle>{serieForm.id ? 'Editar serie' : 'Alta de serie'}</DialogTitle>
@@ -575,10 +569,10 @@ export default function SeriesDocumentosPage() {
             />
 
             <Stack spacing={0.5}>
-              <Typography variant="subtitle2" fontWeight={700} color="#1d2f68">
+              <Typography variant="subtitle2" fontWeight={700} color="text.primary">
                 Condiciones para impresión
               </Typography>
-              <Typography variant="caption" color="#4b5563">
+              <Typography variant="caption" color="text.secondary">
                 Texto que aparecerá al pie del PDF para esta serie documental.
               </Typography>
               <RichTextEditor
@@ -681,6 +675,6 @@ export default function SeriesDocumentosPage() {
           </Button>
         </DialogActions>
       </Dialog>
-    </Box>
+    </ConfigPageFrame>
   );
 }

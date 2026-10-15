@@ -136,7 +136,7 @@ function ConfiguracionCorreoSection({
   onTest,
 }: SectionProps) {
   return (
-    <Card variant="outlined" sx={{ borderRadius: 2, borderColor: '#dbe3f0' }}>
+    <Card variant="outlined" sx={(theme) => ({ borderRadius: 2.5, borderColor: theme.emphasys.content.border, bgcolor: theme.emphasys.content.elevated })}>
       <CardContent sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 2.5 }}>
         <Stack spacing={0.75}>
           <Stack
@@ -146,10 +146,10 @@ function ConfiguracionCorreoSection({
             spacing={1.5}
           >
             <Box>
-              <Typography variant="h6" fontWeight={700} color="#1d2f68">
+              <Typography variant="h6" fontWeight={700} color="text.primary">
                 {title}
               </Typography>
-              <Typography variant="body2" color="#4b5563">
+              <Typography variant="body2" color="text.secondary">
                 {description}
               </Typography>
             </Box>
@@ -299,7 +299,7 @@ function ConfiguracionCorreoSection({
                 startIcon={<SaveRoundedIcon />}
                 onClick={onSave}
                 disabled={actionsDisabled || saving || loading}
-                sx={{ textTransform: 'none', fontWeight: 700, backgroundColor: '#1d2f68' }}
+                sx={(theme) => ({ textTransform: 'none', fontWeight: 700, backgroundColor: theme.emphasys.action.primary, '&:hover': { backgroundColor: theme.emphasys.action.primaryHover } })}
               >
                 Guardar
               </Button>
@@ -581,10 +581,10 @@ export default function ConfiguracionCorreoPage() {
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3, p: 3 }}>
       <Stack spacing={0.75}>
-        <Typography variant="h5" fontWeight={700} color="#1d2f68">
+        <Typography variant="h5" fontWeight={700} color="text.primary">
           Configuración de correo SMTP
         </Typography>
-        <Typography variant="body2" color="#4b5563">
+        <Typography variant="body2" color="text.secondary">
           Configura el envío de correos por empresa y, si aplica, define una configuración personalizada para tu usuario.
         </Typography>
       </Stack>

@@ -65,4 +65,5 @@ export interface ProductosMobileViewProps extends ProductosViewCommonProps {
   onClearError: () => void;
   onEditProducto: (productoId: GridRowId) => void;
   onDeleteProducto: (producto: Producto) => void;
+  existenciasPorProducto?: Record<number, number> | null;
 }

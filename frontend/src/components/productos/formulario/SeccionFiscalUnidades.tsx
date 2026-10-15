@@ -26,6 +26,8 @@ type Props = {
   camposObligatorios: Set<string>;
   /** Solo lectura. Se muestra únicamente cuando el producto ya existe (viene de fetchProducto). */
   existenciaActual?: number | null | undefined;
+  existenciaLoading?: boolean;
+  existenciaError?: string | null;
   claveBienesTransportadosSat: string | null;
   esMaterialPeligroso: boolean;
   claveMaterialPeligrosoSat: string | null;
@@ -52,6 +54,8 @@ export default function SeccionFiscalUnidades({
   erroresActivos,
   camposObligatorios,
   existenciaActual,
+  existenciaLoading = false,
+  existenciaError = null,
   claveBienesTransportadosSat, esMaterialPeligroso, claveMaterialPeligrosoSat, claveEmbalajeSat, descripcionEmbalaje, onCartaPorteChange,
 }: Props) {
   const unidadVenta = unidades.find((u) => u.id === unidadVentaId) ?? null;
@@ -188,11 +192,15 @@ export default function SeccionFiscalUnidades({
           </Box>
         </Box>
 
-        {existenciaActual !== undefined && existenciaActual !== null && (
+        {existenciaLoading ? (
+          <Typography variant="caption" color="#6b7280" sx={{ display: 'block', mt: 1.25 }}>Cargando existencia actual…</Typography>
+        ) : existenciaError ? (
+          <Typography variant="caption" color="error" sx={{ display: 'block', mt: 1.25 }}>{existenciaError}</Typography>
+        ) : existenciaActual !== undefined && existenciaActual !== null ? (
           <Typography variant="caption" color="#6b7280" sx={{ display: 'block', mt: 1.25 }}>
-            Existencia actual: <strong>{existenciaActual}</strong> (solo lectura)
+            Existencia actual: <strong>{existenciaActual.toLocaleString('es-MX')}</strong> (solo lectura)
           </Typography>
-        )}
+        ) : null}
     </SeccionCard>
   );
 }

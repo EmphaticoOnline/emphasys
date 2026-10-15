@@ -326,10 +326,10 @@ export default function FormatosImpresionPage() {
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems={{ xs: 'flex-start', sm: 'center' }}>
         <Stack spacing={0.5} flex={1}>
-          <Typography variant="h5" fontWeight={700} color="#1d2f68">
+          <Typography variant="h5" fontWeight={700} color="text.primary">
             Formatos de impresión
           </Typography>
-          <Typography variant="body2" color="#4b5563">
+          <Typography variant="body2" color="text.secondary">
             Configura los layouts de PDF por empresa o por serie sin afectar la operación actual.
           </Typography>
         </Stack>
@@ -405,7 +405,7 @@ export default function FormatosImpresionPage() {
             <Stack sx={{ pt: 1 }}>
               {Object.entries(camposLayoutPorSeccion).map(([section, campos], index) => (
                 <Box key={section} sx={{ mt: index === 0 ? 0 : 4 }}>
-                  <Typography variant="subtitle1" fontWeight={700} color="#1d2f68" sx={{ mb: 1.5 }}>
+                  <Typography variant="subtitle1" fontWeight={700} color="text.primary" sx={{ mb: 1.5 }}>
                     {section}
                   </Typography>
                   <Grid container columnSpacing={2} rowSpacing={2.5}>

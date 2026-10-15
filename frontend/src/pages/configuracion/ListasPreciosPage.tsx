@@ -41,6 +41,7 @@ import { GridContextMenuTrigger } from '../../components/grids/GridContextMenuTr
 import type { GridContextMenuAction } from '../../components/grids/GridContextMenu';
 import { SHOW_GRID_ACTIONS } from '../../components/grids/gridUxFlags';
 import { STANDARD_DATA_GRID_HEADER_HEIGHT, standardDataGridSx } from '../../components/grids/standardDataGridSx';
+import { ConfigPageFrame, ConfigPageHeader, ConfigSurface } from '../../components/configuracion/configVisual';
 import { useGridContextMenu } from '../../hooks/useGridContextMenu';
 
 type FormState = {
@@ -357,27 +358,13 @@ export default function ListasPreciosPage() {
   const columns = React.useMemo<GridColDef<PrecioLista>[]>(() => [contextMenuTriggerColumn, ...baseColumns], [baseColumns, contextMenuTriggerColumn]);
 
   return (
+    <ConfigPageFrame>
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <Toolbar disableGutters sx={{ justifyContent: 'space-between', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
-        <Stack spacing={0.5}>
-          <Typography variant="h5" fontWeight={700} color="#1d2f68">
-            Listas de precios
-          </Typography>
-          <Typography variant="body2" color="#4b5563">
-            Administra catálogos de listas de precios por empresa y prepara el ordenamiento futuro.
-          </Typography>
-        </Stack>
-
-        <Stack direction="row" spacing={1}>
-          <IconButton color="primary" onClick={() => void load()} disabled={loading || saving}>
-            <RefreshIcon />
-          </IconButton>
-          <Button variant="contained" startIcon={<AddIcon />} onClick={openCreateDialog}>
-            Nueva lista
-          </Button>
-        </Stack>
-      </Toolbar>
-
+      <ConfigPageHeader
+        title="Listas de precios"
+        description="Administra catálogos de listas de precios de venta y compra por empresa."
+        actions={<Stack direction="row" spacing={1}><IconButton color="primary" onClick={() => void load()} disabled={loading || saving}><RefreshIcon /></IconButton><Button variant="contained" startIcon={<AddIcon />} onClick={openCreateDialog} sx={(theme) => ({ bgcolor: theme.emphasys.action.primary, '&:hover': { bgcolor: theme.emphasys.action.primaryHover } })}>Nueva lista</Button></Stack>}
+      />
       {error ? <Alert severity="error">{error}</Alert> : null}
 
       <TextField
@@ -394,7 +381,7 @@ export default function ListasPreciosPage() {
         }}
       />
 
-      <Paper variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden', width: '100%' }}>
+      <ConfigSurface sx={{ width: '100%' }}>
         <DataGrid
           rows={filteredRows}
           columns={columns}
@@ -439,7 +426,7 @@ export default function ListasPreciosPage() {
           open={Boolean(contextMenuRow && contextMenuPosition)}
           onClose={closeContextMenu}
         />
-      </Paper>
+      </ConfigSurface>
 
       <Dialog open={dialogOpen} onClose={closeDialog} maxWidth="xs" fullWidth>
         <DialogTitle>{editing ? 'Editar lista de precios' : 'Nueva lista de precios'}</DialogTitle>
@@ -511,5 +498,6 @@ export default function ListasPreciosPage() {
         </Alert>
       </Snackbar>
     </Box>
+    </ConfigPageFrame>
   );
 }

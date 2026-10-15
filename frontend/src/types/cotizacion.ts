@@ -119,6 +119,7 @@ export interface CotizacionDocumento {
   cfdi_cancelacion_proveedor_status?: string | null;
   cfdi_cancelacion_fecha_solicitud?: string | null;
   cfdi_cancelacion_fecha_ultima_consulta?: string | null;
+  cfdi_tiene_acuse_cancelacion?: boolean;
 }
 
 export interface CotizacionPartida {

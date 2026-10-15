@@ -260,7 +260,7 @@ export default function Layout({ children }: LayoutProps) {
   const tabPathMap: Record<string, string> = {
     Contactos: '/contactos',
     Productos: '/productos',
-    Finanzas: '/finanzas',
+    Tesorería: '/finanzas',
     Movimientos: '/inventario/movimientos',
     "Pregúntale a tu negocio": '/informes/ia',
   };
@@ -271,7 +271,7 @@ export default function Layout({ children }: LayoutProps) {
     if (pathname.startsWith('/compras/')) return pathname.split('/')[2] || '';
     if (pathname.startsWith('/informes/')) return "Pregúntale a tu negocio";
     if (pathname.startsWith('/crm') || pathname.startsWith('/leads') || pathname.startsWith('/oportunidades')) return '';
-    if (pathname.startsWith('/finanzas')) return 'Finanzas';
+    if (pathname.startsWith('/finanzas')) return 'Tesorería';
     if (pathname.startsWith('/inventario/')) return 'Movimientos';
     if (pathname.startsWith('/productos')) return 'Productos';
     if (pathname.startsWith('/contactos')) return 'Contactos';
@@ -282,7 +282,7 @@ export default function Layout({ children }: LayoutProps) {
     if (pathname.startsWith('/configuracion')) return 'Configuración';
     if (pathname.startsWith('/ventas/')) return 'Ventas';
     if (pathname.startsWith('/compras/')) return 'Compras';
-  if (pathname.startsWith('/finanzas')) return 'Finanzas';
+  if (pathname.startsWith('/finanzas')) return 'Tesorería';
   if (pathname.startsWith('/inventario/')) return 'Inventarios';
   if (pathname.startsWith('/informes/')) return 'Informes';
   if (pathname.startsWith('/autorizaciones')) return 'Autorizaciones';
@@ -332,7 +332,7 @@ export default function Layout({ children }: LayoutProps) {
         navigate(`/ventas/${nextTab}`);
       } else if (section === 'Compras') {
         navigate(`/compras/${nextTab}`);
-      } else if (section === 'Finanzas') {
+      } else if (section === 'Tesorería') {
         navigate(path || '/finanzas');
       } else if (path) {
         navigate(path);
@@ -360,7 +360,7 @@ export default function Layout({ children }: LayoutProps) {
       navigate(`/compras/${value}`);
       return;
     }
-    if (selectedSection === 'Finanzas') {
+    if (selectedSection === 'Tesorería') {
       navigate('/finanzas');
       return;
     }

@@ -35,14 +35,14 @@ const CATEGORIAS: Categoria[] = [
     icon: PointOfSaleIcon,
     reportes: [
       {
+        label: 'Ventas por Período',
+        descripcion: 'Evolución temporal de ventas. Identifica tendencias, estacionalidad y períodos clave.',
+        path: '/informes/ventas/ventas-por-periodo',
+      },
+      {
         label: 'Ventas por Cliente',
         descripcion: 'Volumen y participación de ventas por cliente en un período.',
         path: '/informes/ventas/ventas-por-cliente',
-      },
-      {
-        label: 'Ventas por Vendedor',
-        descripcion: 'Volumen y participación de ventas por vendedor en un período.',
-        path: '/informes/ventas/ventas-por-vendedor',
       },
       {
         label: 'Ventas por Producto',
@@ -50,19 +50,9 @@ const CATEGORIAS: Categoria[] = [
         path: '/informes/ventas/ventas-por-producto',
       },
       {
-        label: 'Estado de Cuenta de Cliente',
-        descripcion: 'Saldo y movimientos por cliente en un período.',
-        path: '/informes/ventas/estado-cuenta-cliente',
-      },
-      {
-        label: 'Historial de Precios de Venta',
-        descripcion: 'Evolución de precios unitarios por producto y cliente en un período.',
-        path: '/informes/ventas/historial-precios',
-      },
-      {
-        label: 'Ventas por Período',
-        descripcion: 'Evolución temporal de ventas. Identifica tendencias, estacionalidad y períodos clave.',
-        path: '/informes/ventas/ventas-por-periodo',
+        label: 'Ventas por Vendedor',
+        descripcion: 'Volumen y participación de ventas por vendedor en un período.',
+        path: '/informes/ventas/ventas-por-vendedor',
       },
       {
         label: 'Ventas por Origen de Contacto',
@@ -73,6 +63,16 @@ const CATEGORIAS: Categoria[] = [
         label: 'Conversión de Cotizaciones a Ventas',
         descripcion: 'Mide cuántas cotizaciones se convierten en factura por vendedor y período.',
         path: '/informes/ventas/conversion-cotizaciones',
+      },
+      {
+        label: 'Estado de Cuenta de Cliente',
+        descripcion: 'Saldo y movimientos por cliente en un período.',
+        path: '/informes/ventas/estado-cuenta-cliente',
+      },
+      {
+        label: 'Historial de Precios de Venta',
+        descripcion: 'Evolución de precios unitarios por producto y cliente en un período.',
+        path: '/informes/ventas/historial-precios',
       },
       {
         label: 'Pedidos Pendientes de Facturar',
@@ -90,6 +90,11 @@ const CATEGORIAS: Categoria[] = [
     label: 'Compras',
     icon: ShoppingCartIcon,
     reportes: [
+      {
+        label: 'Compras por Período',
+        descripcion: 'Evolución temporal de compras. Identifica tendencias, estacionalidad y períodos clave.',
+        path: '/informes/compras/compras-por-periodo',
+      },
       {
         label: 'Compras por Proveedor',
         descripcion: 'Volumen y participación de compras por proveedor en un período.',
@@ -114,11 +119,6 @@ const CATEGORIAS: Categoria[] = [
         label: 'Historial de Precios de Compra',
         descripcion: 'Evolución de costos unitarios por producto y proveedor en un período.',
         path: '/informes/compras/historial-precios',
-      },
-      {
-        label: 'Compras por Período',
-        descripcion: 'Evolución temporal de compras. Identifica tendencias, estacionalidad y períodos clave.',
-        path: '/informes/compras/compras-por-periodo',
       },
     ],
   },
@@ -154,9 +154,14 @@ const CATEGORIAS: Categoria[] = [
     ],
   },
   {
-    label: 'Finanzas',
+    label: 'Tesorería',
     icon: AccountBalanceIcon,
     reportes: [
+      {
+        label: 'Movimientos por Concepto',
+        descripcion: 'Analiza entradas, salidas y neto de Tesorería agrupados por concepto y moneda.',
+        path: '/informes/finanzas/movimientos-por-concepto',
+      },
       {
         label: 'Vencimientos de Proveedores',
         descripcion: 'Facturas de compra pendientes de pago ordenadas por fecha de vencimiento.',

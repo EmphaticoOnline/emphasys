@@ -38,6 +38,7 @@ import {
   standardDataGridSx,
 } from '../../components/grids/standardDataGridSx';
 import { useGridContextMenu } from '../../hooks/useGridContextMenu';
+import { ConfigPageFrame, ConfigPageHeader, ConfigSurface } from '../../components/configuracion/configVisual';
 
 const FORMAS_PAGO_SAT = [
   { value: '01', label: '01 – Efectivo' },
@@ -271,7 +272,7 @@ export default function MetodosPagoPage() {
       headerClassName: 'finanzas-header',
       renderCell: (params) => (
         <Tooltip title="Editar">
-          <IconButton size="small" onClick={() => handleOpenDialog(params.row)} sx={{ color: '#1d2f68' }}>
+          <IconButton size="small" onClick={() => handleOpenDialog(params.row)} color="primary">
             <EditIcon fontSize="small" />
           </IconButton>
         </Tooltip>
@@ -285,25 +286,21 @@ export default function MetodosPagoPage() {
   );
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <Stack direction="row" alignItems="center" justifyContent="space-between">
-        <Box>
-          <Typography variant="h5" fontWeight={700} color="#1d2f68">
-            Métodos de pago
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Administra los métodos de pago disponibles para operaciones y programaciones.
-          </Typography>
-        </Box>
+    <ConfigPageFrame>
+      <ConfigPageHeader
+        title="Métodos de pago"
+        description="Administra los métodos de pago disponibles para operaciones y programaciones."
+        actions={
         <Button
           variant="contained"
           startIcon={<AddIcon />}
           onClick={() => handleOpenDialog(null)}
-          sx={{ textTransform: 'none', borderRadius: 999, bgcolor: '#1d2f68', '&:hover': { bgcolor: '#162551' } }}
+          sx={(theme) => ({ textTransform: 'none', borderRadius: 999, bgcolor: theme.emphasys.action.primary, '&:hover': { bgcolor: theme.emphasys.action.primaryHover } })}
         >
           Nuevo método
         </Button>
-      </Stack>
+        }
+      />
 
       {error && (
         <Alert severity="error" onClose={() => setError(null)}>
@@ -311,7 +308,7 @@ export default function MetodosPagoPage() {
         </Alert>
       )}
 
-      <Paper variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden' }}>
+      <ConfigSurface>
         <DataGrid
           rows={metodos}
           columns={columns}
@@ -346,7 +343,7 @@ export default function MetodosPagoPage() {
           hideFooterPagination
           hideFooterSelectedRowCount
         />
-      </Paper>
+      </ConfigSurface>
 
       <GridContextMenu
         actions={contextMenuActions}
@@ -440,7 +437,7 @@ export default function MetodosPagoPage() {
             onClick={handleSave}
             disabled={saving}
             variant="contained"
-            sx={{ textTransform: 'none', borderRadius: 999, bgcolor: '#1d2f68', '&:hover': { bgcolor: '#162551' } }}
+            sx={(theme) => ({ textTransform: 'none', borderRadius: 999, bgcolor: theme.emphasys.action.primary, '&:hover': { bgcolor: theme.emphasys.action.primaryHover } })}
           >
             {saving ? 'Guardando...' : 'Guardar'}
           </Button>
@@ -461,6 +458,6 @@ export default function MetodosPagoPage() {
           {snackbar.message}
         </Alert>
       </Snackbar>
-    </Box>
+    </ConfigPageFrame>
   );
 }

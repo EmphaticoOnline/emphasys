@@ -27,6 +27,7 @@ import SaveIcon from "@mui/icons-material/Save";
 import { fetchParametrosSistema } from "../../services/parametrosService";
 import { actualizarOpcion, crearOpcion, eliminarOpcion, fetchOpciones } from "../../services/parametrosOpcionesService";
 import type { ParametroOpcion, ParametrosModulo, ParametroSistema } from "../../types/parametros";
+import { ConfigPageFrame, ConfigPageHeader, ConfigSurface } from "../../components/configuracion/configVisual";
 
 type FormState = {
   opcion_id: number | null;
@@ -151,18 +152,12 @@ export default function OpcionesParametrosPage() {
   };
 
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", gap: 2, p: 3 }}>
-      <Toolbar disableGutters sx={{ justifyContent: "space-between", flexWrap: "wrap", gap: 2 }}>
-        <Box>
-          <Typography variant="h5" fontWeight={700} color="#1d2f68">
-            Opciones de parámetros
-          </Typography>
-          <Typography variant="body2" color="#4b5563">
-            Administra las opciones de los parámetros tipo dropdown.
-          </Typography>
-        </Box>
-      </Toolbar>
-
+    <ConfigPageFrame><Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+      <ConfigPageHeader
+        title="Opciones de parámetros"
+        description="Gestiona las opciones disponibles para parámetros tipo dropdown."
+      />
+      <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
       {error && (
         <Alert severity="error" onClose={() => setError(null)}>
           {error}
@@ -174,7 +169,7 @@ export default function OpcionesParametrosPage() {
       ) : dropdownParams.length === 0 ? (
         <Alert severity="info">No hay parámetros tipo dropdown configurados.</Alert>
       ) : (
-        <TableContainer sx={{ border: "1px solid #e5e7eb", borderRadius: 1, backgroundColor: "#fff" }}>
+        <ConfigSurface>
           <Table size="small">
             <TableHead>
               <TableRow>
@@ -202,7 +197,7 @@ export default function OpcionesParametrosPage() {
               ))}
             </TableBody>
           </Table>
-        </TableContainer>
+        </ConfigSurface>
       )}
 
       <Dialog open={dialogOpen} onClose={closeDialog} maxWidth="md" fullWidth>
@@ -256,8 +251,8 @@ export default function OpcionesParametrosPage() {
                 width: 40,
                 height: 40,
                 borderRadius: "50%",
-                backgroundColor: "#1d2f68",
-                color: "#fff",
+                backgroundColor: (theme) => theme.emphasys.grid.header,
+                color: (theme) => theme.emphasys.grid.headerForeground,
                 '&:hover': { backgroundColor: "#1a2b5c" },
               }}
               title={form.opcion_id ? "Guardar cambios" : "Agregar nueva opción"}
@@ -266,7 +261,7 @@ export default function OpcionesParametrosPage() {
             </IconButton>
           </Stack>
 
-          <TableContainer sx={{ border: "1px solid #e5e7eb", borderRadius: 1, backgroundColor: "#fff" }}>
+          <ConfigSurface>
             <Table size="small" sx={{ "& td, & th": { fontSize: 12 } }}>
               <TableHead>
                 <TableRow>
@@ -306,12 +301,13 @@ export default function OpcionesParametrosPage() {
                 )}
               </TableBody>
             </Table>
-          </TableContainer>
+          </ConfigSurface>
         </DialogContent>
         <DialogActions>
           <Button onClick={closeDialog}>Cerrar</Button>
         </DialogActions>
       </Dialog>
-    </Box>
+      </Box>
+    </Box></ConfigPageFrame>
   );
 }

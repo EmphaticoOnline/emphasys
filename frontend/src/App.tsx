@@ -67,6 +67,7 @@ import PagosProveedoresPage        from './pages/informes/finanzas/PagosProveedo
 import PosicionTesoreriaPage       from './pages/informes/finanzas/PosicionTesoreriaPage';
 import CarteraVencidaPage               from './pages/informes/finanzas/CarteraVencidaPage';
 import MovimientosNoConciliadosPage    from './pages/informes/finanzas/MovimientosNoConciliadosPage';
+import MovimientosPorConceptoPage      from './pages/informes/finanzas/MovimientosPorConceptoPage';
 import ProgramacionPagosPage           from './pages/finanzas/ProgramacionPagosPage';
 import ConciliacionBancariaPage        from './pages/finanzas/ConciliacionBancariaPage';
 import HistorialPreciosCompraPage from './pages/informes/compras/HistorialPreciosCompraPage';
@@ -86,6 +87,7 @@ import AutorizacionesBandejaPage from './pages/AutorizacionesBandejaPage';
 import AutorizacionesReglasPage from './pages/configuracion/AutorizacionesReglasPage';
 import MetodosPagoPage from './pages/configuracion/MetodosPagoPage';
 import HorariosLaboralesPage from './pages/configuracion/HorariosLaboralesPage';
+import ConfiguracionVisualCompat from './components/configuracion/ConfiguracionVisualCompat';
 import ExistenciasPorAlmacenPage from './pages/informes/inventario/ExistenciasPorAlmacenPage';
 import KardexProductoPage from './pages/informes/inventario/KardexProductoPage';
 import MovimientosInventarioPage from './pages/informes/inventario/MovimientosInventarioPage';
@@ -158,10 +160,10 @@ export default function App() {
               <Route path="/productos" element={<ProductosPage />} />
               <Route path="/productos/nuevo" element={<ProductoFormPage />} />
               <Route path="/productos/:id" element={<ProductoFormPage />} />
-              <Route path="/vehiculos" element={<VehiculosPage />} />
-              <Route path="/remolques" element={<RemolquesPage />} />
-              <Route path="/operadores" element={<OperadoresPage />} />
-              <Route path="/domicilios-propios" element={<DomiciliosPropiosPage />} />
+              <Route path="/vehiculos" element={<ConfiguracionVisualCompat><VehiculosPage /></ConfiguracionVisualCompat>} />
+              <Route path="/remolques" element={<ConfiguracionVisualCompat><RemolquesPage /></ConfiguracionVisualCompat>} />
+              <Route path="/operadores" element={<ConfiguracionVisualCompat><OperadoresPage /></ConfiguracionVisualCompat>} />
+              <Route path="/domicilios-propios" element={<ConfiguracionVisualCompat><DomiciliosPropiosPage /></ConfiguracionVisualCompat>} />
 
               {/* Ventas */}
               <Route path="/ventas/produccion" element={<ProduccionPage />} />
@@ -188,7 +190,7 @@ export default function App() {
               <Route path="/leads" element={<Navigate to="/crm/conversaciones" replace />} />
               <Route path="/oportunidades" element={<Navigate to="/crm/oportunidades" replace />} />
 
-              {/* Finanzas / Inventario / Informes */}
+              {/* Tesorería / Inventario / Informes */}
               <Route path="/finanzas" element={<FinanzasPage />} />
               <Route path="/contabilidad" element={<ContabilidadPage />} />
               <Route path="/contabilidad/cuentas" element={<ContabilidadPage />} />
@@ -232,6 +234,7 @@ export default function App() {
               <Route path="/informes/finanzas/posicion-tesoreria"              element={<PosicionTesoreriaPage />} />
               <Route path="/informes/finanzas/cartera-vencida"                 element={<CarteraVencidaPage />} />
               <Route path="/informes/finanzas/movimientos-no-conciliados"     element={<MovimientosNoConciliadosPage />} />
+              <Route path="/informes/finanzas/movimientos-por-concepto"       element={<MovimientosPorConceptoPage />} />
               <Route path="/informes/inventario/existencias-por-almacen"    element={<ExistenciasPorAlmacenPage />} />
               <Route path="/informes/inventario/kardex"                     element={<KardexProductoPage />} />
               <Route path="/informes/inventario/movimientos"                element={<MovimientosInventarioPage />} />
@@ -250,26 +253,26 @@ export default function App() {
               <Route path="/configuracion/roles" element={<RolesPage />} />
               <Route path="/configuracion/parametros" element={<ParametrosPage />} />
               <Route path="/configuracion/parametros-opciones" element={<OpcionesParametrosPage />} />
-              <Route path="/configuracion/documentos" element={<DocumentosConfiguracionPage />} />
+              <Route path="/configuracion/documentos" element={<ConfiguracionVisualCompat><DocumentosConfiguracionPage /></ConfiguracionVisualCompat>} />
               <Route path="/configuracion/conceptos" element={<ConceptosConfigPage />} />
               <Route path="/configuracion/empresa/impuestos-default" element={<EmpresaImpuestosDefaultPage />} />
-              <Route path="/configuracion/formatos-impresion" element={<FormatosImpresionPage />} />
+              <Route path="/configuracion/formatos-impresion" element={<ConfiguracionVisualCompat><FormatosImpresionPage /></ConfiguracionVisualCompat>} />
               <Route path="/configuracion/series-documento" element={<SeriesDocumentosPage />} />
-              <Route path="/configuracion/correo" element={<ConfiguracionCorreoPage />} />
+              <Route path="/configuracion/correo" element={<ConfiguracionVisualCompat><ConfiguracionCorreoPage /></ConfiguracionVisualCompat>} />
               <Route path="/configuracion/cfdi-pac" element={<CfdiPacConfigPage />} />
-              <Route path="/configuracion/cfdi-sat" element={<CfdiSatPage />} />
+              <Route path="/configuracion/cfdi-sat" element={<ConfiguracionVisualCompat><CfdiSatPage /></ConfiguracionVisualCompat>} />
               <Route path="/configuracion/whatsapp-etiquetas" element={<WhatsappEtiquetasPage />} />
-              <Route path="/configuracion/whatsapp-plantillas" element={<WhatsappPlantillasPage />} />
+              <Route path="/configuracion/whatsapp-plantillas" element={<ConfiguracionVisualCompat><WhatsappPlantillasPage /></ConfiguracionVisualCompat>} />
               <Route path="/configuracion/produccion-etapas" element={<ConfiguracionEtapasProduccionPage />} />
               <Route path="/configuracion/listas-precios" element={<ListasPreciosPage />} />
-              <Route path="/configuracion/precios" element={<PreciosPage />} />
+              <Route path="/configuracion/precios" element={<ConfiguracionVisualCompat><PreciosPage /></ConfiguracionVisualCompat>} />
               <Route path="/configuracion/campos-obligatorios" element={<CamposObligatoriosPage />} />
               <Route path="/configuracion/catalogos" element={<CatalogosConfigurablesPage />} />
               <Route path="/configuracion/catalogos/:tipo_catalogo_id" element={<CatalogoTipoDetallePage />} />
               <Route path="/configuracion/campos" element={<CamposConfiguracionPage />} />
               <Route path="/configuracion/autorizaciones-reglas" element={<AutorizacionesReglasPage />} />
               <Route path="/configuracion/metodos-pago" element={<MetodosPagoPage />} />
-              <Route path="/configuracion/horarios-laborales" element={<HorariosLaboralesPage />} />
+              <Route path="/configuracion/horarios-laborales" element={<ConfiguracionVisualCompat><HorariosLaboralesPage /></ConfiguracionVisualCompat>} />
 
               {/* Autorizaciones */}
               <Route path="/autorizaciones" element={<AutorizacionesBandejaPage />} />

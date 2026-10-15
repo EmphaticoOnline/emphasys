@@ -402,10 +402,10 @@ export default function WhatsappPlantillasPage() {
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
       <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1.5}>
         <Box>
-          <Typography variant="h5" fontWeight={700} color="#1d2f68">
+          <Typography variant="h5" fontWeight={700} color="text.primary">
             Plantillas de WhatsApp
           </Typography>
-          <Typography variant="body2" color="#4b5563">
+          <Typography variant="body2" color="text.secondary">
             Administra los registros de plantillas por empresa y tipo.
           </Typography>
         </Box>
@@ -468,10 +468,10 @@ export default function WhatsappPlantillasPage() {
       <Box
         sx={{
           width: '100%',
-          background: '#fff',
-          border: '1px solid #e5e7eb',
-          borderRadius: 1.5,
-          boxShadow: '0px 6px 16px rgba(0,0,0,0.04)',
+          background: (theme) => theme.emphasys.content.elevated,
+          border: (theme) => `1px solid ${theme.emphasys.content.border}`,
+          borderRadius: 2.5,
+          boxShadow: 'none',
           '& .MuiDataGrid-root': { border: 'none' },
         }}
       >

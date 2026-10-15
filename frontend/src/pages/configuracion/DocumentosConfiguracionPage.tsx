@@ -300,7 +300,7 @@ export default function DocumentosConfiguracionPage() {
   };
 
   const renderTablaDocumentos = () => (
-    <TableContainer sx={{ border: '1px solid #e5e7eb', borderRadius: 1, backgroundColor: '#fff' }}>
+    <TableContainer sx={(theme) => ({ border: `1px solid ${theme.emphasys.content.border}`, borderRadius: 2.5, backgroundColor: theme.emphasys.content.elevated })}>
       <Table size="small">
         <TableHead>
           <TableRow>
@@ -337,7 +337,7 @@ export default function DocumentosConfiguracionPage() {
                 </Stack>
               </TableCell>
               <TableCell>
-                <Typography variant="subtitle2" fontWeight={600} color="#1d2f68">
+                <Typography variant="subtitle2" fontWeight={600} color="text.primary">
                   {doc.nombre}
                 </Typography>
                 <Typography variant="body2" color="#6b7280">
@@ -485,14 +485,14 @@ export default function DocumentosConfiguracionPage() {
     }
 
     return (
-      <TableContainer sx={{ border: '1px solid #e5e7eb', borderRadius: 1, backgroundColor: '#fff' }}>
+      <TableContainer sx={(theme) => ({ border: `1px solid ${theme.emphasys.content.border}`, borderRadius: 2.5, backgroundColor: theme.emphasys.content.elevated })}>
         <Table size="small">
           <TableHead>
             <TableRow>
               <TableCell>Origen / Destino</TableCell>
               {documentosFlujoOrdenados.map((doc) => (
                 <TableCell key={doc.id} align="center">
-                  <Typography variant="subtitle2" color="#1d2f68" fontWeight={700}>
+                  <Typography variant="subtitle2" color="text.primary" fontWeight={700}>
                     {doc.nombre}
                   </Typography>
                 </TableCell>
@@ -503,7 +503,7 @@ export default function DocumentosConfiguracionPage() {
             {documentosFlujoOrdenados.map((origen) => (
               <TableRow key={origen.id} hover>
                 <TableCell>
-                  <Typography variant="subtitle2" fontWeight={700} color="#1d2f68">
+                  <Typography variant="subtitle2" fontWeight={700} color="text.primary">
                     {origen.nombre}
                   </Typography>
                 </TableCell>
@@ -539,10 +539,10 @@ export default function DocumentosConfiguracionPage() {
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
       <Stack direction="row" alignItems="flex-start" justifyContent="space-between" spacing={2} flexWrap="wrap">
         <Box>
-          <Typography variant="h5" fontWeight={700} color="#1d2f68">
+          <Typography variant="h5" fontWeight={700} color="text.primary">
             Configuración de documentos
           </Typography>
-          <Typography variant="body2" color="#4b5563">
+          <Typography variant="body2" color="text.secondary">
             Habilita los tipos de documento por empresa y define las transiciones permitidas.
           </Typography>
         </Box>
@@ -569,7 +569,7 @@ export default function DocumentosConfiguracionPage() {
         onChange={(_, value) => setTab(value)}
         textColor="primary"
         indicatorColor="primary"
-        sx={{ borderBottom: '1px solid #e5e7eb' }}
+        sx={(theme) => ({ borderBottom: `1px solid ${theme.emphasys.content.border}` })}
       >
         <Tab label="Documentos habilitados" value={TAB_DOCUMENTOS} />
         <Tab label="Flujo de documentos" value={TAB_FLUJO} />

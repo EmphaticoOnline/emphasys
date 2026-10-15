@@ -43,6 +43,7 @@ import type { GridContextMenuAction } from '../components/grids/GridContextMenu'
 import { SHOW_GRID_ACTIONS } from '../components/grids/gridUxFlags';
 import { STANDARD_DATA_GRID_HEADER_HEIGHT, STANDARD_DATA_GRID_ROW_HEIGHT, standardDataGridSx } from '../components/grids/standardDataGridSx';
 import { useGridContextMenu } from '../hooks/useGridContextMenu';
+import { ConfigPageFrame, ConfigPageHeader, ConfigSurface } from '../components/configuracion/configVisual';
 
 type FormState = {
   nombre: string;
@@ -468,33 +469,13 @@ export default function CamposConfiguracionPage() {
   };
 
   return (
+    <ConfigPageFrame>
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1.5}>
-        <Box>
-          <Typography variant="h5" fontWeight={700} color="#1d2f68">
-            Campos configurables
-          </Typography>
-          <Typography variant="body2" color="#4b5563">
-            Administra los campos dinámicos y sus dependencias.
-          </Typography>
-        </Box>
-        <Button variant="contained" startIcon={<AddIcon />} onClick={handleCreate}>
-          Nuevo campo
-        </Button>
-      </Stack>
+      <ConfigPageHeader title="Campos configurables" description="Administra los campos dinámicos y sus dependencias." actions={<Button variant="contained" startIcon={<AddIcon />} onClick={handleCreate}>Nuevo campo</Button>} />
 
       {error && !dialogOpen ? <Alert severity="error">{error}</Alert> : null}
 
-      <Box
-        sx={{
-          width: '100%',
-          background: '#fff',
-          border: '1px solid #e5e7eb',
-          borderRadius: 1.5,
-          boxShadow: '0px 6px 16px rgba(0,0,0,0.04)',
-          '& .MuiDataGrid-root': { border: 'none' },
-        }}
-      >
+      <ConfigSurface sx={{ width: '100%', '& .MuiDataGrid-root': { border: 'none' } }}>
         <DataGrid
           rows={rows}
           columns={columns}
@@ -511,7 +492,7 @@ export default function CamposConfiguracionPage() {
           pageSizeOptions={[10, 25, 50, 100]}
           localeText={{ noRowsLabel: loading ? 'Cargando…' : 'Sin registros' }}
         />
-      </Box>
+      </ConfigSurface>
 
       <GridContextMenu
         actions={contextMenuActions}
@@ -615,15 +596,7 @@ export default function CamposConfiguracionPage() {
             helperText="Opcional. Úselo sólo si necesita una marca técnica interna del sistema."
           />
           {form.tipo_dato === 'lista' ? (
-            <Paper
-              variant="outlined"
-              sx={{
-                p: 1.5,
-                borderRadius: 1.5,
-                borderColor: '#e5e7eb',
-                backgroundColor: '#fff',
-              }}
-            >
+            <ConfigSurface sx={{ p: 1.5 }}>
               <Stack spacing={1}>
                 <Autocomplete
                   options={catalogoTipoOptions}
@@ -645,7 +618,7 @@ export default function CamposConfiguracionPage() {
                   noOptionsText={form.entidad_tipo_id ? 'Sin catálogos para la entidad' : 'Seleccione entidad'}
                 />
               </Stack>
-            </Paper>
+            </ConfigSurface>
           ) : null}
           <Autocomplete
             options={parentOptions}
@@ -723,5 +696,6 @@ export default function CamposConfiguracionPage() {
         </Alert>
       </Snackbar>
     </Box>
+    </ConfigPageFrame>
   );
 }

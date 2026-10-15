@@ -27,7 +27,7 @@ const sidebarOptions: Record<string, string[]> = {
     'Recepciones',
     'Reportes de compras',
   ],
-  Finanzas: [
+  Tesorería: [
     'Cuentas bancarias',
     'Movimientos bancarios',
     'Conciliaciones',

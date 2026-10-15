@@ -27,6 +27,7 @@ export default function ProductosMobileView({
   onSearchTermChange,
   onClearSearch,
   onCreateProducto,
+  existenciasPorProducto = null,
 }: ProductosMobileViewProps) {
   const [menuAnchorEl, setMenuAnchorEl] = React.useState<null | HTMLElement>(null);
   const [menuProductoId, setMenuProductoId] = React.useState<number | null>(null);
@@ -111,7 +112,7 @@ export default function ProductosMobileView({
               const detailItems = [
                 { label: 'Clasificación', value: producto.clasificacion },
                 { label: 'Tipo', value: producto.tipo_producto },
-                { label: 'Existencia', value: producto.existencia_actual != null ? Number(producto.existencia_actual).toLocaleString('es-MX') : null },
+                { label: 'Existencia', value: existenciasPorProducto?.[producto.id] != null ? Number(existenciasPorProducto[producto.id]).toLocaleString('es-MX') : null },
               ].filter((item) => hasValue(item.value));
 
               return (

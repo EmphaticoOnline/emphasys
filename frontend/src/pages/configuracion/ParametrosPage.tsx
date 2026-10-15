@@ -25,6 +25,7 @@ import ClearIcon from "@mui/icons-material/Clear";
 import type { ParametroSistema, ParametrosModulo } from "../../types/parametros";
 import { fetchParametrosSistema, guardarParametroSistema } from "../../services/parametrosService";
 import { useSession } from "../../session/useSession";
+import { ConfigPageFrame, ConfigPageHeader, ConfigSection, ConfigSurface } from "../../components/configuracion/configVisual";
 
 function toBoolean(value: any): boolean {
   if (typeof value === "boolean") return value;
@@ -206,18 +207,8 @@ export default function ParametrosPage() {
   };
 
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", gap: 2, p: 3 }}>
-      <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={2}>
-        <Box>
-          <Typography variant="h5" fontWeight={700} color="#1d2f68">
-            Parámetros del sistema
-          </Typography>
-          <Typography variant="body2" color="#4b5563">
-            Ajusta los valores configurables del ERP para la empresa activa.
-          </Typography>
-        </Box>
-
-        <Stack direction="row" spacing={1}>
+    <ConfigPageFrame><Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+      <ConfigPageHeader title="Parámetros del sistema" description="Ajusta los valores configurables del ERP para la empresa activa." actions={<Stack direction="row" spacing={1}>
           <Button
             variant="outlined"
             startIcon={<ReplayIcon />}
@@ -232,12 +223,11 @@ export default function ParametrosPage() {
             startIcon={<SaveIcon />}
             onClick={handleSave}
             disabled={!hasChanges || loading || saving}
-            sx={{ textTransform: "none", fontWeight: 700, backgroundColor: "#1d2f68" }}
+            sx={(theme) => ({ textTransform: "none", fontWeight: 700, backgroundColor: theme.emphasys.action.primary, '&:hover': { backgroundColor: theme.emphasys.action.primaryHover } })}
           >
             Guardar cambios
           </Button>
-        </Stack>
-      </Stack>
+        </Stack>} />
 
       <TextField
         placeholder="Buscar por nombre o clave de parámetro"
@@ -283,14 +273,14 @@ export default function ParametrosPage() {
       ) : (
         <Stack spacing={1.5}>
           {visibleModulos.map((modulo) => (
-            <Card
+            <ConfigSurface
               key={modulo.modulo_id ?? modulo.modulo_nombre ?? "modulo"}
               variant="outlined"
-              sx={{ borderRadius: 1.5, borderColor: "#e5e7eb" }}
+              sx={{ borderRadius: 2.5 }}
             >
               <CardContent sx={{ p: 2, display: "flex", flexDirection: "column", gap: 1.5 }}>
                 <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                  <Typography variant="subtitle1" fontWeight={700} color="#1d2f68">
+                  <Typography variant="subtitle1" fontWeight={700} color="text.primary">
                     {modulo.modulo_nombre ?? "General"}
                   </Typography>
                 </Box>
@@ -309,11 +299,11 @@ export default function ParametrosPage() {
                         rowGap: 0.5,
                         paddingY: 0.35,
                         paddingX: 0.75,
-                        borderBottom: "1px solid #eef1f4",
+                        borderBottom: (theme) => `1px solid ${theme.emphasys.table.line}`,
                         '&:last-of-type': { borderBottom: "none" },
-                        backgroundColor: idx % 2 === 1 ? "#f8fafc" : "transparent",
+                        backgroundColor: (theme) => idx % 2 === 1 ? theme.emphasys.grid.stripe : 'transparent',
                         '&:hover': {
-                          backgroundColor: "#eef4ff",
+                          backgroundColor: (theme) => theme.emphasys.content.hover,
                           transition: "background-color 120ms ease-in-out",
                         },
                       }}
@@ -331,10 +321,10 @@ export default function ParametrosPage() {
                   ))}
                 </Stack>
               </CardContent>
-            </Card>
+            </ConfigSurface>
           ))}
         </Stack>
       )}
-    </Box>
+    </Box></ConfigPageFrame>
   );
 }

@@ -14,12 +14,13 @@ import { fetchRoles } from '../../services/rolesService';
 import { fetchUsuariosHabilitados } from '../../services/usuariosService';
 import type { Rol } from '../../types/rol';
 import { useSession } from '../../session/useSession';
+import { ConfigPageFrame, ConfigPageHeader, ConfigSurface } from '../../components/configuracion/configVisual';
 
 interface Usuario { id: number; nombre: string; }
 
 const MODO_LABELS: Record<ModoAutorizacion, string> = { ninguna: 'Ninguna', directa: 'Directa', flujo: 'Flujo' };
 const MODO_CHIP: Record<ModoAutorizacion, { bgcolor: string; color: string }> = {
-  ninguna: { bgcolor: '#e5e7eb', color: '#374151' },
+  ninguna: { bgcolor: 'action.hover', color: 'text.secondary' },
   directa: { bgcolor: '#dbeafe', color: '#1d4ed8' },
   flujo:   { bgcolor: '#ede9fe', color: '#6d28d9' },
 };
@@ -140,28 +141,14 @@ export default function AutorizacionesReglasPage() {
   if (loading) return <Box display="flex" justifyContent="center" pt={6}><CircularProgress /></Box>;
 
   return (
-    <Box>
-      <Stack direction="row" justifyContent="space-between" alignItems="center" mb={3}>
-        <Box>
-          <Typography variant="h5" fontWeight={700} color="#1d2f68">
-            Políticas de autorización
-          </Typography>
-          <Typography variant="body2" color="#4b5563" mt={0.5}>
-            Define qué transiciones documentales requieren autorización y en qué modo.
-          </Typography>
-        </Box>
-        <Button variant="contained" startIcon={<AddRounded />} onClick={() => abrirDialog()}
-          sx={{ bgcolor: '#1d2f68', '&:hover': { bgcolor: '#152255' } }}>
-          Nueva política
-        </Button>
-      </Stack>
-
+    <ConfigPageFrame>
+      <ConfigPageHeader title="Políticas de autorización" description="Define qué transiciones documentales requieren autorización y en qué modo." actions={<Button variant="contained" startIcon={<AddRounded />} onClick={() => abrirDialog()} sx={(theme) => ({ bgcolor: theme.emphasys.action.primary, '&:hover': { bgcolor: theme.emphasys.action.primaryHover } })}>Nueva política</Button>} />
       {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
-      <Paper variant="outlined">
+      <ConfigSurface>
         <Table size="small">
           <TableHead>
-            <TableRow sx={{ bgcolor: '#f8fafc' }}>
+            <TableRow sx={{ bgcolor: (theme) => theme.emphasys.table.headerBg }}>
               <TableCell>Transición</TableCell>
               <TableCell>Monto mín.</TableCell>
               <TableCell>Monto máx.</TableCell>
@@ -210,7 +197,7 @@ export default function AutorizacionesReglasPage() {
             ))}
           </TableBody>
         </Table>
-      </Paper>
+      </ConfigSurface>
 
       {/* Dialog crear/editar */}
       <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="sm" fullWidth>
@@ -299,11 +286,11 @@ export default function AutorizacionesReglasPage() {
         <DialogActions sx={{ px: 3, pb: 2 }}>
           <Button onClick={() => setDialogOpen(false)} disabled={saving}>Cancelar</Button>
           <Button variant="contained" onClick={guardar} disabled={saving}
-            sx={{ bgcolor: '#1d2f68', '&:hover': { bgcolor: '#152255' } }}>
+            sx={(theme) => ({ bgcolor: theme.emphasys.action.primary, '&:hover': { bgcolor: theme.emphasys.action.primaryHover } })}>
             {saving ? <CircularProgress size={18} color="inherit" /> : 'Guardar'}
           </Button>
         </DialogActions>
       </Dialog>
-    </Box>
+    </ConfigPageFrame>
   );
 }

@@ -49,6 +49,7 @@ import {
 } from '../../services/usuariosService';
 import { apiFetch } from '../../services/apiFetch';
 import { fetchContactos } from '../../services/contactosService';
+import { ConfigPageFrame, ConfigPageHeader, ConfigSurface } from '../../components/configuracion/configVisual';
 
 const emptyForm: UsuarioPayload & { password?: string } = {
   nombre: '',
@@ -336,40 +337,23 @@ export default function UsuariosPage() {
   const rolSeleccionado = (empresaId: number) => rolesSeleccionados[empresaId] ?? null;
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <Toolbar disableGutters sx={{ justifyContent: 'space-between', gap: 2, flexWrap: 'wrap' }}>
-        <Box>
-          <Typography variant="h5" fontWeight={700} color="#1d2f68">
-            Usuarios
-          </Typography>
-          <Typography variant="body2" color="#4b5563">
-            Administra los usuarios del sistema, sus empresas y roles asignados.
-          </Typography>
-        </Box>
-
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={handleOpenCreate}
-          sx={{ textTransform: 'none', fontWeight: 700, backgroundColor: '#1d2f68' }}
-        >
-          Nuevo usuario
-        </Button>
-      </Toolbar>
-
+    <ConfigPageFrame><Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+      <ConfigPageHeader title="Usuarios" description="Administra los usuarios del sistema, sus empresas y roles asignados." actions={
+        <Button variant="contained" startIcon={<AddIcon />} onClick={handleOpenCreate} sx={(theme) => ({ textTransform: 'none', fontWeight: 700, backgroundColor: theme.emphasys.action.primary, '&:hover': { backgroundColor: theme.emphasys.action.primaryHover } })}>Nuevo usuario</Button>
+      } />
       {error && (
         <Alert severity="error" onClose={() => setError(null)}>
           {error}
         </Alert>
       )}
 
-      <TableContainer sx={{ border: '1px solid #e5e7eb', borderRadius: 1, backgroundColor: '#fff' }}>
+      <ConfigSurface sx={{ overflowX: 'auto' }}>
         <Table size="small">
           <TableHead
             sx={{
               '& .MuiTableCell-root': {
-                backgroundColor: '#1d2f68',
-                color: '#ffffff',
+                backgroundColor: (theme) => theme.emphasys.table.headerBg,
+                color: (theme) => theme.emphasys.table.headerFg,
                 fontWeight: 600,
               },
             }}
@@ -424,7 +408,7 @@ export default function UsuariosPage() {
             )}
           </TableBody>
         </Table>
-      </TableContainer>
+      </ConfigSurface>
 
       {/* Crear / Editar */}
       <Dialog open={dialogOpen} onClose={handleCloseDialog} maxWidth="md" fullWidth>
@@ -529,8 +513,8 @@ export default function UsuariosPage() {
             })}
           </TextField>
 
-          <Box sx={{ border: '1px solid #e5e7eb', borderRadius: 2, p: 2, mt: 1 }}>
-            <Typography variant="h6" fontWeight={700} color="#1d2f68" gutterBottom>
+          <ConfigSurface sx={{ p: 2, mt: 1 }}>
+            <Typography variant="h6" fontWeight={700} color="text.primary" gutterBottom>
               Empresas y roles
             </Typography>
             {detalleLoading ? (
@@ -538,7 +522,7 @@ export default function UsuariosPage() {
             ) : empresas.length === 0 ? (
               <Typography variant="body2">No hay empresas configuradas.</Typography>
             ) : (
-              <Table size="small" sx={{ border: '1px solid #e5e7eb' }}>
+              <Table size="small" sx={(theme) => ({ border: `1px solid ${theme.emphasys.content.border}` })}>
                 <TableHead>
                   <TableRow>
                     <TableCell>Empresa</TableCell>
@@ -597,7 +581,7 @@ export default function UsuariosPage() {
                 </TableBody>
               </Table>
             )}
-          </Box>
+            </ConfigSurface>
         </DialogContent>
         <DialogActions>
           <Button onClick={handleCloseDialog}>Cancelar</Button>
@@ -606,7 +590,7 @@ export default function UsuariosPage() {
           </Button>
         </DialogActions>
       </Dialog>
-    </Box>
+    </Box></ConfigPageFrame>
   );
 }
 

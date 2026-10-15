@@ -584,6 +584,7 @@ export type MovimientosPorPeriodoParams = {
   contacto_id?:  number | null;
   producto_id?:  number | null;
   origen_contacto_id?: number | null;
+  vendedor_id?: number | null;
 };
 
 function buildPeriodoQs(params: MovimientosPorPeriodoParams, extras: Record<string, string> = {}): URLSearchParams {
@@ -596,6 +597,7 @@ function buildPeriodoQs(params: MovimientosPorPeriodoParams, extras: Record<stri
   if (params.contacto_id) qs.set('contacto_id', String(params.contacto_id));
   if (params.producto_id) qs.set('producto_id', String(params.producto_id));
   if (params.origen_contacto_id != null) qs.set('origen_contacto_id', String(params.origen_contacto_id));
+  if (params.vendedor_id != null) qs.set('vendedor_id', String(params.vendedor_id));
   return qs;
 }
 
@@ -840,6 +842,14 @@ export async function fetchPosicionTesoreria(): Promise<PosicionTesoreriaResult>
 export function buildPosicionTesoreriaExportUrl(formato: 'excel'): string {
   return `${BASE}/finanzas/posicion-tesoreria?formato=${formato}`;
 }
+
+export type MovimientosPorConceptoParams = { fecha_inicio: string; fecha_fin: string; cuenta_id?: number | null; concepto_id?: number | null; moneda?: string | null; tipo_movimiento?: 'todos' | 'entradas' | 'salidas'; detalle?: boolean };
+export type MovimientoPorConceptoResumen = { id: number | null; concepto: string; moneda: string; movimientos: number; entradas: number; salidas: number; neto: number };
+export type MovimientoPorConceptoDetalle = { id: number; fecha: string; cuenta: string; contacto: string | null; referencia: string | null; observaciones: string | null; entrada: number; salida: number; estado_conciliacion: string };
+export type MovimientosPorConceptoResult = { fecha_inicio: string; fecha_fin: string; resumen: MovimientoPorConceptoResumen[]; totales_por_moneda: Array<{ moneda: string; movimientos: number; entradas: number; salidas: number; neto: number }>; detalle: MovimientoPorConceptoDetalle[] };
+function buildMovimientosPorConceptoQs(p: MovimientosPorConceptoParams, formato?: 'excel') { const q = new URLSearchParams({ fecha_inicio: p.fecha_inicio, fecha_fin: p.fecha_fin }); if (p.cuenta_id != null) q.set('cuenta_id', String(p.cuenta_id)); if (p.concepto_id !== undefined) q.set('concepto_id', p.concepto_id === null ? 'null' : String(p.concepto_id)); if (p.moneda) q.set('moneda', p.moneda); if (p.tipo_movimiento && p.tipo_movimiento !== 'todos') q.set('tipo_movimiento', p.tipo_movimiento); if (p.detalle) q.set('detalle', 'true'); if (formato) q.set('formato', formato); return q; }
+export async function fetchMovimientosPorConcepto(p: MovimientosPorConceptoParams): Promise<MovimientosPorConceptoResult> { const res = await apiFetch(`${BASE}/finanzas/movimientos-por-concepto?${buildMovimientosPorConceptoQs(p).toString()}`); if (!res.ok) { const d = await res.json() as { message?: string }; throw new Error(d.message ?? 'Error al obtener movimientos por concepto'); } return res.json() as Promise<MovimientosPorConceptoResult>; }
+export function buildMovimientosPorConceptoExportUrl(p: MovimientosPorConceptoParams): string { return `${BASE}/finanzas/movimientos-por-concepto?${buildMovimientosPorConceptoQs(p, 'excel').toString()}`; }
 
 // ── Cartera Vencida ────────────────────────────────────────────────────────────
 

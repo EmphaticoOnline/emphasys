@@ -41,6 +41,7 @@ import type { GridContextMenuAction } from '../../components/grids/GridContextMe
 import { SHOW_GRID_ACTIONS } from '../../components/grids/gridUxFlags';
 import { STANDARD_DATA_GRID_HEADER_HEIGHT, STANDARD_DATA_GRID_ROW_HEIGHT, standardDataGridSx } from '../../components/grids/standardDataGridSx';
 import { useGridContextMenu } from '../../hooks/useGridContextMenu';
+import { ConfigPageFrame, ConfigPageHeader, ConfigSurface } from '../../components/configuracion/configVisual';
 
 type FormState = {
   nombre: string;
@@ -369,20 +370,9 @@ export default function WhatsappEtiquetasPage() {
   const columns = React.useMemo<GridColDef<WhatsappEtiquetaAdmin>[]>(() => [contextMenuTriggerColumn, ...baseColumns], [contextMenuTriggerColumn]);
 
   return (
+    <ConfigPageFrame>
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1.5}>
-        <Box>
-          <Typography variant="h5" fontWeight={700} color="#1d2f68">
-            Etiquetas de WhatsApp
-          </Typography>
-          <Typography variant="body2" color="#4b5563">
-            Administra el catálogo global de etiquetas usadas en conversaciones y leads.
-          </Typography>
-        </Box>
-        <Button variant="contained" startIcon={<AddIcon />} onClick={handleCreate}>
-          Nueva etiqueta
-        </Button>
-      </Stack>
+      <ConfigPageHeader title="Etiquetas de WhatsApp" description="Administra el catálogo global de etiquetas usadas en conversaciones y leads." actions={<Button variant="contained" startIcon={<AddIcon />} onClick={handleCreate}>Nueva etiqueta</Button>} />
 
       <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1.5} flexWrap="wrap" useFlexGap>
         <Stack direction="row" spacing={1.5} flexWrap="wrap" useFlexGap sx={{ flex: 1, minWidth: 280 }}>
@@ -439,16 +429,7 @@ export default function WhatsappEtiquetasPage() {
 
       {error ? <Alert severity="error" onClose={() => setError(null)}>{error}</Alert> : null}
 
-      <Box
-        sx={{
-          width: '100%',
-          background: '#fff',
-          border: '1px solid #e5e7eb',
-          borderRadius: 1.5,
-          boxShadow: '0px 6px 16px rgba(0,0,0,0.04)',
-          '& .MuiDataGrid-root': { border: 'none' },
-        }}
-      >
+      <ConfigSurface sx={{ width: '100%', '& .MuiDataGrid-root': { border: 'none' } }}>
         <DataGrid
           rows={filteredRows}
           columns={columns}
@@ -468,7 +449,7 @@ export default function WhatsappEtiquetasPage() {
             noRowsLabel: loading ? 'Cargando…' : 'Sin etiquetas',
           }}
         />
-      </Box>
+      </ConfigSurface>
 
       <GridContextMenu
         actions={contextMenuActions}
@@ -555,5 +536,6 @@ export default function WhatsappEtiquetasPage() {
         </Alert>
       </Snackbar>
     </Box>
+    </ConfigPageFrame>
   );
 }

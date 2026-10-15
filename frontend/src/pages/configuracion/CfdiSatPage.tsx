@@ -57,6 +57,7 @@ import ResumenSatCards from '../../components/cfdi-sat/ResumenSatCards';
 import BitacoraSatSection from '../../components/cfdi-sat/BitacoraSatSection';
 import AutomatizacionSatSection from '../../components/cfdi-sat/AutomatizacionSatSection';
 import type { ApiFetchError } from '../../services/apiFetch';
+import { ConfigPageFrame, ConfigPageHeader, ConfigSurface } from '../../components/configuracion/configVisual';
 
 function formatFecha(raw?: string | null): string {
   if (!raw) return '—';
@@ -397,17 +398,8 @@ export default function CfdiSatPage() {
   }
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-      <Stack spacing={0.5}>
-        <Typography variant="h5" fontWeight={700} color="#1d2f68">
-          Descarga de CFDIs desde el SAT
-        </Typography>
-        <Typography variant="body2" color="#4b5563">
-          Configura la e.firma (FIEL) y la autorización de uso, crea solicitudes de descarga, verifícalas y
-          descarga los comprobantes del Servicio de Descarga Masiva del SAT. La importación a compras se agrega
-          en una fase posterior.
-        </Typography>
-      </Stack>
+    <ConfigPageFrame>
+      <ConfigPageHeader title="Descarga de CFDIs desde el SAT" description="Configura la e.firma (FIEL) y la autorización de uso, crea solicitudes de descarga, verifícalas y descarga los comprobantes del Servicio de Descarga Masiva del SAT. La importación a compras se agrega en una fase posterior." />
 
       {pageError && <Alert severity="error">{pageError}</Alert>}
 
@@ -423,14 +415,14 @@ export default function CfdiSatPage() {
 
       <ResumenSatCards key={automatizacionRefreshKey} />
 
-      <Card variant="outlined" sx={{ borderRadius: 2, borderColor: '#dbe3f0' }}>
+      <ConfigSurface>
         <CardContent sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 2 }}>
           <Stack direction="row" alignItems="flex-start" justifyContent="space-between" spacing={1.5}>
             <Stack spacing={0.5}>
-              <Typography variant="h6" fontWeight={700} color="#1d2f68">
+              <Typography variant="h6" fontWeight={700} color="text.primary">
                 Credenciales e.firma (FIEL)
               </Typography>
-              <Typography variant="body2" color="#4b5563">
+              <Typography variant="body2" color="text.secondary">
                 Certificado (.cer) y llave privada (.key) usados para autenticar ante el Servicio de Descarga
                 Masiva del SAT. La contraseña de la FIEL no se solicita ni se guarda en esta fase.
               </Typography>
@@ -464,7 +456,7 @@ export default function CfdiSatPage() {
 
           {puedeAdministrar ? (
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
-              <Button variant="contained" onClick={handleOpenUpload} sx={{ textTransform: 'none', fontWeight: 700, backgroundColor: '#1d2f68' }}>
+              <Button variant="contained" onClick={handleOpenUpload} sx={(theme) => ({ textTransform: 'none', fontWeight: 700, backgroundColor: theme.emphasys.action.primary, '&:hover': { backgroundColor: theme.emphasys.action.primaryHover } })}>
                 {credenciales?.existe ? 'Reemplazar credenciales' : 'Subir credenciales'}
               </Button>
               {credenciales?.existe && (
@@ -487,12 +479,12 @@ export default function CfdiSatPage() {
             </Typography>
           )}
         </CardContent>
-      </Card>
+      </ConfigSurface>
 
-      <Card variant="outlined" sx={{ borderRadius: 2, borderColor: '#dbe3f0' }}>
+      <ConfigSurface>
         <CardContent sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 2 }}>
           <Stack direction="row" alignItems="flex-start" justifyContent="space-between" spacing={1.5}>
-            <Typography variant="h6" fontWeight={700} color="#1d2f68">
+            <Typography variant="h6" fontWeight={700} color="text.primary">
               Autorización de uso
             </Typography>
             {autorizacion?.aceptada && (
@@ -502,10 +494,10 @@ export default function CfdiSatPage() {
 
           <Box
             sx={{
-              border: '1px solid #dbe3f0',
+              border: (theme) => `1px solid ${theme.emphasys.content.border}`,
               borderRadius: 1,
               p: 2,
-              backgroundColor: '#f8fbff',
+              backgroundColor: (theme) => theme.emphasys.content.well,
               maxHeight: 220,
               overflowY: 'auto',
               whiteSpace: 'pre-line',
@@ -534,7 +526,7 @@ export default function CfdiSatPage() {
                   variant="contained"
                   disabled={!aceptoTexto || autorizacionSubmitting}
                   onClick={() => void handleAceptarAutorizacion()}
-                  sx={{ textTransform: 'none', fontWeight: 700, backgroundColor: '#1d2f68' }}
+                  sx={(theme) => ({ textTransform: 'none', fontWeight: 700, backgroundColor: theme.emphasys.action.primary, '&:hover': { backgroundColor: theme.emphasys.action.primaryHover } })}
                 >
                   {autorizacionSubmitting ? 'Guardando...' : 'Aceptar autorización'}
                 </Button>
@@ -546,15 +538,15 @@ export default function CfdiSatPage() {
             </Alert>
           )}
         </CardContent>
-      </Card>
+      </ConfigSurface>
 
-      <Card variant="outlined" sx={{ borderRadius: 2, borderColor: '#dbe3f0' }}>
+      <ConfigSurface>
         <CardContent sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 2 }}>
           <Stack spacing={0.5}>
-            <Typography variant="h6" fontWeight={700} color="#1d2f68">
+            <Typography variant="h6" fontWeight={700} color="text.primary">
               Nueva solicitud de descarga
             </Typography>
-            <Typography variant="body2" color="#4b5563">
+            <Typography variant="body2" color="text.secondary">
               Presenta una solicitud real al Servicio de Descarga Masiva del SAT. Esta fase solo llega hasta
               que el SAT acepta la solicitud; la verificación y descarga de paquetes se agregan más adelante.
             </Typography>
@@ -672,17 +664,17 @@ export default function CfdiSatPage() {
               variant="contained"
               onClick={() => void handleCrearSolicitud()}
               disabled={!puedeCrearSolicitud || solicitudSubmitting}
-              sx={{ textTransform: 'none', fontWeight: 700, backgroundColor: '#1d2f68' }}
+              sx={(theme) => ({ textTransform: 'none', fontWeight: 700, backgroundColor: theme.emphasys.action.primary, '&:hover': { backgroundColor: theme.emphasys.action.primaryHover } })}
             >
               {solicitudSubmitting ? 'Enviando al SAT...' : 'Crear solicitud'}
             </Button>
           </Box>
         </CardContent>
-      </Card>
+      </ConfigSurface>
 
-      <Card variant="outlined" sx={{ borderRadius: 2, borderColor: '#dbe3f0' }}>
+      <ConfigSurface>
         <CardContent sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 2 }}>
-          <Typography variant="h6" fontWeight={700} color="#1d2f68">
+          <Typography variant="h6" fontWeight={700} color="text.primary">
             Solicitudes recientes
           </Typography>
 
@@ -766,7 +758,7 @@ export default function CfdiSatPage() {
             </TableContainer>
           )}
         </CardContent>
-      </Card>
+      </ConfigSurface>
 
       <AutomatizacionSatSection puedeAdministrar={puedeAdministrar} onEjecutado={handleDatosCambiaron} />
 
@@ -823,7 +815,7 @@ export default function CfdiSatPage() {
             variant="contained"
             onClick={() => void handleUpload()}
             disabled={uploadSubmitting}
-            sx={{ textTransform: 'none', fontWeight: 700, backgroundColor: '#1d2f68' }}
+            sx={(theme) => ({ textTransform: 'none', fontWeight: 700, backgroundColor: theme.emphasys.action.primary, '&:hover': { backgroundColor: theme.emphasys.action.primaryHover } })}
           >
             {uploadSubmitting ? 'Guardando...' : 'Guardar'}
           </Button>
@@ -900,7 +892,7 @@ export default function CfdiSatPage() {
             variant="contained"
             onClick={() => void handleConfirmarAccion()}
             disabled={accionSubmitting}
-            sx={{ textTransform: 'none', fontWeight: 700, backgroundColor: '#1d2f68' }}
+            sx={(theme) => ({ textTransform: 'none', fontWeight: 700, backgroundColor: theme.emphasys.action.primary, '&:hover': { backgroundColor: theme.emphasys.action.primaryHover } })}
           >
             {accionSubmitting
               ? 'Procesando...'
@@ -915,6 +907,6 @@ export default function CfdiSatPage() {
         solicitudId={paquetesDialogSolicitudId}
         onClose={() => setPaquetesDialogSolicitudId(null)}
       />
-    </Box>
+    </ConfigPageFrame>
   );
 }

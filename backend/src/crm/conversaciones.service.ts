@@ -653,7 +653,7 @@ export const registrarMensajeVideoSalienteWhatsapp = async (
   const autor = await resolverAutoriaMensajeSaliente(empresaId, conversacionId, autoria);
   await pool.query(
     `INSERT INTO crm.mensajes (
-       empresa_id, conversacion_id, telefono, tipo_mensaje, canal, tipo_contenido,
+       empresa_id, conversacion_id, contacto_id, telefono, tipo_mensaje, canal, tipo_contenido,
        caption, contenido, fecha_envio, id_externo, status, mensaje_respuesta_id,
        autor_usuario_id, autor_vendedor_contacto_id, responsabilidad_contacto_id,
        origen_envio, creado_en

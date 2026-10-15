@@ -26,6 +26,7 @@ import {
 import RefreshIcon from '@mui/icons-material/Refresh';
 import SaveIcon from '@mui/icons-material/Save';
 import SearchIcon from '@mui/icons-material/Search';
+import { ConfigPageHeader } from '../../components/configuracion/configVisual';
 import {
   fetchPreciosCaptura,
   savePreciosBatch,
@@ -243,17 +244,7 @@ export default function PreciosPage() {
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <Toolbar disableGutters sx={{ justifyContent: 'space-between', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
-        <Stack spacing={0.5}>
-          <Typography variant="h5" fontWeight={700} color="#1d2f68">
-            Administración de precios
-          </Typography>
-          <Typography variant="body2" color="#4b5563">
-            Captura precios por producto y por lista de precios activa en una cuadrícula tipo Excel.
-          </Typography>
-        </Stack>
-
-        <Stack direction="row" spacing={1}>
+      <ConfigPageHeader title="Administración de precios" description="Captura precios por producto y por lista de precios activa en una cuadrícula tipo Excel." actions={<Stack direction="row" spacing={1}>
           <Button variant="outlined" startIcon={<RefreshIcon />} onClick={() => void load(filters)} disabled={loading || saving}>
             Recargar
           </Button>
@@ -265,8 +256,7 @@ export default function PreciosPage() {
           >
             Guardar pendientes
           </Button>
-        </Stack>
-      </Toolbar>
+        </Stack>} />
 
       {error ? <Alert severity="error">{error}</Alert> : null}
       {!data.listas.length && !loading ? (

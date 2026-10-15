@@ -35,6 +35,7 @@ import type { GridContextMenuAction } from '../../components/grids/GridContextMe
 import { SHOW_GRID_ACTIONS } from '../../components/grids/gridUxFlags';
 import { STANDARD_DATA_GRID_HEADER_HEIGHT, STANDARD_DATA_GRID_ROW_HEIGHT, standardDataGridSx } from '../../components/grids/standardDataGridSx';
 import { useGridContextMenu } from '../../hooks/useGridContextMenu';
+import { ConfigPageFrame, ConfigPageHeader, ConfigSurface } from '../../components/configuracion/configVisual';
 
 interface FormState {
   id?: number;
@@ -54,7 +55,7 @@ const emptyForm: FormState = {
   cuenta_contable: '',
   rubro_presupuesto_id: '',
   orden: '',
-  color: '#1d2f68',
+  color: '#3e3428',
   activo: true,
   observaciones: '',
 };
@@ -115,7 +116,7 @@ export default function ConceptosPage() {
         cuenta_contable: concepto.cuenta_contable || '',
         rubro_presupuesto_id: concepto.rubro_presupuesto_id ? String(concepto.rubro_presupuesto_id) : '',
         orden: concepto.orden !== undefined && concepto.orden !== null ? String(concepto.orden) : '',
-        color: concepto.color || '#1d2f68',
+        color: concepto.color || '#3e3428',
         activo: Boolean(concepto.activo),
         observaciones: concepto.observaciones || '',
       });
@@ -285,7 +286,7 @@ export default function ConceptosPage() {
       renderCell: (params) => (
         <Stack direction="row" spacing={0.5} justifyContent="flex-end" width="100%">
           <Tooltip title="Editar">
-            <IconButton size="small" onClick={() => handleOpenDialog(params.row)} sx={{ color: '#1d2f68' }}>
+            <IconButton size="small" onClick={() => handleOpenDialog(params.row)} color="primary">
               <EditIcon fontSize="small" />
             </IconButton>
           </Tooltip>
@@ -302,10 +303,10 @@ export default function ConceptosPage() {
   const columns = useMemo<GridColDef<Concepto>[]>(() => [contextMenuTriggerColumn, ...baseColumns], [baseColumns, contextMenuTriggerColumn]);
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+    <ConfigPageFrame><Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
       <Stack direction="row" alignItems="center" justifyContent="space-between">
         <Box>
-          <Typography variant="h5" fontWeight={700} color="#1d2f68">
+          <Typography variant="h5" fontWeight={700} color="text.primary">
             Conceptos
           </Typography>
           <Typography variant="body2" color="text.secondary">
@@ -319,8 +320,8 @@ export default function ConceptosPage() {
           sx={{
             textTransform: 'none',
             borderRadius: 999,
-            bgcolor: '#1d2f68',
-            '&:hover': { bgcolor: '#162551' },
+            bgcolor: (theme) => theme.emphasys.action.primary,
+            '&:hover': { bgcolor: (theme) => theme.emphasys.action.primaryHover },
           }}
         >
           Nuevo concepto
@@ -333,7 +334,7 @@ export default function ConceptosPage() {
         </Alert>
       )}
 
-      <Paper variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden' }}>
+      <ConfigSurface>
         <DataGrid
           rows={conceptos}
           columns={columns}
@@ -376,7 +377,7 @@ export default function ConceptosPage() {
           hideFooterPagination
           hideFooterSelectedRowCount
         />
-      </Paper>
+      </ConfigSurface>
 
       <GridContextMenu
         actions={contextMenuActions}
@@ -466,7 +467,7 @@ export default function ConceptosPage() {
             onClick={handleSave}
             disabled={saving}
             variant="contained"
-            sx={{ textTransform: 'none', borderRadius: 999, bgcolor: '#1d2f68', '&:hover': { bgcolor: '#162551' } }}
+            sx={(theme) => ({ textTransform: 'none', borderRadius: 999, bgcolor: theme.emphasys.action.primary, '&:hover': { bgcolor: theme.emphasys.action.primaryHover } })}
           >
             {saving ? 'Guardando...' : 'Guardar'}
           </Button>
@@ -487,6 +488,6 @@ export default function ConceptosPage() {
           {snackbar.message}
         </Alert>
       </Snackbar>
-    </Box>
+    </Box></ConfigPageFrame>
   );
 }

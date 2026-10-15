@@ -30,6 +30,7 @@ import { getStatusToneColor } from '../status/status.semantics';
 import type { StatusTone } from '../status/status.types';
 import { WorkspaceRowContextMenu } from './WorkspaceRowContextMenu';
 import { PopoverFiltroFacturas } from './facturas/FacturasWorkspaceView';
+import { workspaceRailContactNameSx } from './workspaceRailStyles';
 
 type StatusOption = { value: string; label: string; color?: string; textColor?: string };
 type FiltroLista = {
@@ -442,7 +443,7 @@ export default function OrdenCompraWorkspaceRail({
                       </IconButton>
                     </Box>
                   </Box>
-                  <Typography variant="figure" sx={{ fontSize: 14, mt: 0.25, color: tokens.navigation.foreground, lineHeight: 1.2 }} noWrap>
+                  <Typography variant="figure" sx={[workspaceRailContactNameSx, { fontSize: 14, mt: 0.25, color: tokens.navigation.foreground, lineHeight: 1.2 }]}>
                     {row.nombre_cliente || 'Sin proveedor'}
                   </Typography>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 0.7, alignItems: 'center', mt: 0.3 }}>

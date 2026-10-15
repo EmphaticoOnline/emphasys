@@ -1245,6 +1245,7 @@ export async function listarDocumentosRepositoryPaginado(
        cancelacion_intento.proveedor_status AS cfdi_cancelacion_proveedor_status,
        cancelacion_intento.fecha_solicitud AS cfdi_cancelacion_fecha_solicitud,
        dc.cancelacion_ultima_consulta_at AS cfdi_cancelacion_fecha_ultima_consulta,
+       COALESCE(NULLIF(TRIM(dc.xml_cancelacion), ''), NULL) IS NOT NULL AS cfdi_tiene_acuse_cancelacion,
        EXISTS (
          SELECT 1 FROM aplicaciones_saldo ap
           WHERE ap.empresa_id = d.empresa_id
@@ -1631,6 +1632,7 @@ export async function obtenerDocumentoRepository(
       dc.cancelacion_estado AS cfdi_cancelacion_estado,
       dc.cancelacion_proveedor_status AS cfdi_cancelacion_proveedor_status,
       dc.cancelacion_ultima_consulta_at AS cfdi_cancelacion_fecha_ultima_consulta,
+      COALESCE(NULLIF(TRIM(dc.xml_cancelacion), ''), NULL) IS NOT NULL AS cfdi_tiene_acuse_cancelacion,
       cancelacion_intento.id::int AS cfdi_cancelacion_intento_id,
       cancelacion_intento.proveedor AS cfdi_cancelacion_proveedor,
       cancelacion_intento.fecha_solicitud AS cfdi_cancelacion_fecha_solicitud,

@@ -338,7 +338,7 @@ export default function MovimientosNoConciliadosPage() {
           Informes
         </Button>
         <Typography color="text.disabled">/</Typography>
-        <Typography variant="body2" color="text.secondary">Finanzas</Typography>
+        <Typography variant="body2" color="text.secondary">Tesorería</Typography>
         <Typography color="text.disabled">/</Typography>
         <Typography variant="body2" fontWeight={600}>Movimientos No Conciliados</Typography>
       </Stack>

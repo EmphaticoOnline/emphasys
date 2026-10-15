@@ -11,7 +11,6 @@ import {
   Stack,
   Switch,
   Typography,
-  Paper,
 } from "@mui/material";
 import type { SelectChangeEvent } from "@mui/material/Select";
 import { useTheme } from "@mui/material/styles";
@@ -23,7 +22,7 @@ import {
 import { CONTACTOS_CAMPOS } from "../../definitions/contactos.fields";
 import type { DefinicionCampo } from "../../definitions/contactos.fields";
 import { PRODUCTOS_CAMPOS } from "../../definitions/productos.fields";
-import { ConfigPageHeader } from "../../components/configuracion/configVisual";
+import { ConfigPageFrame, ConfigPageHeader, ConfigSurface } from "../../components/configuracion/configVisual";
 
 type DefinicionContexto = {
   valor: string;
@@ -145,7 +144,8 @@ export default function CamposObligatoriosPage() {
   };
 
   return (
-    <Box sx={{ p: { xs: 1.5, md: 2.75 }, py: 1.6, maxWidth: 760, display: 'flex', flexDirection: 'column', gap: 2 }}>
+    <ConfigPageFrame>
+      <Box sx={{ width: '100%', maxWidth: 760, display: 'flex', flexDirection: 'column', gap: 2 }}>
       <ConfigPageHeader
         title="Campos obligatorios"
         description="Configura qué campos son obligatorios por entidad y contexto. Los campos no marcados se consideran opcionales."
@@ -191,7 +191,7 @@ export default function CamposObligatoriosPage() {
         </FormControl>
       </Stack>
 
-      <Paper variant="outlined" sx={{ borderColor: tokens.content.border, bgcolor: tokens.content.elevated, borderRadius: 2.5, overflow: "hidden" }}>
+      <ConfigSurface sx={{ borderRadius: 2.5 }}>
         <Box
           sx={{
             display: "flex",
@@ -246,7 +246,8 @@ export default function CamposObligatoriosPage() {
             </React.Fragment>
           ))
         )}
-      </Paper>
-    </Box>
+      </ConfigSurface>
+      </Box>
+    </ConfigPageFrame>
   );
 }

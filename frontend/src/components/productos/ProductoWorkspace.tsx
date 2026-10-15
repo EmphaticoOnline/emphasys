@@ -1908,17 +1908,19 @@ export default function ProductoWorkspace({
           )}
 
           {tab === 'especificaciones' && (
-            <Stack spacing={1}>
-              <SectionCard title="Biblioteca del producto">
-                <EspecificacionesBibliotecaEditor productoId={producto.id} alcance="producto" onError={(message) => setError(message)} />
-              </SectionCard>
+            <Stack spacing={2.5}>
+              <EspecificacionesBibliotecaEditor productoId={producto.id} alcance="producto" onError={(message) => setError(message)} />
               {producto.especificaciones ? (
-                <SectionCard title="Notas y descripción extendida">
+                <Box>
+                  <Typography sx={(theme) => ({ fontSize: 18, fontWeight: 650, lineHeight: 1.25, fontFamily: theme.typography.figure.fontFamily, color: tokens.content.foreground })}>
+                    Notas y descripción extendida
+                  </Typography>
+                  <Typography sx={{ mt: 0.25, fontSize: 12, color: tokens.content.muted }}>Texto libre del producto, independiente de la biblioteca.</Typography>
                   <Box
-                    sx={{ fontSize: 13, lineHeight: 1.5, color: tokens.content.foreground, overflowWrap: 'anywhere', '& img': { maxWidth: '100%', height: 'auto' }, '& p': { my: 0.5 } }}
+                    sx={{ mt: 1.25, p: 1.5, borderRadius: '10px', border: `1px solid ${tokens.content.border}`, backgroundColor: tokens.content.card, fontSize: 13, lineHeight: 1.5, color: tokens.content.foreground, overflowWrap: 'anywhere', '& img': { maxWidth: '100%', height: 'auto' }, '& p': { my: 0.5 } }}
                     dangerouslySetInnerHTML={{ __html: producto.especificaciones }}
                   />
-                </SectionCard>
+                </Box>
               ) : null}
             </Stack>
           )}

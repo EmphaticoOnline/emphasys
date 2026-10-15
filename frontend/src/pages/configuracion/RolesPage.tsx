@@ -34,6 +34,7 @@ import DeleteIcon from '@mui/icons-material/DeleteOutline';
 import { useSession } from '../../session/useSession';
 import type { Rol, RolPayload } from '../../types/rol';
 import { createRol, deleteRol, fetchRoles, updateRol } from '../../services/rolesService';
+import { ConfigPageFrame, ConfigPageHeader, ConfigSurface } from '../../components/configuracion/configVisual';
 
 const emptyForm: RolPayload = {
   nombre: '',
@@ -170,18 +171,8 @@ export default function RolesPage() {
   };
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <Toolbar disableGutters sx={{ justifyContent: 'space-between', gap: 2, flexWrap: 'wrap' }}>
-        <Box>
-          <Typography variant="h5" fontWeight={700} color="#1d2f68">
-            Roles
-          </Typography>
-          <Typography variant="body2" color="#4b5563">
-            Administra los roles por empresa. Cada nombre debe ser único dentro de la empresa.
-          </Typography>
-        </Box>
-
-        <Stack direction="row" spacing={1.5} alignItems="center">
+    <ConfigPageFrame><Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+      <ConfigPageHeader title="Roles" description="Administra los roles por empresa. Cada nombre debe ser único dentro de la empresa." actions={<Stack direction="row" spacing={1.5} alignItems="center">
           <FormControl size="small" sx={{ minWidth: 220 }}>
             <InputLabel id="empresa-select-label">Empresa</InputLabel>
             <Select
@@ -203,12 +194,11 @@ export default function RolesPage() {
             startIcon={<AddIcon />}
             onClick={handleOpenCreate}
             disabled={!canCreate}
-            sx={{ textTransform: 'none', fontWeight: 700, backgroundColor: '#1d2f68' }}
+            sx={(theme) => ({ textTransform: 'none', fontWeight: 700, backgroundColor: theme.emphasys.action.primary, '&:hover': { backgroundColor: theme.emphasys.action.primaryHover } })}
           >
             Nuevo rol
           </Button>
-        </Stack>
-      </Toolbar>
+        </Stack>} />
 
       {error && (
         <Alert severity="error" onClose={() => setError(null)}>
@@ -216,7 +206,7 @@ export default function RolesPage() {
         </Alert>
       )}
 
-      <TableContainer sx={{ border: '1px solid #e5e7eb', borderRadius: 1, backgroundColor: '#fff' }}>
+      <ConfigSurface sx={{ overflowX: 'auto' }}>
         <Table size="small">
           <TableHead>
             <TableRow>
@@ -274,7 +264,7 @@ export default function RolesPage() {
             )}
           </TableBody>
         </Table>
-      </TableContainer>
+      </ConfigSurface>
 
       <Dialog open={dialogOpen} onClose={handleCloseDialog} maxWidth="sm" fullWidth>
         <DialogTitle>{editId ? 'Editar rol' : 'Nuevo rol'}</DialogTitle>
@@ -311,6 +301,6 @@ export default function RolesPage() {
           </Button>
         </DialogActions>
       </Dialog>
-    </Box>
+    </Box></ConfigPageFrame>
   );
 }

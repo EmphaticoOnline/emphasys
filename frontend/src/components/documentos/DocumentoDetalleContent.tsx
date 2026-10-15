@@ -22,7 +22,8 @@ import {
   Typography,
 } from '@mui/material';
 import SyncOutlinedIcon from '@mui/icons-material/SyncOutlined';
-import { getDocumentoDetalle, reconciliarCancelacionDocumento } from '../../services/documentosService';
+import DownloadOutlinedIcon from '@mui/icons-material/DownloadOutlined';
+import { descargarAcuseCancelacionXml, getDocumentoDetalle, reconciliarCancelacionDocumento } from '../../services/documentosService';
 import type {
   DocumentoDetalleResponse,
   DocumentoRelacionado,
@@ -261,6 +262,22 @@ export function ResumenTab({
             <Typography variant="body2" sx={{ mt: 1.5 }}>
               El estado de la cancelación necesita volver a consultarse.
             </Typography>
+          ) : null}
+          {cancelacionEstado === 'cancelada' ? (
+            documento.cfdi_tiene_acuse_cancelacion ? (
+              <Button
+                variant="outlined"
+                startIcon={<DownloadOutlinedIcon />}
+                onClick={() => { void descargarAcuseCancelacionXml(documento.id); }}
+                sx={{ mt: 1.5 }}
+              >
+                Descargar acuse de cancelación
+              </Button>
+            ) : (
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5 }}>
+                Acuse no disponible
+              </Typography>
+            )
           ) : null}
           {reconciliationMessage ? <Alert severity="info" sx={{ mt: 1.5 }}>{reconciliationMessage}</Alert> : null}
           {puedeReconciliar ? (

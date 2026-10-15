@@ -40,6 +40,7 @@ import type { GridContextMenuAction } from '../components/grids/GridContextMenu'
 import { SHOW_GRID_ACTIONS } from '../components/grids/gridUxFlags';
 import { STANDARD_DATA_GRID_HEADER_HEIGHT, standardDataGridSx } from '../components/grids/standardDataGridSx';
 import { useGridContextMenu } from '../hooks/useGridContextMenu';
+import { ConfigPageFrame, ConfigPageHeader, ConfigSurface } from '../components/configuracion/configVisual';
 
 type FormState = {
   nombre: string;
@@ -338,7 +339,7 @@ export default function ConfiguracionEtapasProduccionPage() {
               width: 16,
               height: 16,
               borderRadius: '50%',
-              border: '1px solid #cbd5e1',
+              border: (theme) => `1px solid ${theme.emphasys.content.border}`,
               backgroundColor: params.row.color || '#E5E7EB',
               flexShrink: 0,
             }}
@@ -387,27 +388,9 @@ export default function ConfiguracionEtapasProduccionPage() {
   const columns = React.useMemo<GridColDef<EtapaProduccion>[]>(() => [contextMenuTriggerColumn, ...baseColumns], [baseColumns, contextMenuTriggerColumn]);
 
   return (
+    <ConfigPageFrame>
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <Toolbar disableGutters sx={{ justifyContent: 'space-between', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
-        <Stack spacing={0.5}>
-          <Typography variant="h5" fontWeight={700} color="#1d2f68">
-            Etapas de producción
-          </Typography>
-          <Typography variant="body2" color="#4b5563">
-            Personaliza las etapas operativas que usa Producción para la empresa activa.
-          </Typography>
-        </Stack>
-
-        <Stack direction="row" spacing={1}>
-          <IconButton color="primary" onClick={() => void load()} disabled={loading || saving || deleting}>
-            <RefreshIcon />
-          </IconButton>
-          <Button variant="contained" startIcon={<AddIcon />} onClick={openCreateDialog}>
-            Nueva etapa
-          </Button>
-        </Stack>
-      </Toolbar>
-
+      <ConfigPageHeader title="Etapas de producción" description="Personaliza las etapas operativas que usa Producción para la empresa activa." actions={<Stack direction="row" spacing={1}><IconButton color="primary" onClick={() => void load()} disabled={loading || saving || deleting}><RefreshIcon /></IconButton><Button variant="contained" startIcon={<AddIcon />} onClick={openCreateDialog}>Nueva etapa</Button></Stack>} />
       <TextField
         size="small"
         placeholder="Buscar por orden, nombre, color o estado..."
@@ -422,7 +405,7 @@ export default function ConfiguracionEtapasProduccionPage() {
         }}
       />
 
-      <Paper variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden', width: '100%' }}>
+      <ConfigSurface sx={{ width: '100%' }}>
         <DataGrid
           rows={filteredRows}
           columns={columns}
@@ -453,7 +436,7 @@ export default function ConfiguracionEtapasProduccionPage() {
             },
           ]}
         />
-      </Paper>
+      </ConfigSurface>
 
       <GridContextMenu
         actions={contextMenuActions}
@@ -500,7 +483,7 @@ export default function ConfiguracionEtapasProduccionPage() {
                 width: 28,
                 height: 28,
                 borderRadius: '50%',
-                border: '1px solid #cbd5e1',
+                border: (theme) => `1px solid ${theme.emphasys.content.border}`,
                 backgroundColor: COLOR_REGEX.test(form.color) ? form.color : '#E5E7EB',
                 flexShrink: 0,
               }}
@@ -567,5 +550,6 @@ export default function ConfiguracionEtapasProduccionPage() {
         </Alert>
       </Snackbar>
     </Box>
+    </ConfigPageFrame>
   );
 }

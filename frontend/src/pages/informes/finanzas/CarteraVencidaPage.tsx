@@ -233,7 +233,7 @@ export default function CarteraVencidaPage() {
           Informes
         </Button>
         <Typography color="text.disabled">/</Typography>
-        <Typography variant="body2" color="text.secondary">Finanzas</Typography>
+        <Typography variant="body2" color="text.secondary">Tesorería</Typography>
         <Typography color="text.disabled">/</Typography>
         <Typography variant="body2" fontWeight={600}>Cartera Vencida</Typography>
       </Stack>

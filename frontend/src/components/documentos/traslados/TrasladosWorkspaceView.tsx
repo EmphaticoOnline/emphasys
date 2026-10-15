@@ -16,6 +16,7 @@ import type { CotizacionListado } from '../../../types/cotizacion';
 import type { Contacto } from '../../../types/contactos.types';
 import type { Producto } from '../../../types/producto';
 import { WorkspaceRowContextMenu, type WorkspaceContextItem } from '../WorkspaceRowContextMenu';
+import { workspaceRailContactNameSx } from '../workspaceRailStyles';
 import { useDocumentoDetalleData } from '../DocumentoDetalleContent';
 import { getStatusToneColor } from '../../status/status.semantics';
 import type { StatusTone } from '../../status/status.types';
@@ -383,7 +384,7 @@ export default function TrasladosWorkspaceView({
                   <Typography component="p" variant="figure" sx={{ display: 'block', m: 0, fontSize: 16, color: 'inherit', lineHeight: 1.15 }}>
                     {formatFolio(row)}
                   </Typography>
-                  <Typography component="p" variant="figure" sx={{ display: 'block', m: 0, mt: 0.35, fontSize: 14, color: tokens.navigation.foreground, lineHeight: 1.25 }} noWrap>
+                  <Typography component="p" variant="figure" sx={[workspaceRailContactNameSx, { display: 'block', m: 0, mt: 0.35, fontSize: 14, color: tokens.navigation.foreground, lineHeight: 1.25 }]}>
                     {row.nombre_cliente || 'Sin contacto'}
                   </Typography>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, alignItems: 'center', mt: 0.45 }}>

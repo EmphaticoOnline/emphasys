@@ -21,6 +21,7 @@ import SaveRoundedIcon from '@mui/icons-material/SaveRounded';
 import VisibilityRoundedIcon from '@mui/icons-material/VisibilityRounded';
 import VisibilityOffRoundedIcon from '@mui/icons-material/VisibilityOffRounded';
 import { useSession } from '../../session/useSession';
+import { ConfigPageFrame, ConfigPageHeader, ConfigSurface } from '../../components/configuracion/configVisual';
 import {
   createCfdiPacConfig,
   fetchEmpresaCfdiPacAssignment,
@@ -231,15 +232,8 @@ export default function CfdiPacConfigPage() {
   };
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-      <Stack spacing={0.5}>
-        <Typography variant="h5" fontWeight={700} color="#1d2f68">
-          Configuración PAC CFDI
-        </Typography>
-        <Typography variant="body2" color="#4b5563">
-          Administra los perfiles PAC reutilizables y asigna el ambiente CFDI correspondiente a cada empresa.
-        </Typography>
-      </Stack>
+    <ConfigPageFrame>
+      <ConfigPageHeader title="Configuración PAC CFDI" description="Administra los perfiles PAC reutilizables y asigna el ambiente CFDI correspondiente a cada empresa." />
 
       {pageError && <Alert severity="error">{pageError}</Alert>}
 
@@ -249,11 +243,11 @@ export default function CfdiPacConfigPage() {
         </Box>
       ) : (
         <Stack spacing={3}>
-          <Card variant="outlined" sx={{ borderRadius: 2, borderColor: '#cbd5e1' }}>
+          <ConfigSurface>
             <CardContent sx={{ p: 3 }}>
               <Stack spacing={2.25}>
                 <Stack spacing={0.4}>
-                  <Typography variant="h6" fontWeight={700} color="#1d2f68">
+                  <Typography variant="h6" fontWeight={700} color="text.primary">
                     PAC asignado a esta empresa
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
@@ -302,7 +296,7 @@ export default function CfdiPacConfigPage() {
                     startIcon={<SaveRoundedIcon />}
                     onClick={() => void handleSaveAssignment()}
                     disabled={assignmentSaving || !selectedConfigId || Number(selectedConfigId) === assignment?.cfdi_pac_config_id}
-                    sx={{ textTransform: 'none', fontWeight: 700, backgroundColor: '#1d2f68' }}
+                    sx={(theme) => ({ textTransform: 'none', fontWeight: 700, backgroundColor: theme.emphasys.action.primary, '&:hover': { backgroundColor: theme.emphasys.action.primaryHover } })}
                   >
                     {assignmentSaving ? 'Guardando...' : 'Guardar asignación'}
                   </Button>
@@ -318,10 +312,10 @@ export default function CfdiPacConfigPage() {
                 )}
               </Stack>
             </CardContent>
-          </Card>
+          </ConfigSurface>
 
           <Stack spacing={0.4}>
-            <Typography variant="h6" fontWeight={700} color="#1d2f68">Perfiles PAC disponibles</Typography>
+            <Typography variant="h6" fontWeight={700} color="text.primary">Perfiles PAC disponibles</Typography>
             <Typography variant="body2" color="text.secondary">Activo significa que el perfil está disponible para asignarse a una empresa.</Typography>
           </Stack>
         <Box
@@ -338,13 +332,13 @@ export default function CfdiPacConfigPage() {
             const isActive = Boolean(current?.activo);
 
             return (
-              <Card
+              <ConfigSurface
                 key={modo}
                 variant="outlined"
                 sx={{
                   borderRadius: 2,
-                  borderColor: isActive ? '#1d4ed8' : '#dbe3f0',
-                  backgroundColor: isActive ? '#f8fbff' : '#ffffff',
+                  borderColor: (theme) => isActive ? theme.emphasys.action.info : theme.emphasys.content.border,
+                  backgroundColor: (theme) => isActive ? theme.emphasys.action.wash : theme.emphasys.content.elevated,
                   boxShadow: isActive ? '0 0 0 1px rgba(29, 78, 216, 0.08)' : 'none',
                   opacity: isActive ? 1 : 0.92,
                 }}
@@ -352,10 +346,10 @@ export default function CfdiPacConfigPage() {
                 <CardContent sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 2 }}>
                   <Stack direction="row" alignItems="flex-start" justifyContent="space-between" spacing={1.5}>
                     <Stack spacing={0.5}>
-                      <Typography variant="h6" fontWeight={700} color="#1d2f68">
+                      <Typography variant="h6" fontWeight={700} color="text.primary">
                         {modo === 'sandbox' ? 'Sandbox' : 'Producción'}
                       </Typography>
-                      <Typography variant="body2" color="#4b5563">
+                      <Typography variant="body2" color="text.secondary">
                         {exists ? `Configuración actual para el modo ${modo}.` : `Aún no existe configuración para el modo ${modo}.`}
                       </Typography>
                     </Stack>
@@ -440,18 +434,18 @@ export default function CfdiPacConfigPage() {
                       startIcon={<SaveRoundedIcon />}
                       onClick={() => void handleSave(modo)}
                       disabled={Boolean(state?.saving)}
-                      sx={{ textTransform: 'none', fontWeight: 700, backgroundColor: '#1d2f68' }}
+                      sx={(theme) => ({ textTransform: 'none', fontWeight: 700, backgroundColor: theme.emphasys.action.primary, '&:hover': { backgroundColor: theme.emphasys.action.primaryHover } })}
                     >
                       {state?.saving ? 'Guardando...' : exists ? 'Guardar cambios' : 'Crear configuración'}
                     </Button>
                   </Stack>
                 </CardContent>
-              </Card>
+              </ConfigSurface>
             );
           })}
         </Box>
         </Stack>
       )}
-    </Box>
+    </ConfigPageFrame>
   );
 }

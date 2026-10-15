@@ -23,6 +23,7 @@
 // workspace, la hoja crece y el viewport del tab hace scroll.
 import React, { useMemo } from 'react';
 import { Alert, Box, Button, CircularProgress, Stack, Typography, useTheme } from '@mui/material';
+import DownloadOutlinedIcon from '@mui/icons-material/DownloadOutlined';
 import DocumentoHojaFrame from '../DocumentoHojaFrame';
 import { estadoVisualDocumento } from '../estadoVisualDocumento';
 import { getStatusToneColor } from '../../status/status.semantics';
@@ -30,6 +31,7 @@ import type { CotizacionDocumento, CotizacionListado, CotizacionPartida } from '
 import { useSession } from '../../../session/useSession';
 import { summarizeDocumentTaxes } from '../../../utils/documentTaxSummary';
 import { resolverFolioVisual } from '../../../utils/documentos.utils';
+import { descargarAcuseCancelacionXml } from '../../../services/documentosService';
 
 type StatusOption = { value: string; label: string; color?: string; textColor?: string };
 
@@ -92,10 +94,17 @@ export default function FacturaDocumentoResumenView({
   const total = documento?.total ?? row.total ?? 0;
   const saldo = Number(row.saldo ?? 0);
   const cancelacionEstado = String(documento?.cfdi_cancelacion_estado ?? row.cfdi_cancelacion_estado ?? '').trim().toLowerCase();
-  const cancelacionRelevante = ['solicitada', 'pendiente', 'error', 'requiere_reconciliacion', 'cancelada', 'rechazada'].includes(cancelacionEstado);
+  const cancelacionConfirmada = timbrado && (
+    cancelacionEstado === 'cancelada'
+    || String(documento?.cfdi_estado_sat ?? row.cfdi_estado_sat ?? '').trim().toLowerCase() === 'cancelado'
+  );
+  const tieneAcuseCancelacion = Boolean(documento?.cfdi_tiene_acuse_cancelacion ?? row.cfdi_tiene_acuse_cancelacion);
+  const cancelacionRelevante = cancelacionConfirmada || ['solicitada', 'pendiente', 'error', 'requiere_reconciliacion', 'rechazada'].includes(cancelacionEstado);
   const puedeReconciliar = ['solicitada', 'pendiente', 'error', 'requiere_reconciliacion'].includes(cancelacionEstado);
   const cancelacionError = cancelacionEstado === 'error' || cancelacionEstado === 'requiere_reconciliacion';
-  const cancelacionLabel = cancelacionEstado === 'error' || cancelacionEstado === 'requiere_reconciliacion'
+  const cancelacionLabel = cancelacionConfirmada
+    ? 'Cancelada'
+    : cancelacionEstado === 'error' || cancelacionEstado === 'requiere_reconciliacion'
     ? 'Requiere reconciliación'
     : cancelacionEstado === 'pendiente' || cancelacionEstado === 'solicitada'
       ? 'Pendiente'
@@ -219,6 +228,23 @@ export default function FacturaDocumentoResumenView({
                   <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.25 }}>La cancelación aún no ha sido confirmada por el SAT.</Typography>
                 )}
                 {documento?.cfdi_cancelacion_proveedor_status ? <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>Estado proveedor: {documento.cfdi_cancelacion_proveedor_status}</Typography> : null}
+                {cancelacionConfirmada ? (
+                  tieneAcuseCancelacion ? (
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      startIcon={<DownloadOutlinedIcon fontSize="small" />}
+                      onClick={() => { void descargarAcuseCancelacionXml(documento.id); }}
+                      sx={{ mt: 0.75, color: tokens.metric.blocked.foreground, borderColor: tokens.status.cancellation }}
+                    >
+                      Descargar acuse de cancelación
+                    </Button>
+                  ) : (
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.75 }}>
+                      Acuse no disponible
+                    </Typography>
+                  )
+                ) : null}
                 {puedeReconciliar && onReconcile ? (
                   <Button size="small" variant="outlined" onClick={() => { void onReconcile(); }} disabled={reconciling} startIcon={reconciling ? <CircularProgress size={14} /> : undefined} sx={{ mt: 0.75, color: tokens.metric.blocked.foreground, borderColor: tokens.status.cancellation }}>
                     {reconciling ? 'Reconciliando…' : 'Reconciliar estado'}

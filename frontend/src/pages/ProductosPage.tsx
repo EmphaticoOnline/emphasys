@@ -226,7 +226,8 @@ export default function ProductosPage() {
     }
 
     if (field === 'existencia_actual') {
-      return value === null || value === undefined ? '—' : Number(value).toLocaleString('es-MX');
+      const existencia = existenciasPorProducto?.[producto.id];
+      return existencia === null || existencia === undefined ? '—' : Number(existencia).toLocaleString('es-MX');
     }
 
     if (value === null || value === undefined || value === '') return '—';
@@ -327,7 +328,7 @@ export default function ProductosPage() {
     });
 
     return applySavedWidthsToColumns([contextMenuTriggerColumn, ...mapped]);
-  }, [navigate, handleDelete, contextMenuTriggerColumn, applySavedWidthsToColumns]);
+  }, [navigate, handleDelete, contextMenuTriggerColumn, applySavedWidthsToColumns, existenciasPorProducto]);
 
   const orderedColumns = useMemo(() => {
     if (!columnOrder.length) {
@@ -459,7 +460,7 @@ export default function ProductosPage() {
     {desktopView}
     <Dialog open={globalSpecsOpen} onClose={() => setGlobalSpecsOpen(false)} fullWidth maxWidth="md">
       <DialogTitle>Biblioteca global de especificaciones</DialogTitle>
-      <DialogContent dividers><EspecificacionesBibliotecaEditor alcance="global" onError={(message) => setSnackbar({ open: true, message, severity: 'error' })} /></DialogContent>
+      <DialogContent dividers><EspecificacionesBibliotecaEditor alcance="global" titulo={null} onError={(message) => setSnackbar({ open: true, message, severity: 'error' })} /></DialogContent>
     </Dialog>
     <Snackbar open={snackbar.open} autoHideDuration={3200} onClose={() => setSnackbar((p) => ({ ...p, open: false }))} message={snackbar.message} />
   </Box>;

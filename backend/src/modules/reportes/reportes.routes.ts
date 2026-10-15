@@ -26,6 +26,7 @@ import {
   getPosicionTesoreria,
   getCarteraVencida,
   getMovimientosNoConciliados,
+  getMovimientosPorConcepto,
   getExistenciasPorAlmacen,
   getKardexProducto,
   getMovimientosInventarioPeriodo,
@@ -64,6 +65,7 @@ router.get('/finanzas/pagos-proveedores',              getPagosProveedores);
 router.get('/finanzas/posicion-tesoreria',             getPosicionTesoreria);
 router.get('/finanzas/cartera-vencida',                getCarteraVencida);
 router.get('/finanzas/movimientos-no-conciliados',     getMovimientosNoConciliados);
+router.get('/finanzas/movimientos-por-concepto',        getMovimientosPorConcepto);
 
 router.get('/inventario/existencias-por-almacen',      getExistenciasPorAlmacen);
 router.get('/inventario/kardex',                       getKardexProducto);

@@ -38,6 +38,7 @@ import {
   fetchConfiguracionEspecificaciones,
   type CatalogoConfigurablesProductoRespuesta,
   type ProductoArchivo,
+  fetchExistenciasProducto,
 } from '../services/productosService';
 import { apiFetch, type ApiFetchError } from '../services/apiFetch';
 import { fetchCamposObligatorios } from '../services/camposObligatoriosService';
@@ -131,6 +132,9 @@ export default function ProductoFormPage() {
     { open: false, message: '', severity: 'success' }
   );
   const [productoLoaded, setProductoLoaded] = useState<Producto | null>(null);
+  const [existenciaReal, setExistenciaReal] = useState<number | null>(null);
+  const [existenciaRealLoading, setExistenciaRealLoading] = useState(false);
+  const [existenciaRealError, setExistenciaRealError] = useState<string | null>(null);
   const [unidades, setUnidades] = useState<Unidad[]>([]);
   const [productosSatOptions, setProductosSatOptions] = useState<ProductoServicioSatOption[]>([]);
   const [productosSatLoading, setProductosSatLoading] = useState(false);
@@ -279,6 +283,30 @@ export default function ProductoFormPage() {
       cancelado = true;
     };
   }, [routeId, loadProductosSat]);
+
+  useEffect(() => {
+    if (productoId == null) {
+      setExistenciaReal(null);
+      return;
+    }
+    let cancelado = false;
+    setExistenciaRealLoading(true);
+    setExistenciaRealError(null);
+    void fetchExistenciasProducto(productoId)
+      .then((filas) => {
+        if (!cancelado) setExistenciaReal(filas.reduce((total, fila) => total + Number(fila.existencia || 0), 0));
+      })
+      .catch((e) => {
+        if (!cancelado) {
+          setExistenciaReal(null);
+          setExistenciaRealError(e instanceof Error ? e.message : 'No se pudo cargar la existencia');
+        }
+      })
+      .finally(() => {
+        if (!cancelado) setExistenciaRealLoading(false);
+      });
+    return () => { cancelado = true; };
+  }, [productoId]);
 
   useEffect(() => () => {
     if (productosSatDebounceRef.current) {
@@ -766,7 +794,9 @@ export default function ProductoFormPage() {
               onFactorConversionChange={(v) => handleChange('factor_conversion', v)}
               erroresActivos={erroresActivos}
               camposObligatorios={camposObligatorios}
-              existenciaActual={productoLoaded?.existencia_actual}
+              existenciaActual={existenciaReal}
+              existenciaLoading={existenciaRealLoading}
+              existenciaError={existenciaRealError}
               claveBienesTransportadosSat={form.clave_bienes_transportados_sat ?? null}
               esMaterialPeligroso={Boolean(form.es_material_peligroso)}
               claveMaterialPeligrosoSat={form.clave_material_peligroso_sat ?? null}
@@ -849,6 +879,7 @@ export default function ProductoFormPage() {
                   <EspecificacionesBibliotecaEditor
                     alcance="producto"
                     productoId={productoId ?? undefined}
+                    titulo={null}
                     onError={(message) => setSnackbar({ open: true, message, severity: 'error' })}
                     onCountChange={setEspecificacionesCount}
                   />

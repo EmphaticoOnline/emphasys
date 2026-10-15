@@ -353,6 +353,11 @@ export async function descargarComplementoPagoXml(id: number): Promise<void> {
   triggerBlobDownload(blob, filename);
 }
 
+export async function descargarAcuseCancelacionXml(id: number): Promise<void> {
+  const { blob, filename } = await apiFetchBlob(`/api/documentos/${id}/acuse-cancelacion`);
+  triggerBlobDownload(blob, filename);
+}
+
 export function cancelarDocumento(
   id: number,
   tipo: TipoDocumento,

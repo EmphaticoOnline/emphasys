@@ -41,6 +41,7 @@ import type { GridContextMenuAction } from '../components/grids/GridContextMenu'
 import { SHOW_GRID_ACTIONS } from '../components/grids/gridUxFlags';
 import { STANDARD_DATA_GRID_HEADER_HEIGHT, STANDARD_DATA_GRID_ROW_HEIGHT, standardDataGridSx } from '../components/grids/standardDataGridSx';
 import { useGridContextMenu } from '../hooks/useGridContextMenu';
+import { ConfigPageFrame, ConfigPageHeader, ConfigSurface } from '../components/configuracion/configVisual';
 
 function useTipoCatalogo(tipoId: number | null) {
   const [tipo, setTipo] = useState<{ id: number; nombre: string | null; entidad_tipo_id: number; entidad_tipo_codigo: string | null } | null>(null);
@@ -496,17 +497,12 @@ export default function CatalogoValoresPage() {
   };
 
   return (
+    <ConfigPageFrame>
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <Stack direction="row" alignItems="flex-start" justifyContent="space-between" spacing={2}>
-        <Box>
-          <Typography variant="h5" fontWeight={700} color="#1d2f68">
-            {loadingTipo ? 'Cargando…' : tituloCatalogo || 'Catálogo configurable'}
-          </Typography>
-          <Typography variant="body2" color="#4b5563">
-            Administra los valores del catálogo.
-          </Typography>
+      <ConfigPageHeader title={loadingTipo ? 'Cargando…' : tituloCatalogo || 'Catálogo configurable'} description="Administra los valores del catálogo." actions={<Stack direction="row" spacing={1}><Button variant="outlined" onClick={() => navigate(-1)}>Volver</Button><Button variant="contained" onClick={openCreate} disabled={!tipoId} startIcon={<AddIcon />}>Nuevo</Button></Stack>} />
+      <Box>
           {esClasificacionComercialContacto ? (
-            <Typography variant="body2" color="#2563eb">
+            <Typography variant="body2" sx={(theme) => ({ color: theme.emphasys.action.info })}>
               Cada clasificación comercial puede asociarse a una lista de precios de venta.
             </Typography>
           ) : null}
@@ -516,34 +512,11 @@ export default function CatalogoValoresPage() {
             </Typography>
           ) : null}
         </Box>
-        <Stack direction="row" spacing={1}>
-          <Button variant="outlined" onClick={() => navigate(-1)}>
-            Volver
-          </Button>
-          <Button
-            variant="contained"
-            onClick={openCreate}
-            disabled={!tipoId}
-            startIcon={<AddIcon />}
-          >
-            Nuevo
-          </Button>
-        </Stack>
-      </Stack>
 
       {error ? <Alert severity="error">{error}</Alert> : null}
 
-      <Box
-        sx={{
-          width: '100%',
-          background: '#fff',
-          border: '1px solid #e5e7eb',
-          borderRadius: 1.5,
-          boxShadow: '0px 6px 16px rgba(0,0,0,0.04)',
-          '& .MuiDataGrid-root': {
-            border: 'none',
-          },
-        }}
+      <ConfigSurface
+        sx={{ width: '100%', '& .MuiDataGrid-root': { border: 'none' } }}
       >
         <DataGrid
           rows={rows}
@@ -569,7 +542,7 @@ export default function CatalogoValoresPage() {
             },
           ]}
         />
-      </Box>
+      </ConfigSurface>
 
       <GridContextMenu
         actions={contextMenuActions}
@@ -671,5 +644,6 @@ export default function CatalogoValoresPage() {
         </DialogActions>
       </Dialog>
     </Box>
+    </ConfigPageFrame>
   );
 }

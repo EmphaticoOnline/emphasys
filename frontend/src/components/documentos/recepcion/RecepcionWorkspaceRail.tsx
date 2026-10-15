@@ -26,6 +26,7 @@ import type { Contacto } from '../../../types/contactos.types';
 import type { CotizacionListado } from '../../../types/cotizacion';
 import type { GridContextMenuAction } from '../../grids/GridContextMenu';
 import { getStatusToneColor } from '../../status/status.semantics';
+import { workspaceRailContactNameSx } from '../workspaceRailStyles';
 import type { StatusTone } from '../../status/status.types';
 import { WorkspaceRowContextMenu } from '../WorkspaceRowContextMenu';
 import { PopoverFiltroFacturas } from '../facturas/FacturasWorkspaceView';
@@ -425,7 +426,7 @@ export default function RecepcionWorkspaceRail({
                       </IconButton>
                     </Box>
                   </Box>
-                  <Typography variant="figure" sx={{ fontSize: 14, mt: 0.25, color: tokens.navigation.foreground, lineHeight: 1.2 }} noWrap>
+                  <Typography variant="figure" sx={[workspaceRailContactNameSx, { fontSize: 14, mt: 0.25, color: tokens.navigation.foreground, lineHeight: 1.2 }]}>
                     {row.nombre_cliente || 'Sin proveedor'}
                   </Typography>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 0.7, alignItems: 'center', mt: 0.3 }}>

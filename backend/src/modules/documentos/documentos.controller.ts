@@ -1251,6 +1251,45 @@ export async function obtenerDocumentoXML(req: Request, res: Response) {
   }
 }
 
+export async function descargarAcuseCancelacion(req: Request, res: Response) {
+  try {
+    const documentoId = Number(req.params.id);
+    const empresaId = req.context?.empresaId;
+    if (!Number.isFinite(documentoId) || !empresaId) {
+      return res.status(400).json({ message: 'ID o empresaId inválido' });
+    }
+
+    const { rows } = await pool.query<{
+      uuid: string | null;
+      cancelacion_estado: string | null;
+      estado_sat: string | null;
+      xml_cancelacion: string | null;
+    }>(
+      `SELECT dc.uuid, dc.cancelacion_estado, dc.estado_sat, dc.xml_cancelacion
+         FROM documentos d
+         JOIN documentos_cfdi dc ON dc.documento_id = d.id
+        WHERE d.id = $1 AND d.empresa_id = $2
+        LIMIT 1`,
+      [documentoId, Number(empresaId)]
+    );
+    const cfdi = rows[0];
+    if (!cfdi) return res.status(404).json({ message: 'El documento no tiene CFDI' });
+
+    const cancelado = cfdi.cancelacion_estado === 'cancelada' || cfdi.estado_sat === 'cancelado';
+    if (!cancelado) return res.status(409).json({ message: 'El CFDI todavía no está cancelado' });
+    if (!cfdi.xml_cancelacion?.trim()) return res.status(404).json({ message: 'Acuse de cancelación no disponible' });
+
+    const uuid = String(cfdi.uuid || documentoId).trim();
+    const filename = `Acuse-Cancelacion-${uuid}.xml`;
+    res.setHeader('Content-Type', 'application/xml; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"; filename*=UTF-8''${encodeURIComponent(filename)}`);
+    return res.send(cfdi.xml_cancelacion);
+  } catch (error) {
+    console.error('Error al descargar acuse de cancelación', error);
+    return res.status(500).json({ message: 'Error al descargar el acuse de cancelación' });
+  }
+}
+
 export async function enviarComplementoPagoPorCorreo(req: Request, res: Response) {
   try {
     const documentoId = Number(req.params.id);

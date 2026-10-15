@@ -25,6 +25,7 @@ import {
   obtenerVencimientosClientes,
   obtenerPagosClientes,
   obtenerPagosProveedores,
+  obtenerMovimientosPorConcepto,
   obtenerPosicionTesoreria,
   obtenerCarteraVencida,
   obtenerMovimientosNoConciliados,
@@ -699,8 +700,10 @@ function parsePeriodoParams(req: Request) {
   const contactoId  = req.query.contacto_id ? Number(req.query.contacto_id) : null;
   const productoId  = req.query.producto_id  ? Number(req.query.producto_id)  : null;
   const origenContactoId = req.query.origen_contacto_id !== undefined ? Number(req.query.origen_contacto_id) : null;
+  const vendedorRaw = String(req.query.vendedor_id ?? '').trim();
+  const vendedorId  = vendedorRaw ? Number(vendedorRaw) : null;
   const formato     = ((req.query.formato     as string) || 'json').toLowerCase();
-  return { empresaId, fechaInicio, fechaFin, agrupacion, contactoId, productoId, origenContactoId, formato };
+  return { empresaId, fechaInicio, fechaFin, agrupacion, contactoId, productoId, origenContactoId, vendedorRaw, vendedorId, formato };
 }
 
 function buildColsPeriodoResumen(contactoLabel: string, mostrarCantidad: boolean): ExportColumna[] {
@@ -813,12 +816,13 @@ export async function getComprasPorPeriodo(req: Request, res: Response) {
 }
 
 export async function getVentasPorPeriodo(req: Request, res: Response) {
-  const { empresaId, fechaInicio, fechaFin, agrupacion, contactoId, productoId, origenContactoId, formato } = parsePeriodoParams(req);
+  const { empresaId, fechaInicio, fechaFin, agrupacion, contactoId, productoId, origenContactoId, vendedorRaw, vendedorId, formato } = parsePeriodoParams(req);
   if (!empresaId) return res.status(400).json({ message: 'Empresa requerida' });
   if (!fechaInicio || !fechaFin) return res.status(400).json({ message: 'fecha_inicio y fecha_fin son requeridos' });
   if (!AGRUPACIONES_VALIDAS.includes(agrupacion)) return res.status(400).json({ message: 'agrupacion inválida' });
+  if (vendedorRaw && (vendedorId == null || !Number.isInteger(vendedorId) || vendedorId <= 0)) return res.status(400).json({ message: 'vendedor_id inválido' });
   try {
-    const resultado = await obtenerVentasPorPeriodo({ empresaId, fechaInicio, fechaFin, agrupacion, contactoId, productoId, origenContactoId });
+    const resultado = await obtenerVentasPorPeriodo({ empresaId, fechaInicio, fechaFin, agrupacion, contactoId, productoId, origenContactoId, vendedorId });
     return sendMovimientosPorPeriodo(res, resultado, formato, 'Ventas por Período', 'Cliente', 'ventas-por-periodo', !!productoId);
   } catch (err: unknown) {
     return res.status(500).json({ message: err instanceof Error ? err.message : 'Error' });
@@ -1243,6 +1247,32 @@ export async function getPosicionTesoreria(req: Request, res: Response) {
   } catch (err: unknown) {
     return res.status(500).json({ message: err instanceof Error ? err.message : 'Error' });
   }
+}
+
+const COLUMNAS_MOV_CONCEPTO: ExportColumna[] = [
+  { field: 'concepto', headerName: 'Concepto' }, { field: 'moneda', headerName: 'Moneda' },
+  { field: 'movimientos', headerName: 'Movimientos' }, { field: 'entradas', headerName: 'Entradas' },
+  { field: 'salidas', headerName: 'Salidas' }, { field: 'neto', headerName: 'Neto' },
+];
+
+export async function getMovimientosPorConcepto(req: Request, res: Response) {
+  const empresaId = req.context?.empresaId as number | undefined;
+  if (!empresaId) return res.status(400).json({ message: 'Empresa requerida' });
+  const fechaInicio = String(req.query.fecha_inicio || '');
+  const fechaFin = String(req.query.fecha_fin || '');
+  if (!fechaInicio || !fechaFin) return res.status(400).json({ message: 'fecha_inicio y fecha_fin son requeridas' });
+  const tipo = String(req.query.tipo_movimiento || 'todos') as 'todos' | 'entradas' | 'salidas';
+  const p = { empresaId, fechaInicio, fechaFin, cuentaId: req.query.cuenta_id ? Number(req.query.cuenta_id) : null, conceptoId: req.query.concepto_id === 'null' ? null : req.query.concepto_id ? Number(req.query.concepto_id) : undefined, moneda: req.query.moneda ? String(req.query.moneda) : null, tipoMovimiento: tipo };
+  try {
+    const resultado = await obtenerMovimientosPorConcepto(p, req.query.detalle === 'true');
+    if (String(req.query.formato || '').toLowerCase() === 'excel') {
+      const buffer = generarExcelBuffer(resultado.resumen, COLUMNAS_MOV_CONCEPTO, 'Movimientos por Concepto');
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', 'attachment; filename="movimientos-por-concepto.xlsx"');
+      return res.send(buffer);
+    }
+    return res.json(resultado);
+  } catch (err) { return res.status(500).json({ message: err instanceof Error ? err.message : 'Error al obtener movimientos por concepto' }); }
 }
 
 // ── Cartera Vencida ────────────────────────────────────────────────────────────
