@@ -1,0 +1,19 @@
+Fecha;Descripción;Referencia bancaria;Débito;Crédito;Saldo posterior
+01/09/2026;Depósito nómina;DEP-0001;;18500.00;18500.00
+02/09/2026;Transferencia recibida cliente;TRF-0002;;12750.50;31250.50
+03/09/2026;Compra papelería;POS-0003;845.20;;30405.30
+04/09/2026;Comisión manejo de cuenta;COM-0004;125.00;;30280.30
+05/09/2026;Transferencia a proveedor;TRF-0005;6800.00;;23480.30
+06/09/2026;Depósito efectivo sucursal;DEP-0006;;4200.00;27680.30
+07/09/2026;Retiro cajero automático;ATM-0007;1500.00;;26180.30
+08/09/2026;Transferencia recibida cliente;TRF-0008;;9350.75;35531.05
+09/09/2026;Comisión transferencia;COM-0009;35.00;;35496.05
+10/09/2026;Pago servicio de internet;SER-0010;899.00;;34597.05
+11/09/2026;Depósito cheque;DEP-0011;;5600.00;40197.05
+12/09/2026;Transferencia entre cuentas;TRF-0012;3000.00;;37197.05
+13/09/2026;Devolución proveedor;DEV-0013;;475.25;37672.30
+14/09/2026;Comisión por cheque;COM-0014;22.50;;37649.80
+15/09/2026;Compra combustible;POS-0015;1240.80;;36409.00
+16/09/2026;Depósito ventas;DEP-0016;;7800.00;44209.00
+17/09/2026;Transferencia a nómina;TRF-0017;9250.00;;34959.00
+18/09/2026;Comisión bancaria mensual;COM-0018;180.00;;34779.00

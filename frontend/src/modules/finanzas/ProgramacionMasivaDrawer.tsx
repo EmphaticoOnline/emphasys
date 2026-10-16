@@ -53,8 +53,11 @@ const toCivilDate = (date = new Date()) => {
 const formatFecha = (iso?: string | null): string => {
   if (!iso) return '—';
   const m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (!m) return String(iso).slice(0, 10);
-  return `${m[3]}/${m[2]}/${m[1]}`;
+  if (m) return `${m[3]}/${m[2]}/${m[1]}`;
+  // Valores no ISO (p. ej. "Thu Oct 15 2026 00:00:00 GMT-0600"): leer componentes locales sin convertir zona
+  const d = new Date(String(iso));
+  if (isNaN(d.getTime())) return String(iso);
+  return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
 };
 
 const formatMonto = (v: number) =>

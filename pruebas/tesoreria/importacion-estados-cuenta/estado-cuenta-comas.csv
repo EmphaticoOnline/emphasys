@@ -1,0 +1,19 @@
+fecha,concepto,referencia,cargo,abono,saldo
+2026-09-01,Depósito nómina,DEP-0001,,18500.00,18500.00
+2026-09-02,Transferencia recibida cliente,TRF-0002,,12750.50,31250.50
+2026-09-03,Compra papelería,POS-0003,845.20,,30405.30
+2026-09-04,Comisión manejo de cuenta,COM-0004,125.00,,30280.30
+2026-09-05,Transferencia a proveedor,TRF-0005,6800.00,,23480.30
+2026-09-06,Depósito efectivo sucursal,DEP-0006,,4200.00,27680.30
+2026-09-07,Retiro cajero automático,ATM-0007,1500.00,,26180.30
+2026-09-08,Transferencia recibida cliente,TRF-0008,,9350.75,35531.05
+2026-09-09,Comisión transferencia,COM-0009,35.00,,35496.05
+2026-09-10,Pago servicio de internet,SER-0010,899.00,,34597.05
+2026-09-11,Depósito cheque,DEP-0011,,5600.00,40197.05
+2026-09-12,Transferencia entre cuentas,TRF-0012,3000.00,,37197.05
+2026-09-13,Devolución proveedor,DEV-0013,,475.25,37672.30
+2026-09-14,Comisión por cheque,COM-0014,22.50,,37649.80
+2026-09-15,Compra combustible,POS-0015,1240.80,,36409.00
+2026-09-16,Depósito ventas,DEP-0016,,7800.00,44209.00
+2026-09-17,Transferencia a nómina,TRF-0017,9250.00,,34959.00
+2026-09-18,Comisión bancaria mensual,COM-0018,180.00,,34779.00
