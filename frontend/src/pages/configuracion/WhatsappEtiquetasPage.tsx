@@ -41,7 +41,8 @@ import type { GridContextMenuAction } from '../../components/grids/GridContextMe
 import { SHOW_GRID_ACTIONS } from '../../components/grids/gridUxFlags';
 import { STANDARD_DATA_GRID_HEADER_HEIGHT, STANDARD_DATA_GRID_ROW_HEIGHT, standardDataGridSx } from '../../components/grids/standardDataGridSx';
 import { useGridContextMenu } from '../../hooks/useGridContextMenu';
-import { ConfigPageFrame, ConfigPageHeader, ConfigSurface } from '../../components/configuracion/configVisual';
+import { ConfigPageFrame, ConfigPageHeader } from '../../components/configuracion/configVisual';
+import { ControlLabel, PatternDialogHeader, Section, actionIconSx, dialogContentSx, dialogPaperSx, dialogTitleSx, editorialDataGridSx, fieldsOnIvorySx, formWellSx, innerDestructiveButtonSx, innerOutlinedButtonSx, panelBarSx, rowIconSx, wellSx } from '../../components/transporte/transporteVisual';
 
 type FormState = {
   nombre: string;
@@ -296,7 +297,7 @@ export default function WhatsappEtiquetasPage() {
               flexShrink: 0,
             }}
           />
-          <Typography variant="body2" fontWeight={600} noWrap>
+          <Typography variant="body2" fontWeight={700} noWrap sx={(theme) => ({ color: theme.emphasys.content.foreground })}>
             {params.row.nombre}
           </Typography>
         </Stack>
@@ -321,12 +322,9 @@ export default function WhatsappEtiquetasPage() {
       headerName: 'Estado',
       width: 130,
       renderCell: (params) => (
-        <Chip
-          size="small"
-          label={params.row.activo ? 'Activa' : 'Archivada'}
-          color={params.row.activo ? 'success' : 'default'}
-          variant={params.row.activo ? 'filled' : 'outlined'}
-        />
+        <Tooltip title={params.row.activo ? 'Archivar' : 'Reactivar'}>
+          <Switch size="small" checked={Boolean(params.row.activo)} onChange={() => void handleToggleActivo(params.row)} />
+        </Tooltip>
       ),
     },
     {
@@ -338,27 +336,18 @@ export default function WhatsappEtiquetasPage() {
       renderCell: (params: GridRenderCellParams<WhatsappEtiquetaAdmin>) => (
         <Stack direction="row" spacing={0.5} alignItems="center">
           <Tooltip title="Editar">
-            <IconButton size="small" color="primary" onClick={() => handleEdit(params.row)}>
-              <EditIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
-          <Tooltip title={params.row.activo ? 'Archivar' : 'Reactivar'}>
-            <IconButton
-              size="small"
-              color={params.row.activo ? 'warning' : 'success'}
-              onClick={() => void handleToggleActivo(params.row)}
-            >
-              {params.row.activo ? <ArchiveIcon fontSize="small" /> : <RestoreIcon fontSize="small" />}
+            <IconButton size="small" sx={rowIconSx} onClick={() => handleEdit(params.row)}>
+              <EditIcon sx={{ fontSize: 17 }} />
             </IconButton>
           </Tooltip>
           <Tooltip title={(params.row.uso_count ?? 0) > 0 ? 'No se puede eliminar mientras tenga asignaciones' : 'Eliminar'}>
             <span>
               <IconButton
                 size="small"
-                color="error"
+                sx={rowIconSx}
                 onClick={() => handleRequestDelete(params.row)}
               >
-                <DeleteIcon fontSize="small" />
+                <DeleteIcon sx={{ fontSize: 17 }} />
               </IconButton>
             </span>
           </Tooltip>
@@ -371,10 +360,12 @@ export default function WhatsappEtiquetasPage() {
 
   return (
     <ConfigPageFrame>
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <ConfigPageHeader title="Etiquetas de WhatsApp" description="Administra el catálogo global de etiquetas usadas en conversaciones y leads." actions={<Button variant="contained" startIcon={<AddIcon />} onClick={handleCreate}>Nueva etiqueta</Button>} />
+      <ConfigPageHeader title="Etiquetas de WhatsApp" description="Administra el catálogo global de etiquetas usadas en conversaciones y leads." actions={<Tooltip title="Nueva etiqueta"><IconButton size="small" sx={actionIconSx} onClick={handleCreate}><AddIcon fontSize="small" /></IconButton></Tooltip>} />
 
-      <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1.5} flexWrap="wrap" useFlexGap>
+      {error ? <Alert severity="error" onClose={() => setError(null)}>{error}</Alert> : null}
+
+      <Box sx={wellSx}>
+      <Box sx={(theme) => ({ ...(panelBarSx as (t: typeof theme) => object)(theme), ...fieldsOnIvorySx(theme), py: 1, flexWrap: 'wrap' })}>
         <Stack direction="row" spacing={1.5} flexWrap="wrap" useFlexGap sx={{ flex: 1, minWidth: 280 }}>
           <TextField
             size="small"
@@ -422,14 +413,10 @@ export default function WhatsappEtiquetasPage() {
             <MenuItem value="sin_uso">Sin asignaciones</MenuItem>
           </TextField>
         </Stack>
-        <Typography variant="caption" color="text.secondary">
+        <Typography variant="caption" sx={(theme) => ({ color: theme.emphasys.content.muted, maxWidth: 420 })}>
           Las archivadas dejan de aparecer al asignarlas en Leads. Solo puedes eliminar físicamente las que no tienen asignaciones.
         </Typography>
-      </Stack>
-
-      {error ? <Alert severity="error" onClose={() => setError(null)}>{error}</Alert> : null}
-
-      <ConfigSurface sx={{ width: '100%', '& .MuiDataGrid-root': { border: 'none' } }}>
+      </Box>
         <DataGrid
           rows={filteredRows}
           columns={columns}
@@ -442,14 +429,14 @@ export default function WhatsappEtiquetasPage() {
           getRowId={(row) => row.id}
           columnVisibilityModel={{ menu: true, actions: SHOW_GRID_ACTIONS }}
           {...(rowSlotProps ? { slotProps: { row: rowSlotProps } } : {})}
-          sx={standardDataGridSx}
+          sx={[standardDataGridSx, editorialDataGridSx]}
           pageSizeOptions={[10, 25, 50]}
           localeText={{
             ...esES.components.MuiDataGrid.defaultProps.localeText,
             noRowsLabel: loading ? 'Cargando…' : 'Sin etiquetas',
           }}
         />
-      </ConfigSurface>
+      </Box>
 
       <GridContextMenu
         actions={contextMenuActions}
@@ -458,9 +445,35 @@ export default function WhatsappEtiquetasPage() {
         onClose={closeContextMenu}
       />
 
-      <Dialog open={dialogOpen} onClose={handleCloseDialog} fullWidth maxWidth="xs">
-        <DialogTitle>{editing ? 'Editar etiqueta' : 'Nueva etiqueta'}</DialogTitle>
-        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
+      <Dialog open={dialogOpen} onClose={handleCloseDialog} fullWidth maxWidth="sm" PaperProps={{ sx: dialogPaperSx }}>
+        <DialogTitle component="div" sx={dialogTitleSx}>
+          <PatternDialogHeader
+            eyebrow="Etiquetas de WhatsApp"
+            title={editing ? 'Editar etiqueta' : 'Nueva etiqueta'}
+            onCancel={handleCloseDialog}
+            cancelDisabled={saving}
+            onSave={() => void handleSave()}
+            saving={saving}
+            saveLabel={editing ? 'Guardar cambios' : 'Crear etiqueta'}
+            extra={editing ? (
+              <FormControlLabel
+                sx={{ mr: 1 }}
+                control={
+                  <Switch
+                    size="small"
+                    checked={form.activo}
+                    onChange={(event) => setForm((prev) => ({ ...prev, activo: event.target.checked }))}
+                  />
+                }
+                label={<ControlLabel>{form.activo ? 'Etiqueta activa' : 'Etiqueta archivada'}</ControlLabel>}
+              />
+            ) : undefined}
+          />
+        </DialogTitle>
+        <DialogContent sx={dialogContentSx}>
+          <Box sx={(theme) => ({ ...formWellSx(theme), ...fieldsOnIvorySx(theme) })}>
+          <Section title="Etiqueta" inset>
+          <Stack spacing={2} sx={{ pt: 0.5 }}>
           <TextField
             size="small"
             label="Nombre"
@@ -478,43 +491,31 @@ export default function WhatsappEtiquetasPage() {
             InputLabelProps={{ shrink: true }}
             sx={{ maxWidth: 160 }}
           />
-          {editing ? (
-            <FormControlLabel
-              control={
-                <Switch
-                  checked={form.activo}
-                  onChange={(event) => setForm((prev) => ({ ...prev, activo: event.target.checked }))}
-                />
-              }
-              label={form.activo ? 'Etiqueta activa' : 'Etiqueta archivada'}
-            />
-          ) : null}
+          </Stack>
+          </Section>
+          </Box>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCloseDialog} disabled={saving}>Cancelar</Button>
-          <Button onClick={() => void handleSave()} variant="contained" disabled={saving}>
-            {editing ? 'Guardar cambios' : 'Crear etiqueta'}
-          </Button>
-        </DialogActions>
       </Dialog>
 
-      <Dialog open={Boolean(deleteDialog)} onClose={handleCloseDeleteDialog} fullWidth maxWidth="xs">
-        <DialogTitle>
-          {deleteDialog?.blocked ? 'No se puede eliminar la etiqueta' : 'Eliminar etiqueta'}
+      <Dialog open={Boolean(deleteDialog)} onClose={handleCloseDeleteDialog} fullWidth maxWidth="xs" PaperProps={{ sx: dialogPaperSx }}>
+        <DialogTitle component="div" sx={dialogTitleSx}>
+          <ConfigPageHeader eyebrow="Etiquetas de WhatsApp" title={deleteDialog?.blocked ? 'No se puede eliminar la etiqueta' : 'Eliminar etiqueta'} />
         </DialogTitle>
-        <DialogContent>
-          <Typography variant="body2" color="text.secondary">
+        <DialogContent sx={dialogContentSx}>
+          <Box sx={formWellSx}>
+          <Typography variant="body2" sx={(theme) => ({ px: 0.5, color: theme.emphasys.content.secondary })}>
             {deleteDialog?.blocked
               ? `La etiqueta "${deleteDialog.row.nombre}" está asignada a ${deleteDialog.row.uso_count ?? 0} conversación${(deleteDialog.row.uso_count ?? 0) === 1 ? '' : 'es'}. Para conservar el historial, primero quita esas asignaciones o archiva la etiqueta.`
               : `La etiqueta "${deleteDialog?.row.nombre}" no tiene asignaciones y se eliminará de forma permanente. Esta acción no se puede deshacer.`}
           </Typography>
+          </Box>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCloseDeleteDialog} disabled={deleting}>
+        <DialogActions sx={{ px: { xs: 1.5, md: 2.25 }, pb: 2 }}>
+          <Button onClick={handleCloseDeleteDialog} disabled={deleting} variant="outlined" sx={innerOutlinedButtonSx}>
             {deleteDialog?.blocked ? 'Entendido' : 'Cancelar'}
           </Button>
           {!deleteDialog?.blocked ? (
-            <Button onClick={() => void handleDelete()} color="error" variant="contained" disabled={deleting}>
+            <Button onClick={() => void handleDelete()} variant="contained" disableElevation sx={innerDestructiveButtonSx} disabled={deleting}>
               Eliminar
             </Button>
           ) : null}
@@ -535,7 +536,6 @@ export default function WhatsappEtiquetasPage() {
           {snackbar.message}
         </Alert>
       </Snackbar>
-    </Box>
     </ConfigPageFrame>
   );
 }

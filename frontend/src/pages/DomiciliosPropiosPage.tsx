@@ -4,27 +4,29 @@ import {
   Autocomplete,
   Box,
   Button,
-  Card,
   Checkbox,
-  Chip,
   CircularProgress,
-  Divider,
   FormControlLabel,
   IconButton,
-  Paper,
   Stack,
   Switch,
   TextField,
   Tooltip,
   Typography,
 } from "@mui/material";
+import type { Theme } from "@mui/material/styles";
 import {
   AddRounded,
+  CloseRounded,
   DeleteOutlineRounded,
   EditRounded,
+  PlaceOutlined,
+  SaveOutlined,
 } from "@mui/icons-material";
 import { apiFetch, type ApiFetchError } from "../services/apiFetch";
-import { ConfigPageFrame, ConfigPageHeader, ConfigSurface } from "../components/configuracion/configVisual";
+import { ConfigPageFrame, ConfigPageHeader } from "../components/configuracion/configVisual";
+import { catalogoOutlinedButtonSx, catalogoPrimaryButtonSx, catalogoSearchSx } from "../components/catalogo/catalogoSurfaces";
+import { ColHead, Pill, Section, actionIconSx, formWellSx, panelBarSx, rowIconSx, wellSx } from "../components/transporte/transporteVisual";
 
 type Domicilio = {
   id: number;
@@ -76,6 +78,12 @@ const address = (d: Domicilio) =>
   ]
     .filter(Boolean)
     .join(", ") || "Sin datos de ubicación";
+
+/* Filtros con los mismos estilos de botón de catálogo/Contactos y el radio de las acciones. */
+const filterShape = { borderRadius: "10px", minHeight: 34 };
+const filterOnSx = (theme: Theme) => ({ ...(catalogoPrimaryButtonSx as (t: Theme) => object)(theme), ...filterShape });
+const filterOffSx = (theme: Theme) => ({ ...(catalogoOutlinedButtonSx as (t: Theme) => object)(theme), ...filterShape });
+const gridCols = { xs: "1fr", md: "minmax(0,1.1fr) minmax(0,.9fr) minmax(0,2.2fr) 100px 124px" };
 
 export default function DomiciliosPropiosPage() {
   const [rows, setRows] = React.useState<Domicilio[]>([]),
@@ -216,146 +224,190 @@ export default function DomiciliosPropiosPage() {
       }
       value={form[k] ?? ""}
       onChange={(e) => set(k, e.target.value)}
+      sx={catalogoSearchSx}
     />
   );
   return (
     <ConfigPageFrame>
-      <ConfigPageHeader title="Domicilios propios" description="Administra los domicilios de la empresa disponibles para Carta Porte." actions={!show && <Button variant="contained" startIcon={<AddRounded />} onClick={() => setShow(true)}>Nuevo domicilio</Button>} />
-      {error && (
-        <Alert severity="error" sx={{ mb: 2 }}>
-          {error}
-        </Alert>
-      )}
       {!show && (
-        <ConfigSurface>
-          <Stack
-            direction={{ xs: "column", sm: "row" }}
-            spacing={1}
-            sx={{ p: 2 }}
-          >
-            <TextField
-              size="small"
-              placeholder="Buscar ubicación o dirección"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-            />
-            {["todos", "activos", "inactivos"].map((x) => (
-              <Button
-                key={x}
-                size="small"
-                variant={active === x ? "contained" : "outlined"}
-                onClick={() => setActive(x)}
-              >
-                {x[0].toUpperCase() + x.slice(1)}
-              </Button>
-            ))}
-          </Stack>
-          <Divider />
-          {filtered.map((d) => (
-            <Box
-              key={d.id}
-              sx={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                gap: 2,
-                flexWrap: "wrap",
-                p: 2,
-                borderTop: "1px solid",
-                borderColor: "divider",
-              }}
-            >
-              <Box sx={{ minWidth: 260 }}>
-                <Stack direction="row" spacing={1} alignItems="center">
-                  <Typography fontWeight={700}>{d.identificador}</Typography>
-                  <Chip
-                    size="small"
-                    label={
-                      d.es_principal
-                        ? "Principal"
-                        : d.activo
-                          ? "Activo"
-                          : "Inactivo"
-                    }
-                    color={
-                      d.es_principal
-                        ? "primary"
-                        : d.activo
-                          ? "success"
-                          : "default"
-                    }
-                    variant="outlined"
-                  />
-                </Stack>
-                <Typography variant="body2" color="text.secondary">
-                  {address(d)}
-                </Typography>
-              </Box>
-              <Stack direction="row" alignItems="center">
-                <Tooltip title="Editar">
-                  <IconButton
-                    size="small"
-                    onClick={() => {
-                      setEditing(d.id);
-                      setForm({ ...d });
-                      setShow(true);
-                    }}
-                  >
-                    <EditRounded fontSize="small" />
-                  </IconButton>
-                </Tooltip>
-                <Tooltip title={d.activo ? "Desactivar" : "Activar"}>
-                  <Switch
-                    size="small"
-                    checked={d.activo}
-                    onChange={() => void toggle(d)}
-                  />
-                </Tooltip>
-                <Tooltip title="Eliminar">
-                  <IconButton
-                    size="small"
-                    color="error"
-                    onClick={() => void remove(d)}
-                  >
-                    <DeleteOutlineRounded fontSize="small" />
-                  </IconButton>
-                </Tooltip>
-              </Stack>
-            </Box>
-          ))}
-          {!filtered.length && (
-            <Typography sx={{ p: 3 }} color="text.secondary">
-              No hay domicilios propios registrados.
-            </Typography>
-          )}
-        </ConfigSurface>
+        <ConfigPageHeader
+          title="Domicilios propios"
+          description="Administra los domicilios de la empresa disponibles para Carta Porte."
+          actions={
+            <Tooltip title="Nuevo domicilio">
+              <IconButton size="small" sx={actionIconSx} onClick={() => setShow(true)}>
+                <AddRounded fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          }
+        />
       )}
       {show && (
-        <ConfigSurface sx={{ p: { xs: 2, md: 3 } }}>
-          <Stack
-            direction={{ xs: "column", sm: "row" }}
-            justifyContent="space-between"
-            spacing={1}
-            mb={2}
-          >
-            <Typography variant="h6" fontWeight={700}>
-              {editing ? "Editar domicilio" : "Nuevo domicilio propio"}
-            </Typography>
-            <FormControlLabel
-              control={
-                <Switch
+        <ConfigPageHeader
+          eyebrow="Domicilios propios"
+          title={editing ? "Editar domicilio" : "Nuevo domicilio propio"}
+          description={
+            editing && form.identificador
+              ? [form.identificador, form.tipo_referencia].filter(Boolean).join(" · ")
+              : "Ubicación de la empresa disponible para Carta Porte."
+          }
+          actions={
+            <Stack direction="row" spacing={0.5} alignItems="center">
+              <FormControlLabel
+                sx={{ mr: 1 }}
+                control={
+                  <Switch
+                    size="small"
+                    checked={form.activo !== false}
+                    onChange={(e) => set("activo", e.target.checked)}
+                  />
+                }
+                label={<Typography sx={{ fontSize: 13, fontWeight: 600 }}>Activo</Typography>}
+              />
+              <Tooltip title="Cancelar">
+                <IconButton size="small" sx={actionIconSx} onClick={reset}>
+                  <CloseRounded fontSize="small" />
+                </IconButton>
+              </Tooltip>
+              <Tooltip title={saving ? "Guardando…" : "Guardar"}>
+                <span>
+                  <IconButton
+                    size="small"
+                    sx={actionIconSx}
+                    disabled={saving || !form.identificador.trim()}
+                    onClick={() => void save()}
+                  >
+                    {saving ? <CircularProgress size={16} color="inherit" /> : <SaveOutlined fontSize="small" />}
+                  </IconButton>
+                </span>
+              </Tooltip>
+            </Stack>
+          }
+        />
+      )}
+      {error && <Alert severity="error">{error}</Alert>}
+      {!show && (
+        <Box sx={wellSx}>
+          <Box sx={panelBarSx}>
+            <Stack direction={{ xs: "column", sm: "row" }} spacing={1} alignItems={{ sm: "center" }} sx={{ minWidth: 0, py: 1 }}>
+              <Box sx={{ minWidth: { sm: 280 } }}>
+                <TextField
                   size="small"
-                  checked={form.activo !== false}
-                  onChange={(e) => set("activo", e.target.checked)}
+                  fullWidth
+                  placeholder="Buscar ubicación o dirección"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  sx={catalogoSearchSx}
                 />
-              }
-              label="Activo"
-            />
-          </Stack>
-          <Stack spacing={2.5}>
-            <Typography variant="subtitle1" fontWeight={700} color="text.primary">
-              Identificación
+              </Box>
+              <Stack direction="row" spacing={0.5}>
+                {["todos", "activos", "inactivos"].map((x) => (
+                  <Button
+                    key={x}
+                    size="small"
+                    variant={active === x ? "contained" : "outlined"}
+                    disableElevation
+                    sx={active === x ? filterOnSx : filterOffSx}
+                    onClick={() => setActive(x)}
+                  >
+                    {x[0].toUpperCase() + x.slice(1)}
+                  </Button>
+                ))}
+              </Stack>
+            </Stack>
+            <Typography sx={(theme) => ({ fontSize: 12, fontWeight: 600, color: theme.emphasys.content.muted })}>
+              {filtered.length} {filtered.length === 1 ? "domicilio" : "domicilios"}
             </Typography>
+          </Box>
+          {!filtered.length ? (
+            <Box sx={{ py: 6, textAlign: "center" }}>
+              <PlaceOutlined sx={(theme) => ({ fontSize: 40, color: theme.emphasys.content.muted, mb: 1 })} />
+              <Typography variant="body2" sx={(theme) => ({ color: theme.emphasys.content.muted })}>
+                No hay domicilios propios registrados.
+              </Typography>
+            </Box>
+          ) : (
+            <>
+              <Box
+                sx={(theme) => ({
+                  display: { xs: "none", md: "grid" },
+                  gridTemplateColumns: gridCols,
+                  gap: 2,
+                  px: 2.25,
+                  py: 1,
+                  bgcolor: theme.emphasys.metric.amount.background,
+                  borderBottom: `1px solid ${theme.emphasys.content.border}`,
+                })}
+              >
+                <ColHead>Identificador</ColHead>
+                <ColHead>Tipo / referencia</ColHead>
+                <ColHead>Dirección</ColHead>
+                <ColHead>Principal</ColHead>
+                <ColHead align="right">Acciones</ColHead>
+              </Box>
+              {filtered.map((d) => (
+                <Box
+                  key={d.id}
+                  sx={(theme) => ({
+                    display: "grid",
+                    gridTemplateColumns: gridCols,
+                    alignItems: "center",
+                    gap: { xs: 0.75, md: 2 },
+                    px: { xs: 1.5, md: 2.25 },
+                    py: 1.25,
+                    borderBottom: `1px solid ${theme.emphasys.content.border}`,
+                    "&:last-of-type": { borderBottom: 0 },
+                    "&:hover": { bgcolor: theme.emphasys.content.hover },
+                  })}
+                >
+                  <Typography noWrap sx={(theme) => ({ fontSize: 14, fontWeight: 700, color: theme.emphasys.content.foreground, minWidth: 0 })}>
+                    {d.identificador}
+                  </Typography>
+                  <Typography noWrap sx={(theme) => ({ fontSize: 13, fontWeight: 600, color: d.tipo_referencia ? theme.emphasys.content.foreground : theme.emphasys.content.muted, minWidth: 0 })}>
+                    {d.tipo_referencia || "—"}
+                  </Typography>
+                  <Typography noWrap title={address(d)} sx={(theme) => ({ fontSize: 13, color: theme.emphasys.content.secondary, minWidth: 0 })}>
+                    {address(d)}
+                  </Typography>
+                  <Box>
+                    {d.es_principal && <Pill active label="Principal" />}
+                  </Box>
+                  <Stack direction="row" spacing={0.5} alignItems="center" justifyContent={{ xs: "flex-start", md: "flex-end" }}>
+                    <Tooltip title={d.activo ? "Desactivar" : "Activar"}>
+                      <Switch
+                        size="small"
+                        checked={d.activo}
+                        onChange={() => void toggle(d)}
+                      />
+                    </Tooltip>
+                    <Tooltip title="Editar domicilio">
+                      <IconButton
+                        size="small"
+                        sx={rowIconSx}
+                        onClick={() => {
+                          setEditing(d.id);
+                          setForm({ ...d });
+                          setShow(true);
+                        }}
+                      >
+                        <EditRounded sx={{ fontSize: 17 }} />
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title="Eliminar">
+                      <IconButton size="small" sx={rowIconSx} onClick={() => void remove(d)}>
+                        <DeleteOutlineRounded sx={{ fontSize: 17 }} />
+                      </IconButton>
+                    </Tooltip>
+                  </Stack>
+                </Box>
+              ))}
+            </>
+          )}
+        </Box>
+      )}
+      {show && (
+        <Box sx={formWellSx}>
+          <Section title="Identificación" inset>
             <Box
               sx={{
                 display: "grid",
@@ -372,12 +424,11 @@ export default function DomiciliosPropiosPage() {
                     onChange={(e) => set("es_principal", e.target.checked)}
                   />
                 }
-                label="Principal"
+                label={<Typography sx={{ fontSize: 13, fontWeight: 600 }}>Principal</Typography>}
               />
             </Box>
-            <Typography variant="subtitle1" fontWeight={700} color="text.primary">
-              Domicilio
-            </Typography>
+          </Section>
+          <Section title="Domicilio" inset>
             <Box
               sx={{
                 display: "grid",
@@ -409,6 +460,7 @@ export default function DomiciliosPropiosPage() {
                     <CircularProgress size={18} />
                   ) : undefined,
                 }}
+                sx={catalogoSearchSx}
               />
               {field("estado", "Estado")}
               {field("ciudad", "Municipio / Ciudad")}
@@ -426,7 +478,7 @@ export default function DomiciliosPropiosPage() {
                   }))
                 }
                 renderInput={(p) => (
-                  <TextField {...p} size="small" label="Colonia SAT" />
+                  <TextField {...p} size="small" label="Colonia SAT" sx={catalogoSearchSx} />
                 )}
               />
               {field("calle", "Calle")}
@@ -435,23 +487,8 @@ export default function DomiciliosPropiosPage() {
               {field("pais", "País")}
               {field("cruces", "Cruces / referencia")}
             </Box>
-          </Stack>
-          <Stack
-            direction="row"
-            justifyContent="flex-end"
-            spacing={1.25}
-            mt={3}
-          >
-            <Button onClick={reset}>Cancelar</Button>
-            <Button
-              variant="contained"
-              disabled={saving || !form.identificador.trim()}
-              onClick={() => void save()}
-            >
-              {saving ? "Guardando…" : "Guardar"}
-            </Button>
-          </Stack>
-        </ConfigSurface>
+          </Section>
+        </Box>
       )}
     </ConfigPageFrame>
   );

@@ -17,7 +17,7 @@ import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import LockIcon from '@mui/icons-material/Lock';
 import RadioButtonUncheckedIcon from '@mui/icons-material/RadioButtonUnchecked';
-import { DataGrid, GridToolbarContainer, useGridApiRef } from '@mui/x-data-grid';
+import { DataGrid, GridToolbarContainer, gridRowsMetaSelector, useGridApiRef } from '@mui/x-data-grid';
 import { useNavigate } from 'react-router-dom';
 import { esES } from '@mui/x-data-grid/locales';
 import type { GridColDef, GridComparatorFn, GridRenderCellParams, GridRowSelectionModel, GridSortModel } from '@mui/x-data-grid';
@@ -44,7 +44,10 @@ import {
   CampoFechaCaptura,
   CampoMontoCaptura,
   CampoReferenciaCaptura,
+  AccionesCapturaMovimiento,
+  ALTO_BARRA_CAPTURA,
   CAPTURA_FILA_ID,
+  type DetalleCapturaGuardada,
   capturaPopupAbierto,
   movimientoEditableEnLinea,
   movimientoGeneralPendiente,
@@ -52,6 +55,13 @@ import {
   useCapturaMovimiento,
   type CapturaInline,
 } from './FilaCapturaMovimiento';
+
+// El DataGrid MIT siempre pagina (pageSize por defecto = 100, máximo 100) aunque
+// el pie esté oculto: sin esto sólo se renderizan las primeras 100 filas y el
+// scroll "termina" ahí. pageSize -1 es el valor "Todos" que MUI sí admite.
+const ALTO_FILA_CAPTURA = 42;
+const PAGINACION_TODAS_LAS_FILAS = { page: 0, pageSize: -1 };
+const OPCIONES_PAGINACION_TODAS = [{ value: -1, label: 'Todos' }];
 
 export type FinanzasSearchToolbarProps = {
   value: string;
@@ -106,7 +116,7 @@ interface MovimientosTableProps {
   cuentaId?: number | null;
   cuentas?: FinanzasCuenta[];
   captura?: CapturaInline | null;
-  onCapturaGuardada?: () => Promise<void> | void;
+  onCapturaGuardada?: (detalle?: DetalleCapturaGuardada) => Promise<void> | void;
   onCapturaCancelada?: () => void;
   onCapturaError?: (mensaje: string) => void;
   onSeleccionChange?: (filas: FinanzasOperacion[]) => void;
@@ -116,6 +126,8 @@ interface MovimientosTableProps {
   onMarcarSeleccion?: (filas: FinanzasOperacion[], estado: 'pendiente' | 'cotejado') => void;
   hayOtraCuenta?: boolean;
   mostrarCuenta?: boolean;
+  /** Cambia cuando un filtro de vista altera las filas (p. ej. mostrar conciliados); conserva un scroll válido. */
+  vistaClave?: string;
 }
 
 function fijarFilaCaptura<V>(base: (v1: V, v2: V) => number): GridComparatorFn<V> {
@@ -208,19 +220,26 @@ export function MovimientosTable({
   onMarcarSeleccion,
   hayOtraCuenta = false,
   mostrarCuenta = false,
+  vistaClave,
 }: MovimientosTableProps) {
   const theme = useTheme();
   const tokens = theme.emphasys;
   const apiRef = useGridApiRef();
   const focoCampoRef = React.useRef<string | null>(null);
   const anclaSeleccionRef = React.useRef<number | null>(null);
+  // Movimiento recién guardado que hay que localizar una vez recargado el listado.
+  const [filaPorUbicar, setFilaPorUbicar] = React.useState<{ id: number; token: number } | null>(null);
   const capturaStore = useCapturaMovimiento({
     captura,
     cuentaId,
     cuentas,
     tokens,
     focoCampoRef,
-    onGuardada: onCapturaGuardada ?? (() => undefined),
+    onGuardada: async (detalle) => {
+      await onCapturaGuardada?.(detalle);
+      // Con "Guardar y añadir otro" el foco pasa al nuevo renglón de captura.
+      if (detalle?.operacionId != null && !detalle.siguiente) setFilaPorUbicar({ id: detalle.operacionId, token: Date.now() });
+    },
     onCancelada: onCapturaCancelada ?? (() => undefined),
     onError: onCapturaError ?? (() => undefined),
   });
@@ -420,6 +439,19 @@ export function MovimientosTable({
     return [fila, ...rows];
   }, [captura, cuentaId, rows]);
 
+  // La fila de captura se inserta antes de la primera fila, pero el DataGrid
+  // conserva la posición de scroll virtual anterior. Llevarla explícitamente
+  // al índice 0 evita que el formulario quede fuera de la ventana visible.
+  // El foco y el calendario de Fecha los abre CampoFechaCaptura en el frame
+  // siguiente, ya con el renglón posicionado.
+  React.useLayoutEffect(() => {
+    if (captura?.tipo !== 'nueva') return;
+    const frame = requestAnimationFrame(() => {
+      apiRef.current?.scrollToIndexes({ rowIndex: 0 });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [apiRef, captura?.tipo, captura?.tipo === 'nueva' ? captura.token : null]);
+
   React.useEffect(() => {
     if (!captura) return;
     const salir = () => {
@@ -587,7 +619,8 @@ export function MovimientosTable({
       {
         field: 'fecha',
         headerName: 'Fecha',
-        width: columnWidths.fecha ?? 118,
+        width: Math.max(columnWidths.fecha ?? 132, 132),
+        minWidth: 132,
         sortable: true,
         filterable: true,
         headerClassName: 'finanzas-header',
@@ -727,7 +760,7 @@ export function MovimientosTable({
               onDoubleClick={(event) => event.stopPropagation()}
               sx={{ display: 'flex', alignItems: 'center', gap: '4px', width: 84, flex: '0 0 84px' }}
             >
-              {enCaptura ? null : renderEstado(params.row, false)}
+              {enCaptura ? <AccionesCapturaMovimiento store={capturaStore} /> : renderEstado(params.row, false)}
               {enCaptura ? <Box sx={CAJA_ICONO} /> : (
                 <Tooltip title={tituloDetalle(params.row)} placement="top" arrow>
                   <IconButton
@@ -962,22 +995,174 @@ export function MovimientosTable({
     setSeleccionIds([id]);
   }, [idsEnOrdenVisual]);
 
+  // Tras guardar, el movimiento puede quedar en cualquier punto del orden
+  // vigente (p. ej. otra fecha). Se localiza por su ID real en el listado ya
+  // recargado —nunca por un índice previo al guardado—, se lleva a la vista y
+  // se deja seleccionado. Se reintenta unos frames hasta que el DataGrid haya
+  // procesado las filas nuevas.
+  React.useEffect(() => {
+    if (!filaPorUbicar) return;
+    const { id } = filaPorUbicar;
+    let frame = 0;
+    let intentos = 0;
+    const ubicar = () => {
+      const api = apiRef.current;
+      const indice = api?.getRowIndexRelativeToVisibleRows?.(id);
+      if (api && api.getRow(id) && typeof indice === 'number' && indice >= 0) {
+        // scrollToIndexes la deja en el borde, donde la tapa la barra de
+        // selección; una vez renderizada, se centra en la ventana visible.
+        api.scrollToIndexes({ rowIndex: indice });
+        anclaSeleccionRef.current = id;
+        setSeleccionIds([id]);
+        setFilaPorUbicar((actual) => (actual?.token === filaPorUbicar.token ? null : actual));
+        // Fuera de la limpieza del efecto: limpiar filaPorUbicar la dispara.
+        requestAnimationFrame(() => {
+          const raiz = api.rootElementRef?.current;
+          const scroller = raiz?.querySelector<HTMLElement>('.MuiDataGrid-virtualScroller');
+          const fila = raiz?.querySelector<HTMLElement>(`.MuiDataGrid-row[data-id="${id}"]`);
+          if (!scroller || !fila) return;
+          const caja = scroller.getBoundingClientRect();
+          const rect = fila.getBoundingClientRect();
+          scroller.scrollTop += (rect.top + rect.height / 2) - (caja.top + caja.height / 2);
+        });
+        return;
+      }
+      intentos += 1;
+      if (intentos > 30) {
+        // El movimiento no está en el listado visible (p. ej. lo excluye un filtro).
+        setFilaPorUbicar((actual) => (actual?.token === filaPorUbicar.token ? null : actual));
+        return;
+      }
+      frame = requestAnimationFrame(ubicar);
+    };
+    frame = requestAnimationFrame(ubicar);
+    return () => cancelAnimationFrame(frame);
+  }, [apiRef, filaPorUbicar, filasGrid]);
+
+  // Primera fila visible y orden vigente, para reubicar el scroll cuando un
+  // filtro de vista quita o agrega filas.
+  const anclaVistaRef = React.useRef<{ id: number | null; orden: number[] }>({ id: null, orden: [] });
+  const registrarAnclaVista = React.useCallback(() => {
+    const raiz = apiRef.current?.rootElementRef?.current;
+    const scroller = raiz?.querySelector<HTMLElement>('.MuiDataGrid-virtualScroller');
+    if (!raiz || !scroller) return;
+    const orden = idsEnOrdenVisual();
+    if (scroller.scrollTop <= 0) {
+      anclaVistaRef.current = { id: null, orden };
+      return;
+    }
+    const borde = raiz.querySelector('.MuiDataGrid-columnHeaders')?.getBoundingClientRect().bottom
+      ?? scroller.getBoundingClientRect().top;
+    const primera = Array.from(raiz.querySelectorAll<HTMLElement>('.MuiDataGrid-row[data-id]'))
+      .find((fila) => fila.getBoundingClientRect().bottom > borde + 1 && Number(fila.dataset.id) !== CAPTURA_FILA_ID);
+    anclaVistaRef.current = { id: primera ? Number(primera.dataset.id) : null, orden };
+  }, [apiRef, idsEnOrdenVisual]);
+
+  React.useEffect(() => {
+    const api = apiRef.current;
+    if (!api?.subscribeEvent) return undefined;
+    let frame = 0;
+    const desuscribir = api.subscribeEvent('scrollPositionChange', () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(registrarAnclaVista);
+    });
+    return () => {
+      cancelAnimationFrame(frame);
+      desuscribir();
+    };
+  }, [apiRef, registrarAnclaVista]);
+
+  const vistaClaveRef = React.useRef(vistaClave);
+  const idsEnOrdenVisualRef = React.useRef(idsEnOrdenVisual);
+  idsEnOrdenVisualRef.current = idsEnOrdenVisual;
+  const totalFilasGridRef = React.useRef(0);
+  totalFilasGridRef.current = filasGrid.length;
+  const frameVistaRef = React.useRef(0);
+  React.useEffect(() => () => cancelAnimationFrame(frameVistaRef.current), []);
+  React.useEffect(() => {
+    if (vistaClaveRef.current === vistaClave) return;
+    vistaClaveRef.current = vistaClave;
+    const { id: ancla, orden } = anclaVistaRef.current;
+    // El frame vive en un ref: re-renders posteriores (nuevas filas) no deben cancelarlo.
+    cancelAnimationFrame(frameVistaRef.current);
+    let intentos = 0;
+    const reubicar = () => {
+      const api = apiRef.current;
+      const raiz = api?.rootElementRef?.current;
+      const scroller = raiz?.querySelector<HTMLElement>('.MuiDataGrid-virtualScroller');
+      if (!api || !raiz || !scroller) return;
+      // Esperar a que el DataGrid haya procesado el nuevo conjunto de filas.
+      if (api.getRowsCount() !== totalFilasGridRef.current && intentos < 30) {
+        intentos += 1;
+        frameVistaRef.current = requestAnimationFrame(reubicar);
+        return;
+      }
+      const visibles = new Set(idsEnOrdenVisualRef.current());
+      // La fila ancla si sigue visible; si no, la siguiente (o anterior) que sí lo esté.
+      let destino: number | null = null;
+      if (ancla != null) {
+        if (visibles.has(ancla)) destino = ancla;
+        else {
+          const desde = orden.indexOf(ancla);
+          const siguientes = desde >= 0 ? orden.slice(desde + 1) : [];
+          const anteriores = desde >= 0 ? orden.slice(0, desde).reverse() : [];
+          destino = siguientes.find((id) => visibles.has(id)) ?? anteriores.find((id) => visibles.has(id)) ?? null;
+        }
+      }
+      const indice = destino != null ? api.getRowIndexRelativeToVisibleRows?.(destino) : undefined;
+      if (destino == null || typeof indice !== 'number' || indice < 0) {
+        scroller.scrollTop = 0;
+        return;
+      }
+      // La altura del contenedor crece un render después de las filas: hasta
+      // entonces el navegador recorta el scroll al máximo anterior.
+      const meta = gridRowsMetaSelector(api.state);
+      const metaLista = meta.positions.length === totalFilasGridRef.current;
+      const objetivo = meta.positions[indice] ?? 0;
+      const alturaLista = scroller.scrollHeight >= meta.currentPageTotalHeight;
+      if ((!metaLista || (!alturaLista && scroller.scrollHeight - scroller.clientHeight < objetivo)) && intentos < 30) {
+        intentos += 1;
+        frameVistaRef.current = requestAnimationFrame(reubicar);
+        return;
+      }
+      scroller.scrollTop = objetivo;
+      let intentosFila = 0;
+      const alinear = () => {
+        const fila = raiz.querySelector<HTMLElement>(`.MuiDataGrid-row[data-id="${destino}"]`);
+        if (!fila) {
+          intentosFila += 1;
+          if (intentosFila < 10) frameVistaRef.current = requestAnimationFrame(alinear);
+          return;
+        }
+        const borde = raiz.querySelector('.MuiDataGrid-columnHeaders')?.getBoundingClientRect().bottom
+          ?? scroller.getBoundingClientRect().top;
+        scroller.scrollTop += fila.getBoundingClientRect().top - borde;
+      };
+      frameVistaRef.current = requestAnimationFrame(alinear);
+    };
+    frameVistaRef.current = requestAnimationFrame(reubicar);
+  }, [apiRef, vistaClave]);
+
   return (
     <Box sx={{ position: 'relative', flex: 1, minHeight: 0, height: '100%', overflow: 'hidden', bgcolor: tokens.content.well }}>
       <DataGrid<Row>
     apiRef={apiRef}
     rows={filasGrid}
+    getRowId={(row) => row.id}
     columns={columns}
   density="compact"
-  getRowHeight={(params) => (esCapturaVisual(params.id as number) ? 42 : 32)}
+  getRowHeight={(params) => (esCapturaVisual(params.id as number) ? ALTO_FILA_CAPTURA + ALTO_BARRA_CAPTURA : 32)}
   getRowClassName={(params) => (esCapturaVisual(params.id as number) ? 'fila-captura' : '')}
   columnHeaderHeight={32}
-  columnBufferPx={2}
+    columnBufferPx={2}
+    rowBufferPx={8}
         loading={!!loading || loadingPreferences}
         sortModel={sortModel}
         onSortModelChange={(model) => setSortModel(model.length ? model : defaultSort)}
         localeText={esES.components.MuiDataGrid.defaultProps.localeText}
         hideFooterPagination
+        paginationModel={PAGINACION_TODAS_LAS_FILAS}
+        pageSizeOptions={OPCIONES_PAGINACION_TODAS}
         checkboxSelection
         disableRowSelectionOnClick
         isRowSelectable={(params) => params.id !== CAPTURA_FILA_ID}
@@ -1073,6 +1258,14 @@ export function MovimientosTable({
               background: `${tokens.action.primary} !important`,
             },
             '& .MuiDataGrid-cell.acciones-fila': { px: '2px', overflow: 'visible' },
+            // El renglón de captura incluye abajo la franja de botones: las celdas
+            // ocupan sólo la franja superior y la barra se ancla a la fila.
+            '& .MuiDataGrid-row.fila-captura': { position: 'relative' },
+            '& .fila-captura .MuiDataGrid-cell': {
+              height: `${ALTO_FILA_CAPTURA}px !important`,
+              minHeight: `${ALTO_FILA_CAPTURA}px !important`,
+              maxHeight: `${ALTO_FILA_CAPTURA}px !important`,
+            },
             '& .fila-captura .MuiDataGrid-cell, & .fila-captura:hover .MuiDataGrid-cell, & .fila-captura.Mui-selected .MuiDataGrid-cell': {
               backgroundColor: `${tokens.action.primary} !important`,
               background: `${tokens.action.primary} !important`,
@@ -1104,7 +1297,6 @@ export function MovimientosTable({
             },
           },
         ]}
-        getRowId={(row) => row.id}
       />
 
       <GridContextMenu

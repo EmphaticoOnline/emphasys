@@ -6,7 +6,6 @@ import {
   Button,
   CircularProgress,
   IconButton,
-  Paper,
   Stack,
   Table,
   TableBody,
@@ -32,6 +31,8 @@ import {
   fetchImpuestosCatalogo,
 } from '../../services/impuestosService';
 import { useTheme } from '@mui/material/styles';
+import { catalogoSearchSx } from '../../components/catalogo/catalogoSurfaces';
+import { PanelBar, Section, actionIconSx, editorialTableSx, fieldsOnIvorySx, formWellSx, innerPrimaryButtonSx, rowIconSx, wellSx } from '../../components/transporte/transporteVisual';
 import { useSession } from '../../session/useSession';
 
 function ordenarItems(items: EmpresaImpuestoDefault[]): EmpresaImpuestoDefault[] {
@@ -188,26 +189,7 @@ export default function EmpresaImpuestosDefault() {
   };
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={2}>
-        <Box>
-          <Typography sx={{ fontSize: 15, fontWeight: 700, color: tokens.content.foreground }}>
-            Impuestos default de la empresa
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Jerarquía: impuestos del producto → impuestos default de la empresa → reglas de tratamiento.
-          </Typography>
-        </Box>
-        <Button
-          variant="outlined"
-          startIcon={<ReplayIcon />}
-          onClick={() => cargarDatos()}
-          disabled={loading}
-        >
-          Recargar
-        </Button>
-      </Stack>
-
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
       {!empresaId && (
         <Alert severity="warning">Selecciona una empresa activa para administrar sus impuestos por default.</Alert>
       )}
@@ -218,8 +200,9 @@ export default function EmpresaImpuestosDefault() {
         </Alert>
       )}
 
-      <Paper elevation={0} sx={{ p: 2, borderRadius: 2, bgcolor: tokens.content.well, border: `1px solid ${tokens.content.border}` }}>
-        <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems={{ xs: 'stretch', md: 'flex-end' }}>
+      <Box sx={formWellSx}>
+      <Section title="Agregar impuesto" inset>
+        <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems={{ xs: 'stretch', md: 'flex-end' }} sx={fieldsOnIvorySx}>
           <Autocomplete
             options={opcionesDisponibles}
             getOptionLabel={(option) => formatImpuesto(option)}
@@ -246,22 +229,34 @@ export default function EmpresaImpuestosDefault() {
             startIcon={<AddIcon />}
             onClick={() => void handleAgregar()}
             disabled={loading || !empresaId}
-            sx={{ textTransform: 'none', bgcolor: tokens.action.primary, color: tokens.action.primaryForeground, '&:hover': { bgcolor: tokens.action.primaryHover } }}
+            disableElevation
+            sx={innerPrimaryButtonSx}
           >
             Agregar impuesto
           </Button>
         </Stack>
-      </Paper>
+      </Section>
+      </Box>
 
-      <TableContainer component={Paper} elevation={0} sx={{ borderRadius: 2, border: `1px solid ${tokens.content.border}`, bgcolor: tokens.content.well }}>
-        <Table size="small">
+      <Box sx={wellSx}>
+        <PanelBar title="Impuestos default de la empresa" meta="Jerarquía: impuestos del producto → impuestos default de la empresa → reglas de tratamiento.">
+          <Tooltip title="Recargar">
+            <span>
+              <IconButton size="small" sx={actionIconSx} onClick={() => cargarDatos()} disabled={loading}>
+                <ReplayIcon fontSize="small" />
+              </IconButton>
+            </span>
+          </Tooltip>
+        </PanelBar>
+      <TableContainer sx={{ overflowX: 'auto' }}>
+        <Table size="small" sx={editorialTableSx}>
           <TableHead>
-            <TableRow sx={{ backgroundColor: tokens.grid.header }}>
-              <TableCell sx={{ color: tokens.grid.headerForeground, fontWeight: 700 }}>Impuesto</TableCell>
-              <TableCell sx={{ color: tokens.grid.headerForeground, fontWeight: 700 }} width={140}>
+            <TableRow>
+              <TableCell>Impuesto</TableCell>
+              <TableCell width={140}>
                 Orden
               </TableCell>
-              <TableCell sx={{ color: tokens.grid.headerForeground, fontWeight: 700 }} align="right" width={140}>
+              <TableCell align="right" width={140}>
                 Acciones
               </TableCell>
             </TableRow>
@@ -309,14 +304,15 @@ export default function EmpresaImpuestosDefault() {
                       value={editValue}
                       onChange={(e) => handleOrdenChange(item.id, e.target.value)}
                       fullWidth
+                      sx={catalogoSearchSx}
                     />
                   </TableCell>
                   <TableCell align="right">
-                    <Stack direction="row" spacing={1} justifyContent="flex-end">
+                    <Stack direction="row" spacing={0.5} justifyContent="flex-end">
                       <Tooltip title="Guardar orden">
                         <span>
                           <IconButton
-                            color="primary"
+                            sx={rowIconSx}
                             onClick={() => void handleGuardarOrden(item.id)}
                             disabled={!tieneCambios || saving}
                             size="small"
@@ -326,7 +322,7 @@ export default function EmpresaImpuestosDefault() {
                         </span>
                       </Tooltip>
                       <Tooltip title="Eliminar">
-                        <IconButton color="error" onClick={() => void handleEliminar(item.id)} size="small">
+                        <IconButton sx={rowIconSx} onClick={() => void handleEliminar(item.id)} size="small">
                           <DeleteIcon fontSize="small" />
                         </IconButton>
                       </Tooltip>
@@ -338,6 +334,7 @@ export default function EmpresaImpuestosDefault() {
           </TableBody>
         </Table>
       </TableContainer>
+      </Box>
 
       <Snackbar
         open={snackbar.open}

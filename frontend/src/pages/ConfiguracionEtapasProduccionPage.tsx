@@ -40,7 +40,9 @@ import type { GridContextMenuAction } from '../components/grids/GridContextMenu'
 import { SHOW_GRID_ACTIONS } from '../components/grids/gridUxFlags';
 import { STANDARD_DATA_GRID_HEADER_HEIGHT, standardDataGridSx } from '../components/grids/standardDataGridSx';
 import { useGridContextMenu } from '../hooks/useGridContextMenu';
-import { ConfigPageFrame, ConfigPageHeader, ConfigSurface } from '../components/configuracion/configVisual';
+import { ConfigPageFrame, ConfigPageHeader } from '../components/configuracion/configVisual';
+import { catalogoSearchSx } from '../components/catalogo/catalogoSurfaces';
+import { ControlLabel, PanelBar, PatternDialogHeader, Pill, Section, actionIconSx, dialogContentSx, dialogPaperSx, dialogTitleSx, editorialDataGridSx, fieldsOnIvorySx, formWellSx, innerDestructiveButtonSx, innerOutlinedButtonSx, innerPrimaryButtonSx, rowIconSx, wellSx } from '../components/transporte/transporteVisual';
 
 type FormState = {
   nombre: string;
@@ -353,12 +355,7 @@ export default function ConfiguracionEtapasProduccionPage() {
       headerClassName: 'finanzas-header',
       width: 120,
       renderCell: (params: GridRenderCellParams<EtapaProduccion, boolean>) => (
-        <Chip
-          size="small"
-          label={params.row.activo ? 'Activa' : 'Inactiva'}
-          color={params.row.activo ? 'success' : 'default'}
-          variant={params.row.activo ? 'filled' : 'outlined'}
-        />
+        <Pill active={params.row.activo} label={params.row.activo ? 'Activa' : 'Inactiva'} />
       ),
     },
     {
@@ -371,13 +368,13 @@ export default function ConfiguracionEtapasProduccionPage() {
       renderCell: (params: GridRenderCellParams<EtapaProduccion>) => (
         <Stack direction="row" spacing={0.5} alignItems="center">
           <Tooltip title="Editar">
-            <IconButton size="small" color="primary" onClick={() => handleEdit(params.row)}>
-              <EditIcon fontSize="small" />
+            <IconButton size="small" sx={rowIconSx} onClick={() => handleEdit(params.row)}>
+              <EditIcon sx={{ fontSize: 17 }} />
             </IconButton>
           </Tooltip>
           <Tooltip title="Eliminar">
-            <IconButton size="small" color="error" onClick={() => handleRequestDelete(params.row)}>
-              <DeleteIcon fontSize="small" />
+            <IconButton size="small" sx={rowIconSx} onClick={() => handleRequestDelete(params.row)}>
+              <DeleteIcon sx={{ fontSize: 17 }} />
             </IconButton>
           </Tooltip>
         </Stack>
@@ -389,23 +386,32 @@ export default function ConfiguracionEtapasProduccionPage() {
 
   return (
     <ConfigPageFrame>
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <ConfigPageHeader title="Etapas de producción" description="Personaliza las etapas operativas que usa Producción para la empresa activa." actions={<Stack direction="row" spacing={1}><IconButton color="primary" onClick={() => void load()} disabled={loading || saving || deleting}><RefreshIcon /></IconButton><Button variant="contained" startIcon={<AddIcon />} onClick={openCreateDialog}>Nueva etapa</Button></Stack>} />
-      <TextField
-        size="small"
-        placeholder="Buscar por orden, nombre, color o estado..."
-        value={search}
-        onChange={(event) => setSearch(event.target.value)}
-        InputProps={{
-          startAdornment: (
-            <InputAdornment position="start">
-              <SearchIcon fontSize="small" />
-            </InputAdornment>
-          ),
-        }}
-      />
+      <ConfigPageHeader title="Etapas de producción" description="Personaliza las etapas operativas que usa Producción para la empresa activa." actions={<Stack direction="row" spacing={0.5}><Tooltip title="Recargar"><span><IconButton size="small" sx={actionIconSx} onClick={() => void load()} disabled={loading || saving || deleting}><RefreshIcon fontSize="small" /></IconButton></span></Tooltip><Tooltip title="Nueva etapa"><IconButton size="small" sx={actionIconSx} onClick={openCreateDialog}><AddIcon fontSize="small" /></IconButton></Tooltip></Stack>} />
 
-      <ConfigSurface sx={{ width: '100%' }}>
+      <Box sx={wellSx}>
+      <PanelBar title={
+        <Box sx={{ minWidth: { sm: 320 } }}>
+          <TextField
+            size="small"
+            fullWidth
+            placeholder="Buscar por orden, nombre, color o estado..."
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            sx={catalogoSearchSx}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon fontSize="small" />
+                </InputAdornment>
+              ),
+            }}
+          />
+        </Box>
+      }>
+        <Typography sx={(theme) => ({ fontSize: 12, fontWeight: 600, color: theme.emphasys.content.muted })}>
+          {filteredRows.length} {filteredRows.length === 1 ? 'etapa' : 'etapas'}
+        </Typography>
+      </PanelBar>
         <DataGrid
           rows={filteredRows}
           columns={columns}
@@ -426,6 +432,7 @@ export default function ConfiguracionEtapasProduccionPage() {
           }}
           sx={[
             standardDataGridSx,
+            editorialDataGridSx,
             {
               width: '100%',
               '--DataGrid-overlayHeight': '200px',
@@ -436,7 +443,7 @@ export default function ConfiguracionEtapasProduccionPage() {
             },
           ]}
         />
-      </ConfigSurface>
+      </Box>
 
       <GridContextMenu
         actions={contextMenuActions}
@@ -445,9 +452,35 @@ export default function ConfiguracionEtapasProduccionPage() {
         onClose={closeContextMenu}
       />
 
-      <Dialog open={dialogOpen} onClose={closeDialog} maxWidth="xs" fullWidth>
-        <DialogTitle>{editing ? 'Editar etapa de producción' : 'Nueva etapa de producción'}</DialogTitle>
-        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
+      <Dialog open={dialogOpen} onClose={closeDialog} maxWidth="sm" fullWidth PaperProps={{ sx: dialogPaperSx }}>
+        <DialogTitle component="div" sx={dialogTitleSx}>
+          <PatternDialogHeader
+            eyebrow="Etapas de producción"
+            title={editing ? 'Editar etapa de producción' : 'Nueva etapa de producción'}
+            onCancel={closeDialog}
+            cancelDisabled={saving}
+            onSave={() => void handleSave()}
+            saving={saving}
+            saveLabel={editing ? 'Guardar cambios' : 'Guardar'}
+            extra={
+              <FormControlLabel
+                sx={{ mr: 1 }}
+                control={(
+                  <Switch
+                    size="small"
+                    checked={form.activo}
+                    onChange={(event) => setForm((prev) => ({ ...prev, activo: event.target.checked }))}
+                  />
+                )}
+                label={<ControlLabel>Activa</ControlLabel>}
+              />
+            }
+          />
+        </DialogTitle>
+        <DialogContent sx={dialogContentSx}>
+          <Box sx={(theme) => ({ ...formWellSx(theme), ...fieldsOnIvorySx(theme) })}>
+          <Section title="Etapa" inset>
+          <Stack spacing={2} sx={{ pt: 0.5 }}>
           <TextField
             label="Nombre"
             value={form.nombre}
@@ -489,46 +522,36 @@ export default function ConfiguracionEtapasProduccionPage() {
               }}
             />
           </Stack>
-          <FormControlLabel
-            control={(
-              <Switch
-                checked={form.activo}
-                onChange={(event) => setForm((prev) => ({ ...prev, activo: event.target.checked }))}
-              />
-            )}
-            label="Activa"
-          />
+          </Stack>
+          </Section>
+          </Box>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={closeDialog} disabled={saving}>Cancelar</Button>
-          <Button onClick={() => void handleSave()} variant="contained" disabled={saving}>
-            {editing ? 'Guardar cambios' : 'Guardar'}
-          </Button>
-        </DialogActions>
       </Dialog>
 
-      <Dialog open={Boolean(deleteDialog)} onClose={handleCloseDeleteDialog} maxWidth="xs" fullWidth>
-        <DialogTitle>
-          {deleteDialog?.blockedMessage ? 'No se puede eliminar la etapa' : 'Eliminar etapa'}
+      <Dialog open={Boolean(deleteDialog)} onClose={handleCloseDeleteDialog} maxWidth="xs" fullWidth PaperProps={{ sx: dialogPaperSx }}>
+        <DialogTitle component="div" sx={dialogTitleSx}>
+          <ConfigPageHeader eyebrow="Etapas de producción" title={deleteDialog?.blockedMessage ? 'No se puede eliminar la etapa' : 'Eliminar etapa'} />
         </DialogTitle>
-        <DialogContent>
-          <Typography variant="body2" color="text.secondary">
+        <DialogContent sx={dialogContentSx}>
+          <Box sx={formWellSx}>
+          <Typography variant="body2" sx={(theme) => ({ px: 0.5, color: theme.emphasys.content.secondary })}>
             {deleteDialog?.blockedMessage
               ? deleteDialog.blockedMessage
               : `La etapa "${deleteDialog?.row.nombre}" se eliminará de forma permanente si aún no ha sido usada en Producción.`}
           </Typography>
+          </Box>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCloseDeleteDialog} disabled={deleting}>
+        <DialogActions sx={{ px: { xs: 1.5, md: 2.25 }, pb: 2 }}>
+          <Button onClick={handleCloseDeleteDialog} disabled={deleting} variant="outlined" sx={innerOutlinedButtonSx}>
             {deleteDialog?.blockedMessage ? 'Cancelar' : 'Cerrar'}
           </Button>
           {deleteDialog?.blockedMessage && deleteDialog.row.activo ? (
-            <Button onClick={() => void handleDeactivateFromDeleteDialog()} variant="contained" color="warning" disabled={deleting}>
+            <Button onClick={() => void handleDeactivateFromDeleteDialog()} variant="contained" disableElevation sx={innerPrimaryButtonSx} disabled={deleting}>
               Desactivar
             </Button>
           ) : null}
           {!deleteDialog?.blockedMessage ? (
-            <Button onClick={() => void handleDelete()} variant="contained" color="error" disabled={deleting}>
+            <Button onClick={() => void handleDelete()} variant="contained" disableElevation sx={innerDestructiveButtonSx} disabled={deleting}>
               Eliminar
             </Button>
           ) : null}
@@ -549,7 +572,6 @@ export default function ConfiguracionEtapasProduccionPage() {
           {snackbar.message}
         </Alert>
       </Snackbar>
-    </Box>
     </ConfigPageFrame>
   );
 }

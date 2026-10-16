@@ -27,6 +27,8 @@ import RefreshIcon from '@mui/icons-material/Refresh';
 import SaveIcon from '@mui/icons-material/Save';
 import SearchIcon from '@mui/icons-material/Search';
 import { ConfigPageHeader } from '../../components/configuracion/configVisual';
+import { IconButton, Tooltip } from '@mui/material';
+import { PanelBar, Pill, Section, actionIconSx, editorialTableSx, fieldsOnIvorySx, formWellSx, wellSx } from '../../components/transporte/transporteVisual';
 import {
   fetchPreciosCaptura,
   savePreciosBatch,
@@ -243,19 +245,22 @@ export default function PreciosPage() {
   const pendientesCount = pendingRef.current.size;
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <ConfigPageHeader title="Administración de precios" description="Captura precios por producto y por lista de precios activa en una cuadrícula tipo Excel." actions={<Stack direction="row" spacing={1}>
-          <Button variant="outlined" startIcon={<RefreshIcon />} onClick={() => void load(filters)} disabled={loading || saving}>
-            Recargar
-          </Button>
-          <Button
-            variant="contained"
-            startIcon={saving ? <CircularProgress size={16} color="inherit" /> : <SaveIcon />}
-            onClick={() => void flushNow()}
-            disabled={saving || pendientesCount === 0}
-          >
-            Guardar pendientes
-          </Button>
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+      <ConfigPageHeader title="Administración de precios" description="Captura precios por producto y por lista de precios activa en una cuadrícula tipo Excel." actions={<Stack direction="row" spacing={0.5}>
+          <Tooltip title="Recargar">
+            <span>
+              <IconButton size="small" sx={actionIconSx} onClick={() => void load(filters)} disabled={loading || saving}>
+                <RefreshIcon fontSize="small" />
+              </IconButton>
+            </span>
+          </Tooltip>
+          <Tooltip title="Guardar pendientes">
+            <span>
+              <IconButton size="small" sx={actionIconSx} onClick={() => void flushNow()} disabled={saving || pendientesCount === 0}>
+                {saving ? <CircularProgress size={16} color="inherit" /> : <SaveIcon fontSize="small" />}
+              </IconButton>
+            </span>
+          </Tooltip>
         </Stack>} />
 
       {error ? <Alert severity="error">{error}</Alert> : null}
@@ -263,7 +268,8 @@ export default function PreciosPage() {
         <Alert severity="warning">No hay listas de precios VENTA activas. Primero crea y activa tus listas.</Alert>
       ) : null}
 
-      <Paper variant="outlined" sx={{ p: 2, borderRadius: 2 }}>
+      <Box sx={(theme) => ({ ...formWellSx(theme), ...fieldsOnIvorySx(theme) })}>
+      <Section title="Filtros" inset>
         <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5}>
           <TextField
             size="small"
@@ -317,11 +323,20 @@ export default function PreciosPage() {
             </Select>
           </FormControl>
         </Stack>
-      </Paper>
+      </Section>
+      </Box>
 
-      <Paper variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden' }}>
+      <Box sx={wellSx}>
+        <PanelBar
+          title="Precios por lista"
+          meta={`Productos cargados: ${data.productos.length} · Listas activas: ${data.listas.length}`}
+        >
+          <Typography sx={(theme) => ({ fontSize: 12, fontWeight: 700, color: pendientesCount > 0 ? theme.emphasys.content.foreground : theme.emphasys.content.muted })}>
+            Pendientes por guardar: {pendientesCount}
+          </Typography>
+        </PanelBar>
         <TableContainer sx={{ maxHeight: 'calc(100vh - 260px)', overflowX: 'auto' }}>
-          <Table stickyHeader sx={{ minWidth: 740 + data.listas.length * 160 }}>
+          <Table stickyHeader sx={(theme) => ({ ...editorialTableSx(theme), minWidth: 740 + data.listas.length * 160 })}>
             <TableHead>
               <TableRow>
                 <TableCell
@@ -329,8 +344,6 @@ export default function PreciosPage() {
                     position: 'sticky',
                     left: STICKY_LEFT_CLAVE,
                     zIndex: 4,
-                    backgroundColor: '#1d2f68',
-                    color: '#fff',
                     minWidth: 140,
                     fontWeight: 700,
                   }}
@@ -342,25 +355,23 @@ export default function PreciosPage() {
                     position: 'sticky',
                     left: STICKY_LEFT_DESCRIPCION,
                     zIndex: 4,
-                    backgroundColor: '#1d2f68',
-                    color: '#fff',
                     minWidth: 260,
                     fontWeight: 700,
                   }}
                 >
                   Descripción
                 </TableCell>
-                <TableCell sx={{ minWidth: 160, backgroundColor: '#1d2f68', color: '#fff', fontWeight: 700 }}>
+                <TableCell sx={{ minWidth: 160 }}>
                   Clasificación
                 </TableCell>
-                <TableCell sx={{ minWidth: 160, backgroundColor: '#1d2f68', color: '#fff', fontWeight: 700 }}>
+                <TableCell sx={{ minWidth: 160 }}>
                   Familia
                 </TableCell>
                 {data.listas.map((lista) => (
-                  <TableCell key={lista.id} align="center" sx={{ minWidth: 160, backgroundColor: '#1d2f68', color: '#fff', fontWeight: 700 }}>
+                  <TableCell key={lista.id} align="center" sx={{ minWidth: 160 }}>
                     <Stack spacing={0.5} alignItems="center">
                       <span>{lista.nombre}</span>
-                      {lista.es_default ? <Chip size="small" color="primary" label="Default" /> : null}
+                      {lista.es_default ? <Pill active label="Default" /> : null}
                     </Stack>
                   </TableCell>
                 ))}
@@ -391,14 +402,15 @@ export default function PreciosPage() {
               ) : null}
 
               {!loading && data.productos.map((producto, rowIndex) => (
-                <TableRow key={producto.producto_id} hover sx={{ backgroundColor: rowIndex % 2 === 0 ? '#fff' : 'rgba(0,120,70,0.03)' }}>
+                <TableRow key={producto.producto_id} hover data-row-index={rowIndex}>
                   <TableCell
                     sx={{
                       position: 'sticky',
                       left: STICKY_LEFT_CLAVE,
                       zIndex: 3,
-                      backgroundColor: rowIndex % 2 === 0 ? '#fff' : '#f9fcfa',
-                      fontWeight: 600,
+                      backgroundColor: (theme) => theme.emphasys.content.well,
+                      fontWeight: 700,
+                      color: (theme) => `${theme.emphasys.content.foreground} !important`,
                     }}
                   >
                     {producto.clave || '—'}
@@ -408,14 +420,14 @@ export default function PreciosPage() {
                       position: 'sticky',
                       left: STICKY_LEFT_DESCRIPCION,
                       zIndex: 3,
-                      backgroundColor: rowIndex % 2 === 0 ? '#fff' : '#f9fcfa',
+                      backgroundColor: (theme) => theme.emphasys.content.well,
                     }}
                   >
                     <Stack spacing={0.25}>
-                      <Typography variant="body2" fontWeight={600}>
+                      <Typography variant="body2" fontWeight={600} sx={(theme) => ({ color: theme.emphasys.content.foreground })}>
                         {producto.descripcion}
                       </Typography>
-                      {!producto.activo ? <Chip size="small" label="Inactivo" variant="outlined" /> : null}
+                      {!producto.activo ? <Box><Pill active={false} /></Box> : null}
                     </Stack>
                   </TableCell>
                   <TableCell>{producto.clasificacion || '—'}</TableCell>
@@ -447,11 +459,13 @@ export default function PreciosPage() {
                             inputMode: 'decimal',
                             style: { textAlign: 'right', minWidth: 110 },
                           }}
-                          sx={{
+                          sx={(theme) => ({
                             '& .MuiOutlinedInput-root': {
-                              backgroundColor: isSavingCell ? 'rgba(37, 99, 235, 0.08)' : '#fff',
+                              backgroundColor: isSavingCell ? theme.emphasys.action.wash : theme.emphasys.content.card,
+                              borderRadius: 2,
+                              '& fieldset': { borderColor: theme.emphasys.content.border },
                             },
-                          }}
+                          })}
                         />
                       </TableCell>
                     );
@@ -461,19 +475,7 @@ export default function PreciosPage() {
             </TableBody>
           </Table>
         </TableContainer>
-      </Paper>
-
-      <Stack direction={{ xs: 'column', md: 'row' }} spacing={1} alignItems={{ xs: 'flex-start', md: 'center' }}>
-        <Typography variant="body2" color="text.secondary">
-          Productos cargados: {data.productos.length}
-        </Typography>
-        <Typography variant="body2" color="text.secondary">
-          Listas activas: {data.listas.length}
-        </Typography>
-        <Typography variant="body2" color={pendientesCount > 0 ? '#b45309' : 'text.secondary'}>
-          Pendientes por guardar: {pendientesCount}
-        </Typography>
-      </Stack>
+      </Box>
 
       <Snackbar
         open={snackbar.open}

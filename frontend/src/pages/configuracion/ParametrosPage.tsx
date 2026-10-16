@@ -25,7 +25,10 @@ import ClearIcon from "@mui/icons-material/Clear";
 import type { ParametroSistema, ParametrosModulo } from "../../types/parametros";
 import { fetchParametrosSistema, guardarParametroSistema } from "../../services/parametrosService";
 import { useSession } from "../../session/useSession";
-import { ConfigPageFrame, ConfigPageHeader, ConfigSection, ConfigSurface } from "../../components/configuracion/configVisual";
+import { ConfigPageFrame, ConfigPageHeader } from "../../components/configuracion/configVisual";
+import { Tooltip } from "@mui/material";
+import { catalogoSearchSx } from "../../components/catalogo/catalogoSurfaces";
+import { Section, actionIconSx, fieldsOnIvorySx, formWellSx } from "../../components/transporte/transporteVisual";
 
 function toBoolean(value: any): boolean {
   if (typeof value === "boolean") return value;
@@ -207,29 +210,26 @@ export default function ParametrosPage() {
   };
 
   return (
-    <ConfigPageFrame><Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
-      <ConfigPageHeader title="Parámetros del sistema" description="Ajusta los valores configurables del ERP para la empresa activa." actions={<Stack direction="row" spacing={1}>
-          <Button
-            variant="outlined"
-            startIcon={<ReplayIcon />}
-            onClick={handleReset}
-            disabled={loading || saving}
-            sx={{ textTransform: "none" }}
-          >
-            Restablecer
-          </Button>
-          <Button
-            variant="contained"
-            startIcon={<SaveIcon />}
-            onClick={handleSave}
-            disabled={!hasChanges || loading || saving}
-            sx={(theme) => ({ textTransform: "none", fontWeight: 700, backgroundColor: theme.emphasys.action.primary, '&:hover': { backgroundColor: theme.emphasys.action.primaryHover } })}
-          >
-            Guardar cambios
-          </Button>
+    <ConfigPageFrame>
+      <ConfigPageHeader title="Parámetros del sistema" description="Ajusta los valores configurables del ERP para la empresa activa." actions={<Stack direction="row" spacing={0.5}>
+          <Tooltip title="Restablecer">
+            <span>
+              <IconButton size="small" sx={actionIconSx} onClick={handleReset} disabled={loading || saving}>
+                <ReplayIcon fontSize="small" />
+              </IconButton>
+            </span>
+          </Tooltip>
+          <Tooltip title="Guardar cambios">
+            <span>
+              <IconButton size="small" sx={actionIconSx} onClick={handleSave} disabled={!hasChanges || loading || saving}>
+                {saving ? <CircularProgress size={16} color="inherit" /> : <SaveIcon fontSize="small" />}
+              </IconButton>
+            </span>
+          </Tooltip>
         </Stack>} />
 
       <TextField
+        sx={catalogoSearchSx}
         placeholder="Buscar por nombre o clave de parámetro"
         value={search}
         onChange={(e) => setSearch(e.target.value)}
@@ -271,24 +271,15 @@ export default function ParametrosPage() {
       ) : visibleModulos.length === 0 ? (
         <Alert severity="info">No hay parámetros configurables para mostrar.</Alert>
       ) : (
-        <Stack spacing={1.5}>
+        <Box sx={(theme) => ({ ...formWellSx(theme), ...fieldsOnIvorySx(theme) })}>
           {visibleModulos.map((modulo) => (
-            <ConfigSurface
+            <Section
               key={modulo.modulo_id ?? modulo.modulo_nombre ?? "modulo"}
-              variant="outlined"
-              sx={{ borderRadius: 2.5 }}
+              title={modulo.modulo_nombre ?? "General"}
+              inset
             >
-              <CardContent sx={{ p: 2, display: "flex", flexDirection: "column", gap: 1.5 }}>
-                <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                  <Typography variant="subtitle1" fontWeight={700} color="text.primary">
-                    {modulo.modulo_nombre ?? "General"}
-                  </Typography>
-                </Box>
-
-                <Divider />
-
                 <Stack spacing={0}>
-                  {modulo.parametros.map((param, idx) => (
+                  {modulo.parametros.map((param) => (
                     <Box
                       key={param.parametro_id}
                       sx={{
@@ -299,9 +290,8 @@ export default function ParametrosPage() {
                         rowGap: 0.5,
                         paddingY: 0.35,
                         paddingX: 0.75,
-                        borderBottom: (theme) => `1px solid ${theme.emphasys.table.line}`,
+                        borderBottom: (theme) => `1px solid ${theme.emphasys.content.border}`,
                         '&:last-of-type': { borderBottom: "none" },
-                        backgroundColor: (theme) => idx % 2 === 1 ? theme.emphasys.grid.stripe : 'transparent',
                         '&:hover': {
                           backgroundColor: (theme) => theme.emphasys.content.hover,
                           transition: "background-color 120ms ease-in-out",
@@ -310,9 +300,8 @@ export default function ParametrosPage() {
                     >
                       <Typography
                         fontWeight={700}
-                        color="#1f2937"
                         noWrap
-                        sx={{ textAlign: { xs: "left", sm: "right" }, justifySelf: "end", pr: { sm: 1 } }}
+                        sx={(theme) => ({ color: theme.emphasys.content.foreground, textAlign: { xs: "left", sm: "right" }, justifySelf: "end", pr: { sm: 1 } })}
                       >
                         {param.nombre}
                       </Typography>
@@ -320,11 +309,10 @@ export default function ParametrosPage() {
                     </Box>
                   ))}
                 </Stack>
-              </CardContent>
-            </ConfigSurface>
+            </Section>
           ))}
-        </Stack>
+        </Box>
       )}
-    </Box></ConfigPageFrame>
+    </ConfigPageFrame>
   );
 }

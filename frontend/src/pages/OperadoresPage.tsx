@@ -4,21 +4,21 @@ import {
   Autocomplete,
   Box,
   Button,
-  Card,
-  Chip,
   CircularProgress,
-  Divider,
+  FormControlLabel,
   IconButton,
-  Paper,
   Stack,
   Switch,
   TextField,
   Tooltip,
   Typography,
 } from "@mui/material";
-import { AddRounded, EditRounded } from "@mui/icons-material";
+import type { Theme } from "@mui/material/styles";
+import { AddRounded, BadgeOutlined, CloseRounded, EditRounded, SaveOutlined } from "@mui/icons-material";
 import { apiFetch } from "../services/apiFetch";
-import { ConfigPageFrame, ConfigPageHeader, ConfigSurface } from "../components/configuracion/configVisual";
+import { ConfigPageFrame, ConfigPageHeader } from "../components/configuracion/configVisual";
+import { catalogoOutlinedButtonSx, catalogoPrimaryButtonSx, catalogoSearchSx } from "../components/catalogo/catalogoSurfaces";
+import { ColHead, Section, actionIconSx, panelBarSx, rowIconSx, wellSx } from "../components/transporte/transporteVisual";
 import {
   actualizarOperador,
   cambiarEstadoOperador,
@@ -66,6 +66,12 @@ const empty = (): Form => ({
   activo: true,
 });
 type Colonia = { clave: string; nombre: string };
+
+/* Filtros con los mismos estilos de botón de catálogo/Contactos y el radio de las acciones. */
+const filterShape = { borderRadius: "10px", minHeight: 34 };
+const filterOnSx = (theme: Theme) => ({ ...(catalogoPrimaryButtonSx as (t: Theme) => object)(theme), ...filterShape });
+const filterOffSx = (theme: Theme) => ({ ...(catalogoOutlinedButtonSx as (t: Theme) => object)(theme), ...filterShape });
+const gridCols = { xs: "1fr", md: "minmax(0,1.5fr) minmax(0,1.1fr) minmax(0,1.2fr) minmax(0,1fr) minmax(0,1fr) 96px" };
 
 export default function OperadoresPage() {
   const [rows, setRows] = React.useState<OperadorTransporte[]>([]),
@@ -227,143 +233,180 @@ export default function OperadoresPage() {
       label={label}
       value={form[k] as string}
       onChange={(e) => set(k, e.target.value)}
+      sx={catalogoSearchSx}
     />
   );
   return (
     <ConfigPageFrame>
-      <ConfigPageHeader title="Operadores" description="Administra los operadores disponibles para Transporte y Carta Porte." actions={!show && <Button variant="contained" startIcon={<AddRounded />} onClick={() => setShow(true)}>Nuevo operador</Button>} />
-      {error && (
-        <Alert severity="error" sx={{ mb: 2 }}>
-          {error}
-        </Alert>
-      )}
       {!show && (
-        <ConfigSurface>
-          <Stack
-            direction={{ xs: "column", sm: "row" }}
-            spacing={1}
-            sx={{ p: 2 }}
-          >
-            <TextField
-              size="small"
-              placeholder="Buscar nombre, RFC o licencia"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-            />
-            {["todos", "activos", "inactivos"].map((x) => (
-              <Button
-                key={x}
-                size="small"
-                variant={active === x ? "contained" : "outlined"}
-                onClick={() => setActive(x)}
-              >
-                {x[0].toUpperCase() + x.slice(1)}
-              </Button>
-            ))}
-          </Stack>
-          <Divider />
-          <Box
-            sx={{
-              display: { xs: "none", md: "grid" },
-              gridTemplateColumns: "1.5fr 1.1fr 1.2fr 1fr 1.2fr 1fr",
-              gap: 1,
-              p: 2,
-              fontWeight: 700,
-              color: "text.secondary",
-            }}
-          >
-            <span>Nombre</span>
-            <span>RFC</span>
-            <span>Licencia</span>
-            <span>Tipo</span>
-            <span>Vigencia</span>
-            <span>Acciones</span>
-          </Box>
-          {filtered.map((v) => (
-            <Box
-              key={v.id}
-              sx={{
-                display: "grid",
-                gridTemplateColumns: {
-                  xs: "1fr auto",
-                  md: "1.5fr 1.1fr 1.2fr 1fr 1.2fr 1fr",
-                },
-                gap: 1,
-                alignItems: "center",
-                p: 2,
-                borderTop: "1px solid",
-                borderColor: "divider",
-              }}
-            >
-              <Box>
-                <Stack direction="row" spacing={1} alignItems="center">
-                  <Typography fontWeight={700}>{v.nombre}</Typography>
-                  <Chip
-                    size="small"
-                    label={v.activo ? "Activo" : "Inactivo"}
-                    color={v.activo ? "success" : "default"}
-                    variant="outlined"
-                  />
-                </Stack>
-                <Typography
-                  variant="body2"
-                  color="text.secondary"
-                  sx={{ display: { md: "none" } }}
-                >
-                  {v.rfc || "Sin RFC"} · {v.numero_licencia}
-                </Typography>
-              </Box>
-              <span>{v.rfc || "—"}</span>
-              <span>{v.numero_licencia}</span>
-              <span>{v.tipo_licencia || "—"}</span>
-              <span>{v.vigencia_licencia?.slice(0, 10) || "—"}</span>
-              <Stack direction="row">
-                <Tooltip title="Editar">
-                  <IconButton size="small" onClick={() => start(v)}>
-                    <EditRounded fontSize="small" />
-                  </IconButton>
-                </Tooltip>
-                <Tooltip title={v.activo ? "Desactivar" : "Activar"}>
-                  <Switch
-                    size="small"
-                    checked={v.activo}
-                    onChange={() => void toggle(v)}
-                  />
-                </Tooltip>
-              </Stack>
-            </Box>
-          ))}
-          {!filtered.length && (
-            <Typography sx={{ p: 3 }} color="text.secondary">
-              No hay operadores registrados.
-            </Typography>
-          )}
-        </ConfigSurface>
+        <ConfigPageHeader
+          eyebrow="Transporte"
+          title="Operadores"
+          description="Administra los operadores disponibles para Transporte y Carta Porte."
+          actions={
+            <Tooltip title="Nuevo operador">
+              <IconButton size="small" sx={actionIconSx} onClick={() => setShow(true)}>
+                <AddRounded fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          }
+        />
       )}
       {show && (
-        <ConfigSurface sx={{ p: { xs: 2, md: 3 } }}>
-          <Stack
-            direction={{ xs: "column", sm: "row" }}
-            justifyContent="space-between"
-            spacing={1}
-            mb={2}
-          >
-            <Typography variant="h6" fontWeight={700}>
-              {editing ? "Editar operador" : "Nuevo operador"}
-            </Typography>
-            <Stack direction="row" alignItems="center">
-              <Typography variant="body2">Activo</Typography>
-              <Switch
-                size="small"
-                checked={form.activo}
-                onChange={(e) => set("activo", e.target.checked)}
+        <ConfigPageHeader
+          eyebrow="Operadores"
+          title={editing ? "Editar operador" : "Nuevo operador"}
+          description={
+            editing && form.nombre
+              ? [form.nombre, form.numero_licencia].filter(Boolean).join(" · ")
+              : "Datos de contacto, domicilio y licencia del operador."
+          }
+          actions={
+            <Stack direction="row" spacing={0.5} alignItems="center">
+              <FormControlLabel
+                sx={{ mr: 1 }}
+                control={
+                  <Switch
+                    size="small"
+                    checked={form.activo}
+                    onChange={(e) => set("activo", e.target.checked)}
+                  />
+                }
+                label={<Typography sx={{ fontSize: 13, fontWeight: 600 }}>Activo</Typography>}
               />
+              <Tooltip title="Cancelar">
+                <IconButton size="small" sx={actionIconSx} onClick={reset}>
+                  <CloseRounded fontSize="small" />
+                </IconButton>
+              </Tooltip>
+              <Tooltip title={saving ? "Guardando…" : "Guardar"}>
+                <span>
+                  <IconButton
+                    size="small"
+                    sx={actionIconSx}
+                    disabled={
+                      saving || !form.nombre.trim() || !form.numero_licencia.trim()
+                    }
+                    onClick={() => void save()}
+                  >
+                    {saving ? <CircularProgress size={16} color="inherit" /> : <SaveOutlined fontSize="small" />}
+                  </IconButton>
+                </span>
+              </Tooltip>
             </Stack>
-          </Stack>
-          <Stack spacing={2.5}>
-            <Typography variant="subtitle1" fontWeight={700} color="text.primary">
-              Datos de contacto
+          }
+        />
+      )}
+      {error && <Alert severity="error">{error}</Alert>}
+      {!show && (
+        <Box sx={wellSx}>
+          <Box sx={panelBarSx}>
+            <Stack direction={{ xs: "column", sm: "row" }} spacing={1} alignItems={{ sm: "center" }} sx={{ minWidth: 0, py: 1 }}>
+              <Box sx={{ minWidth: { sm: 280 } }}>
+                <TextField
+                  size="small"
+                  fullWidth
+                  placeholder="Buscar nombre, RFC o licencia"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  sx={catalogoSearchSx}
+                />
+              </Box>
+              <Stack direction="row" spacing={0.5}>
+                {["todos", "activos", "inactivos"].map((x) => (
+                  <Button
+                    key={x}
+                    size="small"
+                    variant={active === x ? "contained" : "outlined"}
+                    disableElevation
+                    sx={active === x ? filterOnSx : filterOffSx}
+                    onClick={() => setActive(x)}
+                  >
+                    {x[0].toUpperCase() + x.slice(1)}
+                  </Button>
+                ))}
+              </Stack>
+            </Stack>
+            <Typography sx={(theme) => ({ fontSize: 12, fontWeight: 600, color: theme.emphasys.content.muted })}>
+              {filtered.length} {filtered.length === 1 ? "operador" : "operadores"}
             </Typography>
+          </Box>
+          {!filtered.length ? (
+            <Box sx={{ py: 6, textAlign: "center" }}>
+              <BadgeOutlined sx={(theme) => ({ fontSize: 40, color: theme.emphasys.content.muted, mb: 1 })} />
+              <Typography variant="body2" sx={(theme) => ({ color: theme.emphasys.content.muted })}>
+                No hay operadores registrados.
+              </Typography>
+            </Box>
+          ) : (
+            <>
+              <Box
+                sx={(theme) => ({
+                  display: { xs: "none", md: "grid" },
+                  gridTemplateColumns: gridCols,
+                  gap: 2,
+                  px: 2.25,
+                  py: 1,
+                  bgcolor: theme.emphasys.metric.amount.background,
+                  borderBottom: `1px solid ${theme.emphasys.content.border}`,
+                })}
+              >
+                <ColHead>Nombre</ColHead>
+                <ColHead>RFC</ColHead>
+                <ColHead>Licencia</ColHead>
+                <ColHead>Tipo</ColHead>
+                <ColHead>Vigencia</ColHead>
+                <ColHead align="right">Acciones</ColHead>
+              </Box>
+              {filtered.map((v) => (
+                <Box
+                  key={v.id}
+                  sx={(theme) => ({
+                    display: "grid",
+                    gridTemplateColumns: gridCols,
+                    alignItems: "center",
+                    gap: { xs: 0.75, md: 2 },
+                    px: { xs: 1.5, md: 2.25 },
+                    py: 1.25,
+                    borderBottom: `1px solid ${theme.emphasys.content.border}`,
+                    "&:last-of-type": { borderBottom: 0 },
+                    "&:hover": { bgcolor: theme.emphasys.content.hover },
+                  })}
+                >
+                  <Typography noWrap sx={(theme) => ({ fontSize: 14, fontWeight: 700, color: theme.emphasys.content.foreground, minWidth: 0 })}>
+                    {v.nombre}
+                  </Typography>
+                  <Typography noWrap sx={(theme) => ({ fontSize: 13, fontWeight: 600, color: theme.emphasys.content.foreground, minWidth: 0 })}>
+                    {v.rfc || "—"}
+                  </Typography>
+                  <Typography noWrap sx={(theme) => ({ fontSize: 13, color: theme.emphasys.content.secondary, minWidth: 0 })}>
+                    {v.numero_licencia}
+                  </Typography>
+                  <Typography noWrap sx={(theme) => ({ fontSize: 13, color: v.tipo_licencia ? theme.emphasys.content.secondary : theme.emphasys.content.muted, minWidth: 0 })}>
+                    {v.tipo_licencia || "—"}
+                  </Typography>
+                  <Typography noWrap sx={(theme) => ({ fontSize: 13, color: v.vigencia_licencia ? theme.emphasys.content.secondary : theme.emphasys.content.muted, minWidth: 0 })}>
+                    {v.vigencia_licencia?.slice(0, 10) || "—"}
+                  </Typography>
+                  <Stack direction="row" spacing={0.5} alignItems="center" justifyContent={{ xs: "flex-start", md: "flex-end" }}>
+                    <Tooltip title="Editar operador">
+                      <IconButton size="small" sx={rowIconSx} onClick={() => start(v)}>
+                        <EditRounded sx={{ fontSize: 17 }} />
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title={v.activo ? "Desactivar" : "Activar"}>
+                      <Switch size="small" checked={!!v.activo} onChange={() => void toggle(v)} />
+                    </Tooltip>
+                  </Stack>
+                </Box>
+              ))}
+            </>
+          )}
+        </Box>
+      )}
+      {show && (
+        <Box sx={[wellSx, { p: { xs: 1, md: 1.75 }, display: "flex", flexDirection: "column", gap: { xs: 1, md: 1.5 } }]}>
+          <Section title="Datos de contacto" inset>
             <Box
               sx={{
                 display: "grid",
@@ -376,9 +419,8 @@ export default function OperadoresPage() {
               {field("telefono", "Teléfono")}
               {field("email", "Email")}
             </Box>
-            <Typography variant="subtitle1" fontWeight={700} color="text.primary">
-              Domicilio principal
-            </Typography>
+          </Section>
+          <Section title="Domicilio principal" inset>
             <Box
               sx={{
                 display: "grid",
@@ -402,6 +444,7 @@ export default function OperadoresPage() {
                     <CircularProgress size={18} />
                   ) : undefined,
                 }}
+                sx={catalogoSearchSx}
               />
               {field("estado", "Estado")}
               {field("ciudad", "Ciudad / Municipio")}
@@ -417,16 +460,15 @@ export default function OperadoresPage() {
                   }))
                 }
                 renderInput={(p) => (
-                  <TextField {...p} size="small" label="Colonia" />
+                  <TextField {...p} size="small" label="Colonia" sx={catalogoSearchSx} />
                 )}
               />
               {field("calle", "Calle")}
               {field("numero_exterior", "Número exterior")}
               {field("pais", "País")}
             </Box>
-            <Typography variant="subtitle1" fontWeight={700} color="text.primary">
-              Datos de operador
-            </Typography>
+          </Section>
+          <Section title="Datos de operador" inset>
             <Box
               sx={{
                 display: "grid",
@@ -443,33 +485,17 @@ export default function OperadoresPage() {
                 InputLabelProps={{ shrink: true }}
                 value={form.vigencia_licencia}
                 onChange={(e) => set("vigencia_licencia", e.target.value)}
+                sx={catalogoSearchSx}
               />
             </Box>
-            {warning && (
-              <Alert severity="warning">
-                Información importante para Carta Porte incompleta: faltan{" "}
-                {warning}.
-              </Alert>
-            )}
-          </Stack>
-          <Stack
-            direction="row"
-            justifyContent="flex-end"
-            spacing={1.25}
-            mt={3}
-          >
-            <Button onClick={reset}>Cancelar</Button>
-            <Button
-              variant="contained"
-              disabled={
-                saving || !form.nombre.trim() || !form.numero_licencia.trim()
-              }
-              onClick={() => void save()}
-            >
-              {saving ? "Guardando…" : "Guardar"}
-            </Button>
-          </Stack>
-        </ConfigSurface>
+          </Section>
+          {warning && (
+            <Alert severity="warning">
+              Información importante para Carta Porte incompleta: faltan{" "}
+              {warning}.
+            </Alert>
+          )}
+        </Box>
       )}
     </ConfigPageFrame>
   );

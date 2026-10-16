@@ -57,7 +57,11 @@ import ResumenSatCards from '../../components/cfdi-sat/ResumenSatCards';
 import BitacoraSatSection from '../../components/cfdi-sat/BitacoraSatSection';
 import AutomatizacionSatSection from '../../components/cfdi-sat/AutomatizacionSatSection';
 import type { ApiFetchError } from '../../services/apiFetch';
-import { ConfigPageFrame, ConfigPageHeader, ConfigSurface } from '../../components/configuracion/configVisual';
+import { ConfigPageFrame, ConfigPageHeader } from '../../components/configuracion/configVisual';
+import type { Theme } from '@mui/material/styles';
+import { PatternDialogHeader, Section, dialogContentSx, dialogPaperSx, dialogTitleSx, editorialTableSx, fieldsOnIvorySx, formWellSx, innerDestructiveButtonSx, innerOutlinedButtonSx, innerPrimaryButtonSx } from '../../components/transporte/transporteVisual';
+
+const mutedSx = (theme: Theme) => ({ color: theme.emphasys.content.muted });
 
 function formatFecha(raw?: string | null): string {
   if (!raw) return '—';
@@ -415,14 +419,12 @@ export default function CfdiSatPage() {
 
       <ResumenSatCards key={automatizacionRefreshKey} />
 
-      <ConfigSurface>
-        <CardContent sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 2 }}>
+      <Box sx={(theme) => ({ ...formWellSx(theme), ...fieldsOnIvorySx(theme) })}>
+      <Section title="Credenciales e.firma (FIEL)" inset>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           <Stack direction="row" alignItems="flex-start" justifyContent="space-between" spacing={1.5}>
             <Stack spacing={0.5}>
-              <Typography variant="h6" fontWeight={700} color="text.primary">
-                Credenciales e.firma (FIEL)
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" sx={mutedSx}>
                 Certificado (.cer) y llave privada (.key) usados para autenticar ante el Servicio de Descarga
                 Masiva del SAT. La contraseña de la FIEL no se solicita ni se guarda en esta fase.
               </Typography>
@@ -439,14 +441,14 @@ export default function CfdiSatPage() {
 
           {credenciales?.existe ? (
             <Stack spacing={0.5}>
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" sx={mutedSx}>
                 RFC del certificado: <strong>{credenciales.rfc_certificado}</strong>
               </Typography>
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" sx={mutedSx}>
                 Vigencia: <strong>{formatFecha(credenciales.vigencia_desde)}</strong> a{' '}
                 <strong>{formatFecha(credenciales.vigencia_hasta)}</strong>
               </Typography>
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" sx={mutedSx}>
                 Fecha de carga: <strong>{formatFecha(credenciales.cargado_en)}</strong>
               </Typography>
             </Stack>
@@ -456,37 +458,34 @@ export default function CfdiSatPage() {
 
           {puedeAdministrar ? (
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
-              <Button variant="contained" onClick={handleOpenUpload} sx={(theme) => ({ textTransform: 'none', fontWeight: 700, backgroundColor: theme.emphasys.action.primary, '&:hover': { backgroundColor: theme.emphasys.action.primaryHover } })}>
+              <Button variant="contained" onClick={handleOpenUpload} disableElevation sx={innerPrimaryButtonSx}>
                 {credenciales?.existe ? 'Reemplazar credenciales' : 'Subir credenciales'}
               </Button>
               {credenciales?.existe && (
                 <Button
-                  variant="outlined"
-                  color="error"
+                  variant="contained"
+                  disableElevation
                   onClick={() => {
                     setDeleteError(null);
                     setDeleteOpen(true);
                   }}
-                  sx={{ textTransform: 'none' }}
+                  sx={innerDestructiveButtonSx}
                 >
                   Eliminar
                 </Button>
               )}
             </Stack>
           ) : (
-            <Typography variant="caption" color="#6b7280">
+            <Typography variant="caption" sx={mutedSx}>
               Solo un administrador de la empresa puede subir, reemplazar o eliminar las credenciales.
             </Typography>
           )}
-        </CardContent>
-      </ConfigSurface>
+        </Box>
+      </Section>
 
-      <ConfigSurface>
-        <CardContent sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 2 }}>
-          <Stack direction="row" alignItems="flex-start" justifyContent="space-between" spacing={1.5}>
-            <Typography variant="h6" fontWeight={700} color="text.primary">
-              Autorización de uso
-            </Typography>
+      <Section title="Autorización de uso" inset>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <Stack direction="row" alignItems="flex-start" justifyContent="flex-end" spacing={1.5}>
             {autorizacion?.aceptada && (
               <Chip label="ACEPTADA" size="small" color="success" sx={{ fontWeight: 700, mt: 0.25 }} />
             )}
@@ -497,13 +496,13 @@ export default function CfdiSatPage() {
               border: (theme) => `1px solid ${theme.emphasys.content.border}`,
               borderRadius: 1,
               p: 2,
-              backgroundColor: (theme) => theme.emphasys.content.well,
+              backgroundColor: (theme) => theme.emphasys.content.card,
               maxHeight: 220,
               overflowY: 'auto',
               whiteSpace: 'pre-line',
             }}
           >
-            <Typography variant="body2" color="#374151">
+            <Typography variant="body2" sx={(theme) => ({ color: theme.emphasys.content.secondary })}>
               {autorizacion?.texto}
             </Typography>
           </Box>
@@ -511,7 +510,7 @@ export default function CfdiSatPage() {
           {autorizacionError && <Alert severity="error">{autorizacionError}</Alert>}
 
           {autorizacion?.aceptada ? (
-            <Typography variant="body2" color="text.secondary">
+            <Typography variant="body2" sx={mutedSx}>
               Aceptada por <strong>{autorizacion.aceptado_por}</strong> el{' '}
               <strong>{formatFecha(autorizacion.aceptado_en)}</strong>.
             </Typography>
@@ -526,7 +525,7 @@ export default function CfdiSatPage() {
                   variant="contained"
                   disabled={!aceptoTexto || autorizacionSubmitting}
                   onClick={() => void handleAceptarAutorizacion()}
-                  sx={(theme) => ({ textTransform: 'none', fontWeight: 700, backgroundColor: theme.emphasys.action.primary, '&:hover': { backgroundColor: theme.emphasys.action.primaryHover } })}
+                  disableElevation sx={innerPrimaryButtonSx}
                 >
                   {autorizacionSubmitting ? 'Guardando...' : 'Aceptar autorización'}
                 </Button>
@@ -537,16 +536,13 @@ export default function CfdiSatPage() {
               Esta empresa aún no ha aceptado la autorización. Solo un administrador puede aceptarla.
             </Alert>
           )}
-        </CardContent>
-      </ConfigSurface>
+        </Box>
+      </Section>
 
-      <ConfigSurface>
-        <CardContent sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 2 }}>
+      <Section title="Nueva solicitud de descarga" inset>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           <Stack spacing={0.5}>
-            <Typography variant="h6" fontWeight={700} color="text.primary">
-              Nueva solicitud de descarga
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
+            <Typography variant="body2" sx={mutedSx}>
               Presenta una solicitud real al Servicio de Descarga Masiva del SAT. Esta fase solo llega hasta
               que el SAT acepta la solicitud; la verificación y descarga de paquetes se agregan más adelante.
             </Typography>
@@ -655,7 +651,7 @@ export default function CfdiSatPage() {
             />
           </Box>
 
-          <Typography variant="caption" color="#6b7280">
+          <Typography variant="caption" sx={mutedSx}>
             La contraseña de la e.firma no se guarda: solo se usa en memoria durante esta solicitud.
           </Typography>
 
@@ -664,25 +660,22 @@ export default function CfdiSatPage() {
               variant="contained"
               onClick={() => void handleCrearSolicitud()}
               disabled={!puedeCrearSolicitud || solicitudSubmitting}
-              sx={(theme) => ({ textTransform: 'none', fontWeight: 700, backgroundColor: theme.emphasys.action.primary, '&:hover': { backgroundColor: theme.emphasys.action.primaryHover } })}
+              disableElevation sx={innerPrimaryButtonSx}
             >
               {solicitudSubmitting ? 'Enviando al SAT...' : 'Crear solicitud'}
             </Button>
           </Box>
-        </CardContent>
-      </ConfigSurface>
+        </Box>
+      </Section>
 
-      <ConfigSurface>
-        <CardContent sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 2 }}>
-          <Typography variant="h6" fontWeight={700} color="text.primary">
-            Solicitudes recientes
-          </Typography>
+      <Section title="Solicitudes recientes" inset>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
 
           {solicitudes.length === 0 ? (
             <Alert severity="info">Aún no se han creado solicitudes de descarga.</Alert>
           ) : (
-            <TableContainer>
-              <Table size="small">
+            <TableContainer sx={(theme) => ({ border: `1px solid ${theme.emphasys.content.border}`, borderRadius: 1.5, overflowX: 'auto' })}>
+              <Table size="small" sx={editorialTableSx}>
                 <TableHead>
                   <TableRow>
                     <TableCell>Tipo</TableCell>
@@ -699,7 +692,7 @@ export default function CfdiSatPage() {
                 </TableHead>
                 <TableBody>
                   {solicitudes.map((solicitud) => (
-                    <TableRow key={solicitud.id}>
+                    <TableRow key={solicitud.id} hover>
                       <TableCell sx={{ textTransform: 'capitalize' }}>{solicitud.tipo_descarga}</TableCell>
                       <TableCell>
                         {solicitud.fecha_inicio} a {solicitud.fecha_fin}
@@ -721,13 +714,13 @@ export default function CfdiSatPage() {
                       <TableCell>{formatFecha(solicitud.creado_en)}</TableCell>
                       {puedeAdministrar && (
                         <TableCell align="right">
-                          <Stack direction="row" spacing={1} justifyContent="flex-end">
+                          <Stack direction="row" spacing={0.5} justifyContent="flex-end">
                             <Button
                               size="small"
                               variant="outlined"
                               disabled={!solicitud.sat_request_id}
                               onClick={() => handleAbrirAccionDialog(solicitud.id, 'verificar')}
-                              sx={{ textTransform: 'none' }}
+                              sx={innerOutlinedButtonSx}
                             >
                               Verificar
                             </Button>
@@ -735,16 +728,16 @@ export default function CfdiSatPage() {
                               size="small"
                               variant="outlined"
                               onClick={() => handleAbrirAccionDialog(solicitud.id, 'descargar')}
-                              sx={{ textTransform: 'none' }}
+                              sx={innerOutlinedButtonSx}
                             >
                               Descargar
                             </Button>
                             <Button
                               size="small"
-                              variant="text"
+                              variant="outlined"
                               disabled={solicitud.total_paquetes === 0}
                               onClick={() => setPaquetesDialogSolicitudId(solicitud.id)}
-                              sx={{ textTransform: 'none' }}
+                              sx={innerOutlinedButtonSx}
                             >
                               Paquetes
                             </Button>
@@ -757,8 +750,9 @@ export default function CfdiSatPage() {
               </Table>
             </TableContainer>
           )}
-        </CardContent>
-      </ConfigSurface>
+        </Box>
+      </Section>
+      </Box>
 
       <AutomatizacionSatSection puedeAdministrar={puedeAdministrar} onEjecutado={handleDatosCambiaron} />
 
@@ -770,12 +764,24 @@ export default function CfdiSatPage() {
 
       <BitacoraSatSection key={automatizacionRefreshKey} />
 
-      <Dialog open={uploadOpen} onClose={() => (!uploadSubmitting ? setUploadOpen(false) : undefined)} fullWidth maxWidth="sm">
-        <DialogTitle>{credenciales?.existe ? 'Reemplazar credenciales SAT' : 'Subir credenciales SAT'}</DialogTitle>
-        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
+      <Dialog open={uploadOpen} onClose={() => (!uploadSubmitting ? setUploadOpen(false) : undefined)} fullWidth maxWidth="sm" PaperProps={{ sx: dialogPaperSx }}>
+        <DialogTitle component="div" sx={dialogTitleSx}>
+          <PatternDialogHeader
+            eyebrow="CFDIs del SAT"
+            title={credenciales?.existe ? 'Reemplazar credenciales SAT' : 'Subir credenciales SAT'}
+            onCancel={() => setUploadOpen(false)}
+            cancelDisabled={uploadSubmitting}
+            onSave={() => void handleUpload()}
+            saving={uploadSubmitting}
+          />
+        </DialogTitle>
+        <DialogContent sx={dialogContentSx}>
+          <Box sx={formWellSx}>
           {uploadError && <Alert severity="error">{uploadError}</Alert>}
+          <Section title="Archivos de la e.firma" inset>
+          <Stack spacing={2}>
           <Stack direction="row" spacing={2} alignItems="center">
-            <Button variant="outlined" component="label" sx={{ textTransform: 'none' }}>
+            <Button variant="outlined" component="label" sx={innerOutlinedButtonSx}>
               Archivo .cer
               <input
                 type="file"
@@ -789,7 +795,7 @@ export default function CfdiSatPage() {
             </Typography>
           </Stack>
           <Stack direction="row" spacing={2} alignItems="center">
-            <Button variant="outlined" component="label" sx={{ textTransform: 'none' }}>
+            <Button variant="outlined" component="label" sx={innerOutlinedButtonSx}>
               Archivo .key
               <input
                 type="file"
@@ -802,59 +808,56 @@ export default function CfdiSatPage() {
               {keyFile ? keyFile.name : 'Sin archivo .key'}
             </Typography>
           </Stack>
-          <Typography variant="caption" color="#6b7280">
+          <Typography variant="caption" sx={mutedSx}>
             La contraseña de la e.firma no se solicita aquí; se pedirá más adelante, únicamente al momento de
             consultar o descargar CFDIs del SAT.
           </Typography>
+          </Stack>
+          </Section>
+          </Box>
         </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={() => setUploadOpen(false)} disabled={uploadSubmitting} sx={{ textTransform: 'none' }}>
-            Cancelar
-          </Button>
-          <Button
-            variant="contained"
-            onClick={() => void handleUpload()}
-            disabled={uploadSubmitting}
-            sx={(theme) => ({ textTransform: 'none', fontWeight: 700, backgroundColor: theme.emphasys.action.primary, '&:hover': { backgroundColor: theme.emphasys.action.primaryHover } })}
-          >
-            {uploadSubmitting ? 'Guardando...' : 'Guardar'}
-          </Button>
-        </DialogActions>
       </Dialog>
 
-      <Dialog open={deleteOpen} onClose={() => (!deleteSubmitting ? setDeleteOpen(false) : undefined)}>
-        <DialogTitle>Eliminar credenciales SAT</DialogTitle>
-        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+      <Dialog open={deleteOpen} onClose={() => (!deleteSubmitting ? setDeleteOpen(false) : undefined)} PaperProps={{ sx: dialogPaperSx }}>
+        <DialogTitle component="div" sx={dialogTitleSx}>
+          <ConfigPageHeader eyebrow="CFDIs del SAT" title="Eliminar credenciales SAT" />
+        </DialogTitle>
+        <DialogContent sx={dialogContentSx}>
+          <Box sx={formWellSx}>
           {deleteError && <Alert severity="error">{deleteError}</Alert>}
-          <Typography variant="body2">
+          <Typography variant="body2" sx={(theme) => ({ px: 0.5, color: theme.emphasys.content.foreground })}>
             ¿Confirmas eliminar las credenciales de e.firma cargadas para esta empresa? Tendrás que volver a
             subirlas para poder consultar CFDIs del SAT.
           </Typography>
+          </Box>
         </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={() => setDeleteOpen(false)} disabled={deleteSubmitting} sx={{ textTransform: 'none' }}>
+        <DialogActions sx={{ px: { xs: 1.5, md: 2.25 }, pb: 2 }}>
+          <Button onClick={() => setDeleteOpen(false)} disabled={deleteSubmitting} variant="outlined" sx={innerOutlinedButtonSx}>
             Cancelar
           </Button>
           <Button
             variant="contained"
-            color="error"
+            disableElevation
             onClick={() => void handleDelete()}
             disabled={deleteSubmitting}
-            sx={{ textTransform: 'none', fontWeight: 700 }}
+            sx={innerDestructiveButtonSx}
           >
             {deleteSubmitting ? 'Eliminando...' : 'Eliminar'}
           </Button>
         </DialogActions>
       </Dialog>
 
-      <Dialog open={Boolean(accionDialog)} onClose={handleCerrarAccionDialog} fullWidth maxWidth="xs">
-        <DialogTitle>
-          {accionDialog?.accion === 'verificar' ? 'Verificar solicitud ante el SAT' : 'Descargar paquetes del SAT'}
+      <Dialog open={Boolean(accionDialog)} onClose={handleCerrarAccionDialog} fullWidth maxWidth="sm" PaperProps={{ sx: dialogPaperSx }}>
+        <DialogTitle component="div" sx={dialogTitleSx}>
+          <ConfigPageHeader eyebrow="CFDIs del SAT" title={accionDialog?.accion === 'verificar' ? 'Verificar solicitud ante el SAT' : 'Descargar paquetes del SAT'} />
         </DialogTitle>
-        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
+        <DialogContent sx={dialogContentSx}>
+          <Box sx={(theme) => ({ ...formWellSx(theme), ...fieldsOnIvorySx(theme) })}>
           {accionError && <Alert severity="error">{accionError}</Alert>}
           {accionResultado && <Alert severity="success">{accionResultado}</Alert>}
-          <Typography variant="body2" color="text.secondary">
+          <Section title="Contraseña e.firma" inset>
+          <Stack spacing={2}>
+          <Typography variant="body2" sx={mutedSx}>
             Captura la contraseña de la e.firma para continuar. No se guarda: solo se usa en memoria durante esta
             acción.
           </Typography>
@@ -883,16 +886,19 @@ export default function CfdiSatPage() {
               ),
             }}
           />
+          </Stack>
+          </Section>
+          </Box>
         </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={handleCerrarAccionDialog} disabled={accionSubmitting} sx={{ textTransform: 'none' }}>
+        <DialogActions sx={{ px: { xs: 1.5, md: 2.25 }, pb: 2 }}>
+          <Button onClick={handleCerrarAccionDialog} disabled={accionSubmitting} variant="outlined" sx={innerOutlinedButtonSx}>
             Cerrar
           </Button>
           <Button
             variant="contained"
             onClick={() => void handleConfirmarAccion()}
             disabled={accionSubmitting}
-            sx={(theme) => ({ textTransform: 'none', fontWeight: 700, backgroundColor: theme.emphasys.action.primary, '&:hover': { backgroundColor: theme.emphasys.action.primaryHover } })}
+            disableElevation sx={innerPrimaryButtonSx}
           >
             {accionSubmitting
               ? 'Procesando...'

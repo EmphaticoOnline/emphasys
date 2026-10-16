@@ -52,7 +52,11 @@ import { fetchTiposDocumentoHabilitados, type TipoDocumentoEmpresa } from '../..
 import { fetchUsuariosHabilitados } from '../../services/usuariosService';
 import type { Usuario } from '../../types/usuario';
 import { useSession } from '../../session/useSession';
-import { ConfigPageFrame, ConfigPageHeader, ConfigSurface } from '../../components/configuracion/configVisual';
+import { ConfigPageFrame, ConfigPageHeader } from '../../components/configuracion/configVisual';
+import { Tooltip } from '@mui/material';
+import { CloseRounded, SaveOutlined } from '@mui/icons-material';
+import { catalogoTabsSx } from '../../components/catalogo/catalogoSurfaces';
+import { PanelBar, Pill, Section, actionIconSx, dialogContentSx, dialogPaperSx, dialogTitleSx, editorialTableSx, emptyCellSx, fieldsOnIvorySx, formWellSx, rowIconSx, strongCellSx, wellSx } from '../../components/transporte/transporteVisual';
 
 const TAB_SERIES = 0;
 const TAB_ASIGNACIONES = 1;
@@ -353,15 +357,14 @@ export default function SeriesDocumentosPage() {
   };
 
   const renderSeriesTable = () => (
-      <TableContainer sx={(theme) => ({ border: `1px solid ${theme.emphasys.content.border}`, borderRadius: 2.5, backgroundColor: theme.emphasys.content.elevated })}>
-      <Table size="small">
+      <TableContainer sx={{ overflowX: 'auto' }}>
+      <Table size="small" sx={editorialTableSx}>
         <TableHead>
           <TableRow>
             <TableCell>Serie</TableCell>
             <TableCell>Descripción</TableCell>
             <TableCell>Tipo de documento</TableCell>
             <TableCell>Fiscal / No fiscal</TableCell>
-            <TableCell align="center">Activa</TableCell>
             <TableCell align="right">Último folio</TableCell>
             <TableCell align="right">Acciones</TableCell>
           </TableRow>
@@ -369,36 +372,35 @@ export default function SeriesDocumentosPage() {
         <TableBody>
           {seriesOrdenadas.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={7} align="center" sx={{ py: 4, color: 'text.secondary' }}>
+              <TableCell colSpan={6} align="center" sx={emptyCellSx}>
                 No hay series configuradas.
               </TableCell>
             </TableRow>
           ) : (
             seriesOrdenadas.map((item) => (
               <TableRow key={item.id} hover>
-                <TableCell sx={{ fontWeight: 700 }}>{item.serie}</TableCell>
+                <TableCell sx={strongCellSx}>{item.serie}</TableCell>
                 <TableCell>{item.descripcion || '—'}</TableCell>
                 <TableCell>{item.tipo_documento_nombre || item.tipo_documento}</TableCell>
                 <TableCell>
-                  <Chip
-                    size="small"
-                    color={item.es_fiscal ? 'primary' : 'default'}
-                    label={item.es_fiscal ? 'Fiscal' : 'No fiscal'}
-                    variant={item.es_fiscal ? 'filled' : 'outlined'}
-                  />
-                </TableCell>
-                <TableCell align="center">
-                  <Switch
-                    checked={item.activa}
-                    onChange={(event) => void handleToggleSerieActiva(item, event.target.checked)}
-                    color="primary"
-                  />
+                  <Pill active={item.es_fiscal} label={item.es_fiscal ? 'Fiscal' : 'No fiscal'} />
                 </TableCell>
                 <TableCell align="right">{Number(item.ultimo_numero ?? 0).toLocaleString('es-MX')}</TableCell>
                 <TableCell align="right">
-                  <IconButton size="small" onClick={() => handleOpenEditSerie(item)}>
-                    <EditIcon fontSize="small" />
-                  </IconButton>
+                  <Stack direction="row" spacing={0.5} justifyContent="flex-end" alignItems="center">
+                    <Tooltip title="Editar">
+                      <IconButton size="small" sx={rowIconSx} onClick={() => handleOpenEditSerie(item)}>
+                        <EditIcon sx={{ fontSize: 17 }} />
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title={item.activa ? 'Desactivar' : 'Activar'}>
+                      <Switch
+                        size="small"
+                        checked={item.activa}
+                        onChange={(event) => void handleToggleSerieActiva(item, event.target.checked)}
+                      />
+                    </Tooltip>
+                  </Stack>
                 </TableCell>
               </TableRow>
             ))
@@ -409,8 +411,8 @@ export default function SeriesDocumentosPage() {
   );
 
   const renderAsignacionesTable = () => (
-      <TableContainer sx={(theme) => ({ border: `1px solid ${theme.emphasys.content.border}`, borderRadius: 2.5, backgroundColor: theme.emphasys.content.elevated })}>
-      <Table size="small">
+      <TableContainer sx={{ overflowX: 'auto' }}>
+      <Table size="small" sx={editorialTableSx}>
         <TableHead>
           <TableRow>
             <TableCell>Usuario</TableCell>
@@ -422,33 +424,34 @@ export default function SeriesDocumentosPage() {
         <TableBody>
           {asignaciones.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={4} align="center" sx={{ py: 4, color: 'text.secondary' }}>
+              <TableCell colSpan={4} align="center" sx={emptyCellSx}>
                 No hay asignaciones por usuario.
               </TableCell>
             </TableRow>
           ) : (
             asignaciones.map((item) => (
               <TableRow key={item.id} hover>
-                <TableCell>{item.usuario_nombre}</TableCell>
+                <TableCell sx={strongCellSx}>{item.usuario_nombre}</TableCell>
                 <TableCell>{item.tipo_documento_nombre || item.tipo_documento}</TableCell>
                 <TableCell>
                   <Stack direction="row" spacing={1} alignItems="center">
-                    <Typography variant="body2" fontWeight={700}>{item.serie}</Typography>
-                    <Chip
-                      size="small"
-                      label={item.es_fiscal ? 'Fiscal' : 'No fiscal'}
-                      variant={item.es_fiscal ? 'filled' : 'outlined'}
-                      color={item.es_fiscal ? 'primary' : 'default'}
-                    />
+                    <Typography variant="body2" fontWeight={700} sx={(theme) => ({ color: theme.emphasys.content.foreground })}>{item.serie}</Typography>
+                    <Pill active={item.es_fiscal} label={item.es_fiscal ? 'Fiscal' : 'No fiscal'} />
                   </Stack>
                 </TableCell>
                 <TableCell align="right">
-                  <IconButton size="small" onClick={() => handleOpenEditAsignacion(item)}>
-                    <EditIcon fontSize="small" />
-                  </IconButton>
-                  <IconButton size="small" color="error" onClick={() => void handleDeleteAsignacion(item)}>
-                    <DeleteOutlineIcon fontSize="small" />
-                  </IconButton>
+                  <Stack direction="row" spacing={0.5} justifyContent="flex-end">
+                    <Tooltip title="Editar">
+                      <IconButton size="small" sx={rowIconSx} onClick={() => handleOpenEditAsignacion(item)}>
+                        <EditIcon sx={{ fontSize: 17 }} />
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title="Eliminar">
+                      <IconButton size="small" sx={rowIconSx} onClick={() => void handleDeleteAsignacion(item)}>
+                        <DeleteOutlineIcon sx={{ fontSize: 17 }} />
+                      </IconButton>
+                    </Tooltip>
+                  </Stack>
                 </TableCell>
               </TableRow>
             ))
@@ -464,13 +467,13 @@ export default function SeriesDocumentosPage() {
 
       {error && <Alert severity="error">{error}</Alert>}
 
-      <ConfigSurface>
-        <Tabs value={tab} onChange={(_event, nextValue) => setTab(nextValue)}>
+      <Box sx={wellSx}>
+        <Tabs value={tab} onChange={(_event, nextValue) => setTab(nextValue)} sx={catalogoTabsSx}>
           <Tab label="Series" />
           <Tab label="Asignaciones por usuario" />
         </Tabs>
 
-        <Box sx={{ p: 2 }}>
+        <Box>
           {loading ? (
             <Stack alignItems="center" justifyContent="center" sx={{ py: 6 }}>
               <CircularProgress />
@@ -478,38 +481,70 @@ export default function SeriesDocumentosPage() {
           ) : (
             <>
               <TabPanel value={tab} index={TAB_SERIES}>
-                <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ pb: 1.5 }}>
-                  <Typography variant="subtitle1" fontWeight={700} color="text.primary">
-                    Series configuradas
-                  </Typography>
-                  <Button variant="contained" startIcon={<AddIcon />} onClick={handleOpenCreateSerie}>
-                    Alta
-                  </Button>
-                </Stack>
+                <PanelBar title="Series configuradas">
+                  <Tooltip title="Alta">
+                    <IconButton size="small" sx={actionIconSx} onClick={handleOpenCreateSerie}>
+                      <AddIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                </PanelBar>
                 {renderSeriesTable()}
               </TabPanel>
 
               <TabPanel value={tab} index={TAB_ASIGNACIONES}>
-                <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ pb: 1.5 }}>
-                  <Typography variant="subtitle1" fontWeight={700} color="text.primary">
-                    Asignaciones por usuario
-                  </Typography>
-                  <Button variant="contained" startIcon={<AddIcon />} onClick={handleOpenCreateAsignacion}>
-                    Alta
-                  </Button>
-                </Stack>
+                <PanelBar title="Asignaciones por usuario">
+                  <Tooltip title="Alta">
+                    <IconButton size="small" sx={actionIconSx} onClick={handleOpenCreateAsignacion}>
+                      <AddIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                </PanelBar>
                 {renderAsignacionesTable()}
               </TabPanel>
             </>
           )}
         </Box>
-      </ConfigSurface>
+      </Box>
 
-      <Dialog open={serieDialogOpen} onClose={serieSaving ? undefined : handleCloseSerieDialog} fullWidth maxWidth="sm">
-        <DialogTitle>{serieForm.id ? 'Editar serie' : 'Alta de serie'}</DialogTitle>
-        <DialogContent sx={{ pt: 1 }}>
-          <Stack spacing={2} sx={{ pt: 1 }}>
+      <Dialog open={serieDialogOpen} onClose={serieSaving ? undefined : handleCloseSerieDialog} fullWidth maxWidth="sm" PaperProps={{ sx: dialogPaperSx }}>
+        <DialogTitle component="div" sx={dialogTitleSx}>
+          <ConfigPageHeader
+            eyebrow="Series de documentos"
+            title={serieForm.id ? 'Editar serie' : 'Alta de serie'}
+            actions={
+              <Stack direction="row" spacing={0.5} alignItems="center">
+                <FormControlLabel
+                  sx={{ mr: 1 }}
+                  control={
+                    <Switch
+                      size="small"
+                      checked={serieForm.activa}
+                      onChange={(event) => handleSerieFormChange('activa', event.target.checked)}
+                    />
+                  }
+                  label={<Typography sx={{ fontSize: 13, fontWeight: 600 }}>Activa</Typography>}
+                />
+                <Tooltip title="Cancelar">
+                  <span>
+                    <IconButton size="small" sx={actionIconSx} onClick={handleCloseSerieDialog} disabled={serieSaving}><CloseRounded fontSize="small" /></IconButton>
+                  </span>
+                </Tooltip>
+                <Tooltip title={serieSaving ? 'Guardando...' : 'Guardar'}>
+                  <span>
+                    <IconButton size="small" sx={actionIconSx} onClick={() => void handleSubmitSerie()} disabled={serieSaving}>
+                      {serieSaving ? <CircularProgress size={16} color="inherit" /> : <SaveOutlined fontSize="small" />}
+                    </IconButton>
+                  </span>
+                </Tooltip>
+              </Stack>
+            }
+          />
+        </DialogTitle>
+        <DialogContent sx={dialogContentSx}>
+          <Box sx={(theme) => ({ ...formWellSx(theme), ...fieldsOnIvorySx(theme) })}>
             {serieFormError && <Alert severity="error">{serieFormError}</Alert>}
+          <Section title="Serie" inset>
+          <Stack spacing={2} sx={{ pt: 0.5 }}>
 
             <TextField
               label="Serie"
@@ -558,21 +593,12 @@ export default function SeriesDocumentosPage() {
               )}
             </FormControl>
 
-            <FormControlLabel
-              control={
-                <Switch
-                  checked={serieForm.activa}
-                  onChange={(event) => handleSerieFormChange('activa', event.target.checked)}
-                />
-              }
-              label={`Activa: ${formatBooleanLabel(serieForm.activa)}`}
-            />
+          </Stack>
+          </Section>
 
+          <Section title="Condiciones para impresión" inset>
             <Stack spacing={0.5}>
-              <Typography variant="subtitle2" fontWeight={700} color="text.primary">
-                Condiciones para impresión
-              </Typography>
-              <Typography variant="caption" color="text.secondary">
+              <Typography variant="caption" sx={(theme) => ({ color: theme.emphasys.content.muted })}>
                 Texto que aparecerá al pie del PDF para esta serie documental.
               </Typography>
               <RichTextEditor
@@ -582,8 +608,10 @@ export default function SeriesDocumentosPage() {
                 minHeight={180}
               />
             </Stack>
+          </Section>
 
             {serieForm.id && isSuperadmin && (
+              <Section title="Folio" inset>
               <TextField
                 label="Último folio"
                 type="number"
@@ -593,22 +621,40 @@ export default function SeriesDocumentosPage() {
                 inputProps={{ min: 0, step: 1 }}
                 helperText="El siguiente documento generado usará este número + 1."
               />
+              </Section>
             )}
-          </Stack>
+          </Box>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCloseSerieDialog} disabled={serieSaving}>Cancelar</Button>
-          <Button variant="contained" onClick={() => void handleSubmitSerie()} disabled={serieSaving}>
-            {serieSaving ? 'Guardando...' : 'Guardar'}
-          </Button>
-        </DialogActions>
       </Dialog>
 
-      <Dialog open={asignacionDialogOpen} onClose={asignacionSaving ? undefined : handleCloseAsignacionDialog} fullWidth maxWidth="sm">
-        <DialogTitle>{asignacionForm.id ? 'Editar asignación' : 'Alta de asignación'}</DialogTitle>
-        <DialogContent sx={{ pt: 1 }}>
-          <Stack spacing={2} sx={{ pt: 1 }}>
+      <Dialog open={asignacionDialogOpen} onClose={asignacionSaving ? undefined : handleCloseAsignacionDialog} fullWidth maxWidth="sm" PaperProps={{ sx: dialogPaperSx }}>
+        <DialogTitle component="div" sx={dialogTitleSx}>
+          <ConfigPageHeader
+            eyebrow="Series de documentos"
+            title={asignacionForm.id ? 'Editar asignación' : 'Alta de asignación'}
+            actions={
+              <Stack direction="row" spacing={0.5} alignItems="center">
+                <Tooltip title="Cancelar">
+                  <span>
+                    <IconButton size="small" sx={actionIconSx} onClick={handleCloseAsignacionDialog} disabled={asignacionSaving}><CloseRounded fontSize="small" /></IconButton>
+                  </span>
+                </Tooltip>
+                <Tooltip title={asignacionSaving ? 'Guardando...' : 'Guardar'}>
+                  <span>
+                    <IconButton size="small" sx={actionIconSx} onClick={() => void handleSubmitAsignacion()} disabled={asignacionSaving}>
+                      {asignacionSaving ? <CircularProgress size={16} color="inherit" /> : <SaveOutlined fontSize="small" />}
+                    </IconButton>
+                  </span>
+                </Tooltip>
+              </Stack>
+            }
+          />
+        </DialogTitle>
+        <DialogContent sx={dialogContentSx}>
+          <Box sx={(theme) => ({ ...formWellSx(theme), ...fieldsOnIvorySx(theme) })}>
             {asignacionFormError && <Alert severity="error">{asignacionFormError}</Alert>}
+          <Section title="Asignación" inset>
+          <Stack spacing={2} sx={{ pt: 0.5 }}>
 
             <FormControl fullWidth required>
               <InputLabel id="series-documento-usuario-label">Usuario</InputLabel>
@@ -667,13 +713,9 @@ export default function SeriesDocumentosPage() {
               )}
             </FormControl>
           </Stack>
+          </Section>
+          </Box>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCloseAsignacionDialog} disabled={asignacionSaving}>Cancelar</Button>
-          <Button variant="contained" onClick={() => void handleSubmitAsignacion()} disabled={asignacionSaving}>
-            {asignacionSaving ? 'Guardando...' : 'Guardar'}
-          </Button>
-        </DialogActions>
       </Dialog>
     </ConfigPageFrame>
   );

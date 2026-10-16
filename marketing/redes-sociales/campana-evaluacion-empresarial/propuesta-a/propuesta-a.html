@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Propuesta A</title>
+<style>
+  @font-face { font-family: "AvCond"; font-weight: 800; src: local("AvenirNextCondensed-Heavy"); }
+  @font-face { font-family: "AvCond"; font-weight: 700; src: local("AvenirNextCondensed-Bold"); }
+  :root {
+    --navy: #1d2f68;
+    --navy-deep: #111c42;
+    --teal: #006261;
+    --teal-soft: #80b1b0;
+    --white: #ffffff;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1080px; height: 1080px; overflow: hidden; background: var(--navy-deep); }
+  .ad {
+    position: relative; width: 1080px; height: 1080px; overflow: hidden;
+    background: radial-gradient(120% 90% at 0% 0%, #22377a 0%, var(--navy-deep) 70%);
+    font-family: "Avenir Next", "Helvetica Neue", sans-serif; color: var(--white);
+  }
+
+  /* Fotografía generada con IA (imagen original aprobada) con grado de color de marca */
+  .photo { position: absolute; left: 510px; top: 0; width: 610px; height: 1080px; overflow: hidden; }
+  .photo img {
+    position: absolute; left: -10px; top: -150px; width: 640px; height: auto;
+    filter: saturate(.55) contrast(1.05) brightness(.95);
+  }
+  .photo::before { /* tinte navy/petróleo para unificar con la marca */
+    content: ""; position: absolute; inset: 0; z-index: 1;
+    background: linear-gradient(160deg, rgba(29,47,104,.55) 0%, rgba(0,98,97,.25) 55%, rgba(17,28,66,.6) 100%);
+    mix-blend-mode: multiply;
+  }
+  .photo::after { /* fundido hacia el bloque de texto */
+    content: ""; position: absolute; inset: 0; z-index: 2;
+    background:
+      linear-gradient(90deg, var(--navy-deep) 0%, rgba(17,28,66,.85) 18%, rgba(17,28,66,0) 48%),
+      linear-gradient(0deg, rgba(17,28,66,.95) 0%, rgba(17,28,66,0) 30%);
+  }
+
+  /* Elementos gráficos sutiles: líneas de datos */
+  .data { position: absolute; inset: 0; z-index: 3; pointer-events: none; }
+
+  /* Logo en un panel de esquina anclado al borde superior e izquierdo:
+     forma parte de la retícula (alineado con la columna de texto) en vez de flotar como etiqueta. */
+  .logo-plate {
+    position: absolute; z-index: 5; left: 0; top: 0;
+    background: var(--white); border-radius: 0 0 40px 0;
+    padding: 46px 44px 30px 64px;
+  }
+  .logo-plate img { display: block; width: 200px; height: auto; }
+
+  .copy { position: absolute; z-index: 5; left: 64px; top: 290px; width: 760px; display: flex; flex-direction: column; align-items: flex-start; }
+  .headline {
+    font-family: "AvCond", "Avenir Next Condensed", sans-serif;
+    font-weight: 800; text-transform: uppercase; letter-spacing: -.5px;
+    font-size: 88px; line-height: .98; white-space: nowrap;
+  }
+  .headline .big { font-size: 128px; line-height: .9; }
+  .headline .hl {
+    display: inline-block; background: var(--teal); color: var(--white);
+    padding: 8px 16px 0; margin: 10px 0 8px -16px; border-radius: 4px;
+  }
+  .rule { width: 84px; height: 5px; background: var(--teal-soft); margin: 34px 0 24px; border-radius: 3px; }
+  .sub { font-size: 34px; line-height: 1.22; font-weight: 400; color: #e6ebf5; }
+  .sub b { font-weight: 700; color: var(--white); }
+
+  .cta {
+    margin-top: 40px;
+    display: flex; align-items: center; gap: 18px;
+    background: var(--white); color: var(--navy);
+    border-radius: 999px; padding: 20px 30px 20px 22px;
+    box-shadow: 0 12px 30px rgba(0,0,0,.3);
+  }
+  .cta .ic { width: 50px; height: 50px; border-radius: 50%; background: var(--teal); display: grid; place-items: center; }
+  .cta .label { font-size: 31px; font-weight: 700; letter-spacing: -.2px; }
+  .cta .arrow { font-size: 34px; color: var(--teal); font-weight: 700; margin-left: 4px; }
+  .note {
+    margin: 22px 0 0 8px;
+    font-size: 21px; letter-spacing: 2.5px; text-transform: uppercase; color: var(--teal-soft); font-weight: 600;
+  }
+</style>
+</head>
+<body>
+<div class="ad">
+  <div class="photo"><img src="assets/foto-empresario-ia.jpg" alt=""></div>
+
+  <svg class="data" viewBox="0 0 1080 1080" xmlns="http://www.w3.org/2000/svg">
+    <!-- línea de tendencia muy sutil detrás del texto -->
+    <polyline points="0,840 120,810 220,826 320,770 430,786 540,720 640,738 760,660"
+      fill="none" stroke="#80b1b0" stroke-opacity=".22" stroke-width="2"/>
+    <g fill="#80b1b0" fill-opacity=".35">
+      <circle cx="320" cy="770" r="4"/><circle cx="540" cy="720" r="4"/><circle cx="760" cy="660" r="5"/>
+    </g>
+    <!-- retícula de puntos -->
+    <g fill="#ffffff" fill-opacity=".07">
+      <circle cx="840" cy="70" r="2"/><circle cx="870" cy="70" r="2"/><circle cx="900" cy="70" r="2"/><circle cx="930" cy="70" r="2"/>
+      <circle cx="840" cy="100" r="2"/><circle cx="870" cy="100" r="2"/><circle cx="900" cy="100" r="2"/><circle cx="930" cy="100" r="2"/>
+    </g>
+  </svg>
+
+  <div class="logo-plate"><img src="assets/logo-emphasys.png" alt="Emphasys Soluciones"></div>
+
+  <div class="copy">
+    <h1 class="headline"><span class="big">¿Cuánto</span><br><span class="hl">te está costando</span><br>lo que no sabes<br>de tu empresa?</h1>
+    <div class="rule"></div>
+    <p class="sub">Descúbrelo con nuestra<br><b>Evaluación Empresarial en 4&nbsp;Minutos.</b></p>
+
+  <div class="cta">
+    <span class="ic">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="13.5" r="7.5"/><path d="M12 9.5v4l2.5 1.8"/><path d="M9.5 2.5h5"/><path d="M12 2.5v3.5"/>
+      </svg>
+    </span>
+    <span class="label">Evalúa tu empresa en 4 minutos</span>
+    <span class="arrow">→</span>
+  </div>
+  <div class="note">Gratis · Sin registro</div>
+  </div>
+</div>
+</body>
+</html>

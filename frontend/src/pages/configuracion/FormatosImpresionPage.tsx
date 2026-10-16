@@ -17,6 +17,9 @@ import {
 } from '@mui/material';
 import { PictureAsPdfRounded, SaveRounded } from '@mui/icons-material';
 import DynamicFieldControl from '../../components/DynamicFieldControl';
+import { IconButton, Tooltip } from '@mui/material';
+import { ConfigPageHeader } from '../../components/configuracion/configVisual';
+import { Pill, Section, actionIconSx, fieldsOnIvorySx, formWellSx } from '../../components/transporte/transporteVisual';
 import type { LayoutConfig, LayoutSerie } from '../../types/formatosImpresion';
 import { fetchLayoutConfiguracion, guardarLayoutConfiguracion } from '../../services/formatosImpresionService';
 
@@ -323,25 +326,20 @@ export default function FormatosImpresionPage() {
   };
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems={{ xs: 'flex-start', sm: 'center' }}>
-        <Stack spacing={0.5} flex={1}>
-          <Typography variant="h5" fontWeight={700} color="text.primary">
-            Formatos de impresión
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Configura los layouts de PDF por empresa o por serie sin afectar la operación actual.
-          </Typography>
-        </Stack>
-        <Button
-          variant="contained"
-          startIcon={<SaveRounded />}
-          onClick={handleGuardar}
-          disabled={saving || loading}
-        >
-          {saving ? 'Guardando...' : 'Guardar'}
-        </Button>
-      </Stack>
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+      <ConfigPageHeader
+        title="Formatos de impresión"
+        description="Configura los layouts de PDF por empresa o por serie sin afectar la operación actual."
+        actions={
+          <Tooltip title={saving ? 'Guardando...' : 'Guardar'}>
+            <span>
+              <IconButton size="small" sx={actionIconSx} onClick={handleGuardar} disabled={saving || loading}>
+                {saving ? <CircularProgress size={16} color="inherit" /> : <SaveRounded fontSize="small" />}
+              </IconButton>
+            </span>
+          </Tooltip>
+        }
+      />
 
       {error && (
         <Alert severity="error" onClose={() => setError(null)}>
@@ -349,8 +347,8 @@ export default function FormatosImpresionPage() {
         </Alert>
       )}
 
-      <Paper variant="outlined" sx={{ p: 2.5, borderRadius: 2 }}>
-        <Stack spacing={2}>
+      <Box sx={(theme) => ({ ...formWellSx(theme), ...fieldsOnIvorySx(theme) })}>
+        <Section title="Ámbito" inset>
           <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems={{ xs: 'stretch', md: 'center' }}>
             <FormControl size="small" sx={{ minWidth: 220 }}>
               <InputLabel>Tipo de documento</InputLabel>
@@ -384,30 +382,24 @@ export default function FormatosImpresionPage() {
             </FormControl>
 
             <Stack direction="row" spacing={1} alignItems="center">
-              <Chip
-                icon={<PictureAsPdfRounded fontSize="small" />}
-                label={`Ámbito: ${scopeLabel}`}
-                color={serie ? 'primary' : 'default'}
-                variant={serie ? 'filled' : 'outlined'}
-              />
-              <Typography variant="caption" color="#6b7280">
+              <PictureAsPdfRounded fontSize="small" sx={(theme) => ({ color: theme.emphasys.content.foreground })} />
+              <Pill active={Boolean(serie)} label={`Ámbito: ${scopeLabel}`} />
+              <Typography variant="caption" sx={(theme) => ({ color: theme.emphasys.content.muted })}>
                 Fuente: {source === 'default' ? 'Default' : source === 'empresa' ? 'Empresa' : 'Serie'}
               </Typography>
             </Stack>
           </Stack>
+        </Section>
 
           {loading ? (
-            <Stack direction="row" spacing={1.5} alignItems="center">
+            <Stack direction="row" spacing={1.5} alignItems="center" sx={{ px: 1, py: 2 }}>
               <CircularProgress size={22} />
-              <Typography color="text.secondary">Cargando configuración...</Typography>
+              <Typography sx={(theme) => ({ color: theme.emphasys.content.muted })}>Cargando configuración...</Typography>
             </Stack>
           ) : (
-            <Stack sx={{ pt: 1 }}>
-              {Object.entries(camposLayoutPorSeccion).map(([section, campos], index) => (
-                <Box key={section} sx={{ mt: index === 0 ? 0 : 4 }}>
-                  <Typography variant="subtitle1" fontWeight={700} color="text.primary" sx={{ mb: 1.5 }}>
-                    {section}
-                  </Typography>
+            <>
+              {Object.entries(camposLayoutPorSeccion).map(([section, campos]) => (
+                <Section key={section} title={section} inset>
                   <Grid container columnSpacing={2} rowSpacing={2.5}>
                     {campos.map((campo) => (
                       <Grid key={campo.key} size={{ xs: 12, md: 6 }}>
@@ -428,12 +420,11 @@ export default function FormatosImpresionPage() {
                       </Grid>
                     ))}
                   </Grid>
-                </Box>
+                </Section>
               ))}
-            </Stack>
+            </>
           )}
-        </Stack>
-      </Paper>
+      </Box>
 
       <Snackbar
         open={snackbar.open}

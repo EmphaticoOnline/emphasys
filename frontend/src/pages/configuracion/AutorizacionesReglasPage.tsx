@@ -14,7 +14,9 @@ import { fetchRoles } from '../../services/rolesService';
 import { fetchUsuariosHabilitados } from '../../services/usuariosService';
 import type { Rol } from '../../types/rol';
 import { useSession } from '../../session/useSession';
-import { ConfigPageFrame, ConfigPageHeader, ConfigSurface } from '../../components/configuracion/configVisual';
+import { ConfigPageFrame, ConfigPageHeader } from '../../components/configuracion/configVisual';
+import { CloseRounded, SaveOutlined } from '@mui/icons-material';
+import { PanelBar, Pill, Section, actionIconSx, dialogContentSx, dialogPaperSx, dialogTitleSx, editorialTableSx, emptyCellSx, fieldsOnIvorySx, formWellSx, rowIconSx, wellSx } from '../../components/transporte/transporteVisual';
 
 interface Usuario { id: number; nombre: string; }
 
@@ -142,13 +144,15 @@ export default function AutorizacionesReglasPage() {
 
   return (
     <ConfigPageFrame>
-      <ConfigPageHeader title="Políticas de autorización" description="Define qué transiciones documentales requieren autorización y en qué modo." actions={<Button variant="contained" startIcon={<AddRounded />} onClick={() => abrirDialog()} sx={(theme) => ({ bgcolor: theme.emphasys.action.primary, '&:hover': { bgcolor: theme.emphasys.action.primaryHover } })}>Nueva política</Button>} />
-      {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+      <ConfigPageHeader title="Políticas de autorización" description="Define qué transiciones documentales requieren autorización y en qué modo." actions={<Tooltip title="Nueva política"><IconButton size="small" sx={actionIconSx} onClick={() => abrirDialog()}><AddRounded fontSize="small" /></IconButton></Tooltip>} />
+      {error && <Alert severity="error">{error}</Alert>}
 
-      <ConfigSurface>
-        <Table size="small">
+      <Box sx={wellSx}>
+        <PanelBar title="Políticas configuradas" meta={`${reglas.length} ${reglas.length === 1 ? 'política' : 'políticas'}`} />
+        <Box sx={{ overflowX: 'auto' }}>
+        <Table size="small" sx={editorialTableSx}>
           <TableHead>
-            <TableRow sx={{ bgcolor: (theme) => theme.emphasys.table.headerBg }}>
+            <TableRow>
               <TableCell>Transición</TableCell>
               <TableCell>Monto mín.</TableCell>
               <TableCell>Monto máx.</TableCell>
@@ -160,7 +164,7 @@ export default function AutorizacionesReglasPage() {
           <TableBody>
             {reglas.length === 0 && (
               <TableRow>
-                <TableCell colSpan={6} align="center" sx={{ py: 4, color: '#9ca3af' }}>
+                <TableCell colSpan={6} align="center" sx={emptyCellSx}>
                   No hay políticas configuradas
                 </TableCell>
               </TableRow>
@@ -168,43 +172,68 @@ export default function AutorizacionesReglasPage() {
             {reglas.map((r) => (
               <TableRow key={r.id} hover>
                 <TableCell>
-                  <Typography variant="body2" fontWeight={500}>
+                  <Typography variant="body2" fontWeight={700} sx={(theme) => ({ color: theme.emphasys.content.foreground })}>
                     {r.td_origen_nombre} → {r.td_destino_nombre}
                   </Typography>
                 </TableCell>
                 <TableCell>{fmtMonto(r.monto_minimo)}</TableCell>
                 <TableCell>{fmtMonto(r.monto_maximo)}</TableCell>
                 <TableCell>
-                  <Chip label={MODO_LABELS[r.modo]} size="small"
-                    sx={{ ...MODO_CHIP[r.modo], fontWeight: 600, fontSize: 11 }} />
+                  <Pill active={r.modo !== 'ninguna'} label={MODO_LABELS[r.modo]} />
                 </TableCell>
                 <TableCell>
                   {r.modo === 'ninguna' ? '—' : (r.rol_nombre ?? r.usuario_nombre ?? '—')}
                 </TableCell>
                 <TableCell align="right">
+                  <Stack direction="row" spacing={0.5} justifyContent="flex-end">
                   <Tooltip title="Editar">
-                    <IconButton size="small" onClick={() => abrirDialog(r)}>
-                      <EditRounded fontSize="small" />
+                    <IconButton size="small" sx={rowIconSx} onClick={() => abrirDialog(r)}>
+                      <EditRounded sx={{ fontSize: 17 }} />
                     </IconButton>
                   </Tooltip>
                   <Tooltip title="Desactivar">
-                    <IconButton size="small" color="error" onClick={() => desactivar(r.id)}>
-                      <DeleteOutlineRounded fontSize="small" />
+                    <IconButton size="small" sx={rowIconSx} onClick={() => desactivar(r.id)}>
+                      <DeleteOutlineRounded sx={{ fontSize: 17 }} />
                     </IconButton>
                   </Tooltip>
+                  </Stack>
                 </TableCell>
               </TableRow>
             ))}
           </TableBody>
         </Table>
-      </ConfigSurface>
+        </Box>
+      </Box>
 
       {/* Dialog crear/editar */}
-      <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>{editando ? 'Editar política' : 'Nueva política de autorización'}</DialogTitle>
-        <DialogContent>
-          <Stack spacing={2.5} mt={1}>
+      <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="sm" fullWidth PaperProps={{ sx: dialogPaperSx }}>
+        <DialogTitle component="div" sx={dialogTitleSx}>
+          <ConfigPageHeader
+            eyebrow="Políticas de autorización"
+            title={editando ? 'Editar política' : 'Nueva política de autorización'}
+            actions={
+              <Stack direction="row" spacing={0.5} alignItems="center">
+                <Tooltip title="Cancelar">
+                  <span>
+                    <IconButton size="small" sx={actionIconSx} onClick={() => setDialogOpen(false)} disabled={saving}><CloseRounded fontSize="small" /></IconButton>
+                  </span>
+                </Tooltip>
+                <Tooltip title="Guardar">
+                  <span>
+                    <IconButton size="small" sx={actionIconSx} onClick={guardar} disabled={saving}>
+                      {saving ? <CircularProgress size={16} color="inherit" /> : <SaveOutlined fontSize="small" />}
+                    </IconButton>
+                  </span>
+                </Tooltip>
+              </Stack>
+            }
+          />
+        </DialogTitle>
+        <DialogContent sx={dialogContentSx}>
+          <Box sx={(theme) => ({ ...formWellSx(theme), ...fieldsOnIvorySx(theme) })}>
             {saveError && <Alert severity="error">{saveError}</Alert>}
+          <Section title="Política" inset>
+          <Stack spacing={2.5} sx={{ pt: 0.5 }}>
 
             <FormControl fullWidth size="small">
               <InputLabel>Transición</InputLabel>
@@ -233,7 +262,7 @@ export default function AutorizacionesReglasPage() {
               />
             </Stack>
 
-            <FormHelperText sx={{ mx: 0, color: '#6b7280' }}>
+            <FormHelperText sx={(theme) => ({ mx: 0, color: theme.emphasys.content.muted })}>
               Los rangos son inclusivos. Para bandas consecutivas usa valores distintos en el límite (ej. 0–100,000 y 100,001–200,000).
             </FormHelperText>
 
@@ -282,14 +311,9 @@ export default function AutorizacionesReglasPage() {
               </>
             )}
           </Stack>
+          </Section>
+          </Box>
         </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={() => setDialogOpen(false)} disabled={saving}>Cancelar</Button>
-          <Button variant="contained" onClick={guardar} disabled={saving}
-            sx={(theme) => ({ bgcolor: theme.emphasys.action.primary, '&:hover': { bgcolor: theme.emphasys.action.primaryHover } })}>
-            {saving ? <CircularProgress size={18} color="inherit" /> : 'Guardar'}
-          </Button>
-        </DialogActions>
       </Dialog>
     </ConfigPageFrame>
   );

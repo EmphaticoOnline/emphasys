@@ -26,6 +26,8 @@ import AlternateEmailRoundedIcon from '@mui/icons-material/AlternateEmailRounded
 import VisibilityRoundedIcon from '@mui/icons-material/VisibilityRounded';
 import VisibilityOffRoundedIcon from '@mui/icons-material/VisibilityOffRounded';
 import { useSession } from '../../session/useSession';
+import { ConfigPageHeader } from '../../components/configuracion/configVisual';
+import { ControlLabel, Section, fieldCardSx, fieldsOnIvorySx, formWellSx, innerOutlinedButtonSx, innerPrimaryButtonSx } from '../../components/transporte/transporteVisual';
 import { fetchUsuarios } from '../../services/usuariosService';
 import {
   fetchConfiguracionCorreoEmpresa,
@@ -136,8 +138,8 @@ function ConfiguracionCorreoSection({
   onTest,
 }: SectionProps) {
   return (
-    <Card variant="outlined" sx={(theme) => ({ borderRadius: 2.5, borderColor: theme.emphasys.content.border, bgcolor: theme.emphasys.content.elevated })}>
-      <CardContent sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 2.5 }}>
+    <Section title={title}>
+      <Box sx={(theme) => ({ ...fieldCardSx(theme), ...fieldsOnIvorySx(theme), p: 2, display: 'flex', flexDirection: 'column', gap: 2.5 })}>
         <Stack spacing={0.75}>
           <Stack
             direction={{ xs: 'column', md: 'row' }}
@@ -146,10 +148,7 @@ function ConfiguracionCorreoSection({
             spacing={1.5}
           >
             <Box>
-              <Typography variant="h6" fontWeight={700} color="text.primary">
-                {title}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" sx={(theme) => ({ color: theme.emphasys.content.muted })}>
                 {description}
               </Typography>
             </Box>
@@ -278,7 +277,7 @@ function ConfiguracionCorreoSection({
                       disabled={fieldsDisabled}
                     />
                   }
-                  label="Conexión segura"
+                  label={<ControlLabel>Conexión segura</ControlLabel>}
                 />
                 <FormControlLabel
                   control={
@@ -288,7 +287,7 @@ function ConfiguracionCorreoSection({
                       disabled={fieldsDisabled}
                     />
                   }
-                  label="Activo"
+                  label={<ControlLabel>Activo</ControlLabel>}
                 />
               </Stack>
             </Box>
@@ -299,7 +298,8 @@ function ConfiguracionCorreoSection({
                 startIcon={<SaveRoundedIcon />}
                 onClick={onSave}
                 disabled={actionsDisabled || saving || loading}
-                sx={(theme) => ({ textTransform: 'none', fontWeight: 700, backgroundColor: theme.emphasys.action.primary, '&:hover': { backgroundColor: theme.emphasys.action.primaryHover } })}
+                disableElevation
+                sx={innerPrimaryButtonSx}
               >
                 Guardar
               </Button>
@@ -308,15 +308,15 @@ function ConfiguracionCorreoSection({
                 startIcon={<MarkEmailReadRoundedIcon />}
                 onClick={onTest}
                 disabled={actionsDisabled || testing || loading}
-                sx={{ textTransform: 'none' }}
+                sx={innerOutlinedButtonSx}
               >
                 Probar conexión
               </Button>
             </Stack>
           </Stack>
         )}
-      </CardContent>
-    </Card>
+      </Box>
+    </Section>
   );
 }
 
@@ -579,16 +579,13 @@ export default function ConfiguracionCorreoPage() {
   }, [selectedUsuarioId, usaConfiguracionPersonalizada, usuarioForm]);
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3, p: 3 }}>
-      <Stack spacing={0.75}>
-        <Typography variant="h5" fontWeight={700} color="text.primary">
-          Configuración de correo SMTP
-        </Typography>
-        <Typography variant="body2" color="text.secondary">
-          Configura el envío de correos por empresa y, si aplica, define una configuración personalizada para tu usuario.
-        </Typography>
-      </Stack>
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+      <ConfigPageHeader
+        title="Configuración de correo SMTP"
+        description="Configura el envío de correos por empresa y, si aplica, define una configuración personalizada para tu usuario."
+      />
 
+      <Box sx={formWellSx}>
       <ConfiguracionCorreoSection
         title="Configuración Empresa"
         description="Esta configuración funciona como base para la empresa activa."
@@ -660,7 +657,7 @@ export default function ConfiguracionCorreoPage() {
                   }}
                 />
               }
-              label="Usar configuración personalizada"
+              label={<ControlLabel>Usar configuración personalizada</ControlLabel>}
             />
           </Stack>
         }
@@ -669,6 +666,7 @@ export default function ConfiguracionCorreoPage() {
         onSave={handleSaveUsuario}
         onTest={handleTestUsuario}
       />
+      </Box>
 
       <Alert severity="info" icon={<AlternateEmailRoundedIcon fontSize="inherit" />}>
         Si no activas la configuración personalizada, el envío de correos usará la configuración SMTP de empresa.

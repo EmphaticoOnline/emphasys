@@ -5,9 +5,7 @@ import {
   Box,
   Button,
   CircularProgress,
-  Chip,
   Dialog,
-  DialogActions,
   DialogContent,
   DialogTitle,
   FormControlLabel,
@@ -17,25 +15,29 @@ import {
   Table,
   TableBody,
   TableCell,
-  TableContainer,
   TableHead,
   TableRow,
   TextField,
-  Toolbar,
   Tooltip,
   Typography,
   MenuItem,
 } from '@mui/material';
-import AddIcon from '@mui/icons-material/Add';
-import EditIcon from '@mui/icons-material/Edit';
-import DeleteIcon from '@mui/icons-material/DeleteOutline';
-import ReplayIcon from '@mui/icons-material/Replay';
+import { AddRounded, CloseRounded, EditRounded, SaveOutlined } from '@mui/icons-material';
 import { createEmpresa, deleteEmpresa, fetchEmpresa, fetchEmpresaCfdiPacAssignmentById, fetchEmpresas, registrarEmpresaCsdFacturama, updateEmpresa } from '../../services/empresasService';
 import type { EmpresaCfdiPacAssignment } from '../../services/cfdiPacConfigService';
 import { buildAssetUrl, fetchEmpresaAsset, uploadEmpresaAsset } from '../../services/empresasAssetsService';
 import type { Empresa, EmpresaPayload } from '../../types/empresa';
 import { apiFetch } from '../../services/apiFetch';
-import { ConfigPageHeader } from '../../components/configuracion/configVisual';
+import type { Theme } from '@mui/material/styles';
+import { ConfigPageFrame, ConfigPageHeader } from '../../components/configuracion/configVisual';
+import { catalogoOutlinedButtonSx, catalogoPrimaryButtonSx, catalogoSearchSx } from '../../components/catalogo/catalogoSurfaces';
+import { Section, actionIconSx, dialogPaperSx, editorialTableSx, panelBarSx, wellSx } from '../../components/transporte/transporteVisual';
+
+/* Botones secundarios internos (archivos, CSD, logo) con estilos de catálogo y radio de acciones. */
+const innerShape = { borderRadius: '10px', minHeight: 34 };
+const innerPrimarySx = (theme: Theme) => ({ ...(catalogoPrimaryButtonSx as (t: Theme) => object)(theme), ...innerShape });
+const innerOutlinedSx = (theme: Theme) => ({ ...(catalogoOutlinedButtonSx as (t: Theme) => object)(theme), ...innerShape });
+const fieldsGridSx = { display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 };
 
 const requiredFields: Array<keyof EmpresaPayload> = [
   'identificador',
@@ -180,7 +182,7 @@ export default function EmpresasPage() {
       void loadRegimenesOptions();
     }
     resetCsdState();
-    void loadCsdAssignment(empresa.id);
+    // Empresa nueva: aún no tiene id ni asignación PAC; el CSD se registra al editarla.
     setDialogOpen(true);
   };
 
@@ -550,15 +552,8 @@ export default function EmpresasPage() {
   };
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <ConfigPageHeader title="Empresas" description="Administra las empresas registradas. Solo se listan las activas por orden de nombre." actions={<Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={handleOpenCreate}
-          sx={(theme) => ({ textTransform: 'none', fontWeight: 700, backgroundColor: theme.emphasys.action.primary, '&:hover': { backgroundColor: theme.emphasys.action.primaryHover } })}
-        >
-          Nueva empresa
-        </Button>} />
+    <ConfigPageFrame>
+      <ConfigPageHeader title="Empresas" description="Administra las empresas registradas. Solo se listan las activas por orden de nombre." actions={<Tooltip title="Nueva empresa"><IconButton size="small" sx={actionIconSx} onClick={handleOpenCreate}><AddRounded fontSize="small" /></IconButton></Tooltip>} />
 
       {error && (
         <Alert severity="error" onClose={() => setError(null)}>
@@ -566,8 +561,13 @@ export default function EmpresasPage() {
         </Alert>
       )}
 
-      <TableContainer sx={(theme) => ({ border: `1px solid ${theme.emphasys.content.border}`, borderRadius: 2.5, backgroundColor: theme.emphasys.content.elevated })}>
-        <Table size="small">
+      <Box sx={wellSx}>
+        <Box sx={panelBarSx}>
+          <Typography sx={(theme) => ({ fontSize: 14, fontWeight: 700, color: theme.emphasys.content.foreground })}>Empresas registradas</Typography>
+          <Typography sx={(theme) => ({ fontSize: 12, fontWeight: 600, color: theme.emphasys.content.muted })}>{empresas.length} {empresas.length === 1 ? 'empresa' : 'empresas'}</Typography>
+        </Box>
+        <Box sx={{ overflowX: 'auto' }}>
+        <Table size="small" sx={editorialTableSx}>
           <TableHead>
             <TableRow>
               <TableCell>Identificador</TableCell>
@@ -582,46 +582,37 @@ export default function EmpresasPage() {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={7}>Cargando...</TableCell>
+                <TableCell colSpan={7} align="center" sx={(theme) => ({ py: '48px !important', color: `${theme.emphasys.content.muted} !important` })}>Cargando...</TableCell>
               </TableRow>
             ) : empresas.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7}>No hay empresas activas registradas.</TableCell>
+                <TableCell colSpan={7} align="center" sx={(theme) => ({ py: '48px !important', color: `${theme.emphasys.content.muted} !important` })}>No hay empresas activas registradas.</TableCell>
               </TableRow>
             ) : (
               empresas.map((empresa) => (
                 <TableRow key={empresa.id} hover>
-                  <TableCell>
-                    <Stack direction="row" spacing={1} alignItems="center">
-                      <Typography fontWeight={600}>{empresa.identificador}</Typography>
-                      <Chip label={empresa.activo ? 'Activa' : 'Inactiva'} color={empresa.activo ? 'success' : 'default'} size="small" />
-                    </Stack>
+                  <TableCell sx={(theme) => ({ fontSize: '14px !important', fontWeight: 700, color: `${theme.emphasys.content.foreground} !important` })}>
+                    {empresa.identificador}
                   </TableCell>
-                  <TableCell>{empresa.nombre}</TableCell>
+                  <TableCell sx={(theme) => ({ fontWeight: 600, color: `${theme.emphasys.content.foreground} !important` })}>{empresa.nombre}</TableCell>
                   <TableCell>{empresa.rfc}</TableCell>
                   <TableCell>{regimenLookup[empresa.regimen_fiscal_id || ''] || empresa.regimen_fiscal || empresa.regimen_fiscal_id}</TableCell>
                   <TableCell>{empresa.email || '—'}</TableCell>
                   <TableCell>{estadoLookup[empresa.codigo_postal_id || ''] || empresa.estado_id}</TableCell>
                   <TableCell align="right">
-                    <Stack direction="row" spacing={1} justifyContent="flex-end">
-                      <Tooltip title="Editar">
-                        <IconButton size="small" onClick={() => handleOpenEdit(empresa)}>
-                          <EditIcon fontSize="small" />
+                    <Stack direction="row" spacing={0.5} justifyContent="flex-end" alignItems="center">
+                      <Tooltip title="Editar empresa">
+                        <IconButton size="small" sx={(theme) => ({ color: theme.emphasys.content.foreground })} onClick={() => handleOpenEdit(empresa)}>
+                          <EditRounded sx={{ fontSize: 18 }} />
                         </IconButton>
                       </Tooltip>
-                      {empresa.activo ? (
-                        <Tooltip title="Desactivar">
-                          <IconButton size="small" color="error" onClick={() => handleDesactivar(empresa)}>
-                            <DeleteIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                      ) : (
-                        <Tooltip title="Activar">
-                          <IconButton size="small" color="primary" onClick={() => handleActivar(empresa)}>
-                            <ReplayIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                      )}
+                      <Tooltip title={empresa.activo ? 'Desactivar' : 'Activar'}>
+                        <Switch
+                          size="small"
+                          checked={Boolean(empresa.activo)}
+                          onChange={() => (empresa.activo ? handleDesactivar(empresa) : handleActivar(empresa))}
+                        />
+                      </Tooltip>
                     </Stack>
                   </TableCell>
                 </TableRow>
@@ -629,18 +620,53 @@ export default function EmpresasPage() {
             )}
           </TableBody>
         </Table>
-      </TableContainer>
+        </Box>
+      </Box>
 
-      <Dialog open={dialogOpen} onClose={handleCloseDialog} maxWidth="md" fullWidth>
-        <DialogTitle>{tituloDialogo}</DialogTitle>
-        <DialogContent sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2, pt: 2 }}>
+      <Dialog open={dialogOpen} onClose={handleCloseDialog} maxWidth="md" fullWidth PaperProps={{ sx: dialogPaperSx }}>
+        <DialogTitle component="div" sx={{ px: { xs: 1.5, md: 2.25 }, pt: 2, pb: 1.5 }}>
+          <ConfigPageHeader
+            eyebrow="Empresas"
+            title={tituloDialogo}
+            description={editId && form.nombre ? [form.identificador, form.rfc].filter(Boolean).join(' · ') : undefined}
+            actions={
+              <Stack direction="row" spacing={0.5} alignItems="center">
+                <FormControlLabel
+                  sx={{ mr: 1 }}
+                  control={
+                    <Switch
+                      size="small"
+                      checked={Boolean(form.activo)}
+                      onChange={(e) => handleChange('activo', e.target.checked)}
+                    />
+                  }
+                  label={<Typography sx={{ fontSize: 13, fontWeight: 600 }}>Activa</Typography>}
+                />
+                <Tooltip title="Cancelar">
+                  <IconButton size="small" sx={actionIconSx} onClick={handleCloseDialog}>
+                    <CloseRounded fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+                <Tooltip title={saving ? 'Guardando…' : 'Guardar'}>
+                  <span>
+                    <IconButton size="small" sx={actionIconSx} onClick={handleSubmit} disabled={saving}>
+                      {saving ? <CircularProgress size={16} color="inherit" /> : <SaveOutlined fontSize="small" />}
+                    </IconButton>
+                  </span>
+                </Tooltip>
+              </Stack>
+            }
+          />
+        </DialogTitle>
+        <DialogContent sx={{ px: { xs: 1.5, md: 2.25 }, pb: { xs: 1.5, md: 2.25 } }}>
+          <Box sx={(theme) => ({ ...wellSx(theme), p: { xs: 1, md: 1.75 }, display: 'flex', flexDirection: 'column', gap: { xs: 1, md: 1.5 }, '& .MuiTextField-root': (catalogoSearchSx as (t: Theme) => object)(theme) })}>
           {formError && (
-            <Box sx={{ gridColumn: '1 / -1' }}>
               <Alert severity="warning" onClose={() => setFormError(null)}>
                 {formError}
               </Alert>
-            </Box>
           )}
+          <Section title="Datos generales" inset>
+          <Box sx={fieldsGridSx}>
           <TextField
             label="Identificador"
             required
@@ -690,6 +716,10 @@ export default function EmpresasPage() {
               </MenuItem>
             ) : null}
           </TextField>
+          </Box>
+          </Section>
+          <Section title="Domicilio fiscal" inset>
+          <Box sx={fieldsGridSx}>
           <TextField
             label="Código postal SAT"
             required
@@ -759,6 +789,10 @@ export default function EmpresasPage() {
             onChange={(e) => handleChange('numero_interior', e.target.value)}
           />
           <TextField label="País" fullWidth value={form.pais || ''} onChange={(e) => handleChange('pais', e.target.value)} />
+          </Box>
+          </Section>
+          <Section title="Contacto" inset>
+          <Box sx={fieldsGridSx}>
           <TextField
             label="Teléfono"
             fullWidth
@@ -772,10 +806,9 @@ export default function EmpresasPage() {
             value={form.sitio_web || ''}
             onChange={(e) => handleChange('sitio_web', e.target.value)}
           />
-          <Box sx={(theme) => ({ gridColumn: '1 / -1', border: `1px solid ${theme.emphasys.content.border}`, borderRadius: 2, p: 2, backgroundColor: theme.emphasys.content.well })}>
-            <Typography variant="h6" gutterBottom>
-              CSD Facturama Multiemisor
-            </Typography>
+          </Box>
+          </Section>
+          <Section title="CSD Facturama Multiemisor" inset>
             <Stack spacing={1} mb={2}>
               <Typography variant="body2" color="text.secondary">
                 El CSD se registrará en:{' '}
@@ -796,7 +829,7 @@ export default function EmpresasPage() {
             </Stack>
 
             <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems={{ xs: 'stretch', md: 'center' }}>
-              <Button variant="outlined" component="label" sx={{ textTransform: 'none' }}>
+              <Button variant="outlined" component="label" sx={innerOutlinedSx}>
                 Archivo .cer
                 <input
                   type="file"
@@ -810,7 +843,7 @@ export default function EmpresasPage() {
                 {csdCerFile ? csdCerFile.name : 'Sin archivo .cer'}
               </Typography>
 
-              <Button variant="outlined" component="label" sx={{ textTransform: 'none' }}>
+              <Button variant="outlined" component="label" sx={innerOutlinedSx}>
                 Archivo .key
                 <input
                   type="file"
@@ -837,7 +870,8 @@ export default function EmpresasPage() {
                 variant="contained"
                 onClick={handleRegistrarCsd}
                 disabled={!editId || csdSubmitting || !csdAssignment || !csdAssignment.activo}
-                sx={{ textTransform: 'none' }}
+                disableElevation
+                sx={innerPrimarySx}
               >
                 {csdSubmitting ? 'Registrando...' : 'Registrar CSD en Facturama'}
               </Button>
@@ -857,17 +891,14 @@ export default function EmpresasPage() {
                 </Alert>
               </Box>
             )}
-          </Box>
+          </Section>
 
-          <Box sx={(theme) => ({ gridColumn: '1 / -1', border: `1px solid ${theme.emphasys.content.border}`, borderRadius: 2, p: 2, backgroundColor: theme.emphasys.content.well })}>
-            <Typography variant="h6" gutterBottom>
-              Imagen corporativa
-            </Typography>
+          <Section title="Imagen corporativa" inset>
             <Typography variant="body2" color="text.secondary" gutterBottom>
               Logo principal (tipo: <strong>logo_default</strong>). Tamaño máximo 5MB.
             </Typography>
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems="center">
-              <Button variant="outlined" component="label" sx={{ textTransform: 'none' }}>
+              <Button variant="outlined" component="label" sx={innerOutlinedSx}>
                 Seleccionar archivo
                 <input type="file" accept="image/*" hidden onChange={handleLogoFileChange} />
               </Button>
@@ -878,7 +909,8 @@ export default function EmpresasPage() {
                 variant="contained"
                 onClick={handleUploadLogo}
                 disabled={!editId || uploadingLogo || !logoFile}
-                sx={{ textTransform: 'none' }}
+                disableElevation
+                sx={innerPrimarySx}
               >
                 {uploadingLogo ? 'Subiendo...' : 'Subir logo'}
               </Button>
@@ -919,25 +951,10 @@ export default function EmpresasPage() {
                 </Typography>
               )}
             </Box>
+          </Section>
           </Box>
-          <FormControlLabel
-            control={
-              <Switch
-                checked={Boolean(form.activo)}
-                onChange={(e) => handleChange('activo', e.target.checked)}
-                color="primary"
-              />
-            }
-            label="Empresa activa"
-          />
         </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCloseDialog}>Cancelar</Button>
-          <Button variant="contained" onClick={handleSubmit} disabled={saving}>
-            GUARDAR
-          </Button>
-        </DialogActions>
       </Dialog>
-    </Box>
+    </ConfigPageFrame>
   );
 }

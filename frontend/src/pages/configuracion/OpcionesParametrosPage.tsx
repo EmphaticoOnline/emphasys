@@ -27,7 +27,8 @@ import SaveIcon from "@mui/icons-material/Save";
 import { fetchParametrosSistema } from "../../services/parametrosService";
 import { actualizarOpcion, crearOpcion, eliminarOpcion, fetchOpciones } from "../../services/parametrosOpcionesService";
 import type { ParametroOpcion, ParametrosModulo, ParametroSistema } from "../../types/parametros";
-import { ConfigPageFrame, ConfigPageHeader, ConfigSurface } from "../../components/configuracion/configVisual";
+import { ConfigPageFrame, ConfigPageHeader } from "../../components/configuracion/configVisual";
+import { PanelBar, PatternDialogHeader, Section, actionIconSx, dialogContentSx, dialogPaperSx, dialogTitleSx, editorialTableSx, emptyCellSx, fieldsOnIvorySx, formWellSx, rowIconSx, strongCellSx, wellSx } from "../../components/transporte/transporteVisual";
 
 type FormState = {
   opcion_id: number | null;
@@ -152,12 +153,12 @@ export default function OpcionesParametrosPage() {
   };
 
   return (
-    <ConfigPageFrame><Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+    <ConfigPageFrame>
       <ConfigPageHeader
         title="Opciones de parámetros"
         description="Gestiona las opciones disponibles para parámetros tipo dropdown."
       />
-      <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+      <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
       {error && (
         <Alert severity="error" onClose={() => setError(null)}>
           {error}
@@ -169,11 +170,12 @@ export default function OpcionesParametrosPage() {
       ) : dropdownParams.length === 0 ? (
         <Alert severity="info">No hay parámetros tipo dropdown configurados.</Alert>
       ) : (
-        <ConfigSurface>
-          <Table size="small">
+        <Box sx={wellSx}>
+          <PanelBar title="Parámetros tipo dropdown" meta={`${dropdownParams.length} ${dropdownParams.length === 1 ? 'parámetro' : 'parámetros'}`} />
+          <Table size="small" sx={editorialTableSx}>
             <TableHead>
               <TableRow>
-                <TableCell sx={{ fontWeight: 700 }}>Parámetro</TableCell>
+                <TableCell>Parámetro</TableCell>
                 <TableCell sx={{ width: 120 }} align="right">
                   Opciones
                 </TableCell>
@@ -182,40 +184,42 @@ export default function OpcionesParametrosPage() {
             <TableBody>
               {dropdownParams.map((param) => (
                 <TableRow key={param.parametro_id} hover>
-                  <TableCell>{param.nombre}</TableCell>
+                  <TableCell sx={strongCellSx}>{param.nombre}</TableCell>
                   <TableCell align="right">
                     <IconButton
                       size="small"
+                      sx={rowIconSx}
                       onClick={() => void openEditor(param)}
                       aria-label="Editar opciones"
                       title="Editar opciones"
                     >
-                      <EditIcon fontSize="small" />
+                      <EditIcon sx={{ fontSize: 17 }} />
                     </IconButton>
                   </TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
-        </ConfigSurface>
+        </Box>
       )}
 
-      <Dialog open={dialogOpen} onClose={closeDialog} maxWidth="md" fullWidth>
-        <DialogTitle sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <Typography variant="h6" fontWeight={700}>
-            Opciones: {selectedParam?.nombre}
-          </Typography>
-          <IconButton onClick={closeDialog} size="small">
-            <CloseIcon fontSize="small" />
-          </IconButton>
+      <Dialog open={dialogOpen} onClose={closeDialog} maxWidth="md" fullWidth PaperProps={{ sx: dialogPaperSx }}>
+        <DialogTitle component="div" sx={dialogTitleSx}>
+          <PatternDialogHeader
+            eyebrow="Opciones de parámetros"
+            title={selectedParam?.nombre ?? "Opciones"}
+            onCancel={closeDialog}
+          />
         </DialogTitle>
-        <DialogContent sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+        <DialogContent sx={dialogContentSx}>
+          <Box sx={(theme) => ({ ...formWellSx(theme), ...fieldsOnIvorySx(theme) })}>
           {formError && (
             <Alert severity="error" onClose={() => setFormError(null)}>
               {formError}
             </Alert>
           )}
 
+          <Section title={form.opcion_id ? "Editar opción" : "Agregar opción"} inset>
           <Stack direction={{ xs: "column", sm: "row" }} spacing={1} alignItems={{ sm: "center" }}>
             <TextField
               size="small"
@@ -247,22 +251,16 @@ export default function OpcionesParametrosPage() {
               color="primary"
               onClick={handleSave}
               disabled={saving}
-              sx={{
-                width: 40,
-                height: 40,
-                borderRadius: "50%",
-                backgroundColor: (theme) => theme.emphasys.grid.header,
-                color: (theme) => theme.emphasys.grid.headerForeground,
-                '&:hover': { backgroundColor: "#1a2b5c" },
-              }}
+              sx={actionIconSx}
               title={form.opcion_id ? "Guardar cambios" : "Agregar nueva opción"}
             >
               {form.opcion_id ? <SaveIcon fontSize="small" /> : <AddIcon fontSize="small" />}
             </IconButton>
           </Stack>
+          </Section>
 
-          <ConfigSurface>
-            <Table size="small" sx={{ "& td, & th": { fontSize: 12 } }}>
+          <Box sx={wellSx}>
+            <Table size="small" sx={editorialTableSx}>
               <TableHead>
                 <TableRow>
                   <TableCell width={70}>Orden</TableCell>
@@ -276,38 +274,38 @@ export default function OpcionesParametrosPage() {
               <TableBody>
                 {opcionesLoading ? (
                   <TableRow>
-                    <TableCell colSpan={4}>Cargando...</TableCell>
+                    <TableCell colSpan={4} align="center" sx={emptyCellSx}>Cargando...</TableCell>
                   </TableRow>
                 ) : opciones.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={4}>Sin opciones.</TableCell>
+                    <TableCell colSpan={4} align="center" sx={emptyCellSx}>Sin opciones.</TableCell>
                   </TableRow>
                 ) : (
                   opciones.map((op) => (
                     <TableRow key={op.opcion_id} hover>
                       <TableCell>{op.orden ?? ""}</TableCell>
-                      <TableCell>{op.etiqueta}</TableCell>
+                      <TableCell sx={strongCellSx}>{op.etiqueta}</TableCell>
                       <TableCell>{op.valor}</TableCell>
                       <TableCell align="right">
-                        <IconButton size="small" onClick={() => handleEdit(op)}>
-                          <EditIcon fontSize="small" />
+                        <Stack direction="row" spacing={0.5} justifyContent="flex-end">
+                        <IconButton size="small" sx={rowIconSx} onClick={() => handleEdit(op)} title="Editar">
+                          <EditIcon sx={{ fontSize: 17 }} />
                         </IconButton>
-                        <IconButton size="small" onClick={() => void handleDelete(op)}>
-                          <DeleteIcon fontSize="small" />
+                        <IconButton size="small" sx={rowIconSx} onClick={() => void handleDelete(op)} title="Eliminar">
+                          <DeleteIcon sx={{ fontSize: 17 }} />
                         </IconButton>
+                        </Stack>
                       </TableCell>
                     </TableRow>
                   ))
                 )}
               </TableBody>
             </Table>
-          </ConfigSurface>
+          </Box>
+          </Box>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={closeDialog}>Cerrar</Button>
-        </DialogActions>
       </Dialog>
       </Box>
-    </Box></ConfigPageFrame>
+    </ConfigPageFrame>
   );
 }

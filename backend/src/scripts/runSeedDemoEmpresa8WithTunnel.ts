@@ -1,7 +1,7 @@
 import { spawn } from 'child_process';
 import fs from 'fs';
 import path from 'path';
-import { withPostgresTunnel } from './lib/postgresSshTunnel';
+import { resolvePostgresConnection, withPostgresTunnel } from './lib/postgresSshTunnel';
 
 /** Ejecuta el seed de empresa 8 sobre el mismo túnel SSH usado por db:query. */
 async function main(): Promise<void> {
@@ -14,10 +14,11 @@ async function main(): Promise<void> {
     throw new Error('La limpieza está deshabilitada; no se permite --limpiar=true.');
   }
 
+  const connection = resolvePostgresConnection();
   const exitCode = await withPostgresTunnel(({ host, port }) => new Promise<number>((resolve, reject) => {
     const child = spawn(process.execPath, [require.resolve('ts-node/dist/bin'), seedPath, ...args], {
       cwd: backendRoot,
-      env: { ...process.env, DB_HOST: host, DB_PORT: String(port), PGHOST: host, PGPORT: String(port) },
+      env: { ...process.env, SEED_DB_HOST: host, SEED_DB_PORT: String(port), SEED_DB_NAME: connection.database, DB_HOST: host, DB_PORT: String(port), DB_NAME: connection.database, PGHOST: host, PGPORT: String(port), PGDATABASE: connection.database },
       stdio: 'inherit',
     });
     child.once('error', reject);

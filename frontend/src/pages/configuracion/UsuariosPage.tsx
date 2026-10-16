@@ -49,7 +49,10 @@ import {
 } from '../../services/usuariosService';
 import { apiFetch } from '../../services/apiFetch';
 import { fetchContactos } from '../../services/contactosService';
-import { ConfigPageFrame, ConfigPageHeader, ConfigSurface } from '../../components/configuracion/configVisual';
+import { ConfigPageFrame, ConfigPageHeader } from '../../components/configuracion/configVisual';
+import { CircularProgress } from '@mui/material';
+import { CloseRounded, SaveOutlined } from '@mui/icons-material';
+import { PanelBar, Pill, Section, actionIconSx, dialogPaperSx, editorialTableSx, emptyCellSx, fieldsOnIvorySx, formWellSx, rowIconSx, strongCellSx, wellSx } from '../../components/transporte/transporteVisual';
 
 const emptyForm: UsuarioPayload & { password?: string } = {
   nombre: '',
@@ -337,9 +340,9 @@ export default function UsuariosPage() {
   const rolSeleccionado = (empresaId: number) => rolesSeleccionados[empresaId] ?? null;
 
   return (
-    <ConfigPageFrame><Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+    <ConfigPageFrame>
       <ConfigPageHeader title="Usuarios" description="Administra los usuarios del sistema, sus empresas y roles asignados." actions={
-        <Button variant="contained" startIcon={<AddIcon />} onClick={handleOpenCreate} sx={(theme) => ({ textTransform: 'none', fontWeight: 700, backgroundColor: theme.emphasys.action.primary, '&:hover': { backgroundColor: theme.emphasys.action.primaryHover } })}>Nuevo usuario</Button>
+        <Tooltip title="Nuevo usuario"><IconButton size="small" sx={actionIconSx} onClick={handleOpenCreate}><AddIcon fontSize="small" /></IconButton></Tooltip>
       } />
       {error && (
         <Alert severity="error" onClose={() => setError(null)}>
@@ -347,17 +350,11 @@ export default function UsuariosPage() {
         </Alert>
       )}
 
-      <ConfigSurface sx={{ overflowX: 'auto' }}>
-        <Table size="small">
-          <TableHead
-            sx={{
-              '& .MuiTableCell-root': {
-                backgroundColor: (theme) => theme.emphasys.table.headerBg,
-                color: (theme) => theme.emphasys.table.headerFg,
-                fontWeight: 600,
-              },
-            }}
-          >
+      <Box sx={wellSx}>
+        <PanelBar title="Usuarios registrados" meta={loading ? undefined : `${usuarios.length} ${usuarios.length === 1 ? 'usuario' : 'usuarios'}`} />
+        <Box sx={{ overflowX: 'auto' }}>
+        <Table size="small" sx={editorialTableSx}>
+          <TableHead>
             <TableRow>
               <TableCell>Nombre</TableCell>
               <TableCell>Email</TableCell>
@@ -370,35 +367,35 @@ export default function UsuariosPage() {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={6}>Cargando...</TableCell>
+                <TableCell colSpan={6} align="center" sx={emptyCellSx}>Cargando...</TableCell>
               </TableRow>
             ) : usuarios.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6}>No hay usuarios registrados.</TableCell>
+                <TableCell colSpan={6} align="center" sx={emptyCellSx}>No hay usuarios registrados.</TableCell>
               </TableRow>
             ) : (
               usuarios.map((usuario) => (
                 <TableRow key={usuario.id} hover>
-                  <TableCell>
-                    <Stack direction="row" spacing={1} alignItems="center">
-                      <Typography fontWeight={600}>{usuario.nombre}</Typography>
-                      <Chip label={`ID ${usuario.id}`} size="small" />
+                  <TableCell sx={strongCellSx}>
+                    <Stack direction="row" spacing={1} alignItems="baseline">
+                      <span>{usuario.nombre}</span>
+                      <Box component="span" sx={(theme) => ({ fontSize: 12, fontWeight: 600, color: theme.emphasys.content.muted })}>ID {usuario.id}</Box>
                     </Stack>
                   </TableCell>
                   <TableCell>{usuario.email}</TableCell>
                   <TableCell>{usuario.vendedor_contacto_nombre ?? '—'}</TableCell>
                   <TableCell>{usuario.es_superadmin ? 'Sí' : 'No'}</TableCell>
-                  <TableCell>{usuario.activo ? 'Activo' : 'Inactivo'}</TableCell>
+                  <TableCell><Pill active={Boolean(usuario.activo)} /></TableCell>
                   <TableCell align="right">
-                    <Stack direction="row" spacing={1} justifyContent="flex-end">
+                    <Stack direction="row" spacing={0.5} justifyContent="flex-end">
                       <Tooltip title="Editar">
-                        <IconButton size="small" onClick={() => void handleOpenEdit(usuario)}>
-                          <EditIcon fontSize="small" />
+                        <IconButton size="small" sx={rowIconSx} onClick={() => void handleOpenEdit(usuario)}>
+                          <EditIcon sx={{ fontSize: 17 }} />
                         </IconButton>
                       </Tooltip>
                       <Tooltip title="Eliminar">
-                        <IconButton size="small" color="error" onClick={() => handleDelete(usuario)}>
-                          <DeleteIcon fontSize="small" />
+                        <IconButton size="small" sx={rowIconSx} onClick={() => handleDelete(usuario)}>
+                          <DeleteIcon sx={{ fontSize: 17 }} />
                         </IconButton>
                       </Tooltip>
                     </Stack>
@@ -408,17 +405,46 @@ export default function UsuariosPage() {
             )}
           </TableBody>
         </Table>
-      </ConfigSurface>
+        </Box>
+      </Box>
 
       {/* Crear / Editar */}
-      <Dialog open={dialogOpen} onClose={handleCloseDialog} maxWidth="md" fullWidth>
-        <DialogTitle>{editId ? 'Editar usuario' : 'Nuevo usuario'}</DialogTitle>
-        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
+      <Dialog open={dialogOpen} onClose={handleCloseDialog} maxWidth="md" fullWidth PaperProps={{ sx: dialogPaperSx }}>
+        <DialogTitle component="div" sx={{ px: { xs: 1.5, md: 2.25 }, pt: 2, pb: 1.5 }}>
+          <ConfigPageHeader
+            eyebrow="Usuarios"
+            title={editId ? 'Editar usuario' : 'Nuevo usuario'}
+            description={editId && form.nombre ? [form.nombre, form.email].filter(Boolean).join(' · ') : undefined}
+            actions={
+              <Stack direction="row" spacing={0.5} alignItems="center">
+                <FormControlLabel
+                  sx={{ mr: 1 }}
+                  control={<Switch size="small" checked={Boolean(form.activo)} onChange={(e) => handleChange('activo', e.target.checked)} />}
+                  label={<Typography sx={{ fontSize: 13, fontWeight: 600 }}>Activo</Typography>}
+                />
+                <Tooltip title="Cancelar">
+                  <IconButton size="small" sx={actionIconSx} onClick={handleCloseDialog}><CloseRounded fontSize="small" /></IconButton>
+                </Tooltip>
+                <Tooltip title={editId ? 'Guardar cambios' : 'Crear usuario'}>
+                  <span>
+                    <IconButton size="small" sx={actionIconSx} onClick={handleSubmit} disabled={saving}>
+                      {saving ? <CircularProgress size={16} color="inherit" /> : <SaveOutlined fontSize="small" />}
+                    </IconButton>
+                  </span>
+                </Tooltip>
+              </Stack>
+            }
+          />
+        </DialogTitle>
+        <DialogContent sx={{ px: { xs: 1.5, md: 2.25 }, pb: { xs: 1.5, md: 2.25 } }}>
+          <Box sx={(theme) => ({ ...formWellSx(theme), ...fieldsOnIvorySx(theme) })}>
           {formError && (
             <Alert severity="warning" onClose={() => setFormError(null)}>
               {formError}
             </Alert>
           )}
+          <Section title="Acceso" inset>
+          <Stack spacing={2} sx={{ pt: 0.5 }}>
           <TextField
             label="Nombre"
             required
@@ -459,14 +485,14 @@ export default function UsuariosPage() {
             }}
           />
           <FormControlLabel
-            control={<Switch checked={Boolean(form.es_superadmin)} onChange={(e) => handleChange('es_superadmin', e.target.checked)} color="primary" />}
-            label="Usuario superadmin"
+            control={<Switch checked={Boolean(form.es_superadmin)} onChange={(e) => handleChange('es_superadmin', e.target.checked)} />}
+            label={<Typography sx={{ fontSize: 13, fontWeight: 600 }}>Usuario superadmin</Typography>}
           />
-          <FormControlLabel
-            control={<Switch checked={Boolean(form.activo)} onChange={(e) => handleChange('activo', e.target.checked)} color="primary" />}
-            label="Usuario activo"
-          />
+          </Stack>
+          </Section>
 
+          <Section title="Preferencias" inset>
+          <Stack spacing={2} sx={{ pt: 0.5 }}>
           <TextField
             select
             label="Vendedor"
@@ -512,17 +538,16 @@ export default function UsuariosPage() {
               ];
             })}
           </TextField>
+          </Stack>
+          </Section>
 
-          <ConfigSurface sx={{ p: 2, mt: 1 }}>
-            <Typography variant="h6" fontWeight={700} color="text.primary" gutterBottom>
-              Empresas y roles
-            </Typography>
+          <Section title="Empresas y roles" inset>
             {detalleLoading ? (
-              <Typography variant="body2">Cargando empresas y roles...</Typography>
+              <Typography variant="body2" sx={(theme) => ({ color: theme.emphasys.content.muted })}>Cargando empresas y roles...</Typography>
             ) : empresas.length === 0 ? (
-              <Typography variant="body2">No hay empresas configuradas.</Typography>
+              <Typography variant="body2" sx={(theme) => ({ color: theme.emphasys.content.muted })}>No hay empresas configuradas.</Typography>
             ) : (
-              <Table size="small" sx={(theme) => ({ border: `1px solid ${theme.emphasys.content.border}` })}>
+              <Table size="small" sx={editorialTableSx}>
                 <TableHead>
                   <TableRow>
                     <TableCell>Empresa</TableCell>
@@ -581,16 +606,11 @@ export default function UsuariosPage() {
                 </TableBody>
               </Table>
             )}
-            </ConfigSurface>
+          </Section>
+          </Box>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCloseDialog}>Cancelar</Button>
-          <Button variant="contained" onClick={handleSubmit} disabled={saving}>
-            {editId ? 'Guardar cambios' : 'Crear usuario'}
-          </Button>
-        </DialogActions>
       </Dialog>
-    </Box></ConfigPageFrame>
+    </ConfigPageFrame>
   );
 }
 

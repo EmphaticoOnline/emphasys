@@ -41,7 +41,11 @@ import { GridContextMenuTrigger } from '../../components/grids/GridContextMenuTr
 import type { GridContextMenuAction } from '../../components/grids/GridContextMenu';
 import { SHOW_GRID_ACTIONS } from '../../components/grids/gridUxFlags';
 import { STANDARD_DATA_GRID_HEADER_HEIGHT, standardDataGridSx } from '../../components/grids/standardDataGridSx';
-import { ConfigPageFrame, ConfigPageHeader, ConfigSurface } from '../../components/configuracion/configVisual';
+import { ConfigPageFrame, ConfigPageHeader } from '../../components/configuracion/configVisual';
+import { CircularProgress, FormControlLabel } from '@mui/material';
+import { CloseRounded, SaveOutlined } from '@mui/icons-material';
+import { catalogoSearchSx } from '../../components/catalogo/catalogoSurfaces';
+import { PanelBar, Pill, Section, actionIconSx, dialogPaperSx, editorialDataGridSx, fieldsOnIvorySx, formWellSx, rowIconSx, wellSx } from '../../components/transporte/transporteVisual';
 import { useGridContextMenu } from '../../hooks/useGridContextMenu';
 
 type FormState = {
@@ -305,83 +309,69 @@ export default function ListasPreciosPage() {
       width: 120,
       headerClassName: 'finanzas-header',
       renderCell: (params: GridRenderCellParams<PrecioLista, boolean>) => (
-        <Chip
-          size="small"
-          label={params.row.es_default ? 'Sí' : 'No'}
-          color={params.row.es_default ? 'primary' : 'default'}
-          variant={params.row.es_default ? 'filled' : 'outlined'}
-        />
-      ),
-    },
-    {
-      field: 'activo',
-      headerName: 'Activa',
-      width: 120,
-      headerClassName: 'finanzas-header',
-      renderCell: (params: GridRenderCellParams<PrecioLista, boolean>) => (
-        <Chip
-          size="small"
-          label={params.row.activo ? 'Activa' : 'Inactiva'}
-          color={params.row.activo ? 'success' : 'default'}
-          variant={params.row.activo ? 'filled' : 'outlined'}
-        />
+        <Pill active={params.row.es_default} label={params.row.es_default ? 'Sí' : 'No'} />
       ),
     },
     {
       field: 'acciones',
       headerName: 'Acciones',
-      width: 130,
+      width: 120,
       sortable: false,
       filterable: false,
+      align: 'right',
+      headerAlign: 'right',
       headerClassName: 'finanzas-header',
       renderCell: (params: GridRenderCellParams<PrecioLista>) => (
-        <Stack direction="row" spacing={0.5} alignItems="center">
+        <Stack direction="row" spacing={0.5} alignItems="center" justifyContent="flex-end" width="100%">
           <Tooltip title="Editar">
-            <IconButton size="small" color="primary" onClick={() => handleEdit(params.row)}>
-              <EditIcon fontSize="small" />
+            <IconButton size="small" sx={rowIconSx} onClick={() => handleEdit(params.row)}>
+              <EditIcon sx={{ fontSize: 17 }} />
             </IconButton>
           </Tooltip>
           <Tooltip title={params.row.activo ? 'Desactivar' : 'Activar'}>
-            <IconButton
-              size="small"
-              color={params.row.activo ? 'warning' : 'success'}
-              onClick={() => void handleToggleActivo(params.row)}
-            >
-              {params.row.activo ? <ToggleOffIcon fontSize="small" /> : <ToggleOnIcon fontSize="small" />}
-            </IconButton>
+            <Switch size="small" checked={params.row.activo} disabled={saving} onChange={() => void handleToggleActivo(params.row)} />
           </Tooltip>
         </Stack>
       ),
     },
-  ], [handleEdit, handleToggleActivo]);
+  ], [handleEdit, handleToggleActivo, saving]);
 
-  const columns = React.useMemo<GridColDef<PrecioLista>[]>(() => [contextMenuTriggerColumn, ...baseColumns], [baseColumns, contextMenuTriggerColumn]);
+  // Acciones visibles por renglón (sin menú contextual de tres puntos).
+  const columns = baseColumns;
 
   return (
     <ConfigPageFrame>
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
       <ConfigPageHeader
         title="Listas de precios"
         description="Administra catálogos de listas de precios de venta y compra por empresa."
-        actions={<Stack direction="row" spacing={1}><IconButton color="primary" onClick={() => void load()} disabled={loading || saving}><RefreshIcon /></IconButton><Button variant="contained" startIcon={<AddIcon />} onClick={openCreateDialog} sx={(theme) => ({ bgcolor: theme.emphasys.action.primary, '&:hover': { bgcolor: theme.emphasys.action.primaryHover } })}>Nueva lista</Button></Stack>}
+        actions={<Stack direction="row" spacing={0.5}><Tooltip title="Recargar"><span><IconButton size="small" sx={actionIconSx} onClick={() => void load()} disabled={loading || saving}><RefreshIcon fontSize="small" /></IconButton></span></Tooltip><Tooltip title="Nueva lista"><IconButton size="small" sx={actionIconSx} onClick={openCreateDialog}><AddIcon fontSize="small" /></IconButton></Tooltip></Stack>}
       />
       {error ? <Alert severity="error">{error}</Alert> : null}
 
-      <TextField
-        size="small"
-        placeholder="Buscar por orden, nombre, tipo o estado..."
-        value={search}
-        onChange={(event) => setSearch(event.target.value)}
-        InputProps={{
-          startAdornment: (
-            <InputAdornment position="start">
-              <SearchIcon fontSize="small" />
-            </InputAdornment>
-          ),
-        }}
-      />
-
-      <ConfigSurface sx={{ width: '100%' }}>
+      <Box sx={wellSx}>
+      <PanelBar title={
+        <Box sx={{ minWidth: { sm: 320 } }}>
+          <TextField
+            size="small"
+            fullWidth
+            placeholder="Buscar por orden, nombre, tipo o estado..."
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            sx={catalogoSearchSx}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon fontSize="small" />
+                </InputAdornment>
+              ),
+            }}
+          />
+        </Box>
+      }>
+        <Typography sx={(theme) => ({ fontSize: 12, fontWeight: 600, color: theme.emphasys.content.muted })}>
+          {filteredRows.length} {filteredRows.length === 1 ? 'lista' : 'listas'}
+        </Typography>
+      </PanelBar>
         <DataGrid
           rows={filteredRows}
           columns={columns}
@@ -392,8 +382,6 @@ export default function ListasPreciosPage() {
           getRowId={(row) => row.id}
           loading={loading || saving}
           disableRowSelectionOnClick
-          columnVisibilityModel={{ menu: true, acciones: SHOW_GRID_ACTIONS }}
-          {...(rowSlotProps ? { slotProps: { row: rowSlotProps } } : {})}
           pageSizeOptions={[10, 25, 50]}
           initialState={{
             sorting: {
@@ -409,6 +397,7 @@ export default function ListasPreciosPage() {
           }}
           sx={[
             standardDataGridSx,
+            editorialDataGridSx,
             {
               width: '100%',
               '--DataGrid-overlayHeight': '200px',
@@ -420,17 +409,40 @@ export default function ListasPreciosPage() {
           ]}
         />
 
-        <GridContextMenu
-          actions={contextMenuActions}
-          anchorPosition={contextMenuPosition}
-          open={Boolean(contextMenuRow && contextMenuPosition)}
-          onClose={closeContextMenu}
-        />
-      </ConfigSurface>
+      </Box>
 
-      <Dialog open={dialogOpen} onClose={closeDialog} maxWidth="xs" fullWidth>
-        <DialogTitle>{editing ? 'Editar lista de precios' : 'Nueva lista de precios'}</DialogTitle>
-        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
+      <Dialog open={dialogOpen} onClose={closeDialog} maxWidth="sm" fullWidth PaperProps={{ sx: dialogPaperSx }}>
+        <DialogTitle component="div" sx={{ px: { xs: 1.5, md: 2.25 }, pt: 2, pb: 1.5 }}>
+          <ConfigPageHeader
+            eyebrow="Listas de precios"
+            title={editing ? 'Editar lista de precios' : 'Nueva lista de precios'}
+            actions={
+              <Stack direction="row" spacing={0.5} alignItems="center">
+                <FormControlLabel
+                  sx={{ mr: 1 }}
+                  control={<Switch size="small" checked={form.activo} onChange={(event) => setForm((prev) => ({ ...prev, activo: event.target.checked }))} />}
+                  label={<Typography sx={{ fontSize: 13, fontWeight: 600 }}>Activa</Typography>}
+                />
+                <Tooltip title="Cancelar">
+                  <span>
+                    <IconButton size="small" sx={actionIconSx} onClick={closeDialog} disabled={saving}><CloseRounded fontSize="small" /></IconButton>
+                  </span>
+                </Tooltip>
+                <Tooltip title={editing ? 'Guardar cambios' : 'Guardar'}>
+                  <span>
+                    <IconButton size="small" sx={actionIconSx} onClick={() => void handleSave()} disabled={saving}>
+                      {saving ? <CircularProgress size={16} color="inherit" /> : <SaveOutlined fontSize="small" />}
+                    </IconButton>
+                  </span>
+                </Tooltip>
+              </Stack>
+            }
+          />
+        </DialogTitle>
+        <DialogContent sx={{ px: { xs: 1.5, md: 2.25 }, pb: { xs: 1.5, md: 2.25 } }}>
+          <Box sx={(theme) => ({ ...formWellSx(theme), ...fieldsOnIvorySx(theme) })}>
+          <Section title="Lista de precios" inset>
+          <Stack spacing={2} sx={{ pt: 0.5 }}>
           <TextField
             label="Nombre"
             value={form.nombre}
@@ -457,7 +469,7 @@ export default function ListasPreciosPage() {
             helperText="Opcional. Deja preparada la secuencia visual del catálogo."
           />
           <Stack direction="row" spacing={1} alignItems="center">
-            <Typography variant="body2" color="text.secondary">
+            <Typography sx={{ fontSize: 13, fontWeight: 600 }}>
               Default
             </Typography>
             <Switch
@@ -465,22 +477,10 @@ export default function ListasPreciosPage() {
               onChange={(event) => setForm((prev) => ({ ...prev, es_default: event.target.checked }))}
             />
           </Stack>
-          <Stack direction="row" spacing={1} alignItems="center">
-            <Typography variant="body2" color="text.secondary">
-              Activa
-            </Typography>
-            <Switch
-              checked={form.activo}
-              onChange={(event) => setForm((prev) => ({ ...prev, activo: event.target.checked }))}
-            />
           </Stack>
+          </Section>
+          </Box>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={closeDialog} disabled={saving}>Cancelar</Button>
-          <Button onClick={() => void handleSave()} variant="contained" disabled={saving}>
-            {editing ? 'Guardar cambios' : 'Guardar'}
-          </Button>
-        </DialogActions>
       </Dialog>
 
       <Snackbar
@@ -497,7 +497,6 @@ export default function ListasPreciosPage() {
           {snackbar.message}
         </Alert>
       </Snackbar>
-    </Box>
     </ConfigPageFrame>
   );
 }

@@ -3,24 +3,23 @@ import {
   Alert,
   Autocomplete,
   Box,
-  Button,
-  Card,
-  Chip,
-  Divider,
   FormControl,
   FormControlLabel,
   FormLabel,
-  Paper,
+  IconButton,
   Radio,
   RadioGroup,
   Stack,
   Switch,
   TextField,
+  Tooltip,
   Typography,
 } from "@mui/material";
-import { AddRounded, EditRounded } from "@mui/icons-material";
+import { AddRounded, CloseRounded, EditRounded, RvHookupOutlined, SaveOutlined } from "@mui/icons-material";
 import { apiFetch } from "../services/apiFetch";
-import { ConfigPageFrame, ConfigPageHeader, ConfigSurface } from "../components/configuracion/configVisual";
+import { ConfigPageFrame, ConfigPageHeader } from "../components/configuracion/configVisual";
+import { catalogoSearchSx } from "../components/catalogo/catalogoSurfaces";
+import { ColHead, Section, actionIconSx, panelBarSx, rowIconSx, wellSx } from "../components/transporte/transporteVisual";
 type R = Record<string, any>;
 type C = { id: number; nombre: string };
 const empty = () => ({
@@ -30,6 +29,7 @@ const empty = () => ({
   propietario_contacto_id: null,
   activo: true,
 });
+const gridCols = { xs: "1fr", md: "minmax(140px,1fr) minmax(110px,.8fr) minmax(0,1.6fr) minmax(0,1.2fr) 96px" };
 export default function RemolquesPage() {
   const [rows, setRows] = React.useState<R[]>([]),
     [form, setForm] = React.useState<R>(empty()),
@@ -78,167 +78,230 @@ export default function RemolquesPage() {
     contacts.find((c) => c.id === form.propietario_contacto_id) ?? null;
   return (
     <ConfigPageFrame>
-      <ConfigPageHeader title="Remolques" description="Administra el equipo arrastrado para Transporte y Carta Porte." actions={!show && <Button variant="contained" startIcon={<AddRounded />} onClick={() => setShow(true)}>Nuevo remolque</Button>} />
-      {error && (
-        <Alert severity="error" sx={{ mb: 2 }}>
-          {error}
-        </Alert>
-      )}
       {!show && (
-        <ConfigSurface>
-          <Box sx={{ p: 2 }}>
-            <Typography fontWeight={700}>Remolques registrados</Typography>
-          </Box>
-          <Divider />
-          {rows.map((r) => (
-            <Box
-              key={r.id}
-              sx={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                gap: 2,
-                flexWrap: "wrap",
-                p: 2,
-              borderBottom: "1px solid",
-              borderColor: "divider",
-              }}
-            >
-              <Box>
-                <Stack direction="row" spacing={1} alignItems="center">
-                  <Typography fontWeight={700}>{r.clave_interna}</Typography>
-                  <Chip
-                    size="small"
-                    label={r.activo ? "Activo" : "Inactivo"}
-                    color={r.activo ? "success" : "default"}
-                    variant="outlined"
-                  />
-                </Stack>
-                <Typography variant="body2" color="text.secondary">
-                  {r.placas +
-                    " · " +
-                    (r.subtipo_remolque_sat || "Sin subtipo SAT") +
-                    (r.propietario_nombre
-                      ? " · " + r.propietario_nombre
-                      : " · Propio")}
-                </Typography>
-              </Box>
-              <Stack direction="row" spacing={1}>
-                <Button
-                  size="small"
-                  startIcon={<EditRounded />}
-                  onClick={() => {
-                    setForm(r);
-                    setEdit(r.id);
-                    setShow(true);
-                  }}
-                >
-                  Editar
-                </Button>
-                <Button
-                  size="small"
-                  onClick={async () => {
-                    try {
-                      if (r.activo)
-                        await apiFetch(
-                          "/api/transporte/remolques/" + r.id + "/desactivar",
-                          { method: "PATCH" },
-                        );
-                      else
-                        await apiFetch("/api/transporte/remolques/" + r.id, {
-                          method: "PUT",
-                          body: { ...r, activo: true },
-                        });
-                      await load();
-                    } catch (e: any) {
-                      setError(e.message);
-                    }
-                  }}
-                >
-                  {r.activo ? "Desactivar" : "Activar"}
-                </Button>
-              </Stack>
-            </Box>
-          ))}
-          {!rows.length && (
-            <Typography sx={{ p: 3 }} color="text.secondary">
-              No hay remolques registrados.
-            </Typography>
-          )}
-        </ConfigSurface>
+        <ConfigPageHeader
+          eyebrow="Transporte"
+          title="Remolques"
+          description="Administra el equipo arrastrado para Transporte y Carta Porte."
+          actions={
+            <Tooltip title="Nuevo remolque">
+              <IconButton size="small" sx={actionIconSx} onClick={() => setShow(true)}>
+                <AddRounded fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          }
+        />
       )}
       {show && (
-        <ConfigSurface sx={{ p: { xs: 2, md: 3 } }}>
-          <Stack direction="row" justifyContent="space-between" mb={2}>
-            <Typography variant="h6" fontWeight={700}>
-              {edit ? "Editar remolque" : "Nuevo remolque"}
-            </Typography>
-            <FormControlLabel
-              control={
-                <Switch
-                  size="small"
-                  checked={form.activo !== false}
-                  onChange={(e) => set("activo", e.target.checked)}
-                />
-              }
-              label="Activo"
-            />
-          </Stack>
-          <Stack spacing={2.5}>
-            <Box>
-              <Typography fontWeight={700} color="text.primary" mb={1}>
-                Identificación
-              </Typography>
-              <Box
-                sx={{
-                  display: "grid",
-                  gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" },
-                  gap: 1.5,
-                }}
-              >
-                <TextField
-                  size="small"
-                  label="Clave interna"
-                  value={form.clave_interna}
-                  onChange={(e) => set("clave_interna", e.target.value)}
-                />
-                <TextField
-                  size="small"
-                  label="Placas"
-                  value={form.placas}
-                  onChange={(e) => set("placas", e.target.value)}
-                />
-              </Box>
-            </Box>
-            <Box>
-              <Typography fontWeight={700} color="text.primary" mb={1}>
-                Carta Porte
-              </Typography>
-              <Autocomplete
-                options={subs}
-                value={
-                  subs.find((x) => x.clave === form.subtipo_remolque_sat) ??
-                  null
-                }
-                getOptionLabel={(x) => x.clave + " — " + x.descripcion}
-                onChange={(_, v) =>
-                  set("subtipo_remolque_sat", v?.clave ?? null)
-                }
-                renderInput={(p) => (
-                  <TextField
-                    {...p}
+        <ConfigPageHeader
+          eyebrow="Remolques"
+          title={edit ? "Editar remolque" : "Nuevo remolque"}
+          description={
+            edit && form.clave_interna
+              ? [form.clave_interna, form.placas].filter(Boolean).join(" · ")
+              : "Información permanente del remolque y su propietario."
+          }
+          actions={
+            <Stack direction="row" spacing={0.5} alignItems="center">
+              <FormControlLabel
+                sx={{ mr: 1 }}
+                control={
+                  <Switch
                     size="small"
-                    label="Subtipo de remolque SAT"
+                    checked={form.activo !== false}
+                    onChange={(e) => set("activo", e.target.checked)}
                   />
-                )}
+                }
+                label={<Typography sx={{ fontSize: 13, fontWeight: 600 }}>Activo</Typography>}
+              />
+              <Tooltip title="Cancelar">
+                <IconButton size="small" sx={actionIconSx} onClick={reset}>
+                  <CloseRounded fontSize="small" />
+                </IconButton>
+              </Tooltip>
+              <Tooltip title="Guardar">
+                <IconButton size="small" sx={actionIconSx} onClick={() => void save()}>
+                  <SaveOutlined fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            </Stack>
+          }
+        />
+      )}
+      {error && <Alert severity="error">{error}</Alert>}
+      {!show && (
+        <Box sx={wellSx}>
+          <Box sx={panelBarSx}>
+            <Typography sx={(theme) => ({ fontSize: 14, fontWeight: 700, color: theme.emphasys.content.foreground })}>
+              Remolques registrados
+            </Typography>
+            <Typography sx={(theme) => ({ fontSize: 12, fontWeight: 600, color: theme.emphasys.content.muted })}>
+              {rows.length} {rows.length === 1 ? "remolque" : "remolques"}
+            </Typography>
+          </Box>
+          {!rows.length ? (
+            <Box sx={{ py: 6, textAlign: "center" }}>
+              <RvHookupOutlined sx={(theme) => ({ fontSize: 40, color: theme.emphasys.content.muted, mb: 1 })} />
+              <Typography variant="body2" sx={(theme) => ({ color: theme.emphasys.content.muted })}>
+                No hay remolques registrados.
+              </Typography>
+            </Box>
+          ) : (
+            <>
+              <Box
+                sx={(theme) => ({
+                  display: { xs: "none", md: "grid" },
+                  gridTemplateColumns: gridCols,
+                  gap: 2,
+                  px: 2.25,
+                  py: 1,
+                  bgcolor: theme.emphasys.metric.amount.background,
+                  borderBottom: `1px solid ${theme.emphasys.content.border}`,
+                })}
+              >
+                <ColHead>Clave interna</ColHead>
+                <ColHead>Placas</ColHead>
+                <ColHead>Subtipo SAT</ColHead>
+                <ColHead>Propietario</ColHead>
+                <ColHead align="right">Acciones</ColHead>
+              </Box>
+              {rows.map((r) => (
+                <Box
+                  key={r.id}
+                  sx={(theme) => ({
+                    display: "grid",
+                    gridTemplateColumns: gridCols,
+                    alignItems: "center",
+                    gap: { xs: 0.75, md: 2 },
+                    px: { xs: 1.5, md: 2.25 },
+                    py: 1.25,
+                    borderBottom: `1px solid ${theme.emphasys.content.border}`,
+                    "&:last-of-type": { borderBottom: 0 },
+                    "&:hover": { bgcolor: theme.emphasys.content.hover },
+                  })}
+                >
+                  <Typography noWrap sx={(theme) => ({ fontSize: 14, fontWeight: 700, color: theme.emphasys.content.foreground, minWidth: 0 })}>
+                    {r.clave_interna}
+                  </Typography>
+                  <Typography noWrap sx={(theme) => ({ fontSize: 13, fontWeight: 600, color: theme.emphasys.content.foreground })}>
+                    {r.placas || "—"}
+                  </Typography>
+                  <Typography noWrap sx={(theme) => ({ fontSize: 13, color: r.subtipo_remolque_sat ? theme.emphasys.content.secondary : theme.emphasys.content.muted, minWidth: 0 })}>
+                    {r.subtipo_remolque_sat || "Sin subtipo SAT"}
+                  </Typography>
+                  <Typography noWrap sx={(theme) => ({ fontSize: 13, color: theme.emphasys.content.secondary, minWidth: 0 })}>
+                    {r.propietario_nombre || "Propio"}
+                  </Typography>
+                  <Stack direction="row" spacing={0.5} alignItems="center" justifyContent={{ xs: "flex-start", md: "flex-end" }}>
+                    <Tooltip title="Editar remolque">
+                      <IconButton
+                        size="small"
+                        sx={rowIconSx}
+                        onClick={() => {
+                          setForm(r);
+                          setEdit(r.id);
+                          setShow(true);
+                        }}
+                      >
+                        <EditRounded sx={{ fontSize: 17 }} />
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title={r.activo ? "Desactivar" : "Activar"}>
+                      <Switch
+                        size="small"
+                        checked={!!r.activo}
+                        onChange={async () => {
+                          try {
+                            if (r.activo)
+                              await apiFetch(
+                                "/api/transporte/remolques/" + r.id + "/desactivar",
+                                { method: "PATCH" },
+                              );
+                            else
+                              await apiFetch("/api/transporte/remolques/" + r.id, {
+                                method: "PUT",
+                                body: { ...r, activo: true },
+                              });
+                            await load();
+                          } catch (e: any) {
+                            setError(e.message);
+                          }
+                        }}
+                      />
+                    </Tooltip>
+                  </Stack>
+                </Box>
+              ))}
+            </>
+          )}
+        </Box>
+      )}
+      {show && (
+        <Box sx={[wellSx, { p: { xs: 1, md: 1.75 }, display: "flex", flexDirection: "column", gap: { xs: 1, md: 1.5 } }]}>
+          <Section title="Identificación" inset>
+            <Box
+              sx={{
+                display: "grid",
+                gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" },
+                gap: 1.5,
+              }}
+            >
+              <TextField
+                size="small"
+                label="Clave interna"
+                value={form.clave_interna}
+                onChange={(e) => set("clave_interna", e.target.value)}
+                sx={catalogoSearchSx}
+              />
+              <TextField
+                size="small"
+                label="Placas"
+                value={form.placas}
+                onChange={(e) => set("placas", e.target.value)}
+                sx={catalogoSearchSx}
               />
             </Box>
-            <Box>
-              <Typography fontWeight={700} color="text.primary" mb={1}>
-                Propietario
-              </Typography>
+          </Section>
+          <Section title="Carta Porte" inset>
+            <Autocomplete
+              options={subs}
+              value={
+                subs.find((x) => x.clave === form.subtipo_remolque_sat) ??
+                null
+              }
+              getOptionLabel={(x) => x.clave + " — " + x.descripcion}
+              onChange={(_, v) =>
+                set("subtipo_remolque_sat", v?.clave ?? null)
+              }
+              renderInput={(p) => (
+                <TextField
+                  {...p}
+                  size="small"
+                  label="Subtipo de remolque SAT"
+                  sx={catalogoSearchSx}
+                />
+              )}
+            />
+          </Section>
+          <Section title="Propietario" inset>
+            <Box
+              sx={{
+                display: "grid",
+                gridTemplateColumns: { xs: "1fr", sm: "minmax(220px,.7fr) 1fr" },
+                gap: 1.5,
+              }}
+            >
               <FormControl>
-                <FormLabel sx={{ fontSize: 13 }}>Tipo de propietario</FormLabel>
+                <FormLabel
+                  sx={(theme) => ({
+                    fontSize: 12,
+                    fontWeight: 600,
+                    color: theme.emphasys.content.muted,
+                    "&.Mui-focused": { color: theme.emphasys.content.muted },
+                  })}
+                >
+                  Tipo de propietario
+                </FormLabel>
                 <RadioGroup
                   row
                   value={third ? "tercero" : "propio"}
@@ -272,23 +335,18 @@ export default function RemolquesPage() {
                       {...p}
                       size="small"
                       label="Contacto propietario"
+                      sx={catalogoSearchSx}
                     />
                   )}
                 />
               ) : (
-                <Typography variant="body2" color="text.secondary">
+                <Typography variant="body2" sx={(theme) => ({ alignSelf: "center", color: theme.emphasys.content.muted })}>
                   Empresa activa como propietaria
                 </Typography>
               )}
             </Box>
-          </Stack>
-          <Stack direction="row" justifyContent="flex-end" spacing={1} mt={3}>
-            <Button onClick={reset}>Cancelar</Button>
-            <Button variant="contained" onClick={() => void save()}>
-              Guardar
-            </Button>
-          </Stack>
-        </ConfigSurface>
+          </Section>
+        </Box>
       )}
     </ConfigPageFrame>
   );

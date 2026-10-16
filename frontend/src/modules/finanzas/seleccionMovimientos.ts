@@ -5,6 +5,18 @@ export function estadoMovimiento(op: { estado_conciliacion?: string | null }) {
   return String(op.estado_conciliacion || 'pendiente').toLowerCase();
 }
 
+/**
+ * Sólo para mostrar: oculta los conciliados salvo que se pidan. Los totales y
+ * saldos deben calcularse siempre con el conjunto completo.
+ */
+export function filtrarConciliados<T extends { estado_conciliacion?: string | null }>(
+  operaciones: T[],
+  mostrarConciliados: boolean,
+): T[] {
+  if (mostrarConciliados) return operaciones;
+  return operaciones.filter((op) => estadoMovimiento(op) !== 'conciliado');
+}
+
 /** Pendiente y cotejado se alternan. Conciliado pertenece a un cierre y no cambia. */
 export function siguienteEstadoCotejo(estado: string | null | undefined): 'pendiente' | 'cotejado' | null {
   const actual = String(estado || 'pendiente').toLowerCase();

@@ -38,7 +38,8 @@ import {
   standardDataGridSx,
 } from '../../components/grids/standardDataGridSx';
 import { useGridContextMenu } from '../../hooks/useGridContextMenu';
-import { ConfigPageFrame, ConfigPageHeader, ConfigSurface } from '../../components/configuracion/configVisual';
+import { ConfigPageFrame, ConfigPageHeader } from '../../components/configuracion/configVisual';
+import { ControlLabel, PanelBar, PatternDialogHeader, Pill, Section, actionIconSx, dialogContentSx, dialogPaperSx, dialogTitleSx, editorialDataGridSx, fieldsOnIvorySx, formWellSx, rowIconSx, wellSx } from '../../components/transporte/transporteVisual';
 
 const FORMAS_PAGO_SAT = [
   { value: '01', label: '01 – Efectivo' },
@@ -240,7 +241,7 @@ export default function MetodosPagoPage() {
       width: 110,
       headerClassName: 'finanzas-header',
       renderCell: ({ value }) => (
-        <Chip label={value ? 'Sí' : 'No'} color={value ? 'info' : 'default'} size="small" />
+        <Pill active={Boolean(value)} label={value ? 'Sí' : 'No'} />
       ),
     },
     {
@@ -249,7 +250,7 @@ export default function MetodosPagoPage() {
       width: 130,
       headerClassName: 'finanzas-header',
       renderCell: ({ value }) => (
-        <Chip label={value ? 'Sí' : 'No'} color={value ? 'warning' : 'default'} size="small" />
+        <Pill active={Boolean(value)} label={value ? 'Sí' : 'No'} />
       ),
     },
     {
@@ -258,7 +259,7 @@ export default function MetodosPagoPage() {
       width: 110,
       headerClassName: 'finanzas-header',
       renderCell: ({ value }) => (
-        <Chip label={value ? 'Sí' : 'No'} color={value ? 'primary' : 'default'} size="small" />
+        <Pill active={Boolean(value)} label={value ? 'Sí' : 'No'} />
       ),
     },
     {
@@ -272,8 +273,8 @@ export default function MetodosPagoPage() {
       headerClassName: 'finanzas-header',
       renderCell: (params) => (
         <Tooltip title="Editar">
-          <IconButton size="small" onClick={() => handleOpenDialog(params.row)} color="primary">
-            <EditIcon fontSize="small" />
+          <IconButton size="small" sx={rowIconSx} onClick={() => handleOpenDialog(params.row)}>
+            <EditIcon sx={{ fontSize: 17 }} />
           </IconButton>
         </Tooltip>
       ),
@@ -281,7 +282,7 @@ export default function MetodosPagoPage() {
   ], []);
 
   const columns = useMemo<GridColDef<FinanzasMetodoPago>[]>(
-    () => [contextMenuTriggerColumn, ...baseColumns],
+    () => baseColumns, // Acciones visibles por renglón (sin menú contextual de tres puntos).
     [baseColumns, contextMenuTriggerColumn]
   );
 
@@ -291,14 +292,11 @@ export default function MetodosPagoPage() {
         title="Métodos de pago"
         description="Administra los métodos de pago disponibles para operaciones y programaciones."
         actions={
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={() => handleOpenDialog(null)}
-          sx={(theme) => ({ textTransform: 'none', borderRadius: 999, bgcolor: theme.emphasys.action.primary, '&:hover': { bgcolor: theme.emphasys.action.primaryHover } })}
-        >
-          Nuevo método
-        </Button>
+        <Tooltip title="Nuevo método">
+          <IconButton size="small" sx={actionIconSx} onClick={() => handleOpenDialog(null)}>
+            <AddIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
         }
       />
 
@@ -308,7 +306,8 @@ export default function MetodosPagoPage() {
         </Alert>
       )}
 
-      <ConfigSurface>
+      <Box sx={wellSx}>
+        <PanelBar title="Métodos registrados" meta={`${metodos.length} ${metodos.length === 1 ? 'método' : 'métodos'}`} />
         <DataGrid
           rows={metodos}
           columns={columns}
@@ -318,14 +317,13 @@ export default function MetodosPagoPage() {
           density="standard"
           loading={loading}
           disableRowSelectionOnClick
-          columnVisibilityModel={{ menu: true, acciones: SHOW_GRID_ACTIONS }}
-          {...(rowSlotProps ? { slotProps: { row: rowSlotProps } } : {})}
           localeText={esES.components.MuiDataGrid.defaultProps.localeText}
           initialState={{
             sorting: { sortModel: [{ field: 'clave', sort: 'asc' }] },
           }}
           sx={[
             standardDataGridSx,
+            editorialDataGridSx,
             {
               '--DataGrid-overlayHeight': '200px',
               '& .MuiDataGrid-cell': { display: 'flex', alignItems: 'center' },
@@ -343,19 +341,37 @@ export default function MetodosPagoPage() {
           hideFooterPagination
           hideFooterSelectedRowCount
         />
-      </ConfigSurface>
+      </Box>
 
-      <GridContextMenu
-        actions={contextMenuActions}
-        anchorPosition={contextMenuPosition}
-        open={Boolean(contextMenuRow && contextMenuPosition)}
-        onClose={closeContextMenu}
-      />
 
-      <Dialog open={dialogOpen} onClose={handleCloseDialog} maxWidth="sm" fullWidth>
-        <DialogTitle>{form.id ? 'Editar método de pago' : 'Nuevo método de pago'}</DialogTitle>
-        <DialogContent sx={{ pt: 1 }}>
-          <Stack spacing={2} mt={1}>
+      <Dialog open={dialogOpen} onClose={handleCloseDialog} maxWidth="sm" fullWidth PaperProps={{ sx: dialogPaperSx }}>
+        <DialogTitle component="div" sx={dialogTitleSx}>
+          <PatternDialogHeader
+            eyebrow="Métodos de pago"
+            title={form.id ? 'Editar método de pago' : 'Nuevo método de pago'}
+            onCancel={handleCloseDialog}
+            cancelDisabled={saving}
+            onSave={handleSave}
+            saving={saving}
+            extra={
+              <FormControlLabel
+                sx={{ mr: 1 }}
+                control={
+                  <Switch
+                    size="small"
+                    checked={form.activo}
+                    onChange={(e) => handleChange('activo', e.target.checked)}
+                  />
+                }
+                label={<ControlLabel>Activo</ControlLabel>}
+              />
+            }
+          />
+        </DialogTitle>
+        <DialogContent sx={dialogContentSx}>
+          <Box sx={(theme) => ({ ...formWellSx(theme), ...fieldsOnIvorySx(theme) })}>
+          <Section title="Método de pago" inset>
+          <Stack spacing={2} sx={{ pt: 0.5 }}>
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
               <TextField
                 label="Clave"
@@ -396,20 +412,11 @@ export default function MetodosPagoPage() {
               <FormControlLabel
                 control={
                   <Switch
-                    checked={form.activo}
-                    onChange={(e) => handleChange('activo', e.target.checked)}
-                  />
-                }
-                label="Activo"
-              />
-              <FormControlLabel
-                control={
-                  <Switch
                     checked={form.es_efectivo}
                     onChange={(e) => handleChange('es_efectivo', e.target.checked)}
                   />
                 }
-                label="Es efectivo"
+                label={<ControlLabel>Es efectivo</ControlLabel>}
               />
               <FormControlLabel
                 control={
@@ -418,7 +425,7 @@ export default function MetodosPagoPage() {
                     onChange={(e) => handleChange('requiere_referencia', e.target.checked)}
                   />
                 }
-                label="Requiere referencia"
+                label={<ControlLabel>Requiere referencia</ControlLabel>}
               />
             </Stack>
 
@@ -428,20 +435,9 @@ export default function MetodosPagoPage() {
               </Typography>
             )}
           </Stack>
+          </Section>
+          </Box>
         </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={handleCloseDialog} disabled={saving} sx={{ textTransform: 'none' }}>
-            Cancelar
-          </Button>
-          <Button
-            onClick={handleSave}
-            disabled={saving}
-            variant="contained"
-            sx={(theme) => ({ textTransform: 'none', borderRadius: 999, bgcolor: theme.emphasys.action.primary, '&:hover': { bgcolor: theme.emphasys.action.primaryHover } })}
-          >
-            {saving ? 'Guardando...' : 'Guardar'}
-          </Button>
-        </DialogActions>
       </Dialog>
 
       <Snackbar

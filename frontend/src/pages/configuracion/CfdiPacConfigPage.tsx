@@ -21,7 +21,8 @@ import SaveRoundedIcon from '@mui/icons-material/SaveRounded';
 import VisibilityRoundedIcon from '@mui/icons-material/VisibilityRounded';
 import VisibilityOffRoundedIcon from '@mui/icons-material/VisibilityOffRounded';
 import { useSession } from '../../session/useSession';
-import { ConfigPageFrame, ConfigPageHeader, ConfigSurface } from '../../components/configuracion/configVisual';
+import { ConfigPageFrame, ConfigPageHeader } from '../../components/configuracion/configVisual';
+import { ControlLabel, Section, fieldCardSx, fieldsOnIvorySx, formWellSx, innerPrimaryButtonSx } from '../../components/transporte/transporteVisual';
 import {
   createCfdiPacConfig,
   fetchEmpresaCfdiPacAssignment,
@@ -242,18 +243,12 @@ export default function CfdiPacConfigPage() {
           <CircularProgress size={30} />
         </Box>
       ) : (
-        <Stack spacing={3}>
-          <ConfigSurface>
-            <CardContent sx={{ p: 3 }}>
+        <Box sx={(theme) => ({ ...formWellSx(theme), ...fieldsOnIvorySx(theme) })}>
+          <Section title="PAC asignado a esta empresa" inset>
               <Stack spacing={2.25}>
-                <Stack spacing={0.4}>
-                  <Typography variant="h6" fontWeight={700} color="text.primary">
-                    PAC asignado a esta empresa
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    {assignment?.empresa_nombre || empresaActivaNombre}
-                  </Typography>
-                </Stack>
+                <Typography variant="body2" sx={(theme) => ({ fontWeight: 700, color: theme.emphasys.content.foreground })}>
+                  {assignment?.empresa_nombre || empresaActivaNombre}
+                </Typography>
 
                 {assignmentError && <Alert severity="error">{assignmentError}</Alert>}
                 {assignmentSuccess && <Alert severity="success">{assignmentSuccess}</Alert>}
@@ -266,8 +261,8 @@ export default function CfdiPacConfigPage() {
                     ['Última actualización', formatDate(assignment?.csd_fecha_actualizacion)],
                   ].map(([label, value]) => (
                     <Box key={label}>
-                      <Typography variant="caption" color="text.secondary">{label}</Typography>
-                      <Typography variant="body1" fontWeight={700}>{value}</Typography>
+                      <Typography sx={(theme) => ({ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: theme.emphasys.content.muted })}>{label}</Typography>
+                      <Typography variant="body1" fontWeight={700} sx={(theme) => ({ color: theme.emphasys.content.foreground })}>{value}</Typography>
                     </Box>
                   ))}
                 </Box>
@@ -296,7 +291,8 @@ export default function CfdiPacConfigPage() {
                     startIcon={<SaveRoundedIcon />}
                     onClick={() => void handleSaveAssignment()}
                     disabled={assignmentSaving || !selectedConfigId || Number(selectedConfigId) === assignment?.cfdi_pac_config_id}
-                    sx={(theme) => ({ textTransform: 'none', fontWeight: 700, backgroundColor: theme.emphasys.action.primary, '&:hover': { backgroundColor: theme.emphasys.action.primaryHover } })}
+                    disableElevation
+                    sx={innerPrimaryButtonSx}
                   >
                     {assignmentSaving ? 'Guardando...' : 'Guardar asignación'}
                   </Button>
@@ -311,13 +307,10 @@ export default function CfdiPacConfigPage() {
                   </Alert>
                 )}
               </Stack>
-            </CardContent>
-          </ConfigSurface>
+          </Section>
 
-          <Stack spacing={0.4}>
-            <Typography variant="h6" fontWeight={700} color="text.primary">Perfiles PAC disponibles</Typography>
-            <Typography variant="body2" color="text.secondary">Activo significa que el perfil está disponible para asignarse a una empresa.</Typography>
-          </Stack>
+          <Section title="Perfiles PAC disponibles">
+            <Typography variant="body2" sx={(theme) => ({ mt: -0.5, mb: 1.25, color: theme.emphasys.content.muted })}>Activo significa que el perfil está disponible para asignarse a una empresa.</Typography>
         <Box
           sx={{
             display: 'grid',
@@ -332,34 +325,24 @@ export default function CfdiPacConfigPage() {
             const isActive = Boolean(current?.activo);
 
             return (
-              <ConfigSurface
+              <Box
                 key={modo}
-                variant="outlined"
-                sx={{
-                  borderRadius: 2,
-                  borderColor: (theme) => isActive ? theme.emphasys.action.info : theme.emphasys.content.border,
-                  backgroundColor: (theme) => isActive ? theme.emphasys.action.wash : theme.emphasys.content.elevated,
-                  boxShadow: isActive ? '0 0 0 1px rgba(29, 78, 216, 0.08)' : 'none',
+                sx={(theme) => ({
+                  ...fieldCardSx(theme),
+                  p: 2,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 2,
                   opacity: isActive ? 1 : 0.92,
-                }}
+                })}
               >
-                <CardContent sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 2 }}>
-                  <Stack direction="row" alignItems="flex-start" justifyContent="space-between" spacing={1.5}>
-                    <Stack spacing={0.5}>
-                      <Typography variant="h6" fontWeight={700} color="text.primary">
-                        {modo === 'sandbox' ? 'Sandbox' : 'Producción'}
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        {exists ? `Configuración actual para el modo ${modo}.` : `Aún no existe configuración para el modo ${modo}.`}
-                      </Typography>
-                    </Stack>
-                    <Chip
-                      label={isActive ? 'ACTIVO' : 'INACTIVO'}
-                      size="small"
-                      color={isActive ? 'success' : 'default'}
-                      variant={isActive ? 'filled' : 'outlined'}
-                      sx={{ fontWeight: 700, mt: 0.25 }}
-                    />
+                  <Stack spacing={0.5}>
+                    <Typography sx={(theme) => ({ fontSize: 13, fontWeight: 700, letterSpacing: 0.4, textTransform: 'uppercase', color: theme.emphasys.content.foreground })}>
+                      {modo === 'sandbox' ? 'Sandbox' : 'Producción'}
+                    </Typography>
+                    <Typography variant="body2" sx={(theme) => ({ color: theme.emphasys.content.muted })}>
+                      {exists ? `Configuración actual para el modo ${modo}.` : `Aún no existe configuración para el modo ${modo}.`}
+                    </Typography>
                   </Stack>
 
                   {state?.success && <Alert severity="success">{state.success}</Alert>}
@@ -423,9 +406,9 @@ export default function CfdiPacConfigPage() {
                     <Stack spacing={0.25} sx={{ flex: 1, minWidth: 0 }}>
                       <FormControlLabel
                         control={<Switch checked={Boolean(current?.activo)} onChange={(e) => handleFieldChange(modo, 'activo', e.target.checked)} />}
-                        label="Activo"
+                        label={<ControlLabel>Activo</ControlLabel>}
                       />
-                      <Typography variant="caption" color="#6b7280" sx={{ pl: { xs: 0, sm: 1 } }}>
+                      <Typography variant="caption" sx={(theme) => ({ pl: { xs: 0, sm: 1 }, color: theme.emphasys.content.muted })}>
                         Activo indica que este perfil está disponible. Sandbox y Producción pueden permanecer activos simultáneamente.
                       </Typography>
                     </Stack>
@@ -434,17 +417,18 @@ export default function CfdiPacConfigPage() {
                       startIcon={<SaveRoundedIcon />}
                       onClick={() => void handleSave(modo)}
                       disabled={Boolean(state?.saving)}
-                      sx={(theme) => ({ textTransform: 'none', fontWeight: 700, backgroundColor: theme.emphasys.action.primary, '&:hover': { backgroundColor: theme.emphasys.action.primaryHover } })}
+                      disableElevation
+                      sx={innerPrimaryButtonSx}
                     >
                       {state?.saving ? 'Guardando...' : exists ? 'Guardar cambios' : 'Crear configuración'}
                     </Button>
                   </Stack>
-                </CardContent>
-              </ConfigSurface>
+              </Box>
             );
           })}
         </Box>
-        </Stack>
+          </Section>
+        </Box>
       )}
     </ConfigPageFrame>
   );

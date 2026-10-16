@@ -34,7 +34,9 @@ import DeleteIcon from '@mui/icons-material/DeleteOutline';
 import { useSession } from '../../session/useSession';
 import type { Rol, RolPayload } from '../../types/rol';
 import { createRol, deleteRol, fetchRoles, updateRol } from '../../services/rolesService';
-import { ConfigPageFrame, ConfigPageHeader, ConfigSurface } from '../../components/configuracion/configVisual';
+import { ConfigPageFrame, ConfigPageHeader } from '../../components/configuracion/configVisual';
+import { CloseRounded, SaveOutlined } from '@mui/icons-material';
+import { PanelBar, Section, actionIconSx, dialogPaperSx, editorialTableSx, emptyCellSx, fieldsOnIvorySx, formWellSx, rowIconSx, strongCellSx, wellSx } from '../../components/transporte/transporteVisual';
 
 const emptyForm: RolPayload = {
   nombre: '',
@@ -171,9 +173,9 @@ export default function RolesPage() {
   };
 
   return (
-    <ConfigPageFrame><Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <ConfigPageHeader title="Roles" description="Administra los roles por empresa. Cada nombre debe ser único dentro de la empresa." actions={<Stack direction="row" spacing={1.5} alignItems="center">
-          <FormControl size="small" sx={{ minWidth: 220 }}>
+    <ConfigPageFrame>
+      <ConfigPageHeader title="Roles" description="Administra los roles por empresa. Cada nombre debe ser único dentro de la empresa." actions={<Stack direction="row" spacing={1} alignItems="center">
+          <FormControl size="small" sx={(theme) => ({ minWidth: 220, ...fieldsOnIvorySx(theme) })}>
             <InputLabel id="empresa-select-label">Empresa</InputLabel>
             <Select
               labelId="empresa-select-label"
@@ -189,15 +191,13 @@ export default function RolesPage() {
             </Select>
           </FormControl>
 
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={handleOpenCreate}
-            disabled={!canCreate}
-            sx={(theme) => ({ textTransform: 'none', fontWeight: 700, backgroundColor: theme.emphasys.action.primary, '&:hover': { backgroundColor: theme.emphasys.action.primaryHover } })}
-          >
-            Nuevo rol
-          </Button>
+          <Tooltip title="Nuevo rol">
+            <span>
+              <IconButton size="small" sx={actionIconSx} onClick={handleOpenCreate} disabled={!canCreate}>
+                <AddIcon fontSize="small" />
+              </IconButton>
+            </span>
+          </Tooltip>
         </Stack>} />
 
       {error && (
@@ -206,55 +206,48 @@ export default function RolesPage() {
         </Alert>
       )}
 
-      <ConfigSurface sx={{ overflowX: 'auto' }}>
-        <Table size="small">
+      <Box sx={wellSx}>
+        <PanelBar title="Roles registrados" meta={empresaId && !loading ? `${roles.length} ${roles.length === 1 ? 'rol' : 'roles'}` : undefined} />
+        <Box sx={{ overflowX: 'auto' }}>
+        <Table size="small" sx={editorialTableSx}>
           <TableHead>
             <TableRow>
               <TableCell>Nombre</TableCell>
               <TableCell>Descripción</TableCell>
-              <TableCell>Activo</TableCell>
               <TableCell align="right">Acciones</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {!empresaId ? (
               <TableRow>
-                <TableCell colSpan={4}>Selecciona una empresa para ver roles.</TableCell>
+                <TableCell colSpan={3} align="center" sx={emptyCellSx}>Selecciona una empresa para ver roles.</TableCell>
               </TableRow>
             ) : loading ? (
               <TableRow>
-                <TableCell colSpan={4}>Cargando...</TableCell>
+                <TableCell colSpan={3} align="center" sx={emptyCellSx}>Cargando...</TableCell>
               </TableRow>
             ) : roles.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={4}>No hay roles registrados.</TableCell>
+                <TableCell colSpan={3} align="center" sx={emptyCellSx}>No hay roles registrados.</TableCell>
               </TableRow>
             ) : (
               roles.map((rol) => (
                 <TableRow key={rol.id} hover>
-                  <TableCell>
-                    <Stack direction="row" spacing={1} alignItems="center">
-                      <Typography fontWeight={600}>{rol.nombre}</Typography>
-                      <Chip label={rol.activo ? 'Activo' : 'Inactivo'} color={rol.activo ? 'success' : 'default'} size="small" />
-                    </Stack>
-                  </TableCell>
+                  <TableCell sx={strongCellSx}>{rol.nombre}</TableCell>
                   <TableCell>{rol.descripcion || '—'}</TableCell>
-                  <TableCell>
-                    <FormControlLabel
-                      control={<Switch checked={rol.activo} onChange={(e) => handleToggleActivo(rol, e.target.checked)} />}
-                      label={rol.activo ? 'Activo' : 'Inactivo'}
-                    />
-                  </TableCell>
                   <TableCell align="right">
-                    <Stack direction="row" spacing={1} justifyContent="flex-end">
+                    <Stack direction="row" spacing={0.5} justifyContent="flex-end" alignItems="center">
                       <Tooltip title="Editar">
-                        <IconButton size="small" onClick={() => handleOpenEdit(rol)}>
-                          <EditIcon fontSize="small" />
+                        <IconButton size="small" sx={rowIconSx} onClick={() => handleOpenEdit(rol)}>
+                          <EditIcon sx={{ fontSize: 17 }} />
                         </IconButton>
                       </Tooltip>
+                      <Tooltip title={rol.activo ? 'Desactivar' : 'Activar'}>
+                        <Switch size="small" checked={rol.activo} onChange={(e) => handleToggleActivo(rol, e.target.checked)} />
+                      </Tooltip>
                       <Tooltip title="Eliminar">
-                        <IconButton size="small" color="error" onClick={() => handleDelete(rol)}>
-                          <DeleteIcon fontSize="small" />
+                        <IconButton size="small" sx={rowIconSx} onClick={() => handleDelete(rol)}>
+                          <DeleteIcon sx={{ fontSize: 17 }} />
                         </IconButton>
                       </Tooltip>
                     </Stack>
@@ -264,16 +257,44 @@ export default function RolesPage() {
             )}
           </TableBody>
         </Table>
-      </ConfigSurface>
+        </Box>
+      </Box>
 
-      <Dialog open={dialogOpen} onClose={handleCloseDialog} maxWidth="sm" fullWidth>
-        <DialogTitle>{editId ? 'Editar rol' : 'Nuevo rol'}</DialogTitle>
-        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
+      <Dialog open={dialogOpen} onClose={handleCloseDialog} maxWidth="sm" fullWidth PaperProps={{ sx: dialogPaperSx }}>
+        <DialogTitle component="div" sx={{ px: { xs: 1.5, md: 2.25 }, pt: 2, pb: 1.5 }}>
+          <ConfigPageHeader
+            eyebrow="Roles"
+            title={editId ? 'Editar rol' : 'Nuevo rol'}
+            actions={
+              <Stack direction="row" spacing={0.5} alignItems="center">
+                <FormControlLabel
+                  sx={{ mr: 1 }}
+                  control={<Switch size="small" checked={Boolean(form.activo)} onChange={(e) => handleChange('activo', e.target.checked)} />}
+                  label={<Typography sx={{ fontSize: 13, fontWeight: 600 }}>Activo</Typography>}
+                />
+                <Tooltip title="Cancelar">
+                  <IconButton size="small" sx={actionIconSx} onClick={handleCloseDialog}><CloseRounded fontSize="small" /></IconButton>
+                </Tooltip>
+                <Tooltip title={editId ? 'Guardar cambios' : 'Crear rol'}>
+                  <span>
+                    <IconButton size="small" sx={actionIconSx} onClick={handleSubmit} disabled={saving || !empresaId}>
+                      <SaveOutlined fontSize="small" />
+                    </IconButton>
+                  </span>
+                </Tooltip>
+              </Stack>
+            }
+          />
+        </DialogTitle>
+        <DialogContent sx={{ px: { xs: 1.5, md: 2.25 }, pb: { xs: 1.5, md: 2.25 } }}>
+          <Box sx={(theme) => ({ ...formWellSx(theme), ...fieldsOnIvorySx(theme) })}>
           {formError && (
             <Alert severity="warning" onClose={() => setFormError(null)}>
               {formError}
             </Alert>
           )}
+          <Section title="Rol" inset>
+          <Stack spacing={2} sx={{ pt: 0.5 }}>
           <TextField
             label="Nombre"
             required
@@ -289,18 +310,11 @@ export default function RolesPage() {
             multiline
             minRows={2}
           />
-          <FormControlLabel
-            control={<Switch checked={Boolean(form.activo)} onChange={(e) => handleChange('activo', e.target.checked)} color="primary" />}
-            label="Rol activo"
-          />
+          </Stack>
+          </Section>
+          </Box>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCloseDialog}>Cancelar</Button>
-          <Button variant="contained" onClick={handleSubmit} disabled={saving || !empresaId}>
-            {editId ? 'Guardar cambios' : 'Crear rol'}
-          </Button>
-        </DialogActions>
       </Dialog>
-    </Box></ConfigPageFrame>
+    </ConfigPageFrame>
   );
 }

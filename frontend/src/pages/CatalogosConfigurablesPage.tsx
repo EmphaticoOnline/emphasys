@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { Alert, Box, CircularProgress, Typography } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import { fetchCatalogosConfigurables, type CatalogoConfigurableGrupo } from '../services/catalogosConfigurablesService';
-import { ConfigNavRow, ConfigPageFrame, ConfigPageHeader, ConfigSection } from '../components/configuracion/configVisual';
+import { ConfigNavRow, ConfigPageFrame, ConfigPageHeader } from '../components/configuracion/configVisual';
+import { Section, formWellSx } from '../components/transporte/transporteVisual';
 
 export default function CatalogosConfigurablesPage() {
   const [grupos, setGrupos] = useState<CatalogoConfigurableGrupo[]>([]);
@@ -46,9 +47,9 @@ export default function CatalogosConfigurablesPage() {
       return (
         <Box
           sx={{
-            borderRadius: 2.5,
-            border: `1px dashed ${tokens.content.border}`,
-            bgcolor: tokens.content.elevated,
+            borderRadius: 3,
+            border: `1px solid ${tokens.content.border}`,
+            bgcolor: tokens.content.well,
             px: 2,
             py: 3,
           }}
@@ -64,13 +65,16 @@ export default function CatalogosConfigurablesPage() {
     }
 
     return (
-      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25 }}>
+      <Box sx={formWellSx}>
         {grupos.map((grupo) => (
-          <ConfigSection
-            key={grupo.entidad_tipo_id}
-            title={grupo.entidad_nombre || 'Entidad'}
-            columns={grupo.catalogos.length > 4 ? 2 : 1}
-          >
+          <Section key={grupo.entidad_tipo_id} title={grupo.entidad_nombre || 'Entidad'} inset>
+            <Box
+              sx={{
+                display: 'grid',
+                gridTemplateColumns: grupo.catalogos.length > 4 ? { xs: '1fr', md: '1fr 1fr' } : '1fr',
+                columnGap: 0.5,
+              }}
+            >
             {grupo.entidad_descripcion ? (
               <Typography sx={{ gridColumn: '1 / -1', px: 0.75, pb: 0.4, fontSize: 12, color: tokens.content.secondary }}>
                 {grupo.entidad_descripcion}
@@ -84,7 +88,8 @@ export default function CatalogosConfigurablesPage() {
                 onClick={() => navigate(`/configuracion/catalogos/${catalogo.id}`)}
               />
             ))}
-          </ConfigSection>
+            </Box>
+          </Section>
         ))}
       </Box>
     );

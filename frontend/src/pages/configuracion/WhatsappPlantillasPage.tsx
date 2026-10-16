@@ -51,6 +51,8 @@ import type { GridContextMenuAction } from '../../components/grids/GridContextMe
 import { SHOW_GRID_ACTIONS } from '../../components/grids/gridUxFlags';
 import { STANDARD_DATA_GRID_HEADER_HEIGHT, STANDARD_DATA_GRID_ROW_HEIGHT, standardDataGridSx } from '../../components/grids/standardDataGridSx';
 import { useGridContextMenu } from '../../hooks/useGridContextMenu';
+import { ConfigPageHeader } from '../../components/configuracion/configVisual';
+import { ControlLabel, PatternDialogHeader, Pill, Section, actionIconSx, dialogContentSx, dialogPaperSx, dialogTitleSx, editorialDataGridSx, editorialTableSx, fieldsOnIvorySx, formWellSx, panelBarSx, rowIconSx, wellSx } from '../../components/transporte/transporteVisual';
 
 const TIPOS_PLANTILLA = [
   'envio_cotizacion',
@@ -334,7 +336,7 @@ export default function WhatsappPlantillasPage() {
       field: 'tipo',
       headerName: 'Tipo',
       width: 200,
-      renderCell: (params) => <Chip size="small" label={params.row.tipo} variant="outlined" />,
+      renderCell: (params) => <Pill active label={params.row.tipo} />,
     },
     { field: 'proveedor', headerName: 'Proveedor', width: 120 },
     { field: 'provider_template_id', headerName: 'ID en proveedor', flex: 1, minWidth: 180 },
@@ -345,19 +347,16 @@ export default function WhatsappPlantillasPage() {
       align: 'center',
       headerAlign: 'center',
       renderCell: (params) =>
-        params.row.es_default ? <Chip size="small" label="Default" color="primary" variant="filled" /> : null,
+        params.row.es_default ? <Pill active label="Default" /> : null,
     },
     {
       field: 'activa',
       headerName: 'Estado',
       width: 120,
       renderCell: (params) => (
-        <Chip
-          size="small"
-          label={params.row.activa ? 'Activa' : 'Inactiva'}
-          color={params.row.activa ? 'success' : 'default'}
-          variant={params.row.activa ? 'filled' : 'outlined'}
-        />
+        <Tooltip title={params.row.activa ? 'Desactivar' : 'Activar'}>
+          <Switch size="small" checked={params.row.activa} onChange={() => void handleToggleActiva(params.row)} />
+        </Tooltip>
       ),
     },
     {
@@ -369,22 +368,9 @@ export default function WhatsappPlantillasPage() {
       renderCell: (params: GridRenderCellParams<WhatsappPlantillaOption>) => (
         <Stack direction="row" spacing={0.5} alignItems="center">
           <Tooltip title="Editar">
-            <IconButton size="small" color="primary" onClick={() => handleEdit(params.row)}>
-              <EditIcon fontSize="small" />
+            <IconButton size="small" sx={rowIconSx} onClick={() => handleEdit(params.row)}>
+              <EditIcon sx={{ fontSize: 17 }} />
             </IconButton>
-          </Tooltip>
-          <Tooltip title={params.row.activa ? 'Desactivar' : 'Activar'}>
-            <FormControlLabel
-              control={
-                <Switch
-                  size="small"
-                  checked={params.row.activa}
-                  onChange={() => void handleToggleActiva(params.row)}
-                />
-              }
-              label=""
-              sx={{ m: 0 }}
-            />
           </Tooltip>
         </Stack>
       ),
@@ -399,21 +385,17 @@ export default function WhatsappPlantillasPage() {
   const detectedIndices = extractVariableIndices(form.contenido);
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={1.5}>
-        <Box>
-          <Typography variant="h5" fontWeight={700} color="text.primary">
-            Plantillas de WhatsApp
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Administra los registros de plantillas por empresa y tipo.
-          </Typography>
-        </Box>
-        <Button variant="contained" startIcon={<AddIcon />} onClick={handleCreate}>
-          Nueva plantilla
-        </Button>
-      </Stack>
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+      <ConfigPageHeader
+        title="Plantillas de WhatsApp"
+        description="Administra los registros de plantillas por empresa y tipo."
+        actions={<Tooltip title="Nueva plantilla"><IconButton size="small" sx={actionIconSx} onClick={handleCreate}><AddIcon fontSize="small" /></IconButton></Tooltip>}
+      />
 
+      {error ? <Alert severity="error" onClose={() => setError(null)}>{error}</Alert> : null}
+
+      <Box sx={wellSx}>
+      <Box sx={(theme) => ({ ...(panelBarSx as (t: typeof theme) => object)(theme), ...fieldsOnIvorySx(theme), py: 1, flexWrap: 'wrap' })}>
       <Stack direction="row" spacing={1.5} flexWrap="wrap" useFlexGap>
         <TextField
           size="small"
@@ -462,19 +444,10 @@ export default function WhatsappPlantillasPage() {
           <MenuItem value="todas">Todas</MenuItem>
         </TextField>
       </Stack>
-
-      {error ? <Alert severity="error" onClose={() => setError(null)}>{error}</Alert> : null}
-
-      <Box
-        sx={{
-          width: '100%',
-          background: (theme) => theme.emphasys.content.elevated,
-          border: (theme) => `1px solid ${theme.emphasys.content.border}`,
-          borderRadius: 2.5,
-          boxShadow: 'none',
-          '& .MuiDataGrid-root': { border: 'none' },
-        }}
-      >
+      <Typography sx={(theme) => ({ fontSize: 12, fontWeight: 600, color: theme.emphasys.content.muted })}>
+        {filteredRows.length} {filteredRows.length === 1 ? 'plantilla' : 'plantillas'}
+      </Typography>
+      </Box>
         <DataGrid
           rows={filteredRows}
           columns={columns}
@@ -487,7 +460,7 @@ export default function WhatsappPlantillasPage() {
           getRowId={(row) => row.id}
           columnVisibilityModel={{ menu: true, actions: SHOW_GRID_ACTIONS }}
           {...(rowSlotProps ? { slotProps: { row: rowSlotProps } } : {})}
-          sx={standardDataGridSx}
+          sx={[standardDataGridSx, editorialDataGridSx]}
           pageSizeOptions={[10, 25, 50]}
           localeText={{
             ...esES.components.MuiDataGrid.defaultProps.localeText,
@@ -503,9 +476,35 @@ export default function WhatsappPlantillasPage() {
         onClose={closeContextMenu}
       />
 
-      <Dialog open={dialogOpen} onClose={handleCloseDialog} fullWidth maxWidth="md">
-        <DialogTitle>{editing ? 'Editar plantilla' : 'Nueva plantilla'}</DialogTitle>
-        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
+      <Dialog open={dialogOpen} onClose={handleCloseDialog} fullWidth maxWidth="md" PaperProps={{ sx: dialogPaperSx }}>
+        <DialogTitle component="div" sx={dialogTitleSx}>
+          <PatternDialogHeader
+            eyebrow="Plantillas de WhatsApp"
+            title={editing ? 'Editar plantilla' : 'Nueva plantilla'}
+            onCancel={handleCloseDialog}
+            cancelDisabled={saving}
+            onSave={() => void handleSave()}
+            saving={saving}
+            saveLabel={editing ? 'Guardar cambios' : 'Crear plantilla'}
+            extra={editing ? (
+              <FormControlLabel
+                sx={{ mr: 1 }}
+                control={
+                  <Switch
+                    size="small"
+                    checked={form.activa}
+                    onChange={(event) => setForm((prev) => ({ ...prev, activa: event.target.checked }))}
+                  />
+                }
+                label={<ControlLabel>{form.activa ? 'Activa' : 'Inactiva'}</ControlLabel>}
+              />
+            ) : undefined}
+          />
+        </DialogTitle>
+        <DialogContent sx={dialogContentSx}>
+          <Box sx={(theme) => ({ ...formWellSx(theme), ...fieldsOnIvorySx(theme) })}>
+          <Section title="Plantilla" inset>
+          <Stack spacing={2} sx={{ pt: 0.5 }}>
           <TextField
             size="small"
             label="Nombre interno"
@@ -534,8 +533,10 @@ export default function WhatsappPlantillasPage() {
             required
           />
 
+          </Stack>
+          </Section>
+          <Section title="Imagen predeterminada (opcional)" inset>
           <Box>
-            <Typography variant="subtitle2" sx={{ mb: 1 }}>Imagen predeterminada (opcional)</Typography>
             <Stack direction="row" spacing={1.5} alignItems="center" flexWrap="wrap" useFlexGap>
               {form.imagen_url ? (
                 <Box
@@ -548,30 +549,32 @@ export default function WhatsappPlantillasPage() {
                     height: 84,
                     objectFit: 'contain',
                     borderRadius: 1,
-                    border: '1px solid',
-                    borderColor: 'divider',
-                    backgroundColor: 'action.hover',
+                    border: (theme) => `1px solid ${theme.emphasys.content.border}`,
+                    backgroundColor: (theme) => theme.emphasys.content.card,
                     cursor: 'pointer',
                     transition: 'box-shadow 0.2s ease',
                     '&:hover': { boxShadow: 2 },
                   }}
                 />
-              ) : <ImageIcon color="disabled" sx={{ fontSize: 48 }} />}
+              ) : <ImageIcon sx={(theme) => ({ fontSize: 48, color: theme.emphasys.content.muted })} />}
               <Tooltip title="Reemplazar imagen">
-                <IconButton component="label" color="primary" disabled={saving} aria-label="Reemplazar imagen">
-                  <EditOutlinedIcon />
+                <IconButton component="label" sx={rowIconSx} disabled={saving} aria-label="Reemplazar imagen">
+                  <EditOutlinedIcon sx={{ fontSize: 17 }} />
                   <input hidden type="file" accept="image/jpeg,image/png,image/webp" onChange={handleImagenChange} />
                 </IconButton>
               </Tooltip>
               {form.imagen_url ? (
                 <Tooltip title="Eliminar imagen">
-                  <IconButton color="error" disabled={saving} onClick={() => setForm((prev) => ({ ...prev, imagen_url: null }))} aria-label="Eliminar imagen">
-                    <DeleteOutlineIcon />
+                  <IconButton sx={rowIconSx} disabled={saving} onClick={() => setForm((prev) => ({ ...prev, imagen_url: null }))} aria-label="Eliminar imagen">
+                    <DeleteOutlineIcon sx={{ fontSize: 17 }} />
                   </IconButton>
                 </Tooltip>
               ) : null}
             </Stack>
           </Box>
+          </Section>
+          <Section title="Contenido" inset>
+          <Stack spacing={2} sx={{ pt: 0.5 }}>
           <TextField
             size="small"
             label="ID de plantilla en proveedor"
@@ -592,25 +595,24 @@ export default function WhatsappPlantillasPage() {
             helperText="Usa {{1}}, {{2}}, etc. para definir variables. Detectarán automáticamente los parámetros de abajo."
           />
 
+          </Stack>
+          </Section>
+
           {detectedIndices.length > 0 && (
-            <Box>
-              <Typography variant="subtitle2" sx={{ mb: 1 }}>
-                Configuración de parámetros
-              </Typography>
+            <Section title="Configuración de parámetros" inset>
               <Box
-                sx={{
-                  border: '1px solid',
-                  borderColor: 'divider',
-                  borderRadius: 1,
+                sx={(theme) => ({
+                  border: `1px solid ${theme.emphasys.content.border}`,
+                  borderRadius: 1.5,
                   overflow: 'hidden',
-                }}
+                })}
               >
-                <Table size="small">
+                <Table size="small" sx={editorialTableSx}>
                   <TableHead>
-                    <TableRow sx={{ backgroundColor: 'action.hover' }}>
-                      <TableCell sx={{ width: 80, fontWeight: 600 }}>Variable</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>Etiqueta</TableCell>
-                      <TableCell sx={{ width: 260, fontWeight: 600 }}>Origen</TableCell>
+                    <TableRow>
+                      <TableCell sx={{ width: 80 }}>Variable</TableCell>
+                      <TableCell>Etiqueta</TableCell>
+                      <TableCell sx={{ width: 260 }}>Origen</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
@@ -648,9 +650,10 @@ export default function WhatsappPlantillasPage() {
                   </TableBody>
                 </Table>
               </Box>
-            </Box>
+            </Section>
           )}
 
+          <Section title="Uso" inset>
           <FormControlLabel
             control={
               <Switch
@@ -658,36 +661,18 @@ export default function WhatsappPlantillasPage() {
                 onChange={(event) => setForm((prev) => ({ ...prev, es_default: event.target.checked }))}
               />
             }
-            label="Plantilla default para este tipo"
+            label={<ControlLabel>Plantilla default para este tipo</ControlLabel>}
           />
-          {editing ? (
-            <FormControlLabel
-              control={
-                <Switch
-                  checked={form.activa}
-                  onChange={(event) => setForm((prev) => ({ ...prev, activa: event.target.checked }))}
-                />
-              }
-              label={form.activa ? 'Activa' : 'Inactiva'}
-            />
-          ) : null}
+          </Section>
+          </Box>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCloseDialog} disabled={saving}>Cancelar</Button>
-          <Button onClick={() => void handleSave()} variant="contained" disabled={saving}>
-            {editing ? 'Guardar cambios' : 'Crear plantilla'}
-          </Button>
-        </DialogActions>
       </Dialog>
 
-      <Dialog open={imageViewerOpen} onClose={() => setImageViewerOpen(false)} maxWidth="lg" fullWidth>
-        <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          Vista previa de la imagen
-          <IconButton onClick={() => setImageViewerOpen(false)} aria-label="Cerrar visor de imagen">
-            <CloseIcon />
-          </IconButton>
+      <Dialog open={imageViewerOpen} onClose={() => setImageViewerOpen(false)} maxWidth="lg" fullWidth PaperProps={{ sx: dialogPaperSx }}>
+        <DialogTitle component="div" sx={dialogTitleSx}>
+          <PatternDialogHeader eyebrow="Plantillas de WhatsApp" title="Vista previa de la imagen" onCancel={() => setImageViewerOpen(false)} />
         </DialogTitle>
-        <DialogContent sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', p: 2, minHeight: 240 }}>
+        <DialogContent sx={{ ...dialogContentSx, display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 240 }}>
           {form.imagen_url ? (
             <Box
               component="img"

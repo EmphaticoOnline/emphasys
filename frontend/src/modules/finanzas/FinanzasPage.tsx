@@ -4,12 +4,14 @@ import {
   Alert,
   Box,
   Button,
+  Checkbox,
   CircularProgress,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
   FormControl,
+  FormControlLabel,
   IconButton,
   InputLabel,
   MenuItem,
@@ -27,8 +29,8 @@ import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
 import { CuentasSidebar } from './CuentasSidebar';
 import { MovimientosTable } from './MovimientosTable';
 import { BuscadorMovimientos } from './BuscadorMovimientos';
-import { movimientoEditableEnLinea, type CapturaInline } from './FilaCapturaMovimiento';
-import { movimientoDuplicable, movimientoEliminable, movimientoMovible, netoSeleccion, todasCumplen } from './seleccionMovimientos';
+import { movimientoEditableEnLinea, type CapturaInline, type DetalleCapturaGuardada } from './FilaCapturaMovimiento';
+import { filtrarConciliados, movimientoDuplicable, movimientoEliminable, movimientoMovible, netoSeleccion, todasCumplen } from './seleccionMovimientos';
 import { OperacionDialog } from './OperacionDialog';
 import { ConciliacionDialog } from './ConciliacionDialog';
 import { NuevaCuentaDialog } from './NuevaCuentaDialog';
@@ -37,6 +39,7 @@ import { TesoreriaMobileView } from './TesoreriaMobileView';
 import { useTesoreriaAccounts } from './useTesoreriaAccounts';
 import { useTesoreriaMovements } from './useTesoreriaMovements';
 import { useDeviceProfile } from '../../hooks/useDeviceProfile';
+import { useGridPreferences } from '../../hooks/useGridPreferences';
 import { useSession } from '../../session/useSession';
 import type { FinanzasCuenta, FinanzasOperacion } from '../../types/finanzas';
 import {
@@ -55,7 +58,8 @@ export function FinanzasPage() {
   const theme = useTheme();
   const tokens = theme.emphasys;
   const compacto = useMediaQuery(theme.breakpoints.down('md'));
-  const esMovil = useDeviceProfile() === 'mobile';
+  const perfilDispositivo = useDeviceProfile();
+  const esMovil = perfilDispositivo === 'mobile';
   const { session } = useSession();
   const esAdmin = Boolean(session.user?.es_superadmin);
   const {
@@ -81,6 +85,27 @@ export function FinanzasPage() {
     setMovFiltros,
     operacionesVisibles,
   } = useTesoreriaMovements(selectedCuentaId, setError);
+  // Preferencia por usuario (grid_preferences): se conserva entre cuentas y visitas.
+  const [mostrarConciliados, setMostrarConciliados] = useState(false);
+  const { persistExternalFilters: guardarPreferenciasTesoreria } = useGridPreferences<{ mostrarConciliados: boolean }>({
+    pantalla: 'finanzas.tesoreria',
+    perfilDispositivo,
+    defaultExternalFilters: { mostrarConciliados: false },
+    onLoadExternalFilters: (valor) => setMostrarConciliados(valor?.mostrarConciliados === true),
+  });
+  const cambiarMostrarConciliados = (valor: boolean) => {
+    setMostrarConciliados(valor);
+    guardarPreferenciasTesoreria({ mostrarConciliados: valor });
+  };
+  // Sólo afecta lo que se muestra; resumen, saldos y contadores usan `operaciones` completo.
+  const operacionesTabla = useMemo(
+    () => filtrarConciliados(operacionesVisibles, mostrarConciliados),
+    [operacionesVisibles, mostrarConciliados],
+  );
+  const operacionesBuscador = useMemo(
+    () => filtrarConciliados(operaciones, mostrarConciliados),
+    [operaciones, mostrarConciliados],
+  );
   const [vistaMovil, setVistaMovil] = useState<'cuentas' | 'cuenta'>(() => {
     const cuentaEnUrl = Number(searchParams.get('cuenta_id'));
     return Number.isFinite(cuentaEnUrl) && cuentaEnUrl > 0 ? 'cuenta' : 'cuentas';
@@ -125,12 +150,19 @@ export function FinanzasPage() {
   const resumenMovimientos = useMemo(() => {
     let depositos = 0;
     let retiros = 0;
+    let numeroDepositos = 0;
+    let numeroRetiros = 0;
     for (const operacion of operaciones) {
       const monto = Math.abs(Number(operacion.monto) || 0);
-      if (operacion.tipo_movimiento === 'Deposito') depositos += monto;
-      else retiros += monto;
+      if (operacion.tipo_movimiento === 'Deposito') {
+        depositos += monto;
+        numeroDepositos += 1;
+      } else {
+        retiros += monto;
+        numeroRetiros += 1;
+      }
     }
-    return { depositos, retiros, total: operaciones.length };
+    return { depositos, retiros, numeroDepositos, numeroRetiros };
   }, [operaciones]);
   const todasLasCuentas = selectedCuentaId === null;
   const saldoTotal = useMemo(
@@ -314,9 +346,10 @@ export function FinanzasPage() {
     setCaptura({ tipo: 'edicion', operacion: op });
   };
 
-  const handleCapturaGuardada = async (detalle?: { transferencia: boolean }) => {
+  const handleCapturaGuardada = async (detalle?: DetalleCapturaGuardada) => {
     const edicion = captura?.tipo === 'edicion';
-    setCaptura(null);
+    // "Guardar y añadir otro": se abre de inmediato otro renglón con la misma fecha.
+    setCaptura(detalle?.siguiente ? { tipo: 'nueva', token: Date.now(), fecha: detalle.siguiente.fecha } : null);
     await loadOperaciones(selectedCuentaId);
     await loadCuentas();
     const mensaje = detalle?.transferencia
@@ -354,7 +387,7 @@ export function FinanzasPage() {
   };
 
   const vistaEscritorio = (
-    <Box sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: compacto ? 'column' : 'row', overflow: 'hidden' }}>
+    <Box sx={{ flex: 1, height: '100%', minHeight: 0, minWidth: 0, display: 'flex', flexDirection: compacto ? 'column' : 'row', overflow: 'hidden' }}>
       <CuentasSidebar
         cuentas={cuentas}
         selectedId={selectedCuentaId}
@@ -458,6 +491,9 @@ export function FinanzasPage() {
               <Typography variant="figure" sx={{ mt: 0.15, fontSize: 18, letterSpacing: '-0.02em', lineHeight: 1.05, color: tokens.content.foreground }}>
                 {formatoMoneda.format(resumenMovimientos.depositos)}
               </Typography>
+              <Typography sx={{ mt: 0.15, fontSize: 11, color: tokens.metric.caption }}>
+                {resumenMovimientos.numeroDepositos === 1 ? '1 depósito' : `${resumenMovimientos.numeroDepositos} depósitos`}
+              </Typography>
             </Box>
             <Box sx={{ bgcolor: tokens.metric.blocked.background, borderRadius: 1.5, px: 1.1, py: 0.7 }}>
               <Typography sx={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: tokens.metric.caption }}>Retiros</Typography>
@@ -465,7 +501,7 @@ export function FinanzasPage() {
                 {formatoMoneda.format(resumenMovimientos.retiros)}
               </Typography>
               <Typography sx={{ mt: 0.15, fontSize: 11, color: tokens.metric.caption }}>
-                {resumenMovimientos.total === 1 ? '1 movimiento' : `${resumenMovimientos.total} movimientos`}
+                {resumenMovimientos.numeroRetiros === 1 ? '1 retiro' : `${resumenMovimientos.numeroRetiros} retiros`}
               </Typography>
             </Box>
             <Box sx={{ bgcolor: tokens.content.elevated, border: `1px solid ${tokens.content.border}`, borderRadius: 1.5, px: 1.1, py: 0.7 }}>
@@ -496,13 +532,36 @@ export function FinanzasPage() {
             <Typography sx={{ fontSize: 12, fontWeight: 700, color: tokens.content.foreground }}>
               Movimientos
             </Typography>
-            <BuscadorMovimientos
-              operaciones={operaciones}
-              query={movQuery}
-              setQuery={setMovQuery}
-              filtros={movFiltros}
-              setFiltros={setMovFiltros}
-            />
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, flex: '1 1 280px', justifyContent: 'flex-end', minWidth: { xs: '100%', sm: 280 } }}>
+              <FormControlLabel
+                control={(
+                  <Checkbox
+                    size="small"
+                    checked={mostrarConciliados}
+                    onChange={(event) => cambiarMostrarConciliados(event.target.checked)}
+                    sx={{
+                      p: 0.25,
+                      color: tokens.content.muted,
+                      '&.Mui-checked': { color: tokens.action.primary },
+                    }}
+                  />
+                )}
+                label="Mostrar movimientos conciliados"
+                sx={{
+                  m: 0,
+                  gap: 0.5,
+                  flexShrink: 0,
+                  '& .MuiFormControlLabel-label': { fontSize: 12, fontWeight: 600, color: tokens.content.secondary, whiteSpace: 'nowrap' },
+                }}
+              />
+              <BuscadorMovimientos
+                operaciones={operacionesBuscador}
+                query={movQuery}
+                setQuery={setMovQuery}
+                filtros={movFiltros}
+                setFiltros={setMovFiltros}
+              />
+            </Box>
           </Box>
           <Box sx={{ flex: 1, minHeight: 0, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
             {!selectedCuentaId && cuentas.length === 0 && !loadingCuentas ? (
@@ -513,7 +572,8 @@ export function FinanzasPage() {
               </Box>
             ) : (
               <MovimientosTable
-                operaciones={operacionesVisibles}
+                operaciones={operacionesTabla}
+                vistaClave={mostrarConciliados ? 'con-conciliados' : 'sin-conciliados'}
                 omitirBusquedaInterna
                 loading={loadingOps}
                 moneda={monedaCuenta}

@@ -19,6 +19,7 @@
     "migrar:dicor-conciliacion": "ts-node src/scripts/migrarDicorConciliacion.ts",
     "normalize-phones": "ts-node src/scripts/normalizePhones.ts",
     "seed:contabilidad": "ts-node src/scripts/seedContabilidadDemoEmpresa8.ts",
+    "test:seed-demo-empresa-8": "ts-node --compiler-options '{\"target\":\"ES2020\",\"module\":\"commonjs\",\"esModuleInterop\":true,\"strict\":true,\"skipLibCheck\":true}' scripts/test-seed-demo-empresa-8.ts",
     "seed:empresa8:tunnel": "ts-node src/scripts/runSeedDemoEmpresa8WithTunnel.ts",
     "diagnosticar-sat": "ts-node src/scripts/diagnosticarSatDescarga.ts",
     "test:cfdi-cancelacion": "ts-node src/scripts/testCfdiCancelacion.ts",

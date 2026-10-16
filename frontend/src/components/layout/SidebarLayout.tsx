@@ -95,6 +95,10 @@ const COLIBRI_HEIGHT = 80; // collapsed: colibrí — 158×159px recortado ajust
 
 type NavItem = { label: string; path: string; icon: SvgIconComponent };
 
+function isInventarioRoute(pathname: string): boolean {
+  return pathname === '/inventario' || pathname.startsWith('/inventario/');
+}
+
 const NAV_ITEMS: NavItem[] = [
   { label: 'Contactos',     path: '/contactos',              icon: PeopleIcon },
   { label: 'Productos',     path: '/productos',              icon: CategoryIcon },
@@ -109,6 +113,10 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Configuración', path: '/configuracion',         icon: SettingsIcon },
 ];
 
+// Ocultación temporal de navegación. La ruta, permisos y componentes de
+// Autorizaciones permanecen intactos para poder volver a mostrarla fácilmente.
+const HIDDEN_NAV_LABELS = new Set(['Autorizaciones']);
+
 // Módulos comerciales visibles/accesibles para el rol "vendedor". Solo UX — la
 // restricción real de datos vive en backend (ver scope-comercial.ts).
 const ALLOWED_PREFIXES_VENDEDOR = ['/contactos', '/productos', '/crm', '/ventas'];
@@ -122,7 +130,7 @@ function getBreadcrumbs(pathname: string): string[] {
   if (pathname.startsWith('/ventas'))        return ['Ventas'];
   if (pathname.startsWith('/compras'))       return ['Compras'];
   if (pathname.startsWith('/finanzas'))      return ['Tesorería'];
-  if (pathname.startsWith('/inventario'))    return ['Inventarios'];
+  if (isInventarioRoute(pathname))           return ['Inventarios'];
   if (pathname.startsWith('/informes'))      return ['Informes'];
   if (pathname.startsWith('/autorizaciones')) return ['Autorizaciones'];
   if (pathname.startsWith('/configuracion')) return ['Configuración'];
@@ -144,6 +152,7 @@ function isNavActive(itemPath: string, pathname: string): boolean {
   if (itemPath === '/crm')                   return pathname.startsWith('/crm');
   if (itemPath.startsWith('/ventas'))        return pathname.startsWith('/ventas');
   if (itemPath.startsWith('/compras'))       return pathname.startsWith('/compras');
+  if (isInventarioRoute(itemPath))           return isInventarioRoute(pathname);
   return pathname === itemPath || pathname.startsWith(itemPath + '/');
 }
 
@@ -260,7 +269,8 @@ function SidebarNav({
                   opacity: active ? 1 : navType.inactiveOpacity,
                   background: active ? frame.selection : 'transparent',
                   fontWeight: active ? navType.activeFontWeight : navType.fontWeight,
-                  boxShadow: active && !collapsed ? `inset 3px 0 0 ${frame.accent}` : 'none',
+                  // La ceja del activo se mantiene también colapsado (mismo token que expandido).
+                  boxShadow: active ? `inset 3px 0 0 ${frame.accent}` : 'none',
                   transition: 'background 0.12s, color 0.12s, box-shadow 0.12s, opacity 0.12s',
                   '&:hover': {
                     background: active ? frame.selection : frame.hover,
@@ -400,9 +410,10 @@ export default function SidebarLayout() {
 
   const esVendedorSinAdmin = esRolVendedor(session.roles) && !esRolAdmin(session.roles);
   const esAdministrador = Boolean(session.user?.es_superadmin) || esRolAdmin(session.roles);
-  const visibleNavItems = esVendedorSinAdmin
-    ? NAV_ITEMS.filter((item) => ALLOWED_PREFIXES_VENDEDOR.some((prefix) => item.path.startsWith(prefix)))
-    : NAV_ITEMS;
+  const visibleNavItems = NAV_ITEMS.filter((item) => {
+    if (HIDDEN_NAV_LABELS.has(item.label)) return false;
+    return !esVendedorSinAdmin || ALLOWED_PREFIXES_VENDEDOR.some((prefix) => item.path.startsWith(prefix));
+  });
 
   // UX: si un vendedor navega directo por URL a un módulo no permitido, se redirige.
   // La seguridad real de los datos la aplica siempre el backend, no esta redirección.
@@ -465,7 +476,8 @@ export default function SidebarLayout() {
     : null;
   const docTab = docModulo ? (location.pathname.split('/')[2] || '') : '';
   const documentTabs = docModulo === 'ventas' ? ventasTabs : docModulo === 'compras' ? comprasTabs : [];
-  const inventarioModulo = location.pathname.startsWith('/inventario/');
+  // La ceja y las pestañas se montan juntas desde este layout compartido.
+  const inventarioModulo = isInventarioRoute(location.pathname);
   const inventarioTabs = esAdministrador ? INVENTARIO_TABS : INVENTARIO_TABS.filter((tab) => tab.value !== 'recalcular');
   const inventarioTab = location.pathname.split('/')[2] || 'movimientos';
 

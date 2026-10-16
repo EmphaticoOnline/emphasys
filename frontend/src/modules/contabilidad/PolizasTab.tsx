@@ -570,7 +570,7 @@ export default function PolizasTab() {
         display: 'flex',
         flexDirection: 'column',
         minHeight: 0,
-        bgcolor: nav.background,
+        bgcolor: tokens.workspaceRail.background,
         color: nav.foreground,
         borderRight: compacto ? 'none' : `1px solid ${nav.border}`,
       }}>

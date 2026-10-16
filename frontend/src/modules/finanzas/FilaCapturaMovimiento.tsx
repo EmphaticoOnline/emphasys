@@ -1,9 +1,9 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type HTMLAttributes, type Key, type KeyboardEvent, type ReactNode } from 'react';
-import { Autocomplete, CircularProgress, TextField } from '@mui/material';
+import { Autocomplete, Box, Button, CircularProgress, TextField } from '@mui/material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
-import dayjs from 'dayjs';
+import dayjs, { type Dayjs } from 'dayjs';
 import 'dayjs/locale/es';
 import type { Contacto } from '../../types/contactos.types';
 import type { Concepto, FinanzasCuenta, FinanzasMetodoPago, FinanzasOperacion } from '../../types/finanzas';
@@ -50,7 +50,7 @@ function reiniciarPopupsCaptura() {
 }
 
 export type CapturaInline =
-  | { tipo: 'nueva'; token: number }
+  | { tipo: 'nueva'; token: number; fecha?: string }
   | { tipo: 'edicion'; operacion: FinanzasOperacion };
 
 type OpcionConcepto = { id: number; nombre_concepto: string };
@@ -125,11 +125,23 @@ export type VistaCaptura = {
   cargandoCatalogos: boolean;
   guardando: boolean;
   campoPendiente: CampoPendiente;
-  guardar: () => void;
+  /** 'siguiente' guarda y abre otro renglón de alta con la misma fecha. */
+  guardar: (modo?: ModoGuardado) => void;
   cancelar: () => void;
+  esAlta: boolean;
   focoFecha: number;
   focoReferencia: number;
   tokens: TokensCaptura;
+};
+
+export type ModoGuardado = 'cerrar' | 'siguiente';
+
+export type DetalleCapturaGuardada = {
+  transferencia: boolean;
+  /** Presente cuando se pidió "Guardar y añadir otro": fecha para el siguiente renglón. */
+  siguiente: { fecha: string } | null;
+  /** ID real del movimiento guardado en la cuenta capturada (null si no se pudo determinar). */
+  operacionId: number | null;
 };
 
 export type CapturaStore = {
@@ -142,7 +154,7 @@ export function useCapturaMovimiento(opts: {
   cuentaId: number | null;
   cuentas?: FinanzasCuenta[];
   tokens: TokensCaptura;
-  onGuardada: (detalle?: { transferencia: boolean }) => Promise<void> | void;
+  onGuardada: (detalle?: DetalleCapturaGuardada) => Promise<void> | void;
   onCancelada: () => void;
   onError: (mensaje: string) => void;
   focoCampoRef?: React.RefObject<string | null>;
@@ -183,7 +195,8 @@ export function useCapturaMovimiento(opts: {
     if (!captura) return;
     const op = captura.tipo === 'edicion' ? captura.operacion : null;
     const transferencia = esTransferenciaOperacion(op) && op ? reconstruirLadosTransferencia(op) : null;
-    setFecha(op?.fecha ? op.fecha.slice(0, 10) : fechaCivil());
+    const fechaHeredada = captura.tipo === 'nueva' ? captura.fecha : undefined;
+    setFecha(op?.fecha ? op.fecha.slice(0, 10) : fechaHeredada || fechaCivil());
     setReferencia(op?.referencia ?? '');
     setContactoId(transferencia ? null : op?.contacto_id ?? null);
     setConceptoId(transferencia ? null : op?.concepto_id ?? null);
@@ -279,9 +292,11 @@ export function useCapturaMovimiento(opts: {
         ? { id: conceptoId, nombre_concepto: captura.operacion.concepto_nombre || '' }
         : null);
 
-  const guardar = () => {
+  const guardar = (modo: ModoGuardado = 'cerrar') => {
     if (guardandoRef.current || !captura) return;
     const op = captura.tipo === 'edicion' ? captura.operacion : null;
+    // "Guardar y añadir otro" sólo existe en altas.
+    const siguiente = modo === 'siguiente' && !op ? { fecha } : null;
     const cuenta = op ? op.cuenta_id : cuentaId;
     const metodo = op?.metodo_pago_id ? metodos.find((item) => item.id === op.metodo_pago_id) : undefined;
     const enTransferencia = destinoId != null || transferenciaId != null || esTransferenciaOperacion(op);
@@ -313,7 +328,14 @@ export function useCapturaMovimiento(opts: {
         ? actualizarTransferencia(transferenciaId, resultadoTransferencia.payload)
         : crearTransferencia(resultadoTransferencia.payload);
       peticionTransferencia
-        .then(() => onGuardada({ transferencia: true }))
+        .then((respuesta: { retiro?: { id?: number; cuenta_id?: number }; deposito?: { id?: number; cuenta_id?: number } } | null) => {
+          // Al crear, el backend devuelve ambos lados; se conserva el de la cuenta
+          // capturada. Al editar, la operación se actualiza en su lugar.
+          const lados = [respuesta?.retiro, respuesta?.deposito];
+          const lado = lados.find((item) => item?.id != null && Number(item.cuenta_id) === Number(cuenta)) ?? respuesta?.retiro;
+          const operacionId = op?.id ?? (lado?.id != null ? Number(lado.id) : null);
+          return onGuardada({ transferencia: true, operacionId, siguiente });
+        })
         .catch((err: { message?: string }) => {
           onError(err?.message || 'No se pudo guardar la transferencia');
         })
@@ -349,7 +371,11 @@ export function useCapturaMovimiento(opts: {
     setGuardando(true);
     const peticion = op ? actualizarOperacion(op.id, payload) : crearOperacion(payload);
     peticion
-      .then(() => onGuardada({ transferencia: false }))
+      .then((guardada) => onGuardada({
+        transferencia: false,
+        operacionId: op?.id ?? (guardada?.id != null ? Number(guardada.id) : null),
+        siguiente,
+      }))
       .catch((err: { message?: string }) => {
         onError(err?.message || 'No se pudo guardar la operación');
       })
@@ -421,6 +447,7 @@ export function useCapturaMovimiento(opts: {
         guardando,
         campoPendiente,
         guardar,
+        esAlta: captura.tipo === 'nueva',
         cancelar: () => {
           if (guardandoRef.current) return;
           onCancelada();
@@ -561,22 +588,32 @@ const teclaDeFila = (event: KeyboardEvent, vista: VistaCaptura, popupAbierto = f
   }
   if (event.key !== 'Enter' || popupAbierto) return;
   event.preventDefault();
-  vista.guardar();
+  // Mantener Enter presionado no debe disparar un guardado por cada repetición.
+  if (!event.repeat) vista.guardar();
 };
 
-const teclaDeLista = (event: KeyboardEvent, vista: VistaCaptura, listaAbierta: boolean) => {
+// En las listas, Enter sólo elige opción cuando el usuario está eligiendo
+// (escribió o se movió con el teclado y hay una opción resaltada). Si la lista
+// sólo se abrió por el foco, Enter guarda sin cambiar el valor actual.
+const teclaDeLista = (
+  event: KeyboardEvent,
+  vista: VistaCaptura,
+  lista: { abierta: boolean; eligiendo: boolean; cerrar: () => void },
+) => {
   event.stopPropagation();
   if (event.shiftKey || event.nativeEvent.isComposing) return;
   if (event.key === 'Escape') {
-    if (listaAbierta) return;
+    if (lista.abierta) return;
     event.preventDefault();
     (event as KeyboardEvent & { defaultMuiPrevented: boolean }).defaultMuiPrevented = true;
     vista.cancelar();
     return;
   }
-  if (event.key !== 'Enter' || listaAbierta) return;
+  if (event.key !== 'Enter' || (lista.abierta && lista.eligiendo)) return;
   event.preventDefault();
-  vista.guardar();
+  (event as KeyboardEvent & { defaultMuiPrevented: boolean }).defaultMuiPrevented = true;
+  lista.cerrar();
+  if (!event.repeat) vista.guardar();
 };
 
 const listaOpcionSx = (tokens: TokensCaptura) => ({
@@ -632,22 +669,69 @@ const listaOpcionSx = (tokens: TokensCaptura) => ({
   },
 });
 
+// Mientras se teclea el año, el campo produce fechas como 0002-11-30. No son
+// capturables: se reportan como fecha vacía para que la validación de guardado
+// las detenga, sin tocar lo que el usuario lleva escrito.
+const AÑO_MINIMO_CAPTURA = 1900;
+
+function fechaCapturable(valor: Dayjs | null): string {
+  if (!valor?.isValid() || valor.year() < AÑO_MINIMO_CAPTURA) return '';
+  return valor.format('YYYY-MM-DD');
+}
+
 export function CampoFechaCaptura({ store }: { store: CapturaStore }) {
   const vista = useVista(store);
   const calendarioAbierto = useRef(false);
+  const [calendario, setCalendario] = useState(false);
   const raizRef = useRef<HTMLDivElement>(null);
   const focoFecha = vista?.focoFecha ?? 0;
+  const fechaVista = vista?.fecha ?? '';
+  // El campo conserva su propio valor (incluidas fechas parciales). Si se
+  // controlara con la cadena YYYY-MM-DD, cada fecha intermedia se re-parsearía
+  // distinto y MUI reconstruiría las secciones, borrando lo capturado.
+  const [valor, setValor] = useState<Dayjs | null>(() => (fechaVista ? dayjs(fechaVista) : null));
+  useEffect(() => {
+    setValor((previo) => {
+      if (fechaCapturable(previo) === fechaVista) return previo;
+      return fechaVista ? dayjs(fechaVista) : null;
+    });
+  }, [fechaVista]);
+
+  const abrirCalendario = () => {
+    if (calendarioAbierto.current) return;
+    calendarioAbierto.current = true;
+    marcarPopupCaptura(true);
+    setCalendario(true);
+  };
+  const cerrarCalendario = () => {
+    if (!calendarioAbierto.current) return;
+    calendarioAbierto.current = false;
+    marcarPopupCaptura(false);
+    setCalendario(false);
+  };
+  useEffect(() => () => {
+    if (calendarioAbierto.current) marcarPopupCaptura(false);
+  }, []);
+
+  // Al añadir un renglón: la tabla lo desplaza a la vista en el primer frame;
+  // aquí, ya con el renglón montado y posicionado, se enfoca Fecha y se abre
+  // el calendario.
   useEffect(() => {
     if (!focoFecha) return;
-    const enfocar = () => {
-      raizRef.current?.querySelector<HTMLElement>('[role="spinbutton"]')?.focus();
-    };
-    const inmediato = window.setTimeout(enfocar, 0);
-    const despues = window.setTimeout(enfocar, 40);
+    let segundoFrame = 0;
+    const primerFrame = requestAnimationFrame(() => {
+      segundoFrame = requestAnimationFrame(() => {
+        const entrada = raizRef.current?.querySelector<HTMLInputElement>('input');
+        if (!entrada || !entrada.isConnected) return;
+        entrada.focus({ preventScroll: true });
+        abrirCalendario();
+      });
+    });
     return () => {
-      window.clearTimeout(inmediato);
-      window.clearTimeout(despues);
+      cancelAnimationFrame(primerFrame);
+      if (segundoFrame) cancelAnimationFrame(segundoFrame);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focoFecha]);
   if (!vista) return null;
   const alerta = vista.campoPendiente === 'fecha';
@@ -655,17 +739,20 @@ export function CampoFechaCaptura({ store }: { store: CapturaStore }) {
     <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale="es">
       <div ref={raizRef} style={{ width: '100%' }}>
       <DatePicker
-        value={vista.fecha ? dayjs(vista.fecha) : null}
-        onChange={(value) => vista.setFecha(value?.isValid() ? value.format('YYYY-MM-DD') : '')}
-        onOpen={() => { calendarioAbierto.current = true; marcarPopupCaptura(true); }}
-        onClose={() => { calendarioAbierto.current = false; marcarPopupCaptura(false); }}
+        value={valor}
+        onChange={(value) => {
+          setValor(value);
+          vista.setFecha(fechaCapturable(value));
+        }}
+        open={calendario}
+        onOpen={abrirCalendario}
+        onClose={cerrarCalendario}
         format="DD/MM/YYYY"
         disabled={vista.guardando}
         slotProps={{
           textField: {
             size: 'small',
             fullWidth: true,
-            autoFocus: focoFecha > 0,
             onKeyDown: (event) => teclaDeFila(event, vista, calendarioAbierto.current),
             inputProps: { 'aria-label': 'Fecha', 'aria-invalid': alerta },
             sx: {
@@ -830,6 +917,24 @@ function CampoListaCaptura<T>({
 }) {
   const vista = useVista(store);
   const listaAbierta = useRef(false);
+  const [abierta, setAbierta] = useState(false);
+  const interaccion = useRef(false);
+  const abrirLista = () => {
+    if (listaAbierta.current) return;
+    listaAbierta.current = true;
+    marcarPopupCaptura(true);
+    setAbierta(true);
+  };
+  const cerrarLista = () => {
+    interaccion.current = false;
+    if (!listaAbierta.current) return;
+    listaAbierta.current = false;
+    marcarPopupCaptura(false);
+    setAbierta(false);
+  };
+  useEffect(() => () => {
+    if (listaAbierta.current) marcarPopupCaptura(false);
+  }, []);
   if (!vista) return null;
   const opcionVisible = renderOpcion
     ? (props: HTMLAttributes<HTMLLIElement> & { key?: Key }, opcion: T) => {
@@ -857,10 +962,22 @@ function CampoListaCaptura<T>({
       size="small"
       fullWidth
       forcePopupIcon={false}
-      {...(textoFijo != null ? { inputValue: textoFijo, onInputChange: () => undefined } : {})}
-      onOpen={() => { listaAbierta.current = true; marcarPopupCaptura(true); }}
-      onClose={() => { listaAbierta.current = false; marcarPopupCaptura(false); }}
-      onKeyDown={(event) => teclaDeLista(event, vista, listaAbierta.current)}
+      open={abierta}
+      onInputChange={(_event, _texto, razon) => {
+        if (textoFijo == null && razon === 'input') interaccion.current = true;
+      }}
+      onHighlightChange={(_event, _opcion, razon) => {
+        if (razon === 'keyboard') interaccion.current = true;
+      }}
+      {...(textoFijo != null ? { inputValue: textoFijo } : {})}
+      onOpen={abrirLista}
+      onClose={cerrarLista}
+      onKeyDown={(event) => teclaDeLista(event, vista, {
+        abierta: listaAbierta.current,
+        // MUI marca la opción resaltada (incluida la automática) en aria-activedescendant.
+        eligiendo: interaccion.current && !!(event.target as HTMLElement).getAttribute('aria-activedescendant'),
+        cerrar: cerrarLista,
+      })}
       {...(opcionVisible ? { renderOption: opcionVisible } : {})}
       slotProps={{
         popper: { className: 'captura-popup', sx: { zIndex: 1500 } },
@@ -925,5 +1042,96 @@ export function CampoConceptoCaptura({ store }: { store: CapturaStore }) {
       {...(vista.modoTransferencia ? { textoFijo: ETIQUETA_CONCEPTO_TRANSFERENCIA } : {})}
       alerta={vista.campoPendiente === 'concepto'}
     />
+  );
+}
+
+/** Alto de la franja de botones que se agrega bajo el renglón de captura. */
+export const ALTO_BARRA_CAPTURA = 36;
+
+// Barra estilo YNAB bajo el renglón de captura, alineada a la derecha. Se
+// posiciona respecto a la fila (.fila-captura), no a la celda que la contiene.
+export function AccionesCapturaMovimiento({ store }: { store: CapturaStore }) {
+  const vista = useVista(store);
+  if (!vista) return null;
+  const { tokens } = vista;
+  const base = {
+    height: 26,
+    minWidth: 0,
+    px: 1.5,
+    fontSize: 12,
+    fontWeight: 600,
+    lineHeight: 1,
+    textTransform: 'none',
+    borderRadius: '6px',
+    boxShadow: 'none',
+    whiteSpace: 'nowrap',
+    '&.Mui-disabled': { opacity: 0.55 },
+  } as const;
+  const principal = {
+    ...base,
+    bgcolor: tokens.action.primaryForeground,
+    color: tokens.action.primary,
+    '&:hover': { bgcolor: tokens.action.tint, boxShadow: 'none' },
+    '&.Mui-disabled': { ...base['&.Mui-disabled'], bgcolor: tokens.action.primaryForeground, color: tokens.action.primary },
+  };
+  return (
+    <Box
+      className="captura-acciones"
+      onMouseDown={(event) => event.stopPropagation()}
+      onClick={(event) => event.stopPropagation()}
+      onDoubleClick={(event) => event.stopPropagation()}
+      sx={{
+        position: 'absolute',
+        // Deja libre la barra de desplazamiento vertical del DataGrid (overlay).
+        right: 'calc(var(--DataGrid-hasScrollY, 0) * var(--DataGrid-scrollbarSize, 0px) + 12px)',
+        bottom: 0,
+        height: ALTO_BARRA_CAPTURA,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 1,
+        zIndex: 2,
+      }}
+    >
+      <Button
+        variant="outlined"
+        size="small"
+        disabled={vista.guardando}
+        onClick={() => vista.cancelar()}
+        sx={{
+          ...base,
+          color: tokens.action.primaryForeground,
+          borderColor: `color-mix(in srgb, ${tokens.action.primaryForeground} 55%, transparent)`,
+          '&:hover': {
+            borderColor: tokens.action.primaryForeground,
+            bgcolor: `color-mix(in srgb, ${tokens.action.primaryForeground} 12%, transparent)`,
+          },
+          '&.Mui-disabled': { ...base['&.Mui-disabled'], color: tokens.action.primaryForeground, borderColor: `color-mix(in srgb, ${tokens.action.primaryForeground} 40%, transparent)` },
+        }}
+      >
+        Cancelar
+      </Button>
+      <Button
+        variant="contained"
+        size="small"
+        disableElevation
+        disabled={vista.guardando}
+        onClick={() => vista.guardar('cerrar')}
+        sx={principal}
+      >
+        Guardar
+      </Button>
+      {vista.esAlta && (
+        <Button
+          variant="contained"
+          size="small"
+          disableElevation
+          disabled={vista.guardando}
+          onClick={() => vista.guardar('siguiente')}
+          sx={principal}
+        >
+          Guardar y añadir otro
+        </Button>
+      )}
+    </Box>
   );
 }

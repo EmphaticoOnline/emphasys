@@ -35,7 +35,8 @@ import type { GridContextMenuAction } from '../../components/grids/GridContextMe
 import { SHOW_GRID_ACTIONS } from '../../components/grids/gridUxFlags';
 import { STANDARD_DATA_GRID_HEADER_HEIGHT, STANDARD_DATA_GRID_ROW_HEIGHT, standardDataGridSx } from '../../components/grids/standardDataGridSx';
 import { useGridContextMenu } from '../../hooks/useGridContextMenu';
-import { ConfigPageFrame, ConfigPageHeader, ConfigSurface } from '../../components/configuracion/configVisual';
+import { ConfigPageFrame, ConfigPageHeader } from '../../components/configuracion/configVisual';
+import { ControlLabel, PanelBar, PatternDialogHeader, Pill, Section, actionIconSx, dialogContentSx, dialogPaperSx, dialogTitleSx, editorialDataGridSx, fieldsOnIvorySx, formWellSx, rowIconSx, wellSx } from '../../components/transporte/transporteVisual';
 
 interface FormState {
   id?: number;
@@ -264,7 +265,7 @@ export default function ConceptosPage() {
       width: 110,
       headerClassName: 'finanzas-header',
       renderCell: ({ value }) => (
-        <Chip label={value ? 'Sí' : 'No'} color={value ? 'primary' : 'default'} size="small" />
+        <Pill active={Boolean(value)} label={value ? 'Sí' : 'No'} />
       ),
     },
     {
@@ -286,13 +287,13 @@ export default function ConceptosPage() {
       renderCell: (params) => (
         <Stack direction="row" spacing={0.5} justifyContent="flex-end" width="100%">
           <Tooltip title="Editar">
-            <IconButton size="small" onClick={() => handleOpenDialog(params.row)} color="primary">
-              <EditIcon fontSize="small" />
+            <IconButton size="small" sx={rowIconSx} onClick={() => handleOpenDialog(params.row)}>
+              <EditIcon sx={{ fontSize: 17 }} />
             </IconButton>
           </Tooltip>
           <Tooltip title="Eliminar">
-            <IconButton size="small" color="error" onClick={() => handleDelete(params.row)}>
-              <DeleteIcon fontSize="small" />
+            <IconButton size="small" sx={rowIconSx} onClick={() => handleDelete(params.row)}>
+              <DeleteIcon sx={{ fontSize: 17 }} />
             </IconButton>
           </Tooltip>
         </Stack>
@@ -300,33 +301,16 @@ export default function ConceptosPage() {
     },
   ], []);
 
-  const columns = useMemo<GridColDef<Concepto>[]>(() => [contextMenuTriggerColumn, ...baseColumns], [baseColumns, contextMenuTriggerColumn]);
+  // Acciones visibles por renglón (sin menú contextual de tres puntos).
+  const columns = baseColumns;
 
   return (
-    <ConfigPageFrame><Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <Stack direction="row" alignItems="center" justifyContent="space-between">
-        <Box>
-          <Typography variant="h5" fontWeight={700} color="text.primary">
-            Conceptos
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Administra el catálogo de conceptos financieros por empresa.
-          </Typography>
-        </Box>
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={() => handleOpenDialog(null)}
-          sx={{
-            textTransform: 'none',
-            borderRadius: 999,
-            bgcolor: (theme) => theme.emphasys.action.primary,
-            '&:hover': { bgcolor: (theme) => theme.emphasys.action.primaryHover },
-          }}
-        >
-          Nuevo concepto
-        </Button>
-      </Stack>
+    <ConfigPageFrame>
+      <ConfigPageHeader
+        title="Conceptos"
+        description="Administra el catálogo de conceptos financieros por empresa."
+        actions={<Tooltip title="Nuevo concepto"><IconButton size="small" sx={actionIconSx} onClick={() => handleOpenDialog(null)}><AddIcon fontSize="small" /></IconButton></Tooltip>}
+      />
 
       {error && (
         <Alert severity="error" onClose={() => setError(null)}>
@@ -334,7 +318,8 @@ export default function ConceptosPage() {
         </Alert>
       )}
 
-      <ConfigSurface>
+      <Box sx={wellSx}>
+        <PanelBar title="Conceptos registrados" meta={`${conceptos.length} ${conceptos.length === 1 ? 'concepto' : 'conceptos'}`} />
         <DataGrid
           rows={conceptos}
           columns={columns}
@@ -344,8 +329,6 @@ export default function ConceptosPage() {
           density="standard"
           loading={loading}
           disableRowSelectionOnClick
-          columnVisibilityModel={{ menu: true, acciones: SHOW_GRID_ACTIONS }}
-          {...(rowSlotProps ? { slotProps: { row: rowSlotProps } } : {})}
           localeText={esES.components.MuiDataGrid.defaultProps.localeText}
           initialState={{
             sorting: {
@@ -357,6 +340,7 @@ export default function ConceptosPage() {
           }}
           sx={[
             standardDataGridSx,
+            editorialDataGridSx,
             {
               '--DataGrid-overlayHeight': '200px',
               '& .MuiDataGrid-cell': {
@@ -377,19 +361,31 @@ export default function ConceptosPage() {
           hideFooterPagination
           hideFooterSelectedRowCount
         />
-      </ConfigSurface>
+      </Box>
 
-      <GridContextMenu
-        actions={contextMenuActions}
-        anchorPosition={contextMenuPosition}
-        open={Boolean(contextMenuRow && contextMenuPosition)}
-        onClose={closeContextMenu}
-      />
 
-      <Dialog open={dialogOpen} onClose={handleCloseDialog} maxWidth="sm" fullWidth>
-        <DialogTitle>{form.id ? 'Editar concepto' : 'Nuevo concepto'}</DialogTitle>
-        <DialogContent sx={{ pt: 1 }}>
-          <Stack spacing={2} mt={1}>
+      <Dialog open={dialogOpen} onClose={handleCloseDialog} maxWidth="sm" fullWidth PaperProps={{ sx: dialogPaperSx }}>
+        <DialogTitle component="div" sx={dialogTitleSx}>
+          <PatternDialogHeader
+            eyebrow="Conceptos"
+            title={form.id ? 'Editar concepto' : 'Nuevo concepto'}
+            onCancel={handleCloseDialog}
+            cancelDisabled={saving}
+            onSave={handleSave}
+            saving={saving}
+            extra={
+              <FormControlLabel
+                sx={{ mr: 1 }}
+                control={<Switch size="small" checked={form.activo} onChange={(e) => handleChange('activo', e.target.checked)} />}
+                label={<ControlLabel>{form.activo ? 'Activo' : 'Inactivo'}</ControlLabel>}
+              />
+            }
+          />
+        </DialogTitle>
+        <DialogContent sx={dialogContentSx}>
+          <Box sx={(theme) => ({ ...formWellSx(theme), ...fieldsOnIvorySx(theme) })}>
+          <Section title="Concepto" inset>
+          <Stack spacing={2} sx={{ pt: 0.5 }}>
             <TextField
               label="Nombre del concepto"
               required
@@ -436,10 +432,6 @@ export default function ConceptosPage() {
                 size="small"
                 sx={{ width: { xs: '100%', sm: 180 } }}
               />
-              <FormControlLabel
-                control={<Switch checked={form.activo} onChange={(e) => handleChange('activo', e.target.checked)} />}
-                label={form.activo ? 'Activo' : 'Inactivo'}
-              />
             </Stack>
 
             <TextField
@@ -458,20 +450,9 @@ export default function ConceptosPage() {
               </Typography>
             )}
           </Stack>
+          </Section>
+          </Box>
         </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={handleCloseDialog} disabled={saving} sx={{ textTransform: 'none' }}>
-            Cancelar
-          </Button>
-          <Button
-            onClick={handleSave}
-            disabled={saving}
-            variant="contained"
-            sx={(theme) => ({ textTransform: 'none', borderRadius: 999, bgcolor: theme.emphasys.action.primary, '&:hover': { bgcolor: theme.emphasys.action.primaryHover } })}
-          >
-            {saving ? 'Guardando...' : 'Guardar'}
-          </Button>
-        </DialogActions>
       </Dialog>
 
       <Snackbar
@@ -488,6 +469,6 @@ export default function ConceptosPage() {
           {snackbar.message}
         </Alert>
       </Snackbar>
-    </Box></ConfigPageFrame>
+    </ConfigPageFrame>
   );
 }

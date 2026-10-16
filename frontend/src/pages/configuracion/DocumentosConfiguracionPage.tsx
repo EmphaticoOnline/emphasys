@@ -32,6 +32,10 @@ import InventoryIcon from '@mui/icons-material/Inventory';
 import WarehouseIcon from '@mui/icons-material/Warehouse';
 import DescriptionIcon from '@mui/icons-material/Description';
 import { useSession } from '../../session/useSession';
+import { Tooltip } from '@mui/material';
+import { ConfigPageHeader } from '../../components/configuracion/configVisual';
+import { catalogoTabsSx } from '../../components/catalogo/catalogoSurfaces';
+import { editorialTableSx, emptyCellSx, fieldsOnIvorySx, strongCellSx, wellSx } from '../../components/transporte/transporteVisual';
 import type { AfectaInventario, DocumentoEmpresa, TransicionDocumento } from '../../types/documentosConfiguracion';
 
 const AFECTA_LABELS: Record<AfectaInventario, string> = {
@@ -300,8 +304,8 @@ export default function DocumentosConfiguracionPage() {
   };
 
   const renderTablaDocumentos = () => (
-    <TableContainer sx={(theme) => ({ border: `1px solid ${theme.emphasys.content.border}`, borderRadius: 2.5, backgroundColor: theme.emphasys.content.elevated })}>
-      <Table size="small">
+    <TableContainer sx={(theme) => ({ overflowX: 'auto', ...fieldsOnIvorySx(theme) })}>
+      <Table size="small" sx={editorialTableSx}>
         <TableHead>
           <TableRow>
             <TableCell align="center" sx={{ width: 80 }}>
@@ -320,27 +324,29 @@ export default function DocumentosConfiguracionPage() {
           {documentosOrdenados.map((doc) => (
             <TableRow key={doc.id} hover>
               <TableCell align="center">
-                <Checkbox
-                  checked={Boolean(doc.habilitado)}
-                  onChange={(e) => handleToggleDocumento(doc, e.target.checked)}
-                  color="primary"
-                  disabled={loadingDocumentos}
-                />
+                <Tooltip title={doc.habilitado ? 'Desactivar' : 'Activar'}>
+                  <Switch
+                    size="small"
+                    checked={Boolean(doc.habilitado)}
+                    onChange={(e) => handleToggleDocumento(doc, e.target.checked)}
+                    disabled={loadingDocumentos}
+                  />
+                </Tooltip>
               </TableCell>
               <TableCell>
                 <Stack direction="row" spacing={1} alignItems="center">
                   {(() => {
                     const IconComponent = doc.icono ? iconMap[doc.icono] : null;
-                    if (IconComponent) return <IconComponent fontSize="small" color="action" />;
-                    return <DescriptionIcon fontSize="small" color="disabled" />;
+                    if (IconComponent) return <IconComponent fontSize="small" sx={(theme: any) => ({ color: theme.emphasys.content.foreground })} />;
+                    return <DescriptionIcon fontSize="small" sx={(theme) => ({ color: theme.emphasys.content.muted })} />;
                   })()}
                 </Stack>
               </TableCell>
               <TableCell>
-                <Typography variant="subtitle2" fontWeight={600} color="text.primary">
+                <Typography variant="subtitle2" fontWeight={700} sx={(theme) => ({ color: theme.emphasys.content.foreground })}>
                   {doc.nombre}
                 </Typography>
-                <Typography variant="body2" color="#6b7280">
+                <Typography variant="body2" sx={(theme) => ({ color: theme.emphasys.content.muted })}>
                   Código: {doc.codigo}
                 </Typography>
               </TableCell>
@@ -361,7 +367,7 @@ export default function DocumentosConfiguracionPage() {
                           ? AFECTA_LABELS[doc.afecta_inventario_sistema]
                           : 'No afecta inventario';
                         return (
-                          <Typography variant="body2" color="#6b7280" component="span">
+                          <Typography variant="body2" component="span" sx={(theme) => ({ color: theme.emphasys.content.muted })}>
                             Sistema: {sistemaLabel}
                           </Typography>
                         );
@@ -370,7 +376,7 @@ export default function DocumentosConfiguracionPage() {
                     }}
                   >
                     <MenuItem value="">
-                      <em style={{ color: '#6b7280' }}>
+                      <em style={{ color: '#7a7268' /* content.muted */ }}>
                         Sistema:{' '}
                         {doc.afecta_inventario_sistema
                           ? AFECTA_LABELS[doc.afecta_inventario_sistema]
@@ -388,7 +394,6 @@ export default function DocumentosConfiguracionPage() {
                 <Checkbox
                   checked={Boolean(doc.afecta_reservado)}
                   onChange={(e) => handleAfectaReservadoChange(doc, e.target.checked)}
-                  color="primary"
                   disabled={loadingDocumentos}
                 />
               </TableCell>
@@ -396,7 +401,7 @@ export default function DocumentosConfiguracionPage() {
                 <Switch
                   checked={Boolean(doc.usar_especificaciones)}
                   onChange={(e) => handleUsarEspecificacionesChange(doc, e.target.checked)}
-                  color="primary"
+                  size="small"
                   disabled={loadingDocumentos || !doc.habilitado || !doc.usar_especificaciones_empresa}
                   title={!doc.usar_especificaciones_empresa ? 'Activa primero el parámetro general de especificaciones de la empresa' : undefined}
                 />
@@ -406,12 +411,12 @@ export default function DocumentosConfiguracionPage() {
                   <Switch
                     checked={Boolean(doc.colorear_filas_por_estatus)}
                     onChange={(e) => handleColorearFilasPorEstatusChange(doc, e.target.checked)}
-                    color="primary"
+                    size="small"
                     disabled={loadingDocumentos || !doc.habilitado}
                     inputProps={{ 'aria-label': `Colorear filas según estatus para ${doc.nombre}` }}
                   />
                 ) : (
-                  <Typography variant="body2" color="text.disabled">—</Typography>
+                  <Typography variant="body2" sx={(theme) => ({ color: theme.emphasys.content.muted })}>—</Typography>
                 )}
               </TableCell>
               <TableCell>
@@ -432,7 +437,7 @@ export default function DocumentosConfiguracionPage() {
                     displayEmpty
                     renderValue={(selected) => {
                       if (!selected) {
-                        return <em style={{ color: '#6b7280' }}>Sin plantilla</em>;
+                        return <em style={{ color: '#7a7268' /* content.muted */ }}>Sin plantilla</em>;
                       }
 
                       const plantilla = plantillasWhatsapp.find((item) => item.id === selected);
@@ -455,8 +460,8 @@ export default function DocumentosConfiguracionPage() {
 
           {documentosOrdenados.length === 0 && !loadingDocumentos && (
             <TableRow>
-              <TableCell colSpan={8} align="center" sx={{ py: 4 }}>
-                <Typography variant="body2" color="#6b7280">
+              <TableCell colSpan={8} align="center" sx={emptyCellSx}>
+                <Typography variant="body2" sx={(theme) => ({ color: theme.emphasys.content.muted })}>
                   No se encontraron tipos de documento activos en el catálogo.
                 </Typography>
               </TableCell>
@@ -478,23 +483,21 @@ export default function DocumentosConfiguracionPage() {
 
     if (documentosFlujoOrdenados.length === 0) {
       return (
-        <Alert severity="info">
+        <Alert severity="info" sx={{ m: 1.5 }}>
           Activa al menos un documento en la pestaña "Documentos habilitados" para definir el flujo.
         </Alert>
       );
     }
 
     return (
-      <TableContainer sx={(theme) => ({ border: `1px solid ${theme.emphasys.content.border}`, borderRadius: 2.5, backgroundColor: theme.emphasys.content.elevated })}>
-        <Table size="small">
+      <TableContainer sx={{ overflowX: 'auto' }}>
+        <Table size="small" sx={editorialTableSx}>
           <TableHead>
             <TableRow>
               <TableCell>Origen / Destino</TableCell>
               {documentosFlujoOrdenados.map((doc) => (
                 <TableCell key={doc.id} align="center">
-                  <Typography variant="subtitle2" color="text.primary" fontWeight={700}>
-                    {doc.nombre}
-                  </Typography>
+                  {doc.nombre}
                 </TableCell>
               ))}
             </TableRow>
@@ -502,15 +505,13 @@ export default function DocumentosConfiguracionPage() {
           <TableBody>
             {documentosFlujoOrdenados.map((origen) => (
               <TableRow key={origen.id} hover>
-                <TableCell>
-                  <Typography variant="subtitle2" fontWeight={700} color="text.primary">
-                    {origen.nombre}
-                  </Typography>
+                <TableCell sx={strongCellSx}>
+                  {origen.nombre}
                 </TableCell>
                 {documentosFlujoOrdenados.map((destino) => {
                   if (origen.id === destino.id) {
                     return (
-                      <TableCell key={`${origen.id}-${destino.id}`} align="center" sx={{ color: '#9ca3af' }}>
+                      <TableCell key={`${origen.id}-${destino.id}`} align="center" sx={(theme) => ({ color: `${theme.emphasys.content.muted} !important` })}>
                         —
                       </TableCell>
                     );
@@ -522,7 +523,6 @@ export default function DocumentosConfiguracionPage() {
                       <Checkbox
                         checked={checked}
                         onChange={(e) => handleToggleTransicion(origen.id, destino.id, e.target.checked)}
-                        color="primary"
                       />
                     </TableCell>
                   );
@@ -536,50 +536,44 @@ export default function DocumentosConfiguracionPage() {
   };
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <Stack direction="row" alignItems="flex-start" justifyContent="space-between" spacing={2} flexWrap="wrap">
-        <Box>
-          <Typography variant="h5" fontWeight={700} color="text.primary">
-            Configuración de documentos
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Habilita los tipos de documento por empresa y define las transiciones permitidas.
-          </Typography>
-        </Box>
-
-        <FormControl size="small" sx={{ minWidth: 220 }}>
-          <InputLabel id="empresa-select-label">Empresa</InputLabel>
-          <Select
-            labelId="empresa-select-label"
-            value={empresaId ? String(empresaId) : ''}
-            label="Empresa"
-            onChange={(e) => handleEmpresaChange(e.target.value as string)}
-          >
-            {empresas.map((emp) => (
-              <MenuItem key={emp.id} value={String(emp.id)}>
-                {emp.nombre}
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
-      </Stack>
-
-      <Tabs
-        value={tab}
-        onChange={(_, value) => setTab(value)}
-        textColor="primary"
-        indicatorColor="primary"
-        sx={(theme) => ({ borderBottom: `1px solid ${theme.emphasys.content.border}` })}
-      >
-        <Tab label="Documentos habilitados" value={TAB_DOCUMENTOS} />
-        <Tab label="Flujo de documentos" value={TAB_FLUJO} />
-      </Tabs>
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+      <ConfigPageHeader
+        title="Configuración de documentos"
+        description="Habilita los tipos de documento por empresa y define las transiciones permitidas."
+        actions={
+          <FormControl size="small" sx={(theme) => ({ minWidth: 220, ...fieldsOnIvorySx(theme) })}>
+            <InputLabel id="empresa-select-label">Empresa</InputLabel>
+            <Select
+              labelId="empresa-select-label"
+              value={empresaId ? String(empresaId) : ''}
+              label="Empresa"
+              onChange={(e) => handleEmpresaChange(e.target.value as string)}
+            >
+              {empresas.map((emp) => (
+                <MenuItem key={emp.id} value={String(emp.id)}>
+                  {emp.nombre}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        }
+      />
 
       {errorDocumentos && (
         <Alert severity="error" onClose={() => setErrorDocumentos(null)}>
           {errorDocumentos}
         </Alert>
       )}
+
+      <Box sx={wellSx}>
+      <Tabs
+        value={tab}
+        onChange={(_, value) => setTab(value)}
+        sx={catalogoTabsSx}
+      >
+        <Tab label="Documentos habilitados" value={TAB_DOCUMENTOS} />
+        <Tab label="Flujo de documentos" value={TAB_FLUJO} />
+      </Tabs>
 
       <TabPanel value={tab} index={TAB_DOCUMENTOS}>
         {loadingDocumentos ? (
@@ -593,12 +587,13 @@ export default function DocumentosConfiguracionPage() {
 
       <TabPanel value={tab} index={TAB_FLUJO}>
         {errorFlujo && (
-          <Alert severity="error" onClose={() => setErrorFlujo(null)} sx={{ mb: 2 }}>
+          <Alert severity="error" onClose={() => setErrorFlujo(null)} sx={{ m: 1.5 }}>
             {errorFlujo}
           </Alert>
         )}
         {renderFlujo()}
       </TabPanel>
+      </Box>
     </Box>
   );
 }

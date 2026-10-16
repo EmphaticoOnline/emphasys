@@ -14,6 +14,16 @@
  *   --limpiar=true|false            (default: false; no elimina datos)
  *   --minMovimientosPorProducto=N   (default: 4)
  *   --productosAltaRotacion=N       (default: 12)
+ *   --tesoreriaDepositos=N          (default: 0)
+ *   --tesoreriaRetiros=N            (default: 0)
+ *   --tesoreriaTransferencias=N     (default: 0)
+ *   --tesoreriaCotejados=N          (default: 0)
+ *   --tesoreriaConciliados=N        (default: 0)
+ *   --notasVenta=N                  (default: 60)
+ *   --ordenesCompra=N               (default: 8)
+ *   --pedidos=N                     (default: 8)
+ *   --remisiones=N                  (default: 8)
+ *   --ajustes=N                     (default: automático)
  *   --seed=STRING                   (default: demo-empresa-8)
  *
  * SEGURIDAD: Opera EXCLUSIVAMENTE sobre empresa_id = 8.
@@ -22,6 +32,7 @@
 import { Pool, PoolClient } from 'pg';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
+import { upsertOperacionDocumentoEnTransaccion, type OperacionInput } from '../src/modules/finanzas/finanzas.repository';
 
 dotenv.config({ path: path.join(__dirname, '../.env') });
 
@@ -30,11 +41,13 @@ const EMPRESA_ID     = 8;
 const IVA_TASA       = 0.16;
 let USUARIO_ID = 0;
 let CUENTA_ID = 0;
+let CUENTAS_IDS: number[] = [];
 let IVA_ID = '';
 let CONCEPTO_VENTA = 0;
 let CONCEPTO_COMPRA = 0;
 let SEED_MARKER = '';
 let FECHA_HASTA = '9999-12-31';
+const ZONA_MEXICO = 'America/Mexico_City';
 
 // ─── CLI ────────────────────────────────────────────────────
 
@@ -47,6 +60,16 @@ interface Config {
   minMovimientosPorProducto: number;
   productosAltaRotacion: number;
   seed: string;
+  tesoreriaDepositos: number;
+  tesoreriaRetiros: number;
+  tesoreriaTransferencias: number;
+  tesoreriaCotejados: number;
+  tesoreriaConciliados: number;
+  notasVenta: number;
+  ordenesCompra: number;
+  pedidos: number;
+  remisiones: number;
+  ajustes: number;
 }
 
 function parseCLI(): Config {
@@ -64,17 +87,50 @@ function parseCLI(): Config {
     minMovimientosPorProducto:Number(get('minMovimientosPorProducto', '4')),
     productosAltaRotacion:    Number(get('productosAltaRotacion', '12')),
     seed:                     get('seed', 'demo-empresa-8'),
+    tesoreriaDepositos:      Number(get('tesoreriaDepositos', '0')),
+    tesoreriaRetiros:        Number(get('tesoreriaRetiros', '0')),
+    tesoreriaTransferencias: Number(get('tesoreriaTransferencias', '0')),
+    tesoreriaCotejados:      Number(get('tesoreriaCotejados', '0')),
+    tesoreriaConciliados:    Number(get('tesoreriaConciliados', '0')),
+    notasVenta:              Number(get('notasVenta', '60')),
+    ordenesCompra:           Number(get('ordenesCompra', '8')),
+    pedidos:                 Number(get('pedidos', '8')),
+    remisiones:              Number(get('remisiones', '8')),
+    ajustes:                 Number(get('ajustes', '0')),
   };
 }
 
-function validarConfig(cfg: Config, meses: [number, number][]) {
-  const re = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
-  if (!re.test(cfg.desde)) throw new Error(`--desde "${cfg.desde}" no es YYYY-MM-DD válida`);
-  if (!re.test(cfg.hasta)) throw new Error(`--hasta "${cfg.hasta}" no es YYYY-MM-DD válida`);
+function hoyMexico(): string {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: ZONA_MEXICO, year: 'numeric', month: '2-digit', day: '2-digit',
+  }).formatToParts(new Date());
+  const get = (type: string) => parts.find(p => p.type === type)?.value ?? '';
+  return `${get('year')}-${get('month')}-${get('day')}`;
+}
+
+function esFechaCivilReal(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const [y, m, day] = value.split('-').map(Number);
+  return y >= 1 && m >= 1 && m <= 12 && day >= 1 && day <= diasEnMes(y, m) && d(y, m, day) === value;
+}
+
+function validarConfig(cfg: Config, meses: [number, number][], hoy: string) {
+  if (!esFechaCivilReal(cfg.desde)) throw new Error(`--desde "${cfg.desde}" no es una fecha civil real YYYY-MM-DD`);
+  if (!esFechaCivilReal(cfg.hasta)) throw new Error(`--hasta "${cfg.hasta}" no es una fecha civil real YYYY-MM-DD`);
   if (cfg.desde > cfg.hasta) throw new Error('--desde debe ser <= --hasta');
+  if (cfg.desde > hoy) throw new Error(`El rango es completamente futuro: --desde=${cfg.desde}, hoy en ${ZONA_MEXICO}=${hoy}`);
   if (meses.length < 1) throw new Error('El rango debe cubrir al menos 1 mes');
   if (cfg.ventas < 1) throw new Error('--ventas debe ser >= 1');
   if (cfg.compras < 1) throw new Error('--compras debe ser >= 1');
+  for (const [nombre, valor] of Object.entries({
+    tesoreriaDepositos: cfg.tesoreriaDepositos, tesoreriaRetiros: cfg.tesoreriaRetiros,
+    tesoreriaTransferencias: cfg.tesoreriaTransferencias, tesoreriaCotejados: cfg.tesoreriaCotejados,
+    tesoreriaConciliados: cfg.tesoreriaConciliados,
+  })) if (!Number.isInteger(valor) || valor < 0) throw new Error(`--${nombre} debe ser un entero >= 0`);
+  if (cfg.tesoreriaConciliados > cfg.tesoreriaCotejados) throw new Error('--tesoreriaConciliados no puede superar --tesoreriaCotejados');
+  for (const [nombre, valor] of Object.entries({ notasVenta: cfg.notasVenta, ordenesCompra: cfg.ordenesCompra, pedidos: cfg.pedidos, remisiones: cfg.remisiones, ajustes: cfg.ajustes })) {
+    if (!Number.isInteger(valor) || valor < 0) throw new Error(`--${nombre} debe ser un entero >= 0`);
+  }
 }
 
 // ─── RNG con semilla (xorshift32 + FNV-1a) ──────────────────
@@ -108,12 +164,23 @@ function d(y: number, m: number, day: number): string {
   return `${y}-${String(m).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
 }
 function ts(y: number, m: number, day: number): string {
-  return `${d(y,m,day)} 12:00:00-06`;
+  const fecha = limitarFecha(d(y, m, day));
+  return `${fecha} 12:00:00-06`;
 }
 function addDays(fechaStr: string, dias: number): string {
   const parts = fechaStr.split('-').map(Number) as [number, number, number];
   const dt = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2] + dias));
-  return d(dt.getUTCFullYear(), dt.getUTCMonth() + 1, dt.getUTCDate());
+  const derivada = d(dt.getUTCFullYear(), dt.getUTCMonth() + 1, dt.getUTCDate());
+  return derivada > FECHA_HASTA ? FECHA_HASTA : limitarFecha(derivada);
+}
+function limitarFecha(fecha: string): string {
+  if (!esFechaCivilReal(fecha)) throw new Error(`Fecha civil inválida: ${fecha}`);
+  if (fecha > FECHA_HASTA) throw new Error(`Fecha operativa posterior al límite ${FECHA_HASTA}: ${fecha}`);
+  return fecha;
+}
+function establecerFechaMaxima(fecha: string) {
+  if (!esFechaCivilReal(fecha)) throw new Error(`Fecha máxima inválida: ${fecha}`);
+  FECHA_HASTA = fecha;
 }
 function diasEnMes(y: number, m: number): number {
   return new Date(Date.UTC(y, m, 0)).getUTCDate();
@@ -145,6 +212,37 @@ function distribuirEnMeses(total: number, numMeses: number): number[] {
 
 const memExist = new Map<string, number>(); // `${prodId}-${almId}` → qty
 const memMovs  = new Map<number, number>(); // productoId → nMovimientos
+const memFirstInbound = new Map<string, string>();
+
+function limpiarMemoriaInventario() {
+  memExist.clear();
+  memMovs.clear();
+  memFirstInbound.clear();
+}
+
+async function cargarEstadoInventario(c: PoolClient) {
+  limpiarMemoriaInventario();
+  const { rows: existencias } = await c.query<{ producto_id: number; almacen_id: number; existencia: number }>(
+    `SELECT producto_id, almacen_id, existencia FROM inventario.existencias WHERE empresa_id=$1`, [EMPRESA_ID],
+  );
+  for (const row of existencias) memExist.set(`${row.producto_id}-${row.almacen_id}`, Number(row.existencia));
+  const { rows: movimientos } = await c.query<{ producto_id: number; n: string }>(
+    `SELECT mp.producto_id, COUNT(*)::text AS n
+       FROM inventario.movimientos_partidas mp
+       JOIN inventario.movimientos m ON m.id=mp.movimiento_id
+      WHERE mp.empresa_id=$1 AND m.empresa_id=$1
+      GROUP BY mp.producto_id`, [EMPRESA_ID],
+  );
+  for (const row of movimientos) memMovs.set(row.producto_id, Number(row.n));
+  const { rows: entradas } = await c.query<{ producto_id: number; almacen_id: number; fecha: string }>(
+    `SELECT mp.producto_id, mp.almacen_id, MIN(m.fecha)::text AS fecha
+       FROM inventario.movimientos_partidas mp
+       JOIN inventario.movimientos m ON m.id=mp.movimiento_id
+      WHERE mp.empresa_id=$1 AND m.empresa_id=$1 AND mp.signo > 0
+      GROUP BY mp.producto_id, mp.almacen_id`, [EMPRESA_ID],
+  );
+  for (const row of entradas) registrarEntradaInicial(row.producto_id, row.almacen_id, row.fecha.slice(0, 10));
+}
 
 function getExist(prodId: number, almId: number): number {
   return memExist.get(`${prodId}-${almId}`) ?? 0;
@@ -155,6 +253,14 @@ function adjExist(prodId: number, almId: number, delta: number) {
 }
 function addMov(prodId: number) {
   memMovs.set(prodId, (memMovs.get(prodId) ?? 0) + 1);
+}
+function registrarEntradaInicial(prodId: number, almId: number, fecha: string) {
+  const key = `${prodId}-${almId}`;
+  const anterior = memFirstInbound.get(key);
+  if (!anterior || fecha < anterior) memFirstInbound.set(key, fecha);
+}
+function tieneCostoPrevio(prodId: number, almId: number, fecha: string): boolean {
+  return (memFirstInbound.get(`${prodId}-${almId}`) ?? '') <= fecha;
 }
 
 // ─── Catálogos ───────────────────────────────────────────────
@@ -318,6 +424,8 @@ async function insertDocumento(c: PoolClient, opts: {
   subtotal: number; iva: number; total: number;
   estatus_documento: string; concepto_id: number; tratamiento_impuestos?: string;
 }): Promise<number> {
+  const fechaDocumento = limitarFecha(opts.fecha_documento);
+  const fechaVencimiento = opts.fecha_vencimiento ? limitarFecha(opts.fecha_vencimiento) : null;
   const { rows } = await c.query<{ id: number }>(
     `INSERT INTO documentos
        (empresa_id, tipo_documento, serie, numero, fecha_documento, fecha_vencimiento,
@@ -328,7 +436,7 @@ async function insertDocumento(c: PoolClient, opts: {
             'borrador','no_requerida','MXN',$14,$15,$16,$17)
      RETURNING id`,
     [EMPRESA_ID, opts.tipo_documento, opts.serie, opts.numero,
-     opts.fecha_documento, opts.fecha_vencimiento ?? null,
+     fechaDocumento, fechaVencimiento,
      opts.contacto_id, opts.almacen_id ?? null,
      opts.subtotal, opts.iva, opts.total, opts.total,
      opts.estatus_documento, opts.tratamiento_impuestos ?? 'normal', opts.concepto_id, USUARIO_ID, SEED_MARKER],
@@ -359,13 +467,16 @@ async function aplicarMovimiento(
   c: PoolClient, tipoMov: string, fechaTs: string,
   documentoId: number | null, partidas: MovPartida[], obs?: string,
 ): Promise<bigint> {
+  const fechaLimitada = limitarFecha(fechaTs.slice(0, 10));
+  const fechaOperativa = `${fechaLimitada}${fechaTs.slice(10)}`;
   const { rows } = await c.query<{ aplicar_movimiento: bigint }>(
     `SELECT inventario.aplicar_movimiento($1,$2,$3,$4,$5,$6,$7) AS aplicar_movimiento`,
-    [EMPRESA_ID, tipoMov, fechaTs, USUARIO_ID, documentoId, `${SEED_MARKER} ${obs ?? ''}`.trim(), JSON.stringify(partidas), null],
+    [EMPRESA_ID, tipoMov, fechaOperativa, USUARIO_ID, documentoId, `${SEED_MARKER} ${obs ?? ''}`.trim(), JSON.stringify(partidas)],
   );
   for (const p of partidas) {
     adjExist(p.producto_id, p.almacen_id, p.signo * p.cantidad);
     addMov(p.producto_id);
+    if (p.signo > 0) registrarEntradaInicial(p.producto_id, p.almacen_id, fechaLimitada);
   }
   return rows[0].aplicar_movimiento;
 }
@@ -375,15 +486,34 @@ async function insertFinanzasOp(c: PoolClient, opts: {
   contacto_id: number; documento_origen_id: number;
   naturaleza_operacion: string; concepto_id: number;
 }): Promise<number> {
-  const { rows } = await c.query<{ id: number }>(
-    `INSERT INTO finanzas_operaciones
-       (empresa_id, fecha, tipo_movimiento, monto, cuenta_id, contacto_id,
-        documento_origen_id, naturaleza_operacion, concepto_id, estado_conciliacion, created_by)
-     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,'pendiente',$10) RETURNING id`,
-    [EMPRESA_ID, opts.fecha, opts.tipo_movimiento, opts.monto, CUENTA_ID,
-     opts.contacto_id, opts.documento_origen_id, opts.naturaleza_operacion, opts.concepto_id, USUARIO_ID],
-  );
-  return rows[0].id;
+  if (!opts.documento_origen_id) throw new Error('Una operación financiera del seed requiere documento origen');
+  const op = await upsertOperacionDocumentoEnTransaccion(c, {
+    cuenta_id: CUENTA_ID,
+    fecha: limitarFecha(opts.fecha),
+    tipo_movimiento: opts.tipo_movimiento as OperacionInput['tipo_movimiento'],
+    monto: opts.monto,
+    contacto_id: opts.contacto_id,
+    documento_origen_id: opts.documento_origen_id,
+    naturaleza_operacion: opts.naturaleza_operacion as OperacionInput['naturaleza_operacion'],
+    concepto_id: opts.concepto_id,
+    created_by: USUARIO_ID,
+  }, EMPRESA_ID);
+  return Number(op.id);
+}
+
+async function insertarTesoreriaIndependiente(c: PoolClient, opts: {
+  cuentaId: number; fecha: string; tipo: 'Deposito' | 'Retiro'; monto: number;
+  conceptoId: number; observaciones: string; referencia: string; estado: 'pendiente' | 'cotejado';
+}) {
+  const op = await upsertOperacionDocumentoEnTransaccion(c, {
+    cuenta_id: opts.cuentaId, fecha: limitarFecha(opts.fecha), tipo_movimiento: opts.tipo,
+    monto: opts.monto, naturaleza_operacion: 'movimiento_general', concepto_id: opts.conceptoId,
+    referencia: opts.referencia, observaciones: opts.observaciones, created_by: USUARIO_ID,
+  }, EMPRESA_ID);
+  if (opts.estado === 'cotejado') {
+    await c.query(`UPDATE finanzas_operaciones SET estado_conciliacion='cotejado' WHERE id=$1 AND empresa_id=$2`, [op.id, EMPRESA_ID]);
+  }
+  return Number(op.id);
 }
 
 async function insertAplicacion(c: PoolClient, opId: number, docDestinoId: number, monto: number) {
@@ -491,7 +621,7 @@ async function crearAlmacenes(c: PoolClient): Promise<Almacen[]> {
   );
   if (rows.length < ALMACENES_DEF.length) throw new Error('Faltan almacenes demo; no se crean catálogos automáticamente');
   const result = rows;
-  console.log(`    ✓ ${result.length} almacenes existentes reutilizados`);
+  console.log(`    ✓ ${result.length} almacenes encontrados y reutilizados`);
   return result;
 }
 
@@ -502,7 +632,7 @@ async function crearUnidades(c: PoolClient): Promise<Unidad[]> {
   );
   if (rows.length < UNIDADES_DEF.length) throw new Error('Faltan unidades demo; no se crean catálogos automáticamente');
   const result = rows;
-  console.log(`    ✓ ${result.length} unidades existentes reutilizadas`);
+  console.log(`    ✓ ${result.length} unidades encontradas y reutilizadas`);
   return result;
 }
 
@@ -513,7 +643,7 @@ async function crearProveedores(c: PoolClient): Promise<Contacto[]> {
     if (!rows[0]) throw new Error(`Falta proveedor de catálogo ${p.rfc}; no se crean contactos`);
     result.push(rows[0]);
   }
-  console.log(`    ✓ ${result.length} proveedores creados`);
+  console.log(`    ✓ ${result.length} proveedores encontrados y reutilizados`);
   return result;
 }
 
@@ -524,7 +654,7 @@ async function crearClientes(c: PoolClient): Promise<Contacto[]> {
     if (!rows[0]) throw new Error(`Falta cliente de catálogo ${cl.rfc}; no se crean contactos`);
     result.push(rows[0]);
   }
-  console.log(`    ✓ ${result.length} clientes creados`);
+  console.log(`    ✓ ${result.length} clientes encontrados y reutilizados`);
   return result;
 }
 
@@ -537,7 +667,7 @@ async function crearProductos(c: PoolClient, unidades: Unidad[], proveedores: Co
     if (!rows[0]) throw new Error(`Falta producto de catálogo ${pd.clave}; no se crean productos`);
     result.push({ id: rows[0].id, clave: pd.clave, costo: pd.costo, precio: pd.precio, minimo: pd.minimo });
   }
-  console.log(`    ✓ ${result.length} productos creados`);
+  console.log(`    ✓ ${result.length} productos encontrados y reutilizados`);
   return result;
 }
 
@@ -577,7 +707,8 @@ async function generarCompras(
     const nComp = dist[mi] ?? 0;
     for (let ci = 0; ci < nComp; ci++) {
       const provIdx  = rng.int(0, proveedores.length - 1);
-      const dia      = rng.int(2, Math.min(nDias - 1, 26));
+      const dia      = diaSeguro(year, month, 2, Math.min(nDias - 1, 26), rng);
+      if (dia === null) continue;
       const fechaDoc = d(year, month, dia);
       const numItems = rng.int(2, 4);
       const sel      = selectProductos(rng, productos, cfg.productosAltaRotacion, numItems);
@@ -635,7 +766,8 @@ async function generarVentas(
     for (let vi = 0; vi < nVenta; vi++) {
       const cliIdx   = rng.int(0, clientes.length - 1);
       const alm      = almsVenta[rng.int(0, 1)] as Almacen;
-      const dia      = rng.int(2, Math.min(nDias - 1, 28));
+      const dia      = diaSeguro(year, month, 2, Math.min(nDias - 1, 28), rng);
+      if (dia === null) continue;
       const fechaDoc = d(year, month, dia);
       const cli      = clientes[cliIdx] as Contacto;
       const diasCred = cli.diasCredito ?? 30;
@@ -800,10 +932,10 @@ async function generarPagosProveedores(c: PoolClient, factIds: number[]) {
 
 async function generarNotasVenta(
   c: PoolClient, cfg: Config, rng: SeededRng, meses: [number, number][],
-  almacenes: Almacen[], clientes: Contacto[], productos: Producto[],
+  almacenes: Almacen[], clientes: Contacto[], productos: Producto[], cantidad: number,
 ): Promise<number[]> {
   const ids: number[] = [];
-  const dist = distribuirEnMeses(60, meses.length);
+  const dist = distribuirEnMeses(cantidad, meses.length);
   const almsVenta = almacenes.slice(0, 2);
   for (let mi = 0; mi < meses.length; mi++) {
     const [year, month] = meses[mi] as [number, number];
@@ -812,7 +944,8 @@ async function generarNotasVenta(
       const dia = diaSeguro(year, month, 2, Math.min(diasEnMes(year, month) - 1, 28), rng);
       if (dia === null) continue;
       const cli = clientes[rng.int(0, clientes.length - 1)] as Contacto;
-      const sel = selectConStock(rng, productos, cfg.productosAltaRotacion, rng.int(1, 3), alm.id, 1);
+      const disponiblesPorFecha = productos.filter(prod => tieneCostoPrevio(prod.id, alm.id, d(year, month, dia)));
+      const sel = selectConStock(rng, disponiblesPorFecha, cfg.productosAltaRotacion, rng.int(1, 3), alm.id, 1);
       if (sel.length === 0) continue;
       const items = sel.map(prod => ({ prod, qty: rng.int(1, Math.min(3, Math.max(1, Math.floor(getExist(prod.id, alm.id)))) ) }));
       const subtotal = round2(items.reduce((s, it) => s + it.qty * it.prod.precio, 0));
@@ -865,6 +998,85 @@ async function generarPagosClientes(c: PoolClient, factIds: number[]) {
   console.log(`    ✓ ${cobros} cobros de cliente generados`);
 }
 
+async function generarTesoreriaIndependiente(c: PoolClient, cfg: Config, rng: SeededRng, meses: [number, number][]) {
+  const total = cfg.tesoreriaDepositos + cfg.tesoreriaRetiros;
+  if (total === 0) return { ids: [] as number[], conciliacion: [] as number[] };
+  const ids: number[] = [];
+  const fechas: string[] = [];
+  for (let i = 0; i < total; i++) {
+    const [year, month] = meses[rng.int(0, meses.length - 1)] as [number, number];
+    const dia = diaSeguro(year, month, 2, Math.min(diasEnMes(year, month) - 1, 27), rng);
+    if (dia !== null) fechas.push(d(year, month, dia));
+  }
+  fechas.sort();
+  for (let i = 0; i < fechas.length; i++) {
+    const esDeposito = i < cfg.tesoreriaDepositos;
+    const estado = i < cfg.tesoreriaConciliados || i < cfg.tesoreriaCotejados ? 'cotejado' : 'pendiente';
+    const id = await insertarTesoreriaIndependiente(c, {
+      cuentaId: CUENTAS_IDS[i % CUENTAS_IDS.length] as number,
+      fecha: fechas[i] as string,
+      tipo: esDeposito ? 'Deposito' : 'Retiro',
+      monto: rng.int(500, 15000),
+      conceptoId: esDeposito ? CONCEPTO_VENTA : CONCEPTO_COMPRA,
+      referencia: `${SEED_MARKER}:TES-${String(i + 1).padStart(4, '0')}`,
+      observaciones: `${SEED_MARKER} Tesorería independiente`,
+      estado,
+    });
+    ids.push(id);
+  }
+  return { ids, conciliacion: ids.slice(0, Math.min(cfg.tesoreriaConciliados, ids.length)) };
+}
+
+async function generarTransferenciasTesoreria(c: PoolClient, cfg: Config, rng: SeededRng, meses: [number, number][]) {
+  for (let i = 0; i < cfg.tesoreriaTransferencias; i++) {
+    const origenId = CUENTAS_IDS[i % CUENTAS_IDS.length] as number;
+    const destinoId = CUENTAS_IDS[(i + 1) % CUENTAS_IDS.length] as number;
+    if (origenId === destinoId) throw new Error('No hay cuentas distintas para generar transferencias');
+    const [year, month] = meses[rng.int(0, meses.length - 1)] as [number, number];
+    const dia = diaSeguro(year, month, 2, Math.min(diasEnMes(year, month) - 1, 27), rng);
+    if (dia === null) continue;
+    const fecha = limitarFecha(d(year, month, dia));
+    const monto = rng.int(1000, 10000);
+    const obs = `${SEED_MARKER} Transferencia tesorería`;
+    const ref = `${SEED_MARKER}:TR-${String(i + 1).padStart(4, '0')}`;
+    const ids = [origenId, destinoId].sort((a, b) => a - b);
+    const cuentas = await c.query<{ id: number; saldo: number }>(
+      `SELECT id, saldo FROM finanzas_cuentas WHERE empresa_id=$1 AND id=ANY($2::int[]) FOR UPDATE`, [EMPRESA_ID, ids]);
+    if (cuentas.rows.length !== 2) throw new Error('Cuenta origen o destino no encontrada');
+    const origen = cuentas.rows.find(x => x.id === origenId)!;
+    const destino = cuentas.rows.find(x => x.id === destinoId)!;
+    if (Number(origen.saldo) < monto) continue;
+    const tr = await c.query<{ id: number }>(
+      `INSERT INTO finanzas_transferencias(empresa_id,cuenta_origen_id,cuenta_destino_id,monto,fecha,referencia,observaciones)
+       VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING id`, [EMPRESA_ID, origenId, destinoId, monto, fecha, ref, obs]);
+    const trId = tr.rows[0].id;
+    await c.query(`INSERT INTO finanzas_operaciones(empresa_id,cuenta_id,fecha,tipo_movimiento,monto,referencia,observaciones,es_transferencia,transferencia_id,estado_conciliacion,saldo)
+      VALUES($1,$2,$3,'Retiro',$4,$5,$6,true,$7,'pendiente',$8),($1,$9,$3,'Deposito',$4,$5,$6,true,$7,'pendiente',$10)`,
+      [EMPRESA_ID, origenId, fecha, monto, ref, obs, trId, Number(origen.saldo) - monto, destinoId, Number(destino.saldo) + monto]);
+    await c.query(`UPDATE finanzas_cuentas SET saldo=$1 WHERE id=$2`, [Number(origen.saldo) - monto, origenId]);
+    await c.query(`UPDATE finanzas_cuentas SET saldo=$1 WHERE id=$2`, [Number(destino.saldo) + monto, destinoId]);
+  }
+}
+
+async function cerrarConciliacionSeed(c: PoolClient, cuentaId: number, fechaCorte: string) {
+  const cuenta = await c.query<{ saldo_inicial: number }>(`SELECT saldo_inicial FROM finanzas_cuentas WHERE id=$1 AND empresa_id=$2 FOR UPDATE`, [cuentaId, EMPRESA_ID]);
+  if (!cuenta.rows[0]) throw new Error('Cuenta no encontrada para conciliación seed');
+  const ops = await c.query<{ id: number; tipo_movimiento: string; monto: number }>(
+    `SELECT id,tipo_movimiento,monto FROM finanzas_operaciones WHERE cuenta_id=$1 AND empresa_id=$2 AND fecha <= $3 AND estado_conciliacion='cotejado' FOR UPDATE`, [cuentaId, EMPRESA_ID, fechaCorte]);
+  if (!ops.rows.length) return;
+  const dep = ops.rows.filter(x => x.tipo_movimiento === 'Deposito').reduce((s, x) => s + Number(x.monto), 0);
+  const ret = ops.rows.filter(x => x.tipo_movimiento === 'Retiro').reduce((s, x) => s + Number(x.monto), 0);
+  const saldo = Number(cuenta.rows[0].saldo_inicial) + dep - ret;
+  const sistema = await c.query<{ saldo: number }>(`SELECT $1 + COALESCE(SUM(CASE WHEN tipo_movimiento='Deposito' THEN monto ELSE -monto END),0) AS saldo FROM finanzas_operaciones WHERE cuenta_id=$2 AND empresa_id=$3 AND fecha <= $4`, [cuenta.rows[0].saldo_inicial, cuentaId, EMPRESA_ID, fechaCorte]);
+  const con = await c.query<{ id: number }>(`INSERT INTO finanzas_conciliaciones(empresa_id,cuenta_id,fecha_corte,saldo_banco,saldo_sistema,diferencia,saldo_conciliado_anterior,total_depositos_cotejados,total_retiros_cotejados,saldo_conciliado_calculado,observaciones,usuario_id)
+    VALUES($1,$2,$3,$4,$5,0,0,$6,$7,$8,$9,$10) RETURNING id`, [EMPRESA_ID, cuentaId, fechaCorte, saldo, sistema.rows[0].saldo, dep, ret, saldo, `${SEED_MARKER} Conciliación seed`, USUARIO_ID]);
+  const concId = con.rows[0].id;
+  const ids = ops.rows.map(x => x.id);
+  await c.query(`UPDATE finanzas_operaciones SET estado_conciliacion='conciliado' WHERE id=ANY($1::int[]) AND empresa_id=$2`, [ids, EMPRESA_ID]);
+  await c.query(`INSERT INTO finanzas_conciliaciones_operaciones(conciliacion_id,operacion_id) SELECT $1,id FROM finanzas_operaciones WHERE id=ANY($2::int[]) ON CONFLICT DO NOTHING`, [concId, ids]);
+  await c.query(`UPDATE finanzas_cuentas SET saldo_conciliado=$1,fecha_ultima_conciliacion=$2 WHERE id=$3 AND empresa_id=$4`, [saldo, fechaCorte, cuentaId, EMPRESA_ID]);
+}
+
 async function cleanupSeed(c: PoolClient) {
   const ids = `(SELECT id FROM documentos WHERE empresa_id=$1 AND observaciones=$2)`;
   const existing = await c.query(`SELECT count(*)::int AS n FROM documentos WHERE empresa_id=$1 AND observaciones=$2`, [EMPRESA_ID, SEED_MARKER]);
@@ -880,7 +1092,7 @@ async function cleanupSeed(c: PoolClient) {
   await c.query(`DELETE FROM inventario.movimientos WHERE empresa_id=$1 AND observaciones LIKE $2`, [EMPRESA_ID, `${SEED_MARKER}%`]);
 }
 
-async function resolveRuntime(c: PoolClient, seed: string) {
+async function resolveRuntime(c: PoolClient, seed: string, cfg?: Config) {
   SEED_MARKER = `SEED:EMPHASYS-DEMO-8:${seed}`;
   const user = await c.query<{ id: number }>(`SELECT id FROM core.usuarios WHERE activo=true ORDER BY id LIMIT 1`);
   if (!user.rows[0]) throw new Error('No existe usuario activo para el seed');
@@ -888,6 +1100,9 @@ async function resolveRuntime(c: PoolClient, seed: string) {
   const cuenta = await c.query<{ id: number }>(`SELECT id FROM finanzas_cuentas WHERE empresa_id=$1 AND cuenta_cerrada=false ORDER BY id LIMIT 1`, [EMPRESA_ID]);
   if (!cuenta.rows[0]) throw new Error('No existe cuenta bancaria activa para empresa 8');
   CUENTA_ID = cuenta.rows[0].id;
+  const cuentas = await c.query<{ id: number }>(`SELECT id FROM finanzas_cuentas WHERE empresa_id=$1 AND cuenta_cerrada=false ORDER BY id`, [EMPRESA_ID]);
+  CUENTAS_IDS = cuentas.rows.map(row => row.id);
+  if (CUENTAS_IDS.length < 2 && (cfg?.tesoreriaTransferencias ?? 0) > 0) throw new Error('Se requieren al menos dos cuentas activas para la tesorería solicitada');
   // La tasa se almacena como porcentaje (16.0000), no como fracción (0.16).
   const impuesto = await c.query<{ id: string }>(`SELECT id FROM impuestos WHERE tasa=$1 AND activo=true ORDER BY id LIMIT 1`, [IVA_TASA * 100]);
   if (!impuesto.rows[0]) throw new Error('No existe impuesto activo con tasa 16%');
@@ -899,21 +1114,25 @@ async function resolveRuntime(c: PoolClient, seed: string) {
   CONCEPTO_VENTA = venta.id; CONCEPTO_COMPRA = compra.id;
 }
 
+
 // ─── Ajustes de inventario ───────────────────────────────────
 
 async function generarAjustes(
-  c: PoolClient, rng: SeededRng, meses: [number, number][],
+  c: PoolClient, rng: SeededRng, meses: [number, number][], cantidad: number,
   almacenes: Almacen[], productos: Producto[],
 ) {
   const almGral = almacenes[0] as Almacen;
-  const numAjustes = Math.max(8, Math.ceil(meses.length * 1.5));
+  const numAjustes = cantidad > 0 ? cantidad : Math.max(8, Math.ceil(meses.length * 1.5));
   let creados = 0;
 
   for (let i = 0; i < numAjustes; i++) {
     const mes    = meses[rng.int(1, meses.length - 1)] as [number, number]; // evitar primer mes
     const [year, month] = mes;
     const dia    = diaSeguro(year, month, 20, Math.min(diasEnMes(year, month) - 1, 28), rng); if (dia === null) continue;
-    const prod   = productos[rng.int(0, productos.length - 1)] as Producto;
+    const fechaAjuste = d(year, month, dia);
+    const productosConCosto = productos.filter(p => tieneCostoPrevio(p.id, almGral.id, fechaAjuste));
+    if (productosConCosto.length === 0) continue;
+    const prod   = productosConCosto[rng.int(0, productosConCosto.length - 1)] as Producto;
     const esEntrada = rng.next() < 0.40;
 
     if (esEntrada) {
@@ -953,7 +1172,7 @@ async function generarTraspasos(
     const [year, month] = mes;
     const dia  = diaSeguro(year, month, 3, Math.min(diasEnMes(year, month) - 1, 20), rng); if (dia === null) continue;
     // Producto con stock en GRAL
-    const conStock = productos.filter(p => getExist(p.id, almGral.id) >= 10);
+    const conStock = productos.filter(p => getExist(p.id, almGral.id) >= 10 && tieneCostoPrevio(p.id, almGral.id, d(year, month, dia)));
     if (conStock.length === 0) continue;
     const prod = conStock[rng.int(0, conStock.length - 1)] as Producto;
     const stockDisp = getExist(prod.id, almGral.id);
@@ -973,16 +1192,18 @@ async function generarTraspasos(
 
 async function generarDocumentosPendientes(
   c: PoolClient, rng: SeededRng, meses: [number, number][],
-  almacenes: Almacen[], proveedores: Contacto[], clientes: Contacto[], productos: Producto[],
+  almacenes: Almacen[], proveedores: Contacto[], clientes: Contacto[], productos: Producto[], cfg: Config,
 ) {
-  const N = 8;
+  const N_OC = cfg.ordenesCompra;
+  const N_PED = cfg.pedidos;
+  const N_REM = cfg.remisiones;
   const almGral = almacenes[0] as Almacen;
   // Usar los 2 últimos meses del rango
   const mesesRecientes = meses.slice(Math.max(0, meses.length - 2));
   let ocCount = 0, pedCount = 0, remCount = 0;
 
   // Órdenes de compra pendientes
-  for (let i = 0; i < N; i++) {
+  for (let i = 0; i < N_OC; i++) {
     const [year, month] = mesesRecientes[i % mesesRecientes.length] as [number, number];
     const dia      = diaSeguro(year, month, 5, Math.min(diasEnMes(year, month) - 3, 25), rng); if (dia === null) continue;
     const fechaDoc = d(year, month, dia);
@@ -1014,7 +1235,7 @@ async function generarDocumentosPendientes(
   }
 
   // Pedidos de clientes pendientes
-  for (let i = 0; i < N; i++) {
+  for (let i = 0; i < N_PED; i++) {
     const [year, month] = mesesRecientes[i % mesesRecientes.length] as [number, number];
     const dia      = diaSeguro(year, month, 5, Math.min(diasEnMes(year, month) - 3, 25), rng); if (dia === null) continue;
     const fechaDoc = d(year, month, dia);
@@ -1046,7 +1267,7 @@ async function generarDocumentosPendientes(
   }
 
   // Remisiones pendientes de facturar
-  for (let i = 0; i < N; i++) {
+  for (let i = 0; i < N_REM; i++) {
     const [year, month] = mesesRecientes[i % mesesRecientes.length] as [number, number];
     const dia      = diaSeguro(year, month, 10, Math.min(diasEnMes(year, month) - 1, 28), rng); if (dia === null) continue;
     const fechaDoc = d(year, month, dia);
@@ -1097,6 +1318,52 @@ async function actualizarSaldos(c: PoolClient) {
        AND d.tipo_documento IN ('factura','factura_compra')
   `, [EMPRESA_ID]);
   console.log('    ✓ Saldos recalculados');
+}
+
+async function validarFechasGeneradas(c: PoolClient) {
+  const checks: Array<[string, string, string]> = [
+    ['documentos.fecha_documento',
+      `SELECT 1 FROM documentos WHERE empresa_id=$1 AND observaciones=$2 AND fecha_documento > $3 LIMIT 1`, 'documentos.fecha_documento'],
+    ['documentos.fecha_vencimiento',
+      `SELECT 1 FROM documentos WHERE empresa_id=$1 AND observaciones=$2 AND fecha_vencimiento > $3 LIMIT 1`, 'documentos.fecha_vencimiento'],
+    ['finanzas_operaciones.fecha',
+      `SELECT 1 FROM finanzas_operaciones fo WHERE fo.empresa_id=$1 AND EXISTS (SELECT 1 FROM documentos d WHERE d.id=fo.documento_origen_id AND d.empresa_id=$1 AND d.observaciones=$2) AND fo.fecha > $3 LIMIT 1`, 'finanzas_operaciones.fecha'],
+    ['finanzas_transferencias.fecha',
+      `SELECT 1 FROM finanzas_transferencias WHERE empresa_id=$1 AND observaciones LIKE $2 AND fecha > $3 LIMIT 1`, 'finanzas_transferencias.fecha'],
+    ['finanzas_conciliaciones.fecha_corte',
+      `SELECT 1 FROM finanzas_conciliaciones WHERE empresa_id=$1 AND observaciones LIKE $2 AND fecha_corte > $3 LIMIT 1`, 'finanzas_conciliaciones.fecha_corte'],
+    ['inventario.movimientos.fecha',
+      `SELECT 1 FROM inventario.movimientos WHERE empresa_id=$1 AND observaciones LIKE $2 AND fecha > ($3::date + interval '1 day') LIMIT 1`, 'inventario.movimientos.fecha'],
+    ['inventario.movimientos_partidas.fecha_movimiento',
+      `SELECT 1 FROM inventario.movimientos_partidas mp JOIN inventario.movimientos m ON m.id=mp.movimiento_id WHERE mp.empresa_id=$1 AND m.empresa_id=$1 AND m.observaciones LIKE $2 AND mp.fecha_movimiento > $3 LIMIT 1`, 'inventario.movimientos_partidas.fecha_movimiento'],
+  ];
+  for (const [, sql, nombre] of checks) {
+    const params = nombre === 'inventario.movimientos.fecha' || nombre === 'inventario.movimientos_partidas.fecha_movimiento'
+      || nombre === 'finanzas_transferencias.fecha' || nombre === 'finanzas_conciliaciones.fecha_corte'
+      ? [EMPRESA_ID, `${SEED_MARKER}%`, FECHA_HASTA]
+      : [EMPRESA_ID, SEED_MARKER, FECHA_HASTA];
+    const { rows } = await c.query(sql, params);
+    if (rows.length > 0) throw new Error(`Validación de fechas fallida: ${nombre} posterior a ${FECHA_HASTA}`);
+  }
+}
+
+async function validarTesoreriaGenerada(c: PoolClient) {
+  const { rows: ops } = await c.query<{ id: number; cuenta_id: number; saldo: number; tipo_movimiento: string; monto: number; estado_conciliacion: string }>(
+    `SELECT id,cuenta_id,saldo,tipo_movimiento,monto,estado_conciliacion FROM finanzas_operaciones WHERE empresa_id=$1 AND observaciones LIKE $2`, [EMPRESA_ID, `${SEED_MARKER}%`]);
+  const { rows: diferencias } = await c.query(
+    `SELECT fc.id FROM finanzas_cuentas fc WHERE fc.empresa_id=$1 AND ABS(fc.saldo - (fc.saldo_inicial + COALESCE((SELECT SUM(CASE WHEN tipo_movimiento='Deposito' THEN monto ELSE -monto END) FROM finanzas_operaciones fo WHERE fo.empresa_id=$1 AND fo.cuenta_id=fc.id),0))) > 0.01`, [EMPRESA_ID]);
+  if (diferencias.length) throw new Error(`Saldos bancarios inconsistentes en ${diferencias.length} cuentas`);
+  const { rows: transferencias } = await c.query<{ id: number; n: string }>(
+    `SELECT ft.id,COUNT(fo.id)::text n FROM finanzas_transferencias ft LEFT JOIN finanzas_operaciones fo ON fo.transferencia_id=ft.id AND fo.empresa_id=ft.empresa_id WHERE ft.empresa_id=$1 AND ft.observaciones LIKE $2 GROUP BY ft.id HAVING COUNT(fo.id)<>2`, [EMPRESA_ID, `${SEED_MARKER}%`]);
+  if (transferencias.length) throw new Error('Hay transferencias seed sin exactamente dos operaciones');
+  if (ops.some(op => !['pendiente', 'cotejado', 'conciliado'].includes(String(op.estado_conciliacion)))) throw new Error('Estado de conciliación inválido en tesorería seed');
+}
+
+async function validarSaldosIniciales(c: PoolClient) {
+  const { rows } = await c.query(
+    `SELECT fc.id FROM finanzas_cuentas fc
+      WHERE fc.empresa_id=$1 AND ABS(fc.saldo - (fc.saldo_inicial + COALESCE((SELECT SUM(CASE WHEN tipo_movimiento='Deposito' THEN monto ELSE -monto END) FROM finanzas_operaciones fo WHERE fo.empresa_id=$1 AND fo.cuenta_id=fc.id),0))) > 0.01`, [EMPRESA_ID]);
+  if (rows.length) throw new Error(`Saldos bancarios preexistentes inconsistentes en ${rows.length} cuentas; no se generaron datos`);
 }
 
 // ─── Validaciones ────────────────────────────────────────────
@@ -1296,13 +1563,30 @@ async function imprimirResumen(c: PoolClient, cfg: Config, meses: [number, numbe
   console.log(sep);
 }
 
+async function imprimirResumenGeneracion(c: PoolClient, cfg: Config) {
+  const { rows } = await c.query<{ tipo: string; n: string }>(`SELECT tipo_documento AS tipo,COUNT(*)::text AS n FROM documentos WHERE empresa_id=$1 AND observaciones=$2 GROUP BY tipo_documento ORDER BY tipo_documento`, [EMPRESA_ID, SEED_MARKER]);
+  const { rows: movimientos } = await c.query<{ n: string }>(`SELECT COUNT(*)::text AS n FROM inventario.movimientos WHERE empresa_id=$1 AND observaciones LIKE $2`, [EMPRESA_ID, `${SEED_MARKER}%`]);
+  const { rows: ops } = await c.query<{ n: string }>(`SELECT COUNT(*)::text AS n FROM finanzas_operaciones WHERE empresa_id=$1 AND observaciones LIKE $2`, [EMPRESA_ID, `${SEED_MARKER}%`]);
+  const { rows: trs } = await c.query<{ n: string }>(`SELECT COUNT(*)::text AS n FROM finanzas_transferencias WHERE empresa_id=$1 AND observaciones LIKE $2`, [EMPRESA_ID, `${SEED_MARKER}%`]);
+  console.log('\n📊  Resumen de generación');
+  for (const row of rows) console.log(`    ${row.tipo}: ${row.n} generados`);
+  console.log(`    movimientos inventario: ${movimientos[0]?.n ?? 0}`);
+  console.log(`    operaciones tesorería: ${ops[0]?.n ?? 0}`);
+  console.log(`    transferencias: ${trs[0]?.n ?? 0} (${cfg.tesoreriaTransferencias} solicitadas)`);
+  console.log(`    notas de venta solicitadas: ${cfg.notasVenta}; órdenes: ${cfg.ordenesCompra}; pedidos: ${cfg.pedidos}; remisiones: ${cfg.remisiones}; ajustes solicitados: ${cfg.ajustes || 'automático'}`);
+}
+
 // ─── MAIN ────────────────────────────────────────────────────
 
 async function main() {
   const cfg   = parseCLI();
-  FECHA_HASTA = cfg.hasta;
+  const hoy = hoyMexico();
+  const hastaSolicitada = cfg.hasta;
+  validarConfig(cfg, generarMeses(cfg.desde, cfg.hasta), hoy);
+  FECHA_HASTA = hastaSolicitada < hoy ? hastaSolicitada : hoy;
+  cfg.hasta = FECHA_HASTA;
   const meses = generarMeses(cfg.desde, cfg.hasta);
-  validarConfig(cfg, meses);
+  if (hastaSolicitada > hoy) console.warn(`⚠️  --hasta=${hastaSolicitada} es futura; se limitará a ${FECHA_HASTA} (${ZONA_MEXICO})`);
 
   // Exponer cfg.productosAltaRotacion a generarDocumentosPendientes
   cfg_altaRot_placeholder = cfg.productosAltaRotacion;
@@ -1313,13 +1597,15 @@ async function main() {
   console.log(`    Periodo: ${cfg.desde} → ${cfg.hasta} (${meses.length} meses)`);
   console.log(`    Compras: ${cfg.compras} | Ventas: ${cfg.ventas} | Min movs/prod: ${cfg.minMovimientosPorProducto}`);
   console.log(`    Alta rotación: top ${cfg.productosAltaRotacion} productos | Seed: ${cfg.seed}`);
+  console.log(`    Tesorería: ${cfg.tesoreriaDepositos} depósitos | ${cfg.tesoreriaRetiros} retiros | ${cfg.tesoreriaTransferencias} transferencias | ${cfg.tesoreriaCotejados} cotejados | ${cfg.tesoreriaConciliados} conciliados`);
   console.log(`    Limpiar: ${cfg.limpiar}`);
   console.log('─'.repeat(60));
 
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    await resolveRuntime(client, cfg.seed);
+    await client.query(`SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`, [`tesoreria-seed:${EMPRESA_ID}:${cfg.seed}`]);
+    await resolveRuntime(client, cfg.seed, cfg);
 
     if (cfg.limpiar) {
       throw new Error('--limpiar=true está deshabilitado: este generador no elimina datos. Use el procedimiento de depuración autorizado antes de repetirlo.');
@@ -1330,6 +1616,11 @@ async function main() {
         throw new Error(`Ya existen ${rows[0].n} documentos de este seed; se aborta para no duplicar datos.`);
       }
     }
+    const { rows: existingTreasury } = await client.query(`SELECT 1 FROM finanzas_operaciones WHERE empresa_id=$1 AND observaciones LIKE $2 LIMIT 1`, [EMPRESA_ID, `${SEED_MARKER}%`]);
+    if (existingTreasury.length) throw new Error('Ya existen operaciones de tesorería de este seed; se aborta para evitar duplicados.');
+    await validarSaldosIniciales(client);
+
+    await cargarEstadoInventario(client);
 
     console.log('\n📦  Creando catálogos...');
     const almacenes   = await crearAlmacenes(client);
@@ -1347,7 +1638,7 @@ async function main() {
     const factVentasIds = await generarVentas(client, cfg, rng, meses, almacenes, clientes, productos);
 
     console.log('\n🧾  Generando notas de venta (Emitidas, sin CFDI)...');
-    const notaVentaIds = await generarNotasVenta(client, cfg, rng, meses, almacenes, clientes, productos);
+    const notaVentaIds = await generarNotasVenta(client, cfg, rng, meses, almacenes, clientes, productos, cfg.notasVenta);
 
     console.log('\n🔄  Garantizando movimientos mínimos por producto...');
     await generarMovimientosGarantizados(client, cfg, rng, meses, almacenes, proveedores, clientes, productos);
@@ -1356,22 +1647,33 @@ async function main() {
     await generarPagosProveedores(client, factComprasIds);
     // Las facturas estándar quedan en Borrador; los cobros solo aplican a notas de venta.
     await generarPagosClientes(client, notaVentaIds);
+    console.log('\n🏦  Generando tesorería independiente y transferencias...');
+    const tesoreria = await generarTesoreriaIndependiente(client, cfg, rng, meses);
+    await generarTransferenciasTesoreria(client, cfg, rng, meses);
+    if (tesoreria.conciliacion.length) {
+      const rows = await client.query<{ cuenta_id: number; fecha: string }>(`SELECT cuenta_id,MAX(fecha)::text AS fecha FROM finanzas_operaciones WHERE id=ANY($1::int[]) GROUP BY cuenta_id`, [tesoreria.conciliacion]);
+      for (const row of rows.rows) await cerrarConciliacionSeed(client, row.cuenta_id, row.fecha);
+    }
 
     console.log('\n⚖️   Generando ajustes y traspasos...');
-    await generarAjustes(client, rng, meses, almacenes, productos);
+    await generarAjustes(client, rng, meses, cfg.ajustes, almacenes, productos);
     await generarTraspasos(client, rng, meses, almacenes, productos);
 
     console.log('\n📋  Generando documentos pendientes (OC / Pedidos / Remisiones)...');
-    await generarDocumentosPendientes(client, rng, meses, almacenes, proveedores, clientes, productos);
+    await generarDocumentosPendientes(client, rng, meses, almacenes, proveedores, clientes, productos, cfg);
 
     console.log('\n🔄  Recalculando saldos...');
     await actualizarSaldos(client);
+
+    await validarFechasGeneradas(client);
+    await validarTesoreriaGenerada(client);
 
     await client.query('COMMIT');
     console.log('\n✅  Transacción confirmada');
 
     await validarConsistencia(client, productos, cfg);
     await imprimirResumen(client, cfg, meses, productos);
+    await imprimirResumenGeneracion(client, cfg);
 
   } catch (err) {
     await client.query('ROLLBACK');
@@ -1384,4 +1686,15 @@ async function main() {
   }
 }
 
-main();
+export {
+  addDays,
+  esFechaCivilReal,
+  hoyMexico,
+  limitarFecha,
+  establecerFechaMaxima,
+  cargarEstadoInventario,
+  getExist,
+  validarConfig,
+};
+
+if (require.main === module) main();

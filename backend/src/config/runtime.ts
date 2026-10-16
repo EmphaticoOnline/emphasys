@@ -28,12 +28,16 @@ const envPath = path.join(projectRoot, ".env");
 
 if (envPath && fs.existsSync(envPath)) dotenv.config({ path: envPath });
 
-const defaultDb = dbTarget === "local"
+const tunnelHost = process.env.SEED_DB_HOST;
+const tunnelPort = process.env.SEED_DB_PORT ? Number(process.env.SEED_DB_PORT) : undefined;
+const defaultDb = tunnelHost && tunnelPort
+  ? { host: tunnelHost, port: tunnelPort }
+  : dbTarget === "local"
   ? { host: "127.0.0.1", port: 5432 }
   : { host: "127.0.0.1", port: dbTarget === "server" ? 15432 : 5432 };
-const databaseName = dbTarget === "local"
+const databaseName = process.env.SEED_DB_NAME || (dbTarget === "local"
   ? "dev_emphasys"
-  : (process.env.DB_NAME || "emphasys");
+  : (process.env.DB_NAME || "emphasys"));
 
 export const runtimeConfig = {
   appEnv,

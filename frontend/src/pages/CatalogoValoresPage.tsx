@@ -41,7 +41,10 @@ import type { GridContextMenuAction } from '../components/grids/GridContextMenu'
 import { SHOW_GRID_ACTIONS } from '../components/grids/gridUxFlags';
 import { STANDARD_DATA_GRID_HEADER_HEIGHT, STANDARD_DATA_GRID_ROW_HEIGHT, standardDataGridSx } from '../components/grids/standardDataGridSx';
 import { useGridContextMenu } from '../hooks/useGridContextMenu';
-import { ConfigPageFrame, ConfigPageHeader, ConfigSurface } from '../components/configuracion/configVisual';
+import { ConfigPageFrame, ConfigPageHeader } from '../components/configuracion/configVisual';
+import { Switch, Tooltip } from '@mui/material';
+import { ArrowBackRounded } from '@mui/icons-material';
+import { ControlLabel, PanelBar, PatternDialogHeader, Section, actionIconSx, dialogContentSx, dialogPaperSx, dialogTitleSx, editorialDataGridSx, fieldsOnIvorySx, formWellSx, innerDestructiveButtonSx, innerOutlinedButtonSx, rowIconSx, wellSx } from '../components/transporte/transporteVisual';
 
 function useTipoCatalogo(tipoId: number | null) {
   const [tipo, setTipo] = useState<{ id: number; nombre: string | null; entidad_tipo_id: number; entidad_tipo_codigo: string | null } | null>(null);
@@ -383,12 +386,9 @@ export default function CatalogoValoresPage() {
         headerName: 'Activo',
         width: 120,
         renderCell: (params: GridRenderCellParams<CatalogoValor>) => (
-          <Chip
-            size="small"
-            label={params.row.activo ? 'Activo' : 'Inactivo'}
-            color={params.row.activo ? 'success' : 'default'}
-            variant={params.row.activo ? 'filled' : 'outlined'}
-          />
+          <Tooltip title={params.row.activo ? 'Desactivar' : 'Activar'}>
+            <Switch size="small" checked={Boolean(params.row.activo)} onChange={() => handleToggleActivo(params.row)} />
+          </Tooltip>
         ),
       },
       {
@@ -398,16 +398,17 @@ export default function CatalogoValoresPage() {
         sortable: false,
         filterable: false,
         renderCell: (params: GridRenderCellParams<CatalogoValor>) => (
-          <Stack direction="row" spacing={1} alignItems="center">
-            <IconButton size="small" onClick={() => handleToggleActivo(params.row)} color={params.row.activo ? 'success' : 'default'}>
-              {params.row.activo ? <ToggleOnIcon fontSize="small" /> : <ToggleOffIcon fontSize="small" />}
-            </IconButton>
-            <IconButton size="small" color="primary" onClick={() => openEdit(params.row)}>
-              <EditIcon fontSize="small" />
-            </IconButton>
-            <IconButton size="small" color="error" onClick={() => openDeleteConfirm(params.row)}>
-              <DeleteIcon fontSize="small" />
-            </IconButton>
+          <Stack direction="row" spacing={0.5} alignItems="center">
+            <Tooltip title="Editar">
+              <IconButton size="small" sx={rowIconSx} onClick={() => openEdit(params.row)}>
+                <EditIcon sx={{ fontSize: 17 }} />
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="Eliminar">
+              <IconButton size="small" sx={rowIconSx} onClick={() => openDeleteConfirm(params.row)}>
+                <DeleteIcon sx={{ fontSize: 17 }} />
+              </IconButton>
+            </Tooltip>
           </Stack>
         ),
       },
@@ -498,8 +499,7 @@ export default function CatalogoValoresPage() {
 
   return (
     <ConfigPageFrame>
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <ConfigPageHeader title={loadingTipo ? 'Cargando…' : tituloCatalogo || 'Catálogo configurable'} description="Administra los valores del catálogo." actions={<Stack direction="row" spacing={1}><Button variant="outlined" onClick={() => navigate(-1)}>Volver</Button><Button variant="contained" onClick={openCreate} disabled={!tipoId} startIcon={<AddIcon />}>Nuevo</Button></Stack>} />
+      <ConfigPageHeader eyebrow="Catálogos configurables" title={loadingTipo ? 'Cargando…' : tituloCatalogo || 'Catálogo configurable'} description="Administra los valores del catálogo." actions={<Stack direction="row" spacing={0.5}><Tooltip title="Volver"><IconButton size="small" sx={actionIconSx} onClick={() => navigate(-1)}><ArrowBackRounded fontSize="small" /></IconButton></Tooltip><Tooltip title="Nuevo"><span><IconButton size="small" sx={actionIconSx} onClick={openCreate} disabled={!tipoId}><AddIcon fontSize="small" /></IconButton></span></Tooltip></Stack>} />
       <Box>
           {esClasificacionComercialContacto ? (
             <Typography variant="body2" sx={(theme) => ({ color: theme.emphasys.action.info })}>
@@ -515,9 +515,8 @@ export default function CatalogoValoresPage() {
 
       {error ? <Alert severity="error">{error}</Alert> : null}
 
-      <ConfigSurface
-        sx={{ width: '100%', '& .MuiDataGrid-root': { border: 'none' } }}
-      >
+      <Box sx={wellSx}>
+        <PanelBar title="Valores del catálogo" meta={`${rows.length} ${rows.length === 1 ? 'registro' : 'registros'}`} />
         <DataGrid
           rows={rows}
           columns={columns}
@@ -535,14 +534,10 @@ export default function CatalogoValoresPage() {
           localeText={{ noRowsLabel: loading ? 'Cargando…' : 'Sin registros' }}
           sx={[
             standardDataGridSx,
-            {
-              '& .MuiDataGrid-cell': {
-                borderBottom: '1px solid #f0f1f3',
-              },
-            },
+            editorialDataGridSx,
           ]}
         />
-      </ConfigSurface>
+      </Box>
 
       <GridContextMenu
         actions={contextMenuActions}
@@ -551,26 +546,53 @@ export default function CatalogoValoresPage() {
         onClose={closeContextMenu}
       />
 
-      <Dialog open={confirmDeleteOpen} onClose={handleCloseDeleteConfirm} maxWidth="xs" fullWidth>
-        <DialogTitle>Eliminar valor</DialogTitle>
-        <DialogContent>
-          <Typography>
-            ¿Eliminar "{toDelete?.descripcion || 'este elemento'}" del catálogo?
-          </Typography>
+      <Dialog open={confirmDeleteOpen} onClose={handleCloseDeleteConfirm} maxWidth="xs" fullWidth PaperProps={{ sx: dialogPaperSx }}>
+        <DialogTitle component="div" sx={dialogTitleSx}>
+          <ConfigPageHeader eyebrow="Catálogos configurables" title="Eliminar valor" />
+        </DialogTitle>
+        <DialogContent sx={dialogContentSx}>
+          <Box sx={formWellSx}>
+            <Typography sx={(theme) => ({ px: 0.5, fontSize: 14, color: theme.emphasys.content.foreground })}>
+              ¿Eliminar "{toDelete?.descripcion || 'este elemento'}" del catálogo?
+            </Typography>
+          </Box>
         </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={handleCloseDeleteConfirm} color="inherit" variant="outlined">
+        <DialogActions sx={{ px: { xs: 1.5, md: 2.25 }, pb: 2 }}>
+          <Button onClick={handleCloseDeleteConfirm} variant="outlined" sx={innerOutlinedButtonSx}>
             No eliminar
           </Button>
-          <Button onClick={handleDelete} color="error" variant="contained">
+          <Button onClick={handleDelete} variant="contained" disableElevation sx={innerDestructiveButtonSx}>
             Eliminar
           </Button>
         </DialogActions>
       </Dialog>
 
-      <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>{editing ? 'Editar valor' : 'Nuevo valor'}</DialogTitle>
-        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
+      <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="sm" fullWidth PaperProps={{ sx: dialogPaperSx }}>
+        <DialogTitle component="div" sx={dialogTitleSx}>
+          <PatternDialogHeader
+            eyebrow={tituloCatalogo || 'Catálogo configurable'}
+            title={editing ? 'Editar valor' : 'Nuevo valor'}
+            onCancel={() => setDialogOpen(false)}
+            onSave={handleSave}
+            extra={
+              <FormControlLabel
+                sx={{ mr: 1 }}
+                control={
+                  <Checkbox
+                    size="small"
+                    checked={form.activo}
+                    onChange={(e) => setForm((f) => ({ ...f, activo: e.target.checked }))}
+                  />
+                }
+                label={<ControlLabel>Activo</ControlLabel>}
+              />
+            }
+          />
+        </DialogTitle>
+        <DialogContent sx={dialogContentSx}>
+          <Box sx={(theme) => ({ ...formWellSx(theme), ...fieldsOnIvorySx(theme) })}>
+          <Section title="Valor" inset>
+          <Stack spacing={2} sx={{ pt: 0.5 }}>
           <TextField
             label="Clave"
             value={form.clave}
@@ -626,24 +648,11 @@ export default function CatalogoValoresPage() {
               noOptionsText="No hay listas de precios de venta activas"
             />
           ) : null}
-          <FormControlLabel
-            control={
-              <Checkbox
-                checked={form.activo}
-                onChange={(e) => setForm((f) => ({ ...f, activo: e.target.checked }))}
-              />
-            }
-            label="Activo"
-          />
+          </Stack>
+          </Section>
+          </Box>
         </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={() => setDialogOpen(false)}>Cancelar</Button>
-          <Button variant="contained" onClick={handleSave}>
-            Guardar
-          </Button>
-        </DialogActions>
       </Dialog>
-    </Box>
     </ConfigPageFrame>
   );
 }

@@ -43,7 +43,8 @@ import type { GridContextMenuAction } from '../components/grids/GridContextMenu'
 import { SHOW_GRID_ACTIONS } from '../components/grids/gridUxFlags';
 import { STANDARD_DATA_GRID_HEADER_HEIGHT, STANDARD_DATA_GRID_ROW_HEIGHT, standardDataGridSx } from '../components/grids/standardDataGridSx';
 import { useGridContextMenu } from '../hooks/useGridContextMenu';
-import { ConfigPageFrame, ConfigPageHeader, ConfigSurface } from '../components/configuracion/configVisual';
+import { ConfigPageFrame, ConfigPageHeader } from '../components/configuracion/configVisual';
+import { ControlLabel, PanelBar, PatternDialogHeader, Pill, Section, actionIconSx, dialogContentSx, dialogPaperSx, dialogTitleSx, editorialDataGridSx, fieldsOnIvorySx, formWellSx, innerDestructiveButtonSx, innerOutlinedButtonSx, rowIconSx, wellSx } from '../components/transporte/transporteVisual';
 
 type FormState = {
   nombre: string;
@@ -329,7 +330,7 @@ export default function CamposConfiguracionPage() {
       field: 'obligatorio',
       headerName: 'Obligatorio',
       width: 110,
-      renderCell: (p) => (p.row.obligatorio ? 'Sí' : 'No'),
+      renderCell: (p) => <Pill active={Boolean(p.row.obligatorio)} label={p.row.obligatorio ? 'Sí' : 'No'} />,
       align: 'center',
       headerAlign: 'center',
     },
@@ -337,7 +338,7 @@ export default function CamposConfiguracionPage() {
       field: 'activo',
       headerName: 'Activo',
       width: 90,
-      renderCell: (p) => (p.row.activo ? 'Sí' : 'No'),
+      renderCell: (p) => <Pill active={Boolean(p.row.activo)} label={p.row.activo ? 'Sí' : 'No'} />,
       align: 'center',
       headerAlign: 'center',
     },
@@ -348,15 +349,15 @@ export default function CamposConfiguracionPage() {
       sortable: false,
       filterable: false,
       renderCell: (params: GridRenderCellParams<CampoConfiguracion>) => (
-        <Stack direction="row" spacing={1} alignItems="center">
+        <Stack direction="row" spacing={0.5} alignItems="center">
           <Tooltip title="Editar">
-            <IconButton size="small" color="primary" onClick={() => handleEdit(params.row)}>
-              <EditIcon fontSize="small" />
+            <IconButton size="small" sx={rowIconSx} onClick={() => handleEdit(params.row)}>
+              <EditIcon sx={{ fontSize: 17 }} />
             </IconButton>
           </Tooltip>
           <Tooltip title="Eliminar">
-            <IconButton size="small" color="error" onClick={() => setConfirmDelete(params.row)}>
-              <DeleteIcon fontSize="small" />
+            <IconButton size="small" sx={rowIconSx} onClick={() => setConfirmDelete(params.row)}>
+              <DeleteIcon sx={{ fontSize: 17 }} />
             </IconButton>
           </Tooltip>
         </Stack>
@@ -470,12 +471,12 @@ export default function CamposConfiguracionPage() {
 
   return (
     <ConfigPageFrame>
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <ConfigPageHeader title="Campos configurables" description="Administra los campos dinámicos y sus dependencias." actions={<Button variant="contained" startIcon={<AddIcon />} onClick={handleCreate}>Nuevo campo</Button>} />
+      <ConfigPageHeader title="Campos configurables" description="Administra los campos dinámicos y sus dependencias." actions={<Tooltip title="Nuevo campo"><IconButton size="small" sx={actionIconSx} onClick={handleCreate}><AddIcon fontSize="small" /></IconButton></Tooltip>} />
 
       {error && !dialogOpen ? <Alert severity="error">{error}</Alert> : null}
 
-      <ConfigSurface sx={{ width: '100%', '& .MuiDataGrid-root': { border: 'none' } }}>
+      <Box sx={wellSx}>
+        <PanelBar title="Campos registrados" meta={`${rows.length} ${rows.length === 1 ? 'campo' : 'campos'}`} />
         <DataGrid
           rows={rows}
           columns={columns}
@@ -488,11 +489,11 @@ export default function CamposConfiguracionPage() {
           disableRowSelectionOnClick
           columnVisibilityModel={{ menu: true, actions: SHOW_GRID_ACTIONS }}
           {...(rowSlotProps ? { slotProps: { row: rowSlotProps } } : {})}
-          sx={standardDataGridSx}
+          sx={[standardDataGridSx, editorialDataGridSx]}
           pageSizeOptions={[10, 25, 50, 100]}
           localeText={{ noRowsLabel: loading ? 'Cargando…' : 'Sin registros' }}
         />
-      </ConfigSurface>
+      </Box>
 
       <GridContextMenu
         actions={contextMenuActions}
@@ -501,14 +502,33 @@ export default function CamposConfiguracionPage() {
         onClose={closeContextMenu}
       />
 
-      <Dialog open={dialogOpen} onClose={handleCloseDialog} maxWidth="sm" fullWidth>
-        <DialogTitle>{editing ? 'Editar campo' : 'Nuevo campo'}</DialogTitle>
-        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
+      <Dialog open={dialogOpen} onClose={handleCloseDialog} maxWidth="sm" fullWidth PaperProps={{ sx: dialogPaperSx }}>
+        <DialogTitle component="div" sx={dialogTitleSx}>
+          <PatternDialogHeader
+            eyebrow="Campos configurables"
+            title={editing ? 'Editar campo' : 'Nuevo campo'}
+            onCancel={handleCloseDialog}
+            cancelDisabled={saving}
+            onSave={handleSave}
+            saving={saving}
+            extra={
+              <FormControlLabel
+                sx={{ mr: 1 }}
+                control={<Checkbox size="small" checked={form.activo} onChange={(e) => setForm((f) => ({ ...f, activo: e.target.checked }))} />}
+                label={<ControlLabel>Activo</ControlLabel>}
+              />
+            }
+          />
+        </DialogTitle>
+        <DialogContent sx={dialogContentSx}>
+          <Box sx={(theme) => ({ ...formWellSx(theme), ...fieldsOnIvorySx(theme) })}>
           {formError ? (
             <Alert severity="error" sx={{ position: 'sticky', top: 0, zIndex: 1 }}>
               {formError}
             </Alert>
           ) : null}
+          <Section title="Campo" inset>
+          <Stack spacing={2} sx={{ pt: 0.5 }}>
           <TextField
             label="Nombre"
             value={form.nombre}
@@ -596,7 +616,7 @@ export default function CamposConfiguracionPage() {
             helperText="Opcional. Úselo sólo si necesita una marca técnica interna del sistema."
           />
           {form.tipo_dato === 'lista' ? (
-            <ConfigSurface sx={{ p: 1.5 }}>
+            <Box>
               <Stack spacing={1}>
                 <Autocomplete
                   options={catalogoTipoOptions}
@@ -618,8 +638,12 @@ export default function CamposConfiguracionPage() {
                   noOptionsText={form.entidad_tipo_id ? 'Sin catálogos para la entidad' : 'Seleccione entidad'}
                 />
               </Stack>
-            </ConfigSurface>
+            </Box>
           ) : null}
+          </Stack>
+          </Section>
+          <Section title="Dependencia y comportamiento" inset>
+          <Stack spacing={2} sx={{ pt: 0.5 }}>
           <Autocomplete
             options={parentOptions}
             getOptionLabel={(opt) => opt.nombre || ''}
@@ -647,33 +671,28 @@ export default function CamposConfiguracionPage() {
           />
           <FormControlLabel
             control={<Checkbox checked={form.obligatorio} onChange={(e) => setForm((f) => ({ ...f, obligatorio: e.target.checked }))} />}
-            label="Obligatorio"
+            label={<ControlLabel>Obligatorio</ControlLabel>}
           />
-          <FormControlLabel
-            control={<Checkbox checked={form.activo} onChange={(e) => setForm((f) => ({ ...f, activo: e.target.checked }))} />}
-            label="Activo"
-          />
+          </Stack>
+          </Section>
+          </Box>
         </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={handleCloseDialog} color="inherit" variant="outlined" disabled={saving}>
-            Cancelar
-          </Button>
-          <Button onClick={handleSave} variant="contained" disabled={saving}>
-            {saving ? 'Guardando…' : 'Guardar'}
-          </Button>
-        </DialogActions>
       </Dialog>
 
-      <Dialog open={Boolean(confirmDelete)} onClose={() => setConfirmDelete(null)} maxWidth="xs" fullWidth>
-        <DialogTitle>Eliminar campo</DialogTitle>
-        <DialogContent>
-          <Typography>¿Eliminar "{confirmDelete?.nombre}"?</Typography>
+      <Dialog open={Boolean(confirmDelete)} onClose={() => setConfirmDelete(null)} maxWidth="xs" fullWidth PaperProps={{ sx: dialogPaperSx }}>
+        <DialogTitle component="div" sx={dialogTitleSx}>
+          <ConfigPageHeader eyebrow="Campos configurables" title="Eliminar campo" />
+        </DialogTitle>
+        <DialogContent sx={dialogContentSx}>
+          <Box sx={formWellSx}>
+            <Typography sx={(theme) => ({ px: 0.5, fontSize: 14, color: theme.emphasys.content.foreground })}>¿Eliminar "{confirmDelete?.nombre}"?</Typography>
+          </Box>
         </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={() => setConfirmDelete(null)} color="inherit" variant="outlined">
+        <DialogActions sx={{ px: { xs: 1.5, md: 2.25 }, pb: 2 }}>
+          <Button onClick={() => setConfirmDelete(null)} variant="outlined" sx={innerOutlinedButtonSx}>
             Cancelar
           </Button>
-          <Button onClick={handleDelete} color="error" variant="contained">
+          <Button onClick={handleDelete} variant="contained" disableElevation sx={innerDestructiveButtonSx}>
             Eliminar
           </Button>
         </DialogActions>
@@ -695,7 +714,6 @@ export default function CamposConfiguracionPage() {
           {snackbar.message}
         </Alert>
       </Snackbar>
-    </Box>
     </ConfigPageFrame>
   );
 }

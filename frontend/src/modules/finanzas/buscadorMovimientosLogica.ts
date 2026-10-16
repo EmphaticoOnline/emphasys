@@ -203,10 +203,13 @@ export function valoresCampo(op: FinanzasOperacion, campo: CampoTexto): string[]
 
 function textosLibres(op: FinanzasOperacion): string[] {
   const fecha = fechaClave(op.fecha);
+  const monto = Math.abs(Number(op.monto) || 0);
   return [
     ...CAMPOS_TEXTO.flatMap((campo) => valoresCampo(op, campo)),
     fecha,
     fecha ? formatearFechaBusqueda(fecha) : '',
+    String(monto),
+    formatearCantidad(monto),
   ];
 }
 
