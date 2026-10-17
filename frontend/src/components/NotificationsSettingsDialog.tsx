@@ -31,6 +31,7 @@ import {
   type PushSubscriptionRecord,
   type PushUiState,
 } from '../services/pushNotificationsService';
+import { activeBrand } from '../theme/brand/active';
 
 interface Props {
   open: boolean;
@@ -159,7 +160,7 @@ export default function NotificationsSettingsDialog({ open, onClose }: Props) {
   return (
     <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth>
       <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        Notificaciones de Emphasys
+        {`Notificaciones de ${activeBrand.name}`}
         <IconButton size="small" onClick={onClose}>
           <CloseIcon fontSize="small" />
         </IconButton>
@@ -182,7 +183,7 @@ export default function NotificationsSettingsDialog({ open, onClose }: Props) {
 
           {mostrarSugerenciaIphone && (
             <Typography variant="body2" color="text.secondary">
-              En iPhone, Emphasys debe instalarse desde "Agregar a pantalla de inicio" para recibir notificaciones.
+              {`En iPhone, ${activeBrand.name} debe instalarse desde "Agregar a pantalla de inicio" para recibir notificaciones.`}
             </Typography>
           )}
 

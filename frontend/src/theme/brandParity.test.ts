@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 import test from 'node:test';
+import { activeBrand } from './brand/active.ts';
 import { emphasysBrand } from './brand/emphasys.ts';
+import { renderBrandHtml, renderWebManifest } from './brand/webIdentity.ts';
 import type { BrandDefinition } from './brand/types.ts';
 import {
   EDITORIAL_FIGURE_FAMILY,
@@ -96,32 +98,55 @@ test('los assets de la marca existen en el proyecto', () => {
   for (const file of [assets.logo, assets.logoMark]) {
     assert.ok(existsSync(fromHere(`../assets/${file}`)), `falta src/assets/${file}`);
   }
-  const publicUrls = [assets.favicon, assets.appleTouchIcon, assets.manifest, ...Object.values(assets.icons)];
+  const publicUrls = [assets.favicon, assets.appleTouchIcon, ...Object.values(assets.icons)];
   for (const url of publicUrls) {
     assert.ok(existsSync(fromHere(`../../public${url}`)), `falta public${url}`);
   }
+  // El manifest se genera desde la marca; un archivo estático en public/ lo taparía.
+  assert.ok(!existsSync(fromHere(`../../public${assets.manifest}`)), 'public/ no debe tener manifest estático');
 });
 
-test('la metadata de la marca coincide con index.html y el manifest actuales', () => {
-  const { metadata, assets } = emphasysBrand;
-  const html = readText('../../index.html');
-  assert.ok(html.includes(`<title>${metadata.title}</title>`));
-  assert.ok(html.includes(`<meta name="theme-color" content="${metadata.themeColor}" />`));
-  assert.ok(html.includes(`<meta name="apple-mobile-web-app-title" content="${metadata.shortName}" />`));
-  assert.ok(html.includes(`href="${assets.favicon}"`));
-  assert.ok(html.includes(`href="${assets.appleTouchIcon}"`));
-  assert.ok(html.includes(`href="${assets.manifest}"`));
+test('la marca activa por default es Emphasys', () => {
+  assert.equal(activeBrand, emphasysBrand);
+});
 
-  const manifest = JSON.parse(readText('../../public/manifest.webmanifest'));
-  assert.equal(manifest.name, metadata.appName);
-  assert.equal(manifest.short_name, metadata.shortName);
-  assert.equal(manifest.description, metadata.description);
-  assert.equal(manifest.theme_color, metadata.themeColor);
-  assert.equal(manifest.background_color, metadata.backgroundColor);
-  assert.deepEqual(
-    manifest.icons.map((icon: { src: string }) => icon.src),
-    [assets.icons[192], assets.icons[512]],
-  );
+test('index.html renderizado con la marca es idéntico al index.html previo', () => {
+  const html = renderBrandHtml(readText('../../index.html'), activeBrand);
+  assert.equal(html, readText('./__fixtures__/index.baseline.html'));
+});
+
+test('la plantilla index.html no contiene identidad Emphasys literal', () => {
+  const template = readText('../../index.html');
+  const { metadata, assets } = emphasysBrand;
+  for (const literal of [metadata.title, metadata.themeColor, assets.favicon, assets.icons[32], assets.icons[192], assets.appleTouchIcon]) {
+    assert.ok(!template.includes(literal), `index.html todavía contiene ${literal}`);
+  }
+  assert.ok(!template.includes('content="Emphasys"'));
+});
+
+test('el manifest generado es idéntico al manifest.webmanifest previo', () => {
+  assert.equal(renderWebManifest(activeBrand), readText('./__fixtures__/manifest.baseline.webmanifest'));
+});
+
+test('logos.ts importa los archivos que declara la marca activa', () => {
+  const source = readText('./brand/logos.ts');
+  assert.ok(source.includes(`'../../assets/${activeBrand.assets.logo}'`));
+  assert.ok(source.includes(`'../../assets/${activeBrand.assets.logoMark}'`));
+});
+
+test('otra marca cambia index.html y manifest sin placeholders sueltos', () => {
+  const otherBrand: BrandDefinition = {
+    ...emphasysBrand,
+    metadata: { ...emphasysBrand.metadata, title: 'Acme ERP', shortName: 'Acme', appName: 'Acme ERP', themeColor: '#123456' },
+  };
+  const html = renderBrandHtml(readText('../../index.html'), otherBrand);
+  assert.ok(html.includes('<title>Acme ERP</title>'));
+  assert.ok(html.includes('<meta name="theme-color" content="#123456" />'));
+  assert.ok(html.includes('<meta name="apple-mobile-web-app-title" content="Acme" />'));
+  const manifest = JSON.parse(renderWebManifest(otherBrand));
+  assert.equal(manifest.name, 'Acme ERP');
+  assert.equal(manifest.theme_color, '#123456');
+  assert.throws(() => renderBrandHtml('<title>__BRAND_UNKNOWN__</title>', otherBrand), /__BRAND_UNKNOWN__/);
 });
 
 test('otra marca cambia la identidad sin tocar colores funcionales', () => {

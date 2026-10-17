@@ -7,6 +7,7 @@ import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 import CloseIcon from '@mui/icons-material/Close';
 import UpdateIcon from '@mui/icons-material/SystemUpdateAlt';
+import { activeBrand } from '../theme/brand/active';
 type VersionUpdateDrawerProps = {
   open: boolean;
   version: string | null;
@@ -93,7 +94,7 @@ export default function VersionUpdateDrawer({ open, version, onClose, onUpdateNo
                   Actualización disponible
                 </Typography>
                 <Typography sx={{ mt: 0.5, color: 'text.secondary' }}>
-                  Se han realizado mejoras en Emphasys.
+                  {`Se han realizado mejoras en ${activeBrand.name}.`}
                 </Typography>
                 <Typography sx={{ mt: 0.25, color: 'text.secondary' }}>
                   Para utilizar la versión más reciente, actualiza la página.

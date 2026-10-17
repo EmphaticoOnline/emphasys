@@ -8,7 +8,8 @@ import type { Empresa } from "../session/sessionTypes";
 import { resolveRutaInicio } from "../utils/rutaInicio";
 import { isCompassHostname } from "../routing/appHostname";
 import compassColibriUrl from "../assets/emphasys-colibri-w.png";
-import logo from "../assets/emphasys-w.png";
+import { activeBrand } from "../theme/brand/active";
+import { brandLogos } from "../theme/brand/logos";
 import { MAIN_NAV_TYPE } from "../theme/tokens";
 import "@fontsource/manrope/400.css";
 import "@fontsource/manrope/500.css";
@@ -87,8 +88,8 @@ function EmphasysLogin({
       >
         <Box
           component="img"
-          src={logo}
-          alt="Emphasys"
+          src={brandLogos.logo}
+          alt={activeBrand.name}
           sx={{
             display: "block",
             width: { xs: "min(86%, 300px)", md: "87%" },
