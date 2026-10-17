@@ -48,6 +48,7 @@ import type {
 import { fetchOrigenesContacto, type OrigenContacto } from '../../services/reportesService';
 import { fetchVendedores } from '../../services/contactosService';
 import type { Contacto } from '../../types/contactos.types';
+import { categoricalPalettes } from '../../theme/functional';
 
 // ── Configuración del reporte (inyectada desde el wrapper) ────────────────────
 
@@ -101,10 +102,7 @@ const EXCEL_VERDE       = '#217346';
 const EXCEL_VERDE_HOVER = '#1a5c38';
 
 // Color fijo por mes (enero → diciembre) para la gráfica de evolución de Ventas
-const COLORES_MES = [
-  '#3d5f86', '#6b86a8', '#4e8784', '#5f8a68', '#86965a', '#b39552',
-  '#c27f4e', '#ad6250', '#96586a', '#775f92', '#59658f', '#7b7266',
-];
+const COLORES_MES = categoricalPalettes.months;
 
 /** Color del mes en que inicia el período (`periodo_key` = YYYY-MM-DD). */
 function colorMes(periodoKey: string, fallback: string): string {

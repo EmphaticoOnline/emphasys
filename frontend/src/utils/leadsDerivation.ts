@@ -11,6 +11,7 @@ import type {
   WhatsappSendErrorInfo,
 } from '../pages/LeadsPage';
 import type { Contacto } from '../types/contactos.types';
+import { categoricalPalettes } from '../theme/functional';
 
 export function formatFechaHora(value: string | null): string {
   if (!value) return '';
@@ -346,7 +347,7 @@ export const buildReplyPreviewText = (
 // del nombre/id que el Lead ya trae. Mismo lead -> mismo color siempre
 // (hash simple sobre el id), reutilizado tanto en la fila de la lista como
 // en el header de la conversación para que se vean consistentes.
-const LEAD_AVATAR_COLORS = ['#1d2f68', '#0f766e', '#b45309', '#7c3aed', '#be123c', '#0369a1', '#4d7c0f', '#a21caf'];
+const LEAD_AVATAR_COLORS = categoricalPalettes.avatars;
 
 export function getLeadInitials(name: string | null | undefined): string {
   const trimmed = (name || '').trim();

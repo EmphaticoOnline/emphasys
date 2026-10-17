@@ -1,5 +1,6 @@
 import { emphasysBrand } from './brand/emphasys.ts';
 import type { BrandDefinition } from './brand/types.ts';
+import { classicFunctionalTokens, experimentalFunctionalTokens } from './functional.ts';
 
 /**
  * Roles visuales del producto. Los componentes leen estos roles;
@@ -121,9 +122,9 @@ export type EmphasysTokens = {
 
 /**
  * Los valores de identidad (azul, grafito, beige, marfil, tinta, acento y
- * tipografías) se derivan de la marca. Los neutrales del clásico y los
- * colores funcionales (destructivo, info, métricas, estados, chat de
- * selección) siguen fijos aquí: no son de marca.
+ * tipografías) se derivan de la marca. Los colores funcionales
+ * (destructivo, info, métricas, estados) vienen de `functional.ts` y no
+ * dependen de la marca. Los neutrales del clásico siguen fijos aquí.
  */
 function buildStructuralFrame(brand: BrandDefinition) {
   const { graphite, ivory } = brand.colors;
@@ -163,6 +164,7 @@ export const EDITORIAL_FIGURE_FAMILY = emphasysBrand.typography.editorialFigure;
 
 export function buildClassicTokens(brand: BrandDefinition): EmphasysTokens {
   const { blue, graphite, accent } = brand.colors;
+  const functional = classicFunctionalTokens;
   /**
    * Cromado del tema experimental. Fondo del sidebar y de la barra superior
    * en todas las rutas. No es el texto de contenido (ink.primary).
@@ -224,8 +226,8 @@ export function buildClassicTokens(brand: BrandDefinition): EmphasysTokens {
       tint: blue.tint,
       wash: blue.wash,
       hoverTint: 'rgba(29, 47, 104, 0.08)',
-      destructive: '#b91c1c',
-      info: '#1d2f68',
+      destructive: functional.action.destructive,
+      info: functional.action.info,
       disabled: '#c9d2e8',
     },
     table: {
@@ -243,21 +245,8 @@ export function buildClassicTokens(brand: BrandDefinition): EmphasysTokens {
       selected: 'rgba(44, 51, 68, 0.08)',
       selectedHover: 'rgba(44, 51, 68, 0.12)',
     },
-    metric: {
-      amount: { background: '#f8fafc', foreground: '#1d2f68' },
-      applied: { background: '#f8fafc', foreground: '#1f2937' },
-      available: { background: '#f8fafc', foreground: '#1d2f68' },
-      exhausted: { background: '#f8fafc', foreground: '#1f2937' },
-      blocked: { background: '#f8fafc', foreground: '#1f2937' },
-      track: '#e5e7eb',
-      progress: '#1d2f68',
-      progressDone: '#1f2937',
-      caption: '#6b7280',
-    },
-    status: {
-      draft: '#facc15',
-      cancellation: '#d97706',
-    },
+    metric: functional.metric,
+    status: functional.status,
     chat: {
       well: '#f8fafc',
       header: '#ffffff',
@@ -274,6 +263,7 @@ export function buildClassicTokens(brand: BrandDefinition): EmphasysTokens {
 
 export function buildExperimentalTokens(brand: BrandDefinition): EmphasysTokens {
   const { graphite, beige, ivory, ink } = brand.colors;
+  const functional = experimentalFunctionalTokens;
   return {
     frame: buildStructuralFrame(brand),
     navigation: {
@@ -330,8 +320,8 @@ export function buildExperimentalTokens(brand: BrandDefinition): EmphasysTokens 
       tint: beige.tint,
       wash: beige.hover,
       hoverTint: 'rgba(62, 52, 40, 0.08)',
-      destructive: '#8a4d45',
-      info: '#3d5f86',
+      destructive: functional.action.destructive,
+      info: functional.action.info,
       disabled: '#c4bdb4',
     },
     table: {
@@ -349,21 +339,8 @@ export function buildExperimentalTokens(brand: BrandDefinition): EmphasysTokens 
       selected: 'rgba(62, 52, 40, 0.08)',
       selectedHover: 'rgba(62, 52, 40, 0.12)',
     },
-    metric: {
-      amount: { background: '#efe4d4', foreground: '#3e3428' },
-      applied: { background: '#e3ebe3', foreground: '#3f6b52' },
-      available: { background: '#e3eaf2', foreground: '#3d5f86' },
-      exhausted: { background: '#dce8df', foreground: '#3f6b52' },
-      blocked: { background: '#f0e4e0', foreground: '#8a4d45' },
-      track: '#e4ddd2',
-      progress: '#8fa4bf',
-      progressDone: '#7d9b86',
-      caption: '#5e584f',
-    },
-    status: {
-      draft: '#facc15',
-      cancellation: '#d97706',
-    },
+    metric: functional.metric,
+    status: functional.status,
     chat: {
       well: '#f7f3ec',
       header: '#f3f6f5',
