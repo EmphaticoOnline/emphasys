@@ -217,10 +217,10 @@ function getActividadDuePresentation(fechaProgramada: string) {
 
   return {
     label: 'Pendiente',
-    color: '#1d4ed8',
-    accentColor: '#2563eb',
-    backgroundColor: '#eff6ff',
-    borderColor: '#bfdbfe',
+    color: alertColors.info[700],
+    accentColor: alertColors.info[600],
+    backgroundColor: alertColors.info[50],
+    borderColor: alertColors.info[200],
   };
 }
 

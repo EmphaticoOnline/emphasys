@@ -8,7 +8,7 @@ import StarIcon from '@mui/icons-material/Star';
 import { buildAssetUrl } from '../../../services/empresasAssetsService';
 import type { ProductoArchivo } from '../../../services/productosService';
 import SeccionCard from './SeccionCard';
-import { neutralColors } from '../../../theme/structural';
+import { neutralColors, selectionColors } from '../../../theme/structural';
 import { activeBrand } from '../../../theme/brand/active';
 
 type Props = {
@@ -123,7 +123,7 @@ export default function SeccionImagenesArchivos({
                     width: 132,
                     borderRadius: 1.25,
                     p: 1,
-                    borderColor: isPrincipal ? '#93c5fd' : neutralColors.gray[200],
+                    borderColor: isPrincipal ? selectionColors.principal : neutralColors.gray[200],
                   }}
                 >
                   <Stack spacing={0.75}>

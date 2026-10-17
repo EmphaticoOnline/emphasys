@@ -138,7 +138,15 @@ test('paletas categóricas y de antigüedad son idénticas a las que tenían los
 });
 
 test('colores de terceros conservan sus valores', () => {
-  assert.deepStrictEqual(toJson(thirdPartyColors), { whatsapp: '#25D366', excel: '#217346', excelHover: '#1a5c38' });
+  assert.deepStrictEqual(toJson(thirdPartyColors), {
+    whatsapp: '#25D366',
+    excel: '#217346',
+    excelHover: '#1a5c38',
+    pdf: '#d9622b',
+    pdfHover: '#bf5321',
+    whatsappRead: '#4fc3f7',
+    whatsappDelivered: '#9e9e9e',
+  });
 });
 
 test('la capa funcional no depende de la marca y la marca no define colores funcionales', () => {

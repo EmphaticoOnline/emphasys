@@ -336,7 +336,7 @@ function getStatusPresentation(estatus: string) {
     return { label: OPORTUNIDAD_STATUS_LABELS.cancelada, backgroundColor: neutralColors.slate[100], textColor: neutralColors.slate[600], borderColor: neutralColors.slate[300] };
   }
 
-  return { label: OPORTUNIDAD_STATUS_LABELS.abierta, backgroundColor: '#eff6ff', textColor: '#1e40af', borderColor: '#bfdbfe' };
+  return { label: OPORTUNIDAD_STATUS_LABELS.abierta, backgroundColor: alertColors.info[50], textColor: alertColors.info[800], borderColor: alertColors.info[200] };
 }
 
 // Tipografía/proporciones compartida por los chips de "Estatus" y "Seguimiento",
@@ -1398,10 +1398,10 @@ export default function OportunidadesPage() {
                       label: 'Pipeline extendido',
                       monto: currencyFormatter.format(totals.pipelineExtendido.monto),
                       count: totals.pipelineExtendido.cantidad,
-                      backgroundColor: '#eff6ff',
-                      borderColor: '#bfdbfe',
-                      labelColor: '#1d4ed8',
-                      amountColor: '#1e3a8a',
+                      backgroundColor: alertColors.info[50],
+                      borderColor: alertColors.info[200],
+                      labelColor: alertColors.info[700],
+                      amountColor: alertColors.info[900],
                     },
                     {
                       value: 'abiertas' as const,
@@ -1411,7 +1411,7 @@ export default function OportunidadesPage() {
                       backgroundColor: neutralColors.slate[50],
                       borderColor: neutralColors.slate[300],
                       labelColor: neutralColors.slate[600],
-                      amountColor: '#1e40af',
+                      amountColor: alertColors.info[800],
                     },
                     {
                       value: 'pausadas' as const,
@@ -1539,10 +1539,10 @@ export default function OportunidadesPage() {
                       label: 'Forecast esperado',
                       value: currencyFormatter.format(commercialSummary.forecastEsperado),
                       helper: 'sobre pipeline extendido',
-                      backgroundColor: '#eff6ff',
-                      borderColor: '#bfdbfe',
-                      labelColor: '#1d4ed8',
-                      valueColor: '#1e3a8a',
+                      backgroundColor: alertColors.info[50],
+                      borderColor: alertColors.info[200],
+                      labelColor: alertColors.info[700],
+                      valueColor: alertColors.info[900],
                     },
                   ].map((item) => (
                     <Box

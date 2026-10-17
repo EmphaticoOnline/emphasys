@@ -31,6 +31,7 @@ import type { BalanceGeneralResultado } from '../../../types/reportesContables';
 import { NOMBRES_MESES } from '../../../types/saldosCuentas';
 import { accountingColors } from '../../../theme/functional';
 import { neutralColors } from '../../../theme/structural';
+import { activeBrand } from '../../../theme/brand/active';
 
 function formatMoneda(valor: number): string {
   return valor.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -51,7 +52,7 @@ function SeccionBalance({ titulo, grupos, totalLabel, total }: {
       </TableRow>
       {grupos.map((g) => (
         <React.Fragment key={g.grupo}>
-          <TableRow sx={{ bgcolor: '#eef2ff' }}>
+          <TableRow sx={{ bgcolor: activeBrand.colors.blue.tint }}>
             <TableCell sx={{ fontWeight: 700, color: 'primary.main' }}>{g.grupo}</TableCell>
             <TableCell align="right" sx={{ fontWeight: 700, color: 'primary.main' }}>{formatMoneda(g.subtotal)}</TableCell>
           </TableRow>

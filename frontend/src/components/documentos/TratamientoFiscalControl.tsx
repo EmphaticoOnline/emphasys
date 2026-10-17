@@ -3,6 +3,7 @@ import { Box, ButtonBase, Menu, MenuItem, Tooltip, Typography } from '@mui/mater
 import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown';
 import type { TratamientoImpuestos } from '../../types/cotizacion';
 import { neutralColors } from '../../theme/structural';
+import { activeBrand } from '../../theme/brand/active';
 
 export const TRATAMIENTO_OPCIONES: { label: string; value: TratamientoImpuestos }[] = [
   { label: 'Operación estándar', value: 'normal' },
@@ -45,7 +46,7 @@ export default function TratamientoFiscalControl({ value, onChange, disabled = f
                 pl: 1.1,
                 pr: 0.6,
                 borderRadius: 999,
-                bgcolor: '#eef2ff',
+                bgcolor: activeBrand.colors.blue.tint,
                 border: `1px solid ${neutralColors.steel.controlBorder}`,
                 '&.Mui-disabled': { opacity: 0.7 },
               }}

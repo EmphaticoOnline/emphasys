@@ -78,3 +78,16 @@ export const neutralColors = {
     strong: '#3d4557',
   },
 } as const;
+
+/**
+ * Azules claros de selección y resaltado que acompañan al azul de marca
+ * (tarjeta seleccionada, fila resaltada, imagen principal). Fijos por ahora;
+ * derivarlos de la marca queda pendiente.
+ */
+export const selectionColors = {
+  border: '#9db1ea',
+  surface: '#dce6fb',
+  rowHover: '#eef5ff',
+  highlight: '#f0f4ff',
+  principal: '#93c5fd',
+} as const;

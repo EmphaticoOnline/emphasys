@@ -15,7 +15,7 @@ export type EstadoSeguimientoOption = {
 export const DEFAULT_ESTADO_SEGUIMIENTO: EstadoSeguimiento = 'abierta';
 
 export const ESTADOS_SEGUIMIENTO: EstadoSeguimientoOption[] = [
-  { value: 'abierta', label: 'Abierta', color: '#e0f2fe', textColor: '#075985', rowClassName: 'row-estado-abierta' },
+  { value: 'abierta', label: 'Abierta', color: alertColors.open[100], textColor: alertColors.open[800], rowClassName: 'row-estado-abierta' },
   { value: 'pausada', label: 'Pausada', color: alertColors.caution[100], textColor: alertColors.caution[800], rowClassName: 'row-estado-pausada' },
   { value: 'convertida', label: 'Convertida', color: alertColors.success[100], textColor: alertColors.success[800], rowClassName: 'row-estado-convertida' },
   { value: 'perdida', label: 'Perdida', color: alertColors.error[100], textColor: alertColors.error[700], rowClassName: 'row-estado-perdida' },

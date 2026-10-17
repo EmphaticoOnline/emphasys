@@ -331,9 +331,9 @@ function renderStatusIcon(status?: 'sending' | 'sent' | 'delivered' | 'read' | '
     case 'sent':
       return <DoneIcon fontSize="small" />;
     case 'delivered':
-      return <DoneAllIcon fontSize="small" sx={{ color: '#9e9e9e' }} />;
+      return <DoneAllIcon fontSize="small" sx={{ color: thirdPartyColors.whatsappDelivered }} />;
     case 'read':
-      return <DoneAllIcon fontSize="small" sx={{ color: '#4fc3f7' }} />;
+      return <DoneAllIcon fontSize="small" sx={{ color: thirdPartyColors.whatsappRead }} />;
     case 'failed':
       return <ErrorOutlineIcon fontSize="small" color="error" />;
     default:

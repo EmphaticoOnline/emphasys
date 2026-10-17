@@ -46,7 +46,7 @@ import { DesaplicarPagoDialog } from './DesaplicarPagoDialog';
 import { loadSession } from '../../session/sessionStorage';
 import { esRolAdmin } from '../../session/rolScope';
 import { alertColors } from '../../theme/functional';
-import { neutralColors } from '../../theme/structural';
+import { neutralColors, selectionColors } from '../../theme/structural';
 import { activeBrand } from '../../theme/brand/active';
 
 const formatDateShort = (value?: string | null) => {
@@ -383,7 +383,7 @@ export function FacturaPagosDrawer({ open, onClose, documentoId, contactoId, sal
     borderBottom: `1px solid ${neutralColors.gray[200]}`,
   };
 
-  const rowBaseSx = { height: 26, '&:hover': { backgroundColor: '#eef5ff' } };
+  const rowBaseSx = { height: 26, '&:hover': { backgroundColor: selectionColors.rowHover } };
 
   const headerTitle = esNotaCredito
     ? `${etiquetaDocumento} ${documentoMeta?.folio || ''}`.trim()

@@ -88,7 +88,7 @@ export const agingBucketColors: Readonly<Record<'0-30' | '31-60' | '61-90' | '90
 /**
  * Alertas de éxito, advertencia y error usadas en componentes (chips de
  * estado, validaciones, conteos de errores). Son las escalas de Tailwind
- * (green / amber / orange / emerald / red) que ya usaba el código, con su número de tono, para
+ * (green / amber / orange / emerald / blue / sky / red) que ya usaba el código, con su número de tono, para
  * conservar cada valor exacto. No son `palette.success/warning/error` de MUI,
  * que tienen otros valores (ver `feedbackTokens`).
  */
@@ -125,6 +125,21 @@ export const alertColors = {
     200: '#a7f3d0',
     700: '#047857',
     800: '#065f46',
+  },
+  /** Azul: información y estados en curso (pendiente, abierta, enviada). */
+  info: {
+    50: '#eff6ff',
+    100: '#dbeafe',
+    200: '#bfdbfe',
+    600: '#2563eb',
+    700: '#1d4ed8',
+    800: '#1e40af',
+    900: '#1e3a8a',
+  },
+  /** Sky: estado abierto de cotización. */
+  open: {
+    100: '#e0f2fe',
+    800: '#075985',
   },
   error: {
     50: '#fef2f2',
@@ -178,6 +193,17 @@ export const thirdPartyColors = {
   whatsapp: '#25D366',
   excel: '#217346',
   excelHover: '#1a5c38',
+  /** Botón de exportar PDF. */
+  pdf: '#d9622b',
+  pdfHover: '#bf5321',
+  /** Palomitas de estado de mensaje de WhatsApp: leído y entregado. */
+  whatsappRead: '#4fc3f7',
+  whatsappDelivered: '#9e9e9e',
+} as const;
+
+/** Hover de botones destructivos sin rol en `EmphasysTokens` (tema experimental). */
+export const destructiveHoverColors = {
+  experimental: '#743f39',
 } as const;
 
 /**
@@ -197,6 +223,15 @@ export const categoricalPalettes = {
    * con el azul y el acento Emphasys, pero no los sigue: es categórica.
    */
   reportKpis: ['#1d2f68', '#006261', '#7c3aed', '#b45309', '#0369a1'],
+  /** Lavado de filas de actividad, por índice; y su versión al pasar el cursor. */
+  activityRows: ['#f5f3ee', '#f0f4f0', '#f7f2ea', '#f3f1f6', '#f3f4ee', '#f0f3f6'],
+  activityRowsHover: ['#ece9e2', '#e6ede6', '#f0e8dc', '#eae7ef', '#e8ebe2', '#e6ecf1'],
   /** Avatares de leads, elegidos por hash del id. */
   avatars: ['#1d2f68', '#0f766e', '#b45309', '#7c3aed', '#be123c', '#0369a1', '#4d7c0f', '#a21caf'],
 } as const satisfies Record<string, readonly string[]>;
+
+/** Acentos de tarjetas de actividad: próxima (sin vencer) y visita. */
+export const activityAccents = {
+  upcoming: '#6a5a86',
+  visit: '#8a5a32',
+} as const;

@@ -98,8 +98,8 @@ const AGRUPACIONES: { value: Agrupacion; label: string }[] = [
 ];
 
 // Exportación (Ventas): PDF anaranjado, Excel verde Excel
-const PDF_NARANJA       = '#d9622b';
-const PDF_NARANJA_HOVER = '#bf5321';
+const PDF_NARANJA       = thirdPartyColors.pdf;
+const PDF_NARANJA_HOVER = thirdPartyColors.pdfHover;
 const EXCEL_VERDE       = thirdPartyColors.excel;
 const EXCEL_VERDE_HOVER = thirdPartyColors.excelHover;
 

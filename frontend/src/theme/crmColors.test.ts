@@ -1,18 +1,20 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import test from 'node:test';
-import { revertNeutralFor, type NeutralFixture } from './__fixtures__/neutralRevert.ts';
+import { MINOR_FIXTURE, NEUTRAL_ORDER, revertLater, type LaterFixtures } from './__fixtures__/colorMigrations.ts';
 import { emphasysBrand } from './brand/emphasys.ts';
 import { accountingColors, alertColors, thirdPartyColors } from './functional.ts';
 
 const readText = (path: string) => readFileSync(new URL(path, import.meta.url), 'utf8');
 
-/** Bloques de neutrales posteriores que también tocan estos archivos: se revierten primero. */
-const neutralFixtures: NeutralFixture[] = readdirSync(new URL('./__fixtures__/', import.meta.url))
-  .filter((name) => /^neutralColors.*\.baseline\.json$/.test(name))
-  .map((name) => JSON.parse(readText(`./__fixtures__/${name}`)));
-const withoutNeutral = (file: string) => revertNeutralFor(file, readText(`../${file}`), neutralFixtures);
+/** Bloques posteriores que también tocan estos archivos: se revierten primero, del más nuevo al más viejo. */
+const laterFixtures: LaterFixtures = Object.fromEntries(
+  [...NEUTRAL_ORDER, MINOR_FIXTURE]
+    .filter((name) => existsSync(new URL(`./__fixtures__/${name}`, import.meta.url)))
+    .map((name) => [name, JSON.parse(readText(`./__fixtures__/${name}`))]),
+);
+const withoutNeutral = (file: string) => revertLater(null, file, readText(`../${file}`), laterFixtures);
 const sha256 = (text: string) => createHash('sha256').update(text).digest('hex');
 
 type Entry = { hex: string; token: string };
@@ -28,7 +30,7 @@ type Palette = {
 };
 const current: Palette = { caution: alertColors.caution, positive: alertColors.positive, whatsapp: thirdPartyColors.whatsapp };
 
-const TOKEN = /alertColors\.(caution|positive)\[(\d+)\]|thirdPartyColors\.whatsapp/g;
+const TOKEN = /alertColors\.(caution|positive)\[(\d+)\]|thirdPartyColors\.whatsapp\b/g;
 const resolve = (token: string, palette: Palette): string => {
   if (token === 'thirdPartyColors.whatsapp') return palette.whatsapp;
   const [, family, step] = /alertColors\.(caution|positive)\[(\d+)\]/.exec(token)!;
@@ -88,10 +90,10 @@ test('las insignias de WhatsApp usan el verde oficial y los defaults guardados e
   for (const file of ['components/leads/LeadsDesktopView.tsx', 'components/leads/LeadsMobileView.tsx']) {
     const source = readText(`../${file}`);
     assert.ok(!source.includes('#25D366'), file);
-    assert.equal(source.match(/thirdPartyColors\.whatsapp/g)?.length, 1, file);
+    assert.equal(source.match(/thirdPartyColors\.whatsapp\b/g)?.length, 1, file);
   }
   const leads = readText('../pages/LeadsPage.tsx');
-  assert.equal(leads.match(/thirdPartyColors\.whatsapp/g)?.length, 1, 'solo la insignia de LeadsPage');
+  assert.equal(leads.match(/thirdPartyColors\.whatsapp\b/g)?.length, 1, 'solo la insignia de LeadsPage');
   // Color inicial de etiquetas nuevas: se guarda en BD, no es tema.
   assert.equal(leads.match(/'#25D366'/g)?.length, 8);
   assert.equal(readText('../pages/configuracion/WhatsappEtiquetasPage.tsx').match(/'#25D366'/g)?.length, 1);

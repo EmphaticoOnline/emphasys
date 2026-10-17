@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import test from 'node:test';
 import { activeBrand } from './brand/active.ts';
 import { emphasysBrand } from './brand/emphasys.ts';
@@ -13,6 +13,7 @@ import {
   type NeutralFixture,
   type NeutralSources,
 } from './__fixtures__/neutralRevert.ts';
+import { MINOR_FIXTURE, NEUTRAL_ORDER, revertLater, type LaterFixtures } from './__fixtures__/colorMigrations.ts';
 
 const readText = (path: string) => readFileSync(new URL(path, import.meta.url), 'utf8');
 const sha256 = (text: string) => createHash('sha256').update(text).digest('hex');
@@ -24,13 +25,21 @@ const fixtureNames = readdirSync(new URL('./__fixtures__/', import.meta.url)).fi
 const fixtures: Record<string, NeutralFixture> = Object.fromEntries(
   fixtureNames.map((name) => [name, JSON.parse(readText(`./__fixtures__/${name}`))]),
 );
+const laterFixtures: LaterFixtures = Object.fromEntries(
+  [...NEUTRAL_ORDER, MINOR_FIXTURE]
+    .filter((name) => existsSync(new URL(`./__fixtures__/${name}`, import.meta.url)))
+    .map((name) => [name, JSON.parse(readText(`./__fixtures__/${name}`))]),
+);
+/** El archivo tal como lo dejó su bloque neutral: sin los bloques posteriores. */
+const asOfBlock = (block: string, file: string) => revertLater(block, file, readText(`../${file}`), laterFixtures);
+
 const files = () =>
   Object.entries(fixtures).flatMap(([block, fixture]) =>
     Object.entries(fixture.files).map(([file, data]) => ({ block, file, ...data })),
   );
 
 test('cada bloque neutral tiene fixture y ningún archivo pertenece a dos bloques', () => {
-  assert.ok(fixtureNames.length >= 1);
+  assert.deepStrictEqual([...fixtureNames].sort(), [...NEUTRAL_ORDER].sort(), 'NEUTRAL_ORDER debe listar todos los fixtures');
   const seen = new Map<string, string>();
   for (const { block, file } of files()) {
     assert.ok(!seen.has(file), `${file} está en ${seen.get(file)} y en ${block}`);
@@ -48,7 +57,7 @@ test('cada token resuelve exactamente al literal que reemplazó', () => {
 
 test('equivalencia contra HEAD: revertir reproduce cada archivo byte a byte', () => {
   for (const { block, file, headSha256, addedImports } of files()) {
-    assert.equal(sha256(revertNeutral(readText(`../${file}`), addedImports)), headSha256, `${block} ${file}`);
+    assert.equal(sha256(revertNeutral(asOfBlock(block, file), addedImports)), headSha256, `${block} ${file}`);
   }
 });
 
@@ -64,7 +73,7 @@ test('mutación: alterar cualquier valor usado rompe la equivalencia', () => {
     parent[keys.at(-1)!] = `${value.slice(0, -1)}${value.endsWith('0') ? '1' : '0'}`;
     for (const { block, file, headSha256, addedImports, lines } of files()) {
       if (!Object.values(lines).flat().some((e) => e.token === token)) continue;
-      assert.notEqual(sha256(revertNeutral(readText(`../${file}`), addedImports, mutated)), headSha256, `${block} ${file} no detectó ${token}`);
+      assert.notEqual(sha256(revertNeutral(asOfBlock(block, file), addedImports, mutated)), headSha256, `${block} ${file} no detectó ${token}`);
     }
   }
 });

@@ -1,17 +1,19 @@
 import assert from 'node:assert/strict';
-import { readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import test from 'node:test';
-import { revertNeutralFor, type NeutralFixture } from './__fixtures__/neutralRevert.ts';
+import { MINOR_FIXTURE, NEUTRAL_ORDER, revertLater, type LaterFixtures } from './__fixtures__/colorMigrations.ts';
 import { emphasysBrand } from './brand/emphasys.ts';
 import { accountingColors, alertColors } from './functional.ts';
 
 const readText = (path: string) => readFileSync(new URL(path, import.meta.url), 'utf8');
 
-/** Bloques de neutrales posteriores que también tocan estos archivos: se revierten primero. */
-const neutralFixtures: NeutralFixture[] = readdirSync(new URL('./__fixtures__/', import.meta.url))
-  .filter((name) => /^neutralColors.*\.baseline\.json$/.test(name))
-  .map((name) => JSON.parse(readText(`./__fixtures__/${name}`)));
-const withoutNeutral = (file: string) => revertNeutralFor(file, readText(`../${file}`), neutralFixtures);
+/** Bloques posteriores que también tocan estos archivos: se revierten primero, del más nuevo al más viejo. */
+const laterFixtures: LaterFixtures = Object.fromEntries(
+  [...NEUTRAL_ORDER, MINOR_FIXTURE]
+    .filter((name) => existsSync(new URL(`./__fixtures__/${name}`, import.meta.url)))
+    .map((name) => [name, JSON.parse(readText(`./__fixtures__/${name}`))]),
+);
+const withoutNeutral = (file: string) => revertLater(null, file, readText(`../${file}`), laterFixtures);
 
 type Entry = { hex: string; token: string };
 /** Literales por línea en HEAD (2af87e7) y el token que reemplaza a cada uno. */

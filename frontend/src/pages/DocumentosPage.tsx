@@ -167,7 +167,7 @@ import {
   type DocumentoIndicatorModel,
 } from '../components/documentos/indicadores';
 import { alertColors } from '../theme/functional';
-import { neutralColors } from '../theme/structural';
+import { neutralColors, selectionColors } from '../theme/structural';
 
 const formatCivilDate = (value: unknown) => {
   const raw = String(value ?? '').trim();
@@ -470,7 +470,7 @@ const getCotizacionEstatusPresentation = (value: unknown) => {
   const normalized = normalizeCotizacionEstatusDocumento(value);
 
   if (normalized === 'enviado') {
-    return { value: normalized, label: COTIZACION_ESTATUS_LABELS.enviado, color: '#dbeafe', textColor: '#1d4ed8' };
+    return { value: normalized, label: COTIZACION_ESTATUS_LABELS.enviado, color: alertColors.info[100], textColor: alertColors.info[700] };
   }
   if (normalized === 'en negociacion') {
     return { value: normalized, label: COTIZACION_ESTATUS_LABELS['en negociacion'], color: alertColors.warning[100], textColor: alertColors.warning[800] };
@@ -3566,9 +3566,9 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
                   px: 0.35,
                   color: selected ? 'primary.main' : neutralColors.gray[600],
                   backgroundColor: selected ? '#e8eefc' : '#fff',
-                  borderColor: selected ? '#9db1ea' : neutralColors.gray[300],
+                  borderColor: selected ? selectionColors.border : neutralColors.gray[300],
                   '&:hover': {
-                    backgroundColor: selected ? '#dce6fb' : neutralColors.slate[50],
+                    backgroundColor: selected ? selectionColors.surface : neutralColors.slate[50],
                   },
                   '& .MuiChip-label': {
                     px: 1.2,
@@ -3836,7 +3836,7 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
       }}
     >
       {(() => {
-        const totalColor = '#2563eb';
+        const totalColor = alertColors.info[600];
         const total = theme.emphasys.metric.amount;
         return esCotizacion
           ? [

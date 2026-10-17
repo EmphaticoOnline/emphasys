@@ -1,0 +1,136 @@
+import { activeBrand } from '../brand/active.ts';
+import {
+  activityAccents,
+  alertColors,
+  categoricalPalettes,
+  destructiveHoverColors,
+  thirdPartyColors,
+} from '../functional.ts';
+import { selectionColors } from '../structural.ts';
+import { revertNeutral, type NeutralFixture } from './neutralRevert.ts';
+
+/**
+ * Registro de los bloques de migración con equivalencia por SHA-256, en orden
+ * cronológico. Para verificar un bloque sobre un archivo, primero se revierten
+ * los bloques posteriores que también lo tocaron (del más nuevo al más viejo).
+ */
+export const NEUTRAL_ORDER = [
+  'neutralColors.baseline.json',
+  'neutralColors.cfdi.baseline.json',
+  'neutralColors.documentos.baseline.json',
+  'neutralColors.tesoreria.baseline.json',
+  'neutralColors.crm.baseline.json',
+  'neutralColors.informes.baseline.json',
+  'neutralColors.catalogos.baseline.json',
+] as const;
+export const MINOR_FIXTURE = 'minorColors.baseline.json';
+const LATER_CHAIN = [...NEUTRAL_ORDER, MINOR_FIXTURE] as const;
+
+// ── Bloque de pendientes menores (revertido por línea) ─────────────────────────
+
+export type MinorEntry = { hex: string; token: string };
+export type MinorLine = { original: string; migrated: string; entries: MinorEntry[] };
+export type MinorSnippet = { original: string; migrated: string; token: string };
+export type MinorFileFixture = {
+  headSha256: string;
+  addedImports: string[];
+  lines: Record<string, MinorLine>;
+  snippets: Record<string, MinorSnippet>;
+};
+export type MinorFixture = { source: string; files: Record<string, MinorFileFixture> };
+
+export type MinorPalettes = {
+  alertColors: { info: Record<string, string>; open: Record<string, string> };
+  selectionColors: Record<string, string>;
+  thirdPartyColors: Record<string, string>;
+  destructiveHoverColors: Record<string, string>;
+  activityAccents: Record<string, string>;
+  activeBrand: { colors: { blue: { tint: string }; ink: { muted: string } } };
+};
+
+export const currentMinorPalettes = (): MinorPalettes => ({
+  alertColors: { info: { ...alertColors.info }, open: { ...alertColors.open } },
+  selectionColors: { ...selectionColors },
+  thirdPartyColors: {
+    pdf: thirdPartyColors.pdf,
+    pdfHover: thirdPartyColors.pdfHover,
+    whatsappRead: thirdPartyColors.whatsappRead,
+    whatsappDelivered: thirdPartyColors.whatsappDelivered,
+  },
+  destructiveHoverColors: { ...destructiveHoverColors },
+  activityAccents: { ...activityAccents },
+  activeBrand: { colors: { blue: { tint: activeBrand.colors.blue.tint }, ink: { muted: activeBrand.colors.ink.muted } } },
+});
+
+export const minorSnippetValues = { categoricalPalettes } as const;
+
+/** hex (minúsculas) → token, construido desde los valores de la paleta. */
+export function minorTokenMap(p: MinorPalettes): Record<string, string> {
+  const map: Record<string, string> = {};
+  const add = (hex: string, token: string) => {
+    const key = hex.toLowerCase();
+    if (map[key]) throw new Error(`${hex} repetido: ${map[key]} y ${token}`);
+    map[key] = token;
+  };
+  for (const [step, hex] of Object.entries(p.alertColors.info)) add(hex, `alertColors.info[${step}]`);
+  for (const [step, hex] of Object.entries(p.alertColors.open)) add(hex, `alertColors.open[${step}]`);
+  for (const [role, hex] of Object.entries(p.selectionColors)) add(hex, `selectionColors.${role}`);
+  for (const [role, hex] of Object.entries(p.thirdPartyColors)) add(hex, `thirdPartyColors.${role}`);
+  for (const [role, hex] of Object.entries(p.destructiveHoverColors)) add(hex, `destructiveHoverColors.${role}`);
+  for (const [role, hex] of Object.entries(p.activityAccents)) add(hex, `activityAccents.${role}`);
+  add(p.activeBrand.colors.blue.tint, 'activeBrand.colors.blue.tint');
+  add(p.activeBrand.colors.ink.muted, 'activeBrand.colors.ink.muted');
+  return map;
+}
+
+/** Transformación de una línea: atributo JSX, string de un hex y string con hex dentro. */
+export function convertLine(line: string, map: Record<string, string>): string {
+  const token = (hex: string) => map[hex.toLowerCase()];
+  return line
+    .replace(/(\w+)="(#[0-9a-fA-F]{6})"/g, (m, attr: string, hex: string) => (token(hex) ? `${attr}={${token(hex)}}` : m))
+    .replace(/'(#[0-9a-fA-F]{6})'/g, (m, hex: string) => token(hex) ?? m)
+    .replace(/'([^'`$]*?#[0-9a-fA-F]{6}[^'`$]*?)'/g, (m, body: string) => {
+      let touched = false;
+      const inner = body.replace(/#[0-9a-fA-F]{6}/g, (hex) => (token(hex) ? ((touched = true), `\${${token(hex)}}`) : hex));
+      return touched ? `\`${inner}\`` : m;
+    });
+}
+
+/** Restaura las líneas y fragmentos originales y quita los imports agregados. */
+export function revertMinor(source: string, file: MinorFileFixture): string {
+  let text = source;
+  for (const line of file.addedImports) text = text.replace(`${line}\n`, '');
+  const lines = text.split('\n');
+  const items = [
+    ...Object.entries(file.lines).map(([n, l]) => ({ n: Number(n), migrated: l.migrated, original: [l.original] })),
+    ...Object.entries(file.snippets).map(([n, s]) => ({ n: Number(n), migrated: s.migrated, original: s.original.split('\n') })),
+  ].sort((a, b) => a.n - b.n);
+  // En orden ascendente, todo lo de arriba ya está restaurado: la línea n vuelve a estar en n - 1.
+  for (const item of items) {
+    const index = item.n - 1;
+    if (lines[index] !== item.migrated) throw new Error(`línea ${item.n}: no coincide con la migrada`);
+    lines.splice(index, 1, ...item.original);
+  }
+  return lines.join('\n');
+}
+
+// ── Cadena de bloques posteriores ─────────────────────────────────────────────
+
+export type LaterFixtures = Partial<Record<(typeof LATER_CHAIN)[number], NeutralFixture | MinorFixture>>;
+
+/**
+ * Revierte, del más nuevo al más viejo, los bloques posteriores a `after` que
+ * tocaron `file`. `after = null` revierte todos (bloques anteriores a los neutrales).
+ */
+export function revertLater(after: string | null, file: string, source: string, fixtures: LaterFixtures): string {
+  const start = after === null ? 0 : LATER_CHAIN.indexOf(after as (typeof LATER_CHAIN)[number]) + 1;
+  if (after !== null && start === 0) throw new Error(`Bloque desconocido: ${after}`);
+  let out = source;
+  for (const name of [...LATER_CHAIN.slice(start)].reverse()) {
+    const fixture = fixtures[name];
+    const entry = fixture?.files[file];
+    if (!entry) continue;
+    out = name === MINOR_FIXTURE ? revertMinor(out, entry as MinorFileFixture) : revertNeutral(out, (entry as NeutralFixture['files'][string]).addedImports);
+  }
+  return out;
+}

@@ -13,7 +13,7 @@ import { getEstadoSeguimientoPresentation } from '../../modules/cotizaciones/est
 import type { CotizacionListado } from '../../types/cotizacion';
 import type { DocumentosMobileViewProps } from './DocumentosView.types';
 import DocumentoStatusIndicators from './indicadores/DocumentoStatusIndicators';
-import { neutralColors } from '../../theme/structural';
+import { neutralColors, selectionColors } from '../../theme/structural';
 import { activeBrand } from '../../theme/brand/active';
 
 function hasValue(value?: string | number | null) {
@@ -123,7 +123,7 @@ export default function DocumentosMobileView({
                 borderColor: '#c7d2e5',
                 color: activeBrand.colors.blue.base,
                 backgroundColor: '#ffffff',
-                '&:hover': { borderColor: '#9db1ea', backgroundColor: neutralColors.slate[50] },
+                '&:hover': { borderColor: selectionColors.border, backgroundColor: neutralColors.slate[50] },
               }}
             >
               Filtros y Resumen
@@ -171,7 +171,7 @@ export default function DocumentosMobileView({
                   variant="outlined"
                   sx={{
                     borderColor: isSelected
-                      ? (catalog ? theme.emphasys.content.foreground : '#9db1ea')
+                      ? (catalog ? theme.emphasys.content.foreground : selectionColors.border)
                       : (catalog ? theme.emphasys.content.border : neutralColors.gray[200]),
                     borderRadius: 2.5,
                     backgroundColor: catalog ? theme.emphasys.content.card : '#ffffff',

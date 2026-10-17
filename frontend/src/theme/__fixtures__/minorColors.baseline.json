@@ -1,0 +1,589 @@
+{
+  "source": "HEAD 3e06d2f, pendientes menores",
+  "files": {
+    "components/leads/LeadsDesktopView.tsx": {
+      "headSha256": "0f9f231faa76ffed4544e9ea1e9690e33506e11b64eb1ad4821f79a65ed7a7d9",
+      "addedImports": [],
+      "lines": {
+        "379": {
+          "original": "      return <DoneAllIcon fontSize=\"small\" sx={{ color: '#9e9e9e' }} />;",
+          "migrated": "      return <DoneAllIcon fontSize=\"small\" sx={{ color: thirdPartyColors.whatsappDelivered }} />;",
+          "entries": [
+            {
+              "hex": "#9e9e9e",
+              "token": "thirdPartyColors.whatsappDelivered"
+            }
+          ]
+        },
+        "381": {
+          "original": "      return <DoneAllIcon fontSize=\"small\" sx={{ color: '#4fc3f7' }} />;",
+          "migrated": "      return <DoneAllIcon fontSize=\"small\" sx={{ color: thirdPartyColors.whatsappRead }} />;",
+          "entries": [
+            {
+              "hex": "#4fc3f7",
+              "token": "thirdPartyColors.whatsappRead"
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "components/leads/LeadsMobileView.tsx": {
+      "headSha256": "d02e8edfdb988c714fece3eb115ee9d71e4ddf743c71bb3b1ae1f6ff460c7fc1",
+      "addedImports": [],
+      "lines": {
+        "334": {
+          "original": "      return <DoneAllIcon fontSize=\"small\" sx={{ color: '#9e9e9e' }} />;",
+          "migrated": "      return <DoneAllIcon fontSize=\"small\" sx={{ color: thirdPartyColors.whatsappDelivered }} />;",
+          "entries": [
+            {
+              "hex": "#9e9e9e",
+              "token": "thirdPartyColors.whatsappDelivered"
+            }
+          ]
+        },
+        "336": {
+          "original": "      return <DoneAllIcon fontSize=\"small\" sx={{ color: '#4fc3f7' }} />;",
+          "migrated": "      return <DoneAllIcon fontSize=\"small\" sx={{ color: thirdPartyColors.whatsappRead }} />;",
+          "entries": [
+            {
+              "hex": "#4fc3f7",
+              "token": "thirdPartyColors.whatsappRead"
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "components/documentos/DocumentosMobileView.tsx": {
+      "headSha256": "245472149f7e1115418d09c27c5613fd3012dbfcb24b66e0c0693f13a12fd948",
+      "addedImports": [],
+      "lines": {
+        "16": {
+          "original": "import { neutralColors } from '../../theme/structural';",
+          "migrated": "import { neutralColors, selectionColors } from '../../theme/structural';",
+          "entries": []
+        },
+        "126": {
+          "original": "                '&:hover': { borderColor: '#9db1ea', backgroundColor: neutralColors.slate[50] },",
+          "migrated": "                '&:hover': { borderColor: selectionColors.border, backgroundColor: neutralColors.slate[50] },",
+          "entries": [
+            {
+              "hex": "#9db1ea",
+              "token": "selectionColors.border"
+            }
+          ]
+        },
+        "174": {
+          "original": "                      ? (catalog ? theme.emphasys.content.foreground : '#9db1ea')",
+          "migrated": "                      ? (catalog ? theme.emphasys.content.foreground : selectionColors.border)",
+          "entries": [
+            {
+              "hex": "#9db1ea",
+              "token": "selectionColors.border"
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "components/documentos/TratamientoFiscalControl.tsx": {
+      "headSha256": "b01efc388713f52f3b1d88ed80040b07624173be26594fcd0f0389aa2f51079f",
+      "addedImports": [
+        "import { activeBrand } from '../../theme/brand/active';"
+      ],
+      "lines": {
+        "48": {
+          "original": "                bgcolor: '#eef2ff',",
+          "migrated": "                bgcolor: activeBrand.colors.blue.tint,",
+          "entries": [
+            {
+              "hex": "#eef2ff",
+              "token": "activeBrand.colors.blue.tint"
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "components/crm/ActividadSeguimientoDrawer.tsx": {
+      "headSha256": "92de727264d0ab93239cea33264f5a85996344ce42a8c079b6a53e7db07c2606",
+      "addedImports": [],
+      "lines": {
+        "220": {
+          "original": "    color: '#1d4ed8',",
+          "migrated": "    color: alertColors.info[700],",
+          "entries": [
+            {
+              "hex": "#1d4ed8",
+              "token": "alertColors.info[700]"
+            }
+          ]
+        },
+        "221": {
+          "original": "    accentColor: '#2563eb',",
+          "migrated": "    accentColor: alertColors.info[600],",
+          "entries": [
+            {
+              "hex": "#2563eb",
+              "token": "alertColors.info[600]"
+            }
+          ]
+        },
+        "222": {
+          "original": "    backgroundColor: '#eff6ff',",
+          "migrated": "    backgroundColor: alertColors.info[50],",
+          "entries": [
+            {
+              "hex": "#eff6ff",
+              "token": "alertColors.info[50]"
+            }
+          ]
+        },
+        "223": {
+          "original": "    borderColor: '#bfdbfe',",
+          "migrated": "    borderColor: alertColors.info[200],",
+          "entries": [
+            {
+              "hex": "#bfdbfe",
+              "token": "alertColors.info[200]"
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "components/productos/formulario/SeccionImagenesArchivos.tsx": {
+      "headSha256": "c29cb71d052657dce9b3ef9838a06dea19da35419a7947fb88bacd72cf980927",
+      "addedImports": [],
+      "lines": {
+        "11": {
+          "original": "import { neutralColors } from '../../../theme/structural';",
+          "migrated": "import { neutralColors, selectionColors } from '../../../theme/structural';",
+          "entries": []
+        },
+        "126": {
+          "original": "                    borderColor: isPrincipal ? '#93c5fd' : neutralColors.gray[200],",
+          "migrated": "                    borderColor: isPrincipal ? selectionColors.principal : neutralColors.gray[200],",
+          "entries": [
+            {
+              "hex": "#93c5fd",
+              "token": "selectionColors.principal"
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "modules/finanzas/FacturaPagosDrawer.tsx": {
+      "headSha256": "df26e6996679a3fbbd283ebb0336092b2bf916f2314776d4a5660c8037e36c00",
+      "addedImports": [],
+      "lines": {
+        "49": {
+          "original": "import { neutralColors } from '../../theme/structural';",
+          "migrated": "import { neutralColors, selectionColors } from '../../theme/structural';",
+          "entries": []
+        },
+        "386": {
+          "original": "  const rowBaseSx = { height: 26, '&:hover': { backgroundColor: '#eef5ff' } };",
+          "migrated": "  const rowBaseSx = { height: 26, '&:hover': { backgroundColor: selectionColors.rowHover } };",
+          "entries": [
+            {
+              "hex": "#eef5ff",
+              "token": "selectionColors.rowHover"
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "modules/cotizaciones/estadoSeguimiento.ts": {
+      "headSha256": "f6141604191a4cc389830db38a7cafeb0ba57bb85302a22592e60aec0e2b1bb8",
+      "addedImports": [],
+      "lines": {
+        "18": {
+          "original": "  { value: 'abierta', label: 'Abierta', color: '#e0f2fe', textColor: '#075985', rowClassName: 'row-estado-abierta' },",
+          "migrated": "  { value: 'abierta', label: 'Abierta', color: alertColors.open[100], textColor: alertColors.open[800], rowClassName: 'row-estado-abierta' },",
+          "entries": [
+            {
+              "hex": "#e0f2fe",
+              "token": "alertColors.open[100]"
+            },
+            {
+              "hex": "#075985",
+              "token": "alertColors.open[800]"
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "pages/OportunidadesPage.tsx": {
+      "headSha256": "01e0d93fd9936043c1e41a7b83478c524d313a49474cf28a595e6c6016a12b23",
+      "addedImports": [],
+      "lines": {
+        "339": {
+          "original": "  return { label: OPORTUNIDAD_STATUS_LABELS.abierta, backgroundColor: '#eff6ff', textColor: '#1e40af', borderColor: '#bfdbfe' };",
+          "migrated": "  return { label: OPORTUNIDAD_STATUS_LABELS.abierta, backgroundColor: alertColors.info[50], textColor: alertColors.info[800], borderColor: alertColors.info[200] };",
+          "entries": [
+            {
+              "hex": "#eff6ff",
+              "token": "alertColors.info[50]"
+            },
+            {
+              "hex": "#1e40af",
+              "token": "alertColors.info[800]"
+            },
+            {
+              "hex": "#bfdbfe",
+              "token": "alertColors.info[200]"
+            }
+          ]
+        },
+        "1401": {
+          "original": "                      backgroundColor: '#eff6ff',",
+          "migrated": "                      backgroundColor: alertColors.info[50],",
+          "entries": [
+            {
+              "hex": "#eff6ff",
+              "token": "alertColors.info[50]"
+            }
+          ]
+        },
+        "1402": {
+          "original": "                      borderColor: '#bfdbfe',",
+          "migrated": "                      borderColor: alertColors.info[200],",
+          "entries": [
+            {
+              "hex": "#bfdbfe",
+              "token": "alertColors.info[200]"
+            }
+          ]
+        },
+        "1403": {
+          "original": "                      labelColor: '#1d4ed8',",
+          "migrated": "                      labelColor: alertColors.info[700],",
+          "entries": [
+            {
+              "hex": "#1d4ed8",
+              "token": "alertColors.info[700]"
+            }
+          ]
+        },
+        "1404": {
+          "original": "                      amountColor: '#1e3a8a',",
+          "migrated": "                      amountColor: alertColors.info[900],",
+          "entries": [
+            {
+              "hex": "#1e3a8a",
+              "token": "alertColors.info[900]"
+            }
+          ]
+        },
+        "1414": {
+          "original": "                      amountColor: '#1e40af',",
+          "migrated": "                      amountColor: alertColors.info[800],",
+          "entries": [
+            {
+              "hex": "#1e40af",
+              "token": "alertColors.info[800]"
+            }
+          ]
+        },
+        "1542": {
+          "original": "                      backgroundColor: '#eff6ff',",
+          "migrated": "                      backgroundColor: alertColors.info[50],",
+          "entries": [
+            {
+              "hex": "#eff6ff",
+              "token": "alertColors.info[50]"
+            }
+          ]
+        },
+        "1543": {
+          "original": "                      borderColor: '#bfdbfe',",
+          "migrated": "                      borderColor: alertColors.info[200],",
+          "entries": [
+            {
+              "hex": "#bfdbfe",
+              "token": "alertColors.info[200]"
+            }
+          ]
+        },
+        "1544": {
+          "original": "                      labelColor: '#1d4ed8',",
+          "migrated": "                      labelColor: alertColors.info[700],",
+          "entries": [
+            {
+              "hex": "#1d4ed8",
+              "token": "alertColors.info[700]"
+            }
+          ]
+        },
+        "1545": {
+          "original": "                      valueColor: '#1e3a8a',",
+          "migrated": "                      valueColor: alertColors.info[900],",
+          "entries": [
+            {
+              "hex": "#1e3a8a",
+              "token": "alertColors.info[900]"
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "pages/DocumentosPage.tsx": {
+      "headSha256": "8fd335dc1a31e0d9a2cbf97e3683e32d8bdd8b8c6caeae272ff6ed57f3d75b59",
+      "addedImports": [],
+      "lines": {
+        "170": {
+          "original": "import { neutralColors } from '../theme/structural';",
+          "migrated": "import { neutralColors, selectionColors } from '../theme/structural';",
+          "entries": []
+        },
+        "473": {
+          "original": "    return { value: normalized, label: COTIZACION_ESTATUS_LABELS.enviado, color: '#dbeafe', textColor: '#1d4ed8' };",
+          "migrated": "    return { value: normalized, label: COTIZACION_ESTATUS_LABELS.enviado, color: alertColors.info[100], textColor: alertColors.info[700] };",
+          "entries": [
+            {
+              "hex": "#dbeafe",
+              "token": "alertColors.info[100]"
+            },
+            {
+              "hex": "#1d4ed8",
+              "token": "alertColors.info[700]"
+            }
+          ]
+        },
+        "3569": {
+          "original": "                  borderColor: selected ? '#9db1ea' : neutralColors.gray[300],",
+          "migrated": "                  borderColor: selected ? selectionColors.border : neutralColors.gray[300],",
+          "entries": [
+            {
+              "hex": "#9db1ea",
+              "token": "selectionColors.border"
+            }
+          ]
+        },
+        "3571": {
+          "original": "                    backgroundColor: selected ? '#dce6fb' : neutralColors.slate[50],",
+          "migrated": "                    backgroundColor: selected ? selectionColors.surface : neutralColors.slate[50],",
+          "entries": [
+            {
+              "hex": "#dce6fb",
+              "token": "selectionColors.surface"
+            }
+          ]
+        },
+        "3839": {
+          "original": "        const totalColor = '#2563eb';",
+          "migrated": "        const totalColor = alertColors.info[600];",
+          "entries": [
+            {
+              "hex": "#2563eb",
+              "token": "alertColors.info[600]"
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "pages/informes/OCPendientesPage.tsx": {
+      "headSha256": "f34a7d8ea89093165160272f763bd08621e9f1497f951002b36cb60d92c8aa54",
+      "addedImports": [
+        "import { selectionColors } from '../../theme/structural';"
+      ],
+      "lines": {
+        "561": {
+          "original": "                    bgcolor: '#f0f4ff',",
+          "migrated": "                    bgcolor: selectionColors.highlight,",
+          "entries": [
+            {
+              "hex": "#f0f4ff",
+              "token": "selectionColors.highlight"
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "pages/informes/contabilidad/BalanceGeneralPage.tsx": {
+      "headSha256": "a10ea26441509afba232b9730579c074514df2c5c8119cd1e0601779b81188f4",
+      "addedImports": [
+        "import { activeBrand } from '../../../theme/brand/active';"
+      ],
+      "lines": {
+        "54": {
+          "original": "          <TableRow sx={{ bgcolor: '#eef2ff' }}>",
+          "migrated": "          <TableRow sx={{ bgcolor: activeBrand.colors.blue.tint }}>",
+          "entries": [
+            {
+              "hex": "#eef2ff",
+              "token": "activeBrand.colors.blue.tint"
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "pages/configuracion/AutorizacionesReglasPage.tsx": {
+      "headSha256": "ec82345ccfd0ee58306de8406d5caceead655415d413ab91c3ffef94b2a3c5d5",
+      "addedImports": [
+        "import { alertColors } from '../../theme/functional';"
+      ],
+      "lines": {
+        "26": {
+          "original": "  directa: { bgcolor: '#dbeafe', color: '#1d4ed8' },",
+          "migrated": "  directa: { bgcolor: alertColors.info[100], color: alertColors.info[700] },",
+          "entries": [
+            {
+              "hex": "#dbeafe",
+              "token": "alertColors.info[100]"
+            },
+            {
+              "hex": "#1d4ed8",
+              "token": "alertColors.info[700]"
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "pages/informes/MovimientosPorPeriodoPage.tsx": {
+      "headSha256": "fb08429cc5b24560fae4b09d294cbec1ae6e5336f20d355e47215b1747f5898e",
+      "addedImports": [],
+      "lines": {
+        "101": {
+          "original": "const PDF_NARANJA       = '#d9622b';",
+          "migrated": "const PDF_NARANJA       = thirdPartyColors.pdf;",
+          "entries": [
+            {
+              "hex": "#d9622b",
+              "token": "thirdPartyColors.pdf"
+            }
+          ]
+        },
+        "102": {
+          "original": "const PDF_NARANJA_HOVER = '#bf5321';",
+          "migrated": "const PDF_NARANJA_HOVER = thirdPartyColors.pdfHover;",
+          "entries": [
+            {
+              "hex": "#bf5321",
+              "token": "thirdPartyColors.pdfHover"
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "pages/ActividadesPage.tsx": {
+      "headSha256": "5de44a24cfa28d36140f0f72c6ece4d025e460c374dfda456276d80f0999ad7d",
+      "addedImports": [
+        "import { activityAccents, destructiveHoverColors } from '../theme/functional';"
+      ],
+      "lines": {
+        "452": {
+          "original": "    if (tono === 'futuro') return '#6a5a86';",
+          "migrated": "    if (tono === 'futuro') return activityAccents.upcoming;",
+          "entries": [
+            {
+              "hex": "#6a5a86",
+              "token": "activityAccents.upcoming"
+            }
+          ]
+        },
+        "621": {
+          "original": "                { backgroundColor: tokens.action.destructive, '&:hover': { backgroundColor: '#743f39' } },",
+          "migrated": "                { backgroundColor: tokens.action.destructive, '&:hover': { backgroundColor: destructiveHoverColors.experimental } },",
+          "entries": [
+            {
+              "hex": "#743f39",
+              "token": "destructiveHoverColors.experimental"
+            }
+          ]
+        },
+        "815": {
+          "original": "              { backgroundColor: tokens.action.destructive, '&:hover': { backgroundColor: '#743f39' } },",
+          "migrated": "              { backgroundColor: tokens.action.destructive, '&:hover': { backgroundColor: destructiveHoverColors.experimental } },",
+          "entries": [
+            {
+              "hex": "#743f39",
+              "token": "destructiveHoverColors.experimental"
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "pages/configuracion/DocumentosConfiguracionPage.tsx": {
+      "headSha256": "a894f3523c46a8116b5738f00c3abde69e34c3a0394dc25b1fcd17a97a9d882e",
+      "addedImports": [
+        "import { activeBrand } from '../../theme/brand/active';"
+      ],
+      "lines": {
+        "379": {
+          "original": "                      <em style={{ color: '#7a7268' /* content.muted */ }}>",
+          "migrated": "                      <em style={{ color: activeBrand.colors.ink.muted /* content.muted */ }}>",
+          "entries": [
+            {
+              "hex": "#7a7268",
+              "token": "activeBrand.colors.ink.muted"
+            }
+          ]
+        },
+        "440": {
+          "original": "                        return <em style={{ color: '#7a7268' /* content.muted */ }}>Sin plantilla</em>;",
+          "migrated": "                        return <em style={{ color: activeBrand.colors.ink.muted /* content.muted */ }}>Sin plantilla</em>;",
+          "entries": [
+            {
+              "hex": "#7a7268",
+              "token": "activeBrand.colors.ink.muted"
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "components/ActivityCard.tsx": {
+      "headSha256": "438ecc5f78dff1312712e730cd49e316590da7f46325d257f65b1be0f441ee5d",
+      "addedImports": [
+        "import { activityAccents, categoricalPalettes } from '../theme/functional';"
+      ],
+      "lines": {
+        "168": {
+          "original": "        : '#6a5a86';",
+          "migrated": "        : activityAccents.upcoming;",
+          "entries": [
+            {
+              "hex": "#6a5a86",
+              "token": "activityAccents.upcoming"
+            }
+          ]
+        },
+        "174": {
+          "original": "        ? '#8a5a32'",
+          "migrated": "        ? activityAccents.visit",
+          "entries": [
+            {
+              "hex": "#8a5a32",
+              "token": "activityAccents.visit"
+            }
+          ]
+        }
+      },
+      "snippets": {
+        "39": {
+          "original": "const LAVADOS_FILA = [\n  '#f5f3ee',\n  '#f0f4f0',\n  '#f7f2ea',\n  '#f3f1f6',\n  '#f3f4ee',\n  '#f0f3f6',\n] as const;",
+          "migrated": "const LAVADOS_FILA = categoricalPalettes.activityRows;",
+          "token": "categoricalPalettes.activityRows"
+        },
+        "48": {
+          "original": "const LAVADOS_FILA_HOVER = [\n  '#ece9e2',\n  '#e6ede6',\n  '#f0e8dc',\n  '#eae7ef',\n  '#e8ebe2',\n  '#e6ecf1',\n] as const;",
+          "migrated": "const LAVADOS_FILA_HOVER = categoricalPalettes.activityRowsHover;",
+          "token": "categoricalPalettes.activityRowsHover"
+        }
+      }
+    }
+  }
+}

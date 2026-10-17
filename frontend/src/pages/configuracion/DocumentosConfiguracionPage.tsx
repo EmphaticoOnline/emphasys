@@ -37,6 +37,7 @@ import { ConfigPageHeader } from '../../components/configuracion/configVisual';
 import { catalogoTabsSx } from '../../components/catalogo/catalogoSurfaces';
 import { editorialTableSx, emptyCellSx, fieldsOnIvorySx, strongCellSx, wellSx } from '../../components/transporte/transporteVisual';
 import type { AfectaInventario, DocumentoEmpresa, TransicionDocumento } from '../../types/documentosConfiguracion';
+import { activeBrand } from '../../theme/brand/active';
 
 const AFECTA_LABELS: Record<AfectaInventario, string> = {
   none: 'No afecta inventario',
@@ -376,7 +377,7 @@ export default function DocumentosConfiguracionPage() {
                     }}
                   >
                     <MenuItem value="">
-                      <em style={{ color: '#7a7268' /* content.muted */ }}>
+                      <em style={{ color: activeBrand.colors.ink.muted /* content.muted */ }}>
                         Sistema:{' '}
                         {doc.afecta_inventario_sistema
                           ? AFECTA_LABELS[doc.afecta_inventario_sistema]
@@ -437,7 +438,7 @@ export default function DocumentosConfiguracionPage() {
                     displayEmpty
                     renderValue={(selected) => {
                       if (!selected) {
-                        return <em style={{ color: '#7a7268' /* content.muted */ }}>Sin plantilla</em>;
+                        return <em style={{ color: activeBrand.colors.ink.muted /* content.muted */ }}>Sin plantilla</em>;
                       }
 
                       const plantilla = plantillasWhatsapp.find((item) => item.id === selected);

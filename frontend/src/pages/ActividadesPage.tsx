@@ -31,6 +31,7 @@ import { fetchUsuariosHabilitados } from '../services/usuariosService';
 import { useSession } from '../session/useSession';
 import { esRolAdmin } from '../session/rolScope';
 import type { Usuario } from '../types/usuario';
+import { activityAccents, destructiveHoverColors } from '../theme/functional';
 
 type GrupoActividadKey = 'atrasadas' | 'hoy' | 'futuro' | 'completadas';
 
@@ -449,7 +450,7 @@ export default function ActividadesPage() {
   const colorGrupo = (tono: GrupoTono) => {
     if (tono === 'atrasada') return tokens.action.destructive;
     if (tono === 'hoy') return tokens.metric.applied.foreground;
-    if (tono === 'futuro') return '#6a5a86';
+    if (tono === 'futuro') return activityAccents.upcoming;
     return tokens.content.muted;
   };
 
@@ -618,7 +619,7 @@ export default function ActividadesPage() {
               disabled={canceling}
               sx={[
                 catalogoPrimaryButtonSx,
-                { backgroundColor: tokens.action.destructive, '&:hover': { backgroundColor: '#743f39' } },
+                { backgroundColor: tokens.action.destructive, '&:hover': { backgroundColor: destructiveHoverColors.experimental } },
               ]}
             >
               {canceling ? 'Cancelando...' : 'Cancelar actividad'}
@@ -812,7 +813,7 @@ export default function ActividadesPage() {
             disabled={canceling}
             sx={[
               catalogoPrimaryButtonSx,
-              { backgroundColor: tokens.action.destructive, '&:hover': { backgroundColor: '#743f39' } },
+              { backgroundColor: tokens.action.destructive, '&:hover': { backgroundColor: destructiveHoverColors.experimental } },
             ]}
           >
             {canceling ? 'Cancelando...' : 'Cancelar actividad'}
