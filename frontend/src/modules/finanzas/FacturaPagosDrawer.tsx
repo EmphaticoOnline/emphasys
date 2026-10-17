@@ -368,7 +368,7 @@ export function FacturaPagosDrawer({ open, onClose, documentoId, contactoId, sal
 
   const headerCellSx = {
     backgroundColor: '#1d2f68',
-    color: '#fff',
+    color: 'common.white',
     fontWeight: 600,
     fontSize: '14px',
     py: '6px',
@@ -600,7 +600,7 @@ export function FacturaPagosDrawer({ open, onClose, documentoId, contactoId, sal
                       {documentosDisponibles.map((item, idx) => {
                         const folio = formatearFolioDocumento(item?.serie || '', item?.numero || 0);
                         const label = `${etiquetaTipo(item.tipo || 'documento')} ${folio}`.trim();
-                        const backgroundColor = idx % 2 === 0 ? '#f4faf4' : '#ffffff';
+                        const backgroundColor = idx % 2 === 0 ? '#f4faf4' : 'common.white';
                         return (
                           <TableRow key={item.id} sx={{ ...rowBaseSx, backgroundColor }}>
                             <TableCell sx={{ ...bodyCellSx, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', width: '24%' }}>
@@ -624,7 +624,7 @@ export function FacturaPagosDrawer({ open, onClose, documentoId, contactoId, sal
                                     px: 1,
                                     display: 'flex',
                                     alignItems: 'center',
-                                    backgroundColor: '#fff',
+                                    backgroundColor: 'common.white',
                                     border: '1px solid #cbd5e1',
                                     borderRadius: 1,
                                   },
