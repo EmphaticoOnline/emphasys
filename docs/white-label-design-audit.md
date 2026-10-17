@@ -203,7 +203,8 @@ Dimensiones estructurales: `SIDEBAR_WIDTH 220`, `SIDEBAR_COLLAPSED_WIDTH 100`, `
 6. **Grafito escrito a mano**: `rgba(44, 51, 68, …)` en sombras y selecciones fuera de tokens.
 7. **`'monospace'` literal** en 34 sitios, sin token.
 8. **Legacy**: `components/Layout.tsx` y `components/Menu.tsx` no tienen importadores en `src/`
-   (24 hex + logo). Candidatos a eliminación, no a migración (verificar antes).
+   (24 hex + logo). **Decisión (2026-10-17): se conservan sin cambios, fuera del alcance white label**
+   (ver §10).
 9. **Tokens fantasma** del tipo `emphasys.cloud`/`emphasys.mx` en el conteo son strings, no tokens (sin acción).
 
 ---
@@ -392,3 +393,42 @@ Con `brand = emphasys` (default), después de cada fase:
 5. Criterio de cierre: test verde, `tsc` + `vite build` limpios, diff del frontend limitado a `theme/`.
 
 Sin cambios de UI, sin cambios en componentes, sin cambios de base de datos.
+
+---
+
+## 10. Fuera del alcance white label
+
+### Código legado sin importadores
+
+Decisión del 2026-10-17: estos componentes **se conservan tal como están** y **no se migran** a tokens
+de marca, funcionales ni estructurales. No forman parte de la interfaz que se muestra, así que no afectan
+la apariencia default de Emphasys ni la de una marca futura.
+
+| Archivo | Líneas | Literales hex | Observaciones |
+|---|---|---|---|
+| `frontend/src/components/Layout.tsx` | 736 | 24 | Layout anterior; dejó de usarse en `e2ef809`, cuando se implementó `components/layout/SidebarLayout.tsx`. Importa `Menu`, `EmpresaSelector`, `navigationData` y `VersionUpdateDrawer`. |
+| `frontend/src/components/Menu.tsx` | 121 | 7 | Solo lo importa `Layout`. Importa el logo `assets/emphasys-w.png` directamente, no a través de `brand/logos.ts`. |
+| `frontend/src/components/Sidebar.tsx` | 97 | 8 | Sin importadores. Usa `#1d2f68` y `#006261` literales. |
+| `frontend/src/components/SecondaryNav.tsx` | 61 | 5 | Sin importadores. Define `azul` y `verde` como constantes locales. |
+
+Verificación: sin imports estáticos, dinámicos ni `lazy()` desde `src/` (los únicos `Menu` importados
+en otros archivos son de `@mui/material`).
+
+Consecuencias de conservarlos:
+
+- `Layout.tsx` y `Sidebar.tsx` se editaron el 2026-10-14. Si alguno vuelve a montarse, **antes**
+  hay que migrarlo con el mismo método por bloques (tokens + fixture + equivalencia contra HEAD),
+  porque hoy tiene identidad Emphasys escrita a mano.
+- `navigationData.ts` conserva `MODULE_TABS`, `MODULE_DESCRIPTIONS` y `MAIN_MENUS`, que solo usa este
+  legado. `MAIN_MENU_LINKS` sí está en uso (`utils/rutaInicio.ts`).
+- `src/assets/logo-transparente.png` no se importa en ningún lado; se conserva junto con el legado.
+- `neutralColors.test.ts` verifica que estos archivos no aparezcan en los fixtures de neutrales,
+  para que no se migren por accidente en esa familia.
+
+### Otros elementos fuera del alcance
+
+- Módulo Compass (`frontend/src/compass/`, `pages/login.css`): sistema visual propio (Tailwind, oklch).
+- `frontend/src/dev-mockups/`: maquetas de desarrollo.
+- Colores provenientes de la base de datos: estados, etapas de producción, etiquetas de WhatsApp,
+  conceptos, formatos de impresión y sus valores por defecto.
+- Branding fuera del frontend: PDF, correos, plantillas de WhatsApp y CFDI (backend).
