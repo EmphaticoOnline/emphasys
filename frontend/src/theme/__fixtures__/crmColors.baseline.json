@@ -1,0 +1,179 @@
+{
+  "source": "HEAD fba1a1d, antes de migrar CRM/WhatsApp",
+  "files": {
+    "hooks/useSeguimientoActividades.ts": {
+      "headSha256": "bd6393639a2b4b75825b6d15d938819bf956b5d0993cf23abd58339ba80a364f",
+      "addedImport": null,
+      "lines": {
+        "147": [
+          {
+            "hex": "#fff7ed",
+            "token": "alertColors.caution[50]"
+          }
+        ],
+        "149": [
+          {
+            "hex": "#fdba74",
+            "token": "alertColors.caution[300]"
+          }
+        ],
+        "156": [
+          {
+            "hex": "#ecfdf5",
+            "token": "alertColors.positive[50]"
+          }
+        ],
+        "157": [
+          {
+            "hex": "#047857",
+            "token": "alertColors.positive[700]"
+          }
+        ],
+        "158": [
+          {
+            "hex": "#a7f3d0",
+            "token": "alertColors.positive[200]"
+          }
+        ]
+      }
+    },
+    "components/crm/ActividadSeguimientoDrawer.tsx": {
+      "headSha256": "e1a261f852c708e4e3cf376ad9ee29822aa5deb5e2d420a8cafe1faef2ec35cf",
+      "addedImport": null,
+      "lines": {
+        "211": [
+          {
+            "hex": "#fff7ed",
+            "token": "alertColors.caution[50]"
+          }
+        ],
+        "212": [
+          {
+            "hex": "#fdba74",
+            "token": "alertColors.caution[300]"
+          }
+        ],
+        "763": [
+          {
+            "hex": "#ecfdf5",
+            "token": "alertColors.positive[50]"
+          },
+          {
+            "hex": "#047857",
+            "token": "alertColors.positive[700]"
+          }
+        ]
+      }
+    },
+    "pages/OportunidadesPage.tsx": {
+      "headSha256": "9fc758000bd419dfb9f59f667169d7827a140257796633ae1add66ff14b2ab60",
+      "addedImport": null,
+      "lines": {
+        "331": [
+          {
+            "hex": "#ffedd5",
+            "token": "alertColors.caution[100]"
+          },
+          {
+            "hex": "#c2410c",
+            "token": "alertColors.caution[700]"
+          },
+          {
+            "hex": "#fdba74",
+            "token": "alertColors.caution[300]"
+          }
+        ],
+        "1234": [
+          {
+            "hex": "#c2410c",
+            "token": "alertColors.caution[700]"
+          }
+        ],
+        "1419": [
+          {
+            "hex": "#fff7ed",
+            "token": "alertColors.caution[50]"
+          }
+        ],
+        "1420": [
+          {
+            "hex": "#fdba74",
+            "token": "alertColors.caution[300]"
+          }
+        ],
+        "1421": [
+          {
+            "hex": "#c2410c",
+            "token": "alertColors.caution[700]"
+          }
+        ],
+        "1422": [
+          {
+            "hex": "#9a3412",
+            "token": "alertColors.caution[800]"
+          }
+        ],
+        "1429": [
+          {
+            "hex": "#ecfdf5",
+            "token": "alertColors.positive[50]"
+          }
+        ],
+        "1430": [
+          {
+            "hex": "#a7f3d0",
+            "token": "alertColors.positive[200]"
+          }
+        ],
+        "1431": [
+          {
+            "hex": "#047857",
+            "token": "alertColors.positive[700]"
+          }
+        ],
+        "1432": [
+          {
+            "hex": "#065f46",
+            "token": "alertColors.positive[800]"
+          }
+        ]
+      }
+    },
+    "pages/LeadsPage.tsx": {
+      "headSha256": "7dfb2fcf91a6d0378fb91aa2f23d637d0bfda98a2333e801280839007d9baf01",
+      "addedImport": "import { thirdPartyColors } from '../theme/functional';",
+      "lines": {
+        "2968": [
+          {
+            "hex": "#25D366",
+            "token": "thirdPartyColors.whatsapp"
+          }
+        ]
+      }
+    },
+    "components/leads/LeadsDesktopView.tsx": {
+      "headSha256": "8e841e20d28c577660c675e1561052ea2891402c164f76edf9f5a04cc33fec15",
+      "addedImport": "import { thirdPartyColors } from '../../theme/functional';",
+      "lines": {
+        "1489": [
+          {
+            "hex": "#25D366",
+            "token": "thirdPartyColors.whatsapp"
+          }
+        ]
+      }
+    },
+    "components/leads/LeadsMobileView.tsx": {
+      "headSha256": "a51a0e0cc97aecb634df8858deddeae9399dbf864b6e0484313928df48205039",
+      "addedImport": "import { thirdPartyColors } from '../../theme/functional';",
+      "lines": {
+        "2095": [
+          {
+            "hex": "#25D366",
+            "token": "thirdPartyColors.whatsapp"
+          }
+        ]
+      }
+    }
+  }
+}

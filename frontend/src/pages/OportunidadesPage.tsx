@@ -328,7 +328,7 @@ function getStatusPresentation(estatus: string) {
     return { label: OPORTUNIDAD_STATUS_LABELS.perdida, backgroundColor: alertColors.error[100], textColor: alertColors.error[700], borderColor: alertColors.error[200] };
   }
   if (normalized === 'pausada') {
-    return { label: OPORTUNIDAD_STATUS_LABELS.pausada, backgroundColor: '#ffedd5', textColor: '#c2410c', borderColor: '#fdba74' };
+    return { label: OPORTUNIDAD_STATUS_LABELS.pausada, backgroundColor: alertColors.caution[100], textColor: alertColors.caution[700], borderColor: alertColors.caution[300] };
   }
   if (normalized === 'cancelada') {
     return { label: OPORTUNIDAD_STATUS_LABELS.cancelada, backgroundColor: '#f1f5f9', textColor: '#475569', borderColor: '#cbd5e1' };
@@ -1231,7 +1231,7 @@ export default function OportunidadesPage() {
             sx={{ width: '100%', justifyContent: 'flex-start', borderRadius: 1, px: 0.5, py: 0.25 }}
           >
             <Stack direction="row" spacing={0.75} alignItems="center" sx={{ minWidth: 0 }}>
-              {savingOperacionId === params.row.id ? <CircularProgress size={14} /> : <EditCalendarOutlinedIcon sx={{ fontSize: 16, color: '#c2410c' }} />}
+              {savingOperacionId === params.row.id ? <CircularProgress size={14} /> : <EditCalendarOutlinedIcon sx={{ fontSize: 16, color: alertColors.caution[700] }} />}
               <Typography variant="body2" sx={{ fontSize: 14.5 }}>
                 {formatDate(params.value || '')}
               </Typography>
@@ -1416,20 +1416,20 @@ export default function OportunidadesPage() {
                       label: 'Pausadas',
                       monto: currencyFormatter.format(totals.pausadas.monto),
                       count: totals.pausadas.cantidad,
-                      backgroundColor: '#fff7ed',
-                      borderColor: '#fdba74',
-                      labelColor: '#c2410c',
-                      amountColor: '#9a3412',
+                      backgroundColor: alertColors.caution[50],
+                      borderColor: alertColors.caution[300],
+                      labelColor: alertColors.caution[700],
+                      amountColor: alertColors.caution[800],
                     },
                     {
                       value: 'convertidas' as const,
                       label: 'Convertidas',
                       monto: currencyFormatter.format(totals.convertidas.monto),
                       count: totals.convertidas.cantidad,
-                      backgroundColor: '#ecfdf5',
-                      borderColor: '#a7f3d0',
-                      labelColor: '#047857',
-                      amountColor: '#065f46',
+                      backgroundColor: alertColors.positive[50],
+                      borderColor: alertColors.positive[200],
+                      labelColor: alertColors.positive[700],
+                      amountColor: alertColors.positive[800],
                     },
                     {
                       value: 'perdidas' as const,

@@ -85,6 +85,7 @@ import type {
   WhatsappEtiqueta,
 } from '../../pages/LeadsPage';
 import type { NavigateFunction } from 'react-router-dom';
+import { thirdPartyColors } from '../../theme/functional';
 
 // SidebarLayout (mobile) envuelve el <Outlet/> en un Box con mt del AppBar
 // pero SIN height propio, así que un simple height: '100%' aquí no tiene
@@ -2092,7 +2093,7 @@ export default function LeadsMobileView(props: LeadsMobileViewProps) {
                           {lead.lastMessage || 'Sin mensajes'}
                         </Typography>
                         {lead.unreadCount && lead.unreadCount > 0 ? (
-                          <Box sx={{ minWidth: 20, height: 20, px: 0.5, flexShrink: 0, borderRadius: '50%', bgcolor: '#25D366', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700 }}>{lead.unreadCount}</Box>
+                          <Box sx={{ minWidth: 20, height: 20, px: 0.5, flexShrink: 0, borderRadius: '50%', bgcolor: thirdPartyColors.whatsapp, color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700 }}>{lead.unreadCount}</Box>
                         ) : null}
                       </Stack>
                       {/* Línea 3 (secundaria, compacta): señal de atención

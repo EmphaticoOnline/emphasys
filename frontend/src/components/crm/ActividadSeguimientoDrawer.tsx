@@ -208,8 +208,8 @@ function getActividadDuePresentation(fechaProgramada: string) {
       label: 'Hoy',
       color: alertColors.warning[700],
       accentColor: alertColors.warning[500],
-      backgroundColor: '#fff7ed',
-      borderColor: '#fdba74',
+      backgroundColor: alertColors.caution[50],
+      borderColor: alertColors.caution[300],
     };
   }
 
@@ -760,7 +760,7 @@ export default function ActividadSeguimientoDrawer({ open, onClose, target, init
                       <Stack spacing={1.5}>
                         <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between" useFlexGap flexWrap="wrap">
                           <Stack direction="row" spacing={1} alignItems="center" useFlexGap flexWrap="wrap">
-                            <Chip size="small" label={formatTipoActividadLabel(actividad.tipo_actividad)} sx={{ fontWeight: 700, bgcolor: '#ecfdf5', color: '#047857' }} />
+                            <Chip size="small" label={formatTipoActividadLabel(actividad.tipo_actividad)} sx={{ fontWeight: 700, bgcolor: alertColors.positive[50], color: alertColors.positive[700] }} />
                             <Chip
                               size="small"
                               icon={<CheckCircleOutlineIcon />}

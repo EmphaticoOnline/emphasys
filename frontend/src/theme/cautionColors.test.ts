@@ -39,7 +39,9 @@ test('equivalencia contra HEAD: revertir los tokens reproduce cada archivo byte 
 });
 
 test('mutación: alterar cualquier tono de la escala rompe la equivalencia', () => {
-  for (const step of Object.keys(caution)) {
+  // Solo los tonos que usan los archivos de este bloque (50 y 300 los usa el bloque CRM).
+  const usedSteps = new Set(Object.values(baseline.files).flatMap(({ lines }) => Object.values(lines).flat().map((e) => /\[(\d+)\]/.exec(e.token)![1]!)));
+  for (const step of usedSteps) {
     const mutated = { ...caution, [step]: `${caution[step]!.slice(0, -1)}0` };
     const affected = Object.entries(baseline.files).filter(([, { lines }]) =>
       Object.values(lines).flat().some((entry) => entry.token === `alertColors.caution[${step}]`),
@@ -61,15 +63,15 @@ test('cada archivo usa los tokens naranja tantas veces como literales tenía y n
   }
 });
 
-test('CRM queda fuera del bloque: sus naranjas y emerald siguen literales', () => {
+test('los archivos de CRM no son de este bloque: los cubre el bloque CRM', () => {
+  const crm: { files: Record<string, unknown> } = JSON.parse(readText('./__fixtures__/crmColors.baseline.json'));
   for (const file of [
     'pages/OportunidadesPage.tsx',
     'hooks/useSeguimientoActividades.ts',
     'components/crm/ActividadSeguimientoDrawer.tsx',
   ]) {
-    const source = readText(`../${file}`);
-    assert.ok(!source.includes('alertColors.caution'), `${file} no debe migrarse en este bloque`);
-    assert.ok(/#(fdba74|fff7ed|c2410c|9a3412|ecfdf5|047857|a7f3d0)/i.test(source), `${file} debería conservar sus literales`);
+    assert.ok(!(file in baseline.files), `${file} no debe estar en el fixture naranja`);
+    assert.ok(file in crm.files, `${file} debe estar en el fixture CRM`);
   }
 });
 

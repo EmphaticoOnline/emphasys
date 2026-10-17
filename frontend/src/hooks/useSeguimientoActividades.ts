@@ -144,18 +144,18 @@ export function useSeguimientoActividades(enabled = true) {
     if (summary.todayCount > 0) {
       return {
         label: 'Pendiente hoy',
-        backgroundColor: '#fff7ed',
+        backgroundColor: alertColors.caution[50],
         textColor: alertColors.warning[700],
-        borderColor: '#fdba74',
+        borderColor: alertColors.caution[300],
       };
     }
 
     // Sin vencidas ni pendientes de hoy, pero hay una actividad futura programada: al día.
     return {
       label: 'Al dia',
-      backgroundColor: '#ecfdf5',
-      textColor: '#047857',
-      borderColor: '#a7f3d0',
+      backgroundColor: alertColors.positive[50],
+      textColor: alertColors.positive[700],
+      borderColor: alertColors.positive[200],
     };
   }, [loadingSeguimientoResumen, seguimientoResumenByOportunidad]);
 
