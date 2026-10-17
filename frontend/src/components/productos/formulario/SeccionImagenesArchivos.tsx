@@ -8,6 +8,8 @@ import StarIcon from '@mui/icons-material/Star';
 import { buildAssetUrl } from '../../../services/empresasAssetsService';
 import type { ProductoArchivo } from '../../../services/productosService';
 import SeccionCard from './SeccionCard';
+import { neutralColors } from '../../../theme/structural';
+import { activeBrand } from '../../../theme/brand/active';
 
 type Props = {
   disponible: boolean;
@@ -31,7 +33,7 @@ const badgeInstante = (
     sx={{
       fontSize: 10.5,
       fontWeight: 700,
-      color: '#006261',
+      color: activeBrand.colors.accent,
       backgroundColor: 'rgba(0,98,97,0.1)',
       borderRadius: 1,
       px: 0.75,
@@ -62,7 +64,7 @@ export default function SeccionImagenesArchivos({
   if (!disponible) {
     return (
       <SeccionCard id="archivos" titulo="Imágenes y archivos" badge={badgeInstante}>
-        <Typography variant="body2" color="#6b7280">
+        <Typography variant="body2" color={neutralColors.gray[500]}>
           Estas secciones se activan en cuanto el producto tenga clave interna: guarda una vez y sigues en esta misma pantalla.
         </Typography>
       </SeccionCard>
@@ -100,12 +102,12 @@ export default function SeccionImagenesArchivos({
         {archivosLoading ? (
           <Stack direction="row" spacing={1.5} alignItems="center">
             <CircularProgress size={18} />
-            <Typography variant="body2" color="#6b7280">Cargando imágenes...</Typography>
+            <Typography variant="body2" color={neutralColors.gray[500]}>Cargando imágenes...</Typography>
           </Stack>
         ) : archivos.length === 0 ? (
           <Stack spacing={0.5} alignItems="center" sx={{ py: 2 }}>
-            <ImageOutlinedIcon sx={{ fontSize: 28, color: '#cbd5e1' }} />
-            <Typography variant="body2" color="#6b7280">Aún no hay imágenes cargadas para este producto.</Typography>
+            <ImageOutlinedIcon sx={{ fontSize: 28, color: neutralColors.slate[300] }} />
+            <Typography variant="body2" color={neutralColors.gray[500]}>Aún no hay imágenes cargadas para este producto.</Typography>
           </Stack>
         ) : (
           <Stack direction="row" spacing={1.25} useFlexGap flexWrap="wrap">
@@ -121,7 +123,7 @@ export default function SeccionImagenesArchivos({
                     width: 132,
                     borderRadius: 1.25,
                     p: 1,
-                    borderColor: isPrincipal ? '#93c5fd' : '#e5e7eb',
+                    borderColor: isPrincipal ? '#93c5fd' : neutralColors.gray[200],
                   }}
                 >
                   <Stack spacing={0.75}>
@@ -134,12 +136,12 @@ export default function SeccionImagenesArchivos({
                         height: 96,
                         objectFit: 'cover',
                         borderRadius: 1,
-                        border: '1px solid #e5e7eb',
+                        border: `1px solid ${neutralColors.gray[200]}`,
                         backgroundColor: '#ffffff',
                       }}
                     />
                     {isPrincipal && (
-                      <Typography variant="caption" color="#006261" fontWeight={700} fontSize={10.5}>
+                      <Typography variant="caption" color={activeBrand.colors.accent} fontWeight={700} fontSize={10.5}>
                         Principal
                       </Typography>
                     )}

@@ -2,6 +2,7 @@ import * as React from 'react';
 import { Box, ButtonBase, Stack, Typography } from '@mui/material';
 import ErrorIcon from '@mui/icons-material/ErrorOutline';
 import CheckBoxOutlineBlankIcon from '@mui/icons-material/CheckBoxOutlineBlank';
+import { neutralColors } from '../../../theme/structural';
 
 export type SeccionIndiceEstado = 'disponible' | 'pendiente' | 'error';
 
@@ -42,7 +43,7 @@ export default function SeccionesIndice({ secciones, activaId, onSeleccionar }: 
       <Typography
         variant="caption"
         fontWeight={700}
-        color="#6b7280"
+        color={neutralColors.gray[500]}
         sx={{ px: 1, pb: 0.5, textTransform: 'uppercase', letterSpacing: 0.4, fontSize: 11 }}
       >
         Secciones
@@ -57,7 +58,7 @@ export default function SeccionesIndice({ secciones, activaId, onSeleccionar }: 
             {mostrarEncabezadoGrupo && (
               <Typography
                 variant="caption"
-                color="#9ca3af"
+                color={neutralColors.gray[400]}
                 sx={{ px: 1, pt: 1, fontSize: 10.5, textTransform: 'uppercase', letterSpacing: 0.4 }}
               >
                 Al guardar
@@ -83,7 +84,7 @@ export default function SeccionesIndice({ secciones, activaId, onSeleccionar }: 
             >
               {seccion.estado === 'error' && <ErrorIcon sx={{ fontSize: 15, color: (theme) => theme.emphasys.action.destructive, flexShrink: 0 }} />}
               {seccion.estado === 'pendiente' && (
-                <CheckBoxOutlineBlankIcon sx={{ fontSize: 14, color: '#cbd5e1', flexShrink: 0 }} />
+                <CheckBoxOutlineBlankIcon sx={{ fontSize: 14, color: neutralColors.slate[300], flexShrink: 0 }} />
               )}
               <Box component="span" sx={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {seccion.etiqueta}
@@ -95,8 +96,8 @@ export default function SeccionesIndice({ secciones, activaId, onSeleccionar }: 
                     flexShrink: 0,
                     fontSize: 11,
                     fontWeight: 600,
-                    color: '#6b7280',
-                    backgroundColor: '#f1f3f5',
+                    color: neutralColors.gray[500],
+                    backgroundColor: neutralColors.steel.chip,
                     borderRadius: 1,
                     px: 0.75,
                     minWidth: 18,

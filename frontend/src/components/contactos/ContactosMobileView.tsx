@@ -10,6 +10,7 @@ import ClearIcon from '@mui/icons-material/Clear';
 import type { ContactosMobileViewProps } from './ContactosView.types';
 import ContactosAdvancedFilters from './ContactosAdvancedFilters';
 import { formatearTelefonoParaMostrar } from '../../utils/telefono';
+import { neutralColors } from '../../theme/structural';
 
 function hasValue(value?: string | number | null) {
   return value != null && String(value).trim() !== '';
@@ -146,7 +147,7 @@ export default function ContactosMobileView({
               <CircularProgress size={28} />
             </Box>
           ) : contactos.length === 0 ? (
-            <Box sx={{ border: '1px solid #e5e7eb', borderRadius: 2, backgroundColor: '#fff', px: 2, py: 4, textAlign: 'center' }}>
+            <Box sx={{ border: `1px solid ${neutralColors.gray[200]}`, borderRadius: 2, backgroundColor: '#fff', px: 2, py: 4, textAlign: 'center' }}>
               <Typography variant="body2" sx={{ color: (theme) => theme.emphasys.content.secondary }}>No hay contactos para mostrar.</Typography>
             </Box>
           ) : (
@@ -166,7 +167,7 @@ export default function ContactosMobileView({
                   key={contacto.id}
                   variant="outlined"
                   sx={{
-                    borderColor: '#e5e7eb',
+                    borderColor: neutralColors.gray[200],
                     borderRadius: 2.5,
                     backgroundColor: '#ffffff',
                     boxShadow: '0 8px 20px rgba(15, 23, 42, 0.05)',
@@ -179,7 +180,7 @@ export default function ContactosMobileView({
                           {renderValue(contacto.nombre)}
                         </Typography>
                         {hasValue(contacto.nombre_contacto) ? (
-                          <Typography variant="body2" color="#374151" sx={{ mt: 0.25, lineHeight: 1.3 }}>
+                          <Typography variant="body2" color={neutralColors.gray[700]} sx={{ mt: 0.25, lineHeight: 1.3 }}>
                             {renderValue(contacto.nombre_contacto)}
                           </Typography>
                         ) : null}
@@ -203,10 +204,10 @@ export default function ContactosMobileView({
                       <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 0.75 }}> 
                         {detailItems.map((item) => (
                           <Box key={`${contacto.id}-${item.label}`} sx={{ minWidth: 0 }}>
-                            <Typography variant="caption" color="#6b7280" sx={{ display: 'block', lineHeight: 1.1 }}>
+                            <Typography variant="caption" color={neutralColors.gray[500]} sx={{ display: 'block', lineHeight: 1.1 }}>
                               {item.label}
                             </Typography>
-                            <Typography variant="body2" color="#111827" sx={{ lineHeight: 1.25, wordBreak: 'break-word' }}>
+                            <Typography variant="body2" color={neutralColors.gray[900]} sx={{ lineHeight: 1.25, wordBreak: 'break-word' }}>
                               {renderValue(item.value)}
                             </Typography>
                           </Box>
@@ -220,7 +221,7 @@ export default function ContactosMobileView({
           )}
         </Box>
 
-        <Box sx={{ border: '1px solid #e5e7eb', borderRadius: 2, backgroundColor: '#fff', overflow: 'hidden' }}>
+        <Box sx={{ border: `1px solid ${neutralColors.gray[200]}`, borderRadius: 2, backgroundColor: '#fff', overflow: 'hidden' }}>
           <TablePagination
             component="div"
             count={rowCount}

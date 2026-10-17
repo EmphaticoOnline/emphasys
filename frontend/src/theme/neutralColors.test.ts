@@ -105,6 +105,16 @@ test('los neutrales estructurales no dependen de la marca ni coinciden con ella'
   assert.equal(new Set(values).size, values.length, 'neutralColors no repite valores');
 });
 
+test('cada valor de neutralColors se usa en al menos un bloque', () => {
+  const used = new Set(files().flatMap(({ lines }) => Object.values(lines).flat().map((e) => e.token)));
+  for (const [family, scale] of Object.entries(neutralColors)) {
+    for (const key of Object.keys(scale)) {
+      const token = family === 'steel' ? `neutralColors.steel.${key}` : `neutralColors.${family}[${key}]`;
+      assert.ok(used.has(token), `${token} no se usa`);
+    }
+  }
+});
+
 test('legado, DocumentosFormPage y colores de BD quedan fuera', () => {
   const migrated = new Set(files().map(({ file }) => file));
   for (const file of [

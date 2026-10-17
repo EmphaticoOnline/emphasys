@@ -20,6 +20,8 @@ import type { GridColDef, GridRenderCellParams } from '@mui/x-data-grid';
 import { apiFetch } from '../api/apiClient';
 import { STANDARD_DATA_GRID_HEADER_HEIGHT, STANDARD_DATA_GRID_ROW_HEIGHT, standardDataGridSx } from '../components/grids/standardDataGridSx';
 import { useSession } from '../session/useSession';
+import { neutralColors } from '../theme/structural';
+import { activeBrand } from '../theme/brand/active';
 
 type ResultadoFila = Record<string, unknown>;
 
@@ -237,7 +239,7 @@ export default function AIReportesPage() {
         <Paper
           sx={{
             p: 2,
-            borderLeft: '4px solid #1d2f68',
+            borderLeft: `4px solid ${activeBrand.colors.blue.base}`,
             backgroundColor: 'rgba(29,47,104,0.05)',
           }}
         >
@@ -317,7 +319,7 @@ export default function AIReportesPage() {
             <Typography fontWeight={600}>Ver cómo se construyó el reporte</Typography>
           </AccordionSummary>
           <AccordionDetails>
-            <Paper variant="outlined" sx={{ p: 1.5, backgroundColor: '#0f172a', color: '#e2e8f0', fontFamily: 'ui-monospace, SFMono-Regular, Consolas, monospace' }}>
+            <Paper variant="outlined" sx={{ p: 1.5, backgroundColor: neutralColors.slate[900], color: neutralColors.slate[200], fontFamily: 'ui-monospace, SFMono-Regular, Consolas, monospace' }}>
               <pre style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{sql}</pre>
             </Paper>
           </AccordionDetails>
