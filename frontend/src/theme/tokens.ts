@@ -1,3 +1,5 @@
+import { emphasysBrand } from './brand/emphasys';
+
 /**
  * Roles visuales del producto. Los componentes leen estos roles;
  * no conocen paletas concretas ni el motivo por el que un tema está activo.
@@ -124,7 +126,7 @@ const ROBOTO_FIGURE = {
  * Cromado del tema experimental. Fondo del sidebar y de la barra superior
  * en todas las rutas. No es el texto de contenido (#3e3428).
  */
-const STRUCTURAL_CHROME = '#2c3344';
+const STRUCTURAL_CHROME = emphasysBrand.primitives.chrome.base;
 
 const structuralFrame = {
   background: STRUCTURAL_CHROME,
@@ -163,38 +165,38 @@ export const EDITORIAL_FIGURE_FAMILY =
 export const classicTokens: EmphasysTokens = {
   frame: { ...structuralFrame },
   navigation: {
-    background: '#ffffff',
-    foreground: '#1f2937',
+    background: emphasysBrand.primitives.neutralCool.background,
+    foreground: emphasysBrand.primitives.neutralCool.foreground,
     muted: '#6b7280',
     subtle: '#9ca3af',
-    border: '#e5e7eb',
+    border: emphasysBrand.primitives.neutralCool.border,
     selection: 'rgba(44, 51, 68, 0.08)',
     selectionForeground: STRUCTURAL_CHROME,
     hover: 'rgba(15, 23, 42, 0.04)',
     accent: STRUCTURAL_CHROME,
     control: STRUCTURAL_CHROME,
-    controlForeground: '#ffffff',
+    controlForeground: emphasysBrand.primitives.neutralCool.selected,
     summary: '#f8fafc',
     track: '#e5e7eb',
-    progress: '#1d2f68',
+    progress: emphasysBrand.primitives.brand[900],
   },
   workspaceRail: {
-    background: '#ffffff',
+    background: emphasysBrand.primitives.neutralCool.background,
   },
   documentNav: {
     background: '#f6f8fa',
-    border: '#e5e7eb',
+    border: emphasysBrand.primitives.neutralCool.border,
     foreground: '#4b5563',
-    selectedBackground: '#ffffff',
+    selectedBackground: emphasysBrand.primitives.neutralCool.selected,
     selectedForeground: STRUCTURAL_CHROME,
-    indicator: '#006261',
+    indicator: emphasysBrand.primitives.accent,
     hoverBackground: '#f1f3f6',
     hoverForeground: STRUCTURAL_CHROME,
   },
   canvas: {
     page: '#eef1f4',
-    sheet: '#ffffff',
-    border: '#e5e7eb',
+    sheet: emphasysBrand.primitives.neutralCool.background,
+    border: emphasysBrand.primitives.neutralCool.border,
     inset: 2,
     radius: 2,
   },
