@@ -76,6 +76,28 @@ export const neutralColors = {
     text: '#5b6479',
     /** Cifras en paneles flotantes. */
     strong: '#3d4557',
+    /** Texto más fuerte del formulario de documentos (efecto neto, totales de partida). */
+    ink: '#0f1626',
+    /** Fondo de la zona de adjuntos (gris MUI 50). */
+    attachmentSurface: '#fafafa',
+    /** Fondo suave azulado: fila de partida expandida, bloque de impuestos, hover de botón. */
+    softSurface: '#f7f9fc',
+    /** Lavado azul-gris: hover de fila de partida y barra fija de encabezado. */
+    wash: '#eef1f4',
+    /** Franja de encabezado y pie de paneles del formulario de documentos. */
+    panelBand: '#fafbfd',
+    /** Franja alterna de partidas. */
+    rowStripe: '#f4f6f9',
+    /** Divisores fuertes del panel de partidas. */
+    dividerStrong: '#e2e5ec',
+    /** Borde del bloque de impuestos. */
+    taxBorder: '#e2e6ee',
+    /** Divisor dentro del bloque de impuestos. */
+    taxDivider: '#dde3ee',
+    /** Borde de las tarjetas de totales. */
+    totalsBorder: '#96a7c7',
+    /** Fondo de las tarjetas del resumen financiero. */
+    summarySurface: '#fbfdff',
   },
 } as const;
 

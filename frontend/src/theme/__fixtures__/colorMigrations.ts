@@ -30,7 +30,7 @@ export const NEUTRAL_ORDER = [
 export const MINOR_FIXTURE = 'minorColors.baseline.json';
 export const REST_FIXTURE = 'restColors.baseline.json';
 /** Subbloques de `DocumentosFormPage`, en orden (ver docs/white-label-documentosformpage-audit.md). */
-export const DOCUMENTOS_FORM_ORDER = ['documentosForm.s1.baseline.json', 'documentosForm.s2.baseline.json', 'documentosForm.s3.baseline.json', 'documentosForm.s4.baseline.json'] as const;
+export const DOCUMENTOS_FORM_ORDER = ['documentosForm.s1.baseline.json', 'documentosForm.s2.baseline.json', 'documentosForm.s3.baseline.json', 'documentosForm.s4.baseline.json', 'documentosForm.s5.baseline.json'] as const;
 const LATER_CHAIN = [...NEUTRAL_ORDER, MINOR_FIXTURE, REST_FIXTURE, ...DOCUMENTOS_FORM_ORDER] as const;
 /** Todos los fixtures de la cadena, en orden: las pruebas cargan esta lista, no una copia. */
 export const LATER_FIXTURES: readonly string[] = LATER_CHAIN;

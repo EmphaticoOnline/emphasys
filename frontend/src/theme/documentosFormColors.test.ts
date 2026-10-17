@@ -35,6 +35,12 @@ const laterFixtures: LaterFixtures = Object.fromEntries(
 /** El archivo tal como lo dejó el subbloque `name`: sin los subbloques posteriores. */
 const asOfSubblock = (name: string) => revertLater(name, FILE, readText(`../${FILE}`), laterFixtures);
 
+/** Mapa limitado a los tokens que la línea introdujo, resueltos con los valores de `map`. */
+const lineMap = (map: Record<string, string>, entries: { token: string }[]) => {
+  const tokens = new Set(entries.map((e) => e.token));
+  return Object.fromEntries(Object.entries(map).filter(([, token]) => tokens.has(token)));
+};
+
 const colorLines = (fixture: SubblockFixture) =>
   Object.entries(fixture.files[FILE]!.lines)
     .filter(([, line]) => line.entries.length > 0)
@@ -58,8 +64,9 @@ test('equivalencia contra HEAD: restaurar cada subbloque reproduce el archivo pr
 test('cada línea migrada es la transformación de su original con los valores actuales de neutralColors', () => {
   const map = neutralTokenMap();
   for (const { name, fixture } of subblocks) {
-    for (const { n, original, migrated } of colorLines(fixture)) {
-      assert.equal(convertLine(original, map), migrated, `${name} línea ${n}`);
+    // Cada subbloque convierte solo sus propios valores: los posteriores quedan literales en su texto migrado.
+    for (const { n, original, migrated, entries } of colorLines(fixture)) {
+      assert.equal(convertLine(original, lineMap(map, entries)), migrated, `${name} línea ${n}`);
     }
   }
 });
@@ -75,7 +82,7 @@ test('mutación: alterar cualquier neutral usado rompe la transformación de sus
       const map = neutralTokenMap(palette as unknown as NeutralPalette);
       for (const { n, original, migrated, entries } of colorLines(fixture)) {
         if (!entries.some((e) => e.token === token)) continue;
-        assert.notEqual(convertLine(original, map), migrated, `${name} línea ${n} no detectó ${token}`);
+        assert.notEqual(convertLine(original, lineMap(map, entries)), migrated, `${name} línea ${n} no detectó ${token}`);
       }
     }
   }
@@ -139,4 +146,15 @@ test('subbloque 4: tonos del resumen financiero y estados de recepción quedan l
   assert.equal(asOfS4.match(/tone: '#334155'/g)?.length, 3, 'subtotal bruto en los 3 resúmenes');
   assert.equal(asOfS4.match(/tone: '#111827'/g)?.length, 3, 'total en los 3 resúmenes');
   assert.ok(asOfS4.includes("abierta: { label: 'Abierta', bgcolor: '#f1f5f9', color: '#475569' },"));
+});
+
+test('subbloque 5: introduce los 11 roles steel del formulario y no deja ninguno de esos valores literal', () => {
+  const s5 = subblocks.find(({ name }) => name === 'documentosForm.s5.baseline.json')!.fixture.files[FILE]!;
+  const roles = ['ink', 'attachmentSurface', 'softSurface', 'wash', 'panelBand', 'rowStripe', 'dividerStrong', 'taxBorder', 'taxDivider', 'totalsBorder', 'summarySurface'];
+  const used = new Set(Object.values(s5.lines).flatMap((l) => l.entries.map((e) => e.token)));
+  assert.deepStrictEqual([...used].sort(), roles.map((r) => `neutralColors.steel.${r}`).sort());
+  assert.deepStrictEqual(s5.keptLiteral, {});
+  const steel = neutralColors.steel as Record<string, string>;
+  const asOfS5 = asOfSubblock('documentosForm.s5.baseline.json').toLowerCase();
+  for (const role of roles) assert.ok(!asOfS5.includes(steel[role]!), `${role} (${steel[role]}) sigue literal`);
 });

@@ -1,0 +1,255 @@
+{
+  "source": "HEAD 8d8497a, DocumentosFormPage subbloque s5",
+  "files": {
+    "pages/DocumentosFormPage.tsx": {
+      "headSha256": "6281d16c2d629f2f9701b2bfc120ba1432e654787a603465cbe6e329efe2ebfd",
+      "addedImports": [],
+      "lines": {
+        "4031": {
+          "original": "              <Box sx={{ border: `1px solid ${neutralColors.gray[200]}`, borderRadius: 1.5, p: 1, bgcolor: '#fafafa' }}>",
+          "migrated": "              <Box sx={{ border: `1px solid ${neutralColors.gray[200]}`, borderRadius: 1.5, p: 1, bgcolor: neutralColors.steel.attachmentSurface }}>",
+          "entries": [
+            {
+              "hex": "#fafafa",
+              "token": "neutralColors.steel.attachmentSurface"
+            }
+          ]
+        },
+        "4157": {
+          "original": "                                bgcolor: '#fafafa',",
+          "migrated": "                                bgcolor: neutralColors.steel.attachmentSurface,",
+          "entries": [
+            {
+              "hex": "#fafafa",
+              "token": "neutralColors.steel.attachmentSurface"
+            }
+          ]
+        },
+        "4583": {
+          "original": "                  <Box sx={{ bgcolor: '#f7f9fc', border: '1px solid #e2e6ee', borderRadius: 1, p: 1.25, display: 'flex', flexDirection: 'column', gap: 1 }}>",
+          "migrated": "                  <Box sx={{ bgcolor: neutralColors.steel.softSurface, border: `1px solid ${neutralColors.steel.taxBorder}`, borderRadius: 1, p: 1.25, display: 'flex', flexDirection: 'column', gap: 1 }}>",
+          "entries": [
+            {
+              "hex": "#f7f9fc",
+              "token": "neutralColors.steel.softSurface"
+            },
+            {
+              "hex": "#e2e6ee",
+              "token": "neutralColors.steel.taxBorder"
+            }
+          ]
+        },
+        "4588": {
+          "original": "                      <Box sx={{ flex: 1, height: '1px', bgcolor: '#dde3ee' }} />",
+          "migrated": "                      <Box sx={{ flex: 1, height: '1px', bgcolor: neutralColors.steel.taxDivider }} />",
+          "entries": [
+            {
+              "hex": "#dde3ee",
+              "token": "neutralColors.steel.taxDivider"
+            }
+          ]
+        },
+        "4627": {
+          "original": "                  <Box sx={{ px: 1.75, py: 1, borderBottom: '1px solid #e2e5ec', display: 'flex', alignItems: 'center', gap: 1.25 }}>",
+          "migrated": "                  <Box sx={{ px: 1.75, py: 1, borderBottom: `1px solid ${neutralColors.steel.dividerStrong}`, display: 'flex', alignItems: 'center', gap: 1.25 }}>",
+          "entries": [
+            {
+              "hex": "#e2e5ec",
+              "token": "neutralColors.steel.dividerStrong"
+            }
+          ]
+        },
+        "4701": {
+          "original": "                      <Box sx={{ bgcolor: '#fafbfd', borderTop: `1px solid ${neutralColors.steel.dividerSoft}`, p: 1.5, display: 'flex', flexDirection: 'column', gap: 1.25 }}>",
+          "migrated": "                      <Box sx={{ bgcolor: neutralColors.steel.panelBand, borderTop: `1px solid ${neutralColors.steel.dividerSoft}`, p: 1.5, display: 'flex', flexDirection: 'column', gap: 1.25 }}>",
+          "entries": [
+            {
+              "hex": "#fafbfd",
+              "token": "neutralColors.steel.panelBand"
+            }
+          ]
+        },
+        "4750": {
+          "original": "                                    <Typography sx={{ fontSize: 12, color: row.strong ? '#0f1626' : neutralColors.steel.text, fontWeight: row.strong ? 700 : 400 }}>",
+          "migrated": "                                    <Typography sx={{ fontSize: 12, color: row.strong ? neutralColors.steel.ink : neutralColors.steel.text, fontWeight: row.strong ? 700 : 400 }}>",
+          "entries": [
+            {
+              "hex": "#0f1626",
+              "token": "neutralColors.steel.ink"
+            }
+          ]
+        },
+        "4777": {
+          "original": "                                  <Typography sx={{ fontSize: 12, fontWeight: 700, color: '#0f1626' }}>Efecto neto</Typography>",
+          "migrated": "                                  <Typography sx={{ fontSize: 12, fontWeight: 700, color: neutralColors.steel.ink }}>Efecto neto</Typography>",
+          "entries": [
+            {
+              "hex": "#0f1626",
+              "token": "neutralColors.steel.ink"
+            }
+          ]
+        },
+        "4871": {
+          "original": "                              bgcolor: '#fafbfd',",
+          "migrated": "                              bgcolor: neutralColors.steel.panelBand,",
+          "entries": [
+            {
+              "hex": "#fafbfd",
+              "token": "neutralColors.steel.panelBand"
+            }
+          ]
+        },
+        "4872": {
+          "original": "                              borderBottom: '1px solid #e2e5ec',",
+          "migrated": "                              borderBottom: `1px solid ${neutralColors.steel.dividerStrong}`,",
+          "entries": [
+            {
+              "hex": "#e2e5ec",
+              "token": "neutralColors.steel.dividerStrong"
+            }
+          ]
+        },
+        "4887": {
+          "original": "                            const filaBase = expanded ? '#f7f9fc' : index % 2 === 1 ? '#f4f6f9' : '#fff';",
+          "migrated": "                            const filaBase = expanded ? neutralColors.steel.softSurface : index % 2 === 1 ? neutralColors.steel.rowStripe : '#fff';",
+          "entries": [
+            {
+              "hex": "#f7f9fc",
+              "token": "neutralColors.steel.softSurface"
+            },
+            {
+              "hex": "#f4f6f9",
+              "token": "neutralColors.steel.rowStripe"
+            }
+          ]
+        },
+        "4899": {
+          "original": "                                  '&:hover': { bgcolor: expanded ? '#f7f9fc' : '#eef1f4' },",
+          "migrated": "                                  '&:hover': { bgcolor: expanded ? neutralColors.steel.softSurface : neutralColors.steel.wash },",
+          "entries": [
+            {
+              "hex": "#f7f9fc",
+              "token": "neutralColors.steel.softSurface"
+            },
+            {
+              "hex": "#eef1f4",
+              "token": "neutralColors.steel.wash"
+            }
+          ]
+        },
+        "5157": {
+          "original": "                                    color: '#0f1626',",
+          "migrated": "                                    color: neutralColors.steel.ink,",
+          "entries": [
+            {
+              "hex": "#0f1626",
+              "token": "neutralColors.steel.ink"
+            }
+          ]
+        },
+        "5192": {
+          "original": "                                    <Box sx={{ width: '1px', height: 16, bgcolor: '#e2e5ec', mx: 0.25, flexShrink: 0 }} />",
+          "migrated": "                                    <Box sx={{ width: '1px', height: 16, bgcolor: neutralColors.steel.dividerStrong, mx: 0.25, flexShrink: 0 }} />",
+          "entries": [
+            {
+              "hex": "#e2e5ec",
+              "token": "neutralColors.steel.dividerStrong"
+            }
+          ]
+        },
+        "5206": {
+          "original": "                                        '&:hover': { borderColor: 'primary.main', color: 'primary.main', bgcolor: '#f7f9fc' },",
+          "migrated": "                                        '&:hover': { borderColor: 'primary.main', color: 'primary.main', bgcolor: neutralColors.steel.softSurface },",
+          "entries": [
+            {
+              "hex": "#f7f9fc",
+              "token": "neutralColors.steel.softSurface"
+            }
+          ]
+        },
+        "5252": {
+          "original": "                              borderColor: expanded ? 'primary.main' : '#e2e5ec',",
+          "migrated": "                              borderColor: expanded ? 'primary.main' : neutralColors.steel.dividerStrong,",
+          "entries": [
+            {
+              "hex": "#e2e5ec",
+              "token": "neutralColors.steel.dividerStrong"
+            }
+          ]
+        },
+        "5845": {
+          "original": "            backgroundColor: '#eef1f4',",
+          "migrated": "            backgroundColor: neutralColors.steel.wash,",
+          "entries": [
+            {
+              "hex": "#eef1f4",
+              "token": "neutralColors.steel.wash"
+            }
+          ]
+        },
+        "7337": {
+          "original": "                            borderColor: '#96a7c7',",
+          "migrated": "                            borderColor: neutralColors.steel.totalsBorder,",
+          "entries": [
+            {
+              "hex": "#96a7c7",
+              "token": "neutralColors.steel.totalsBorder"
+            }
+          ]
+        },
+        "7763": {
+          "original": "                            borderColor: '#96a7c7',",
+          "migrated": "                            borderColor: neutralColors.steel.totalsBorder,",
+          "entries": [
+            {
+              "hex": "#96a7c7",
+              "token": "neutralColors.steel.totalsBorder"
+            }
+          ]
+        },
+        "8366": {
+          "original": "                              bgcolor: '#fbfdff',",
+          "migrated": "                              bgcolor: neutralColors.steel.summarySurface,",
+          "entries": [
+            {
+              "hex": "#fbfdff",
+              "token": "neutralColors.steel.summarySurface"
+            }
+          ]
+        },
+        "8436": {
+          "original": "                      bgcolor: '#fbfdff',",
+          "migrated": "                      bgcolor: neutralColors.steel.summarySurface,",
+          "entries": [
+            {
+              "hex": "#fbfdff",
+              "token": "neutralColors.steel.summarySurface"
+            }
+          ]
+        },
+        "8830": {
+          "original": "                bgcolor: '#fafafa',",
+          "migrated": "                bgcolor: neutralColors.steel.attachmentSurface,",
+          "entries": [
+            {
+              "hex": "#fafafa",
+              "token": "neutralColors.steel.attachmentSurface"
+            }
+          ]
+        },
+        "8967": {
+          "original": "                              bgcolor: '#fafafa',",
+          "migrated": "                              bgcolor: neutralColors.steel.attachmentSurface,",
+          "entries": [
+            {
+              "hex": "#fafafa",
+              "token": "neutralColors.steel.attachmentSurface"
+            }
+          ]
+        }
+      },
+      "snippets": {},
+      "keptLiteral": {}
+    }
+  }
+}

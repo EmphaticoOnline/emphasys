@@ -116,6 +116,11 @@ test('los neutrales estructurales no dependen de la marca ni coinciden con ella'
 
 test('cada valor de neutralColors se usa en al menos un bloque', () => {
   const used = new Set(files().flatMap(({ lines }) => Object.values(lines).flat().map((e) => e.token)));
+  // Los subbloques de DocumentosFormPage también consumen neutralColors (roles propios del formulario).
+  for (const name of DOCUMENTOS_FORM_ORDER) {
+    const fixture = JSON.parse(readText(`./__fixtures__/${name}`)) as { files: Record<string, { lines: Record<string, { entries: { token: string }[] }> }> };
+    for (const entry of Object.values(fixture.files)) for (const line of Object.values(entry.lines)) for (const e of line.entries) used.add(e.token);
+  }
   for (const [family, scale] of Object.entries(neutralColors)) {
     for (const key of Object.keys(scale)) {
       const token = family === 'steel' ? `neutralColors.steel.${key}` : `neutralColors.${family}[${key}]`;

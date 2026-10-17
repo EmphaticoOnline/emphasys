@@ -4028,7 +4028,7 @@ export default function DocumentosFormPage({
             />
 
             {partidaImagenPreviewUrl && (
-              <Box sx={{ border: `1px solid ${neutralColors.gray[200]}`, borderRadius: 1.5, p: 1, bgcolor: '#fafafa' }}>
+              <Box sx={{ border: `1px solid ${neutralColors.gray[200]}`, borderRadius: 1.5, p: 1, bgcolor: neutralColors.steel.attachmentSurface }}>
                 <Box
                   component="img"
                   src={partidaImagenPreviewUrl}
@@ -4154,7 +4154,7 @@ export default function DocumentosFormPage({
                                 borderRadius: 1.5,
                                 overflow: 'hidden',
                                 border: selected ? '2px solid #1565c0' : `1px solid ${neutralColors.gray[200]}`,
-                                bgcolor: '#fafafa',
+                                bgcolor: neutralColors.steel.attachmentSurface,
                                 aspectRatio: '1 / 1',
                               }}
                             >
@@ -4580,12 +4580,12 @@ export default function DocumentosFormPage({
                 </Box>
 
                 {encabezadoDetalleAbierto && (
-                  <Box sx={{ bgcolor: '#f7f9fc', border: '1px solid #e2e6ee', borderRadius: 1, p: 1.25, display: 'flex', flexDirection: 'column', gap: 1 }}>
+                  <Box sx={{ bgcolor: neutralColors.steel.softSurface, border: `1px solid ${neutralColors.steel.taxBorder}`, borderRadius: 1, p: 1.25, display: 'flex', flexDirection: 'column', gap: 1 }}>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                       <Typography sx={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'primary.main' }}>
                         Detalle del documento
                       </Typography>
-                      <Box sx={{ flex: 1, height: '1px', bgcolor: '#dde3ee' }} />
+                      <Box sx={{ flex: 1, height: '1px', bgcolor: neutralColors.steel.taxDivider }} />
                     </Box>
                     <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, alignItems: 'flex-start' }}>
                       {camposDocumento.campos.map((campo) => {
@@ -4624,7 +4624,7 @@ export default function DocumentosFormPage({
               {/* ── Partidas ── */}
               {usaPartidas && (
                 <Paper variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden', flexGrow: 1 }}>
-                  <Box sx={{ px: 1.75, py: 1, borderBottom: '1px solid #e2e5ec', display: 'flex', alignItems: 'center', gap: 1.25 }}>
+                  <Box sx={{ px: 1.75, py: 1, borderBottom: `1px solid ${neutralColors.steel.dividerStrong}`, display: 'flex', alignItems: 'center', gap: 1.25 }}>
                     <Typography sx={{ fontSize: 13.5, fontWeight: 700, color: 'primary.main' }}>Partidas</Typography>
                     <Box
                       sx={{
@@ -4698,7 +4698,7 @@ export default function DocumentosFormPage({
                       breakdown: ReturnType<typeof getPartidaDiscountBreakdown>,
                       impuestosPartida: ReturnType<typeof getPartidaTaxSummary>
                     ) => (
-                      <Box sx={{ bgcolor: '#fafbfd', borderTop: `1px solid ${neutralColors.steel.dividerSoft}`, p: 1.5, display: 'flex', flexDirection: 'column', gap: 1.25 }}>
+                      <Box sx={{ bgcolor: neutralColors.steel.panelBand, borderTop: `1px solid ${neutralColors.steel.dividerSoft}`, p: 1.5, display: 'flex', flexDirection: 'column', gap: 1.25 }}>
                         <TextField
                           label="Descripción"
                           value={partida.descripcion_alterna ?? ''}
@@ -4747,7 +4747,7 @@ export default function DocumentosFormPage({
                                   { label: 'Subtotal final', value: breakdown.subtotalFinal, strong: true },
                                 ].map((row) => (
                                   <Box key={row.label} sx={detalleRowSx}>
-                                    <Typography sx={{ fontSize: 12, color: row.strong ? '#0f1626' : neutralColors.steel.text, fontWeight: row.strong ? 700 : 400 }}>
+                                    <Typography sx={{ fontSize: 12, color: row.strong ? neutralColors.steel.ink : neutralColors.steel.text, fontWeight: row.strong ? 700 : 400 }}>
                                       {row.label}
                                     </Typography>
                                     <Typography sx={{ fontSize: 12, fontFamily: 'monospace', fontWeight: row.strong ? 700 : 400 }}>
@@ -4774,7 +4774,7 @@ export default function DocumentosFormPage({
                                   </Box>
                                 )}
                                 <Box sx={detalleRowSx}>
-                                  <Typography sx={{ fontSize: 12, fontWeight: 700, color: '#0f1626' }}>Efecto neto</Typography>
+                                  <Typography sx={{ fontSize: 12, fontWeight: 700, color: neutralColors.steel.ink }}>Efecto neto</Typography>
                                   <Typography sx={{ fontSize: 12, fontWeight: 700, fontFamily: 'monospace' }}>
                                     {formatter.format(impuestosPartida.traslados - impuestosPartida.retenciones)}
                                   </Typography>
@@ -4868,8 +4868,8 @@ export default function DocumentosFormPage({
                               alignItems: 'center',
                               px: 1.5,
                               py: 0.65,
-                              bgcolor: '#fafbfd',
-                              borderBottom: '1px solid #e2e5ec',
+                              bgcolor: neutralColors.steel.panelBand,
+                              borderBottom: `1px solid ${neutralColors.steel.dividerStrong}`,
                             }}
                           >
                             <Box />
@@ -4884,7 +4884,7 @@ export default function DocumentosFormPage({
                           </Box>
 
                           {partidasComputadas.map(({ partida, index, productoSeleccionado, impuestosPartida, breakdown, expanded }) => {
-                            const filaBase = expanded ? '#f7f9fc' : index % 2 === 1 ? '#f4f6f9' : '#fff';
+                            const filaBase = expanded ? neutralColors.steel.softSurface : index % 2 === 1 ? neutralColors.steel.rowStripe : '#fff';
                             return (
                             <Box key={index} sx={{ borderBottom: `1px solid ${neutralColors.steel.dividerSoft}` }}>
                               <Box
@@ -4896,7 +4896,7 @@ export default function DocumentosFormPage({
                                   px: 1.5,
                                   py: 0.4,
                                   bgcolor: filaBase,
-                                  '&:hover': { bgcolor: expanded ? '#f7f9fc' : '#eef1f4' },
+                                  '&:hover': { bgcolor: expanded ? neutralColors.steel.softSurface : neutralColors.steel.wash },
                                 }}
                               >
                                 <Typography sx={{ fontSize: 11, color: neutralColors.steel.dot, fontFamily: 'monospace' }}>
@@ -5154,7 +5154,7 @@ export default function DocumentosFormPage({
                                   sx={{
                                     fontSize: 13.5,
                                     fontWeight: 800,
-                                    color: '#0f1626',
+                                    color: neutralColors.steel.ink,
                                     textAlign: 'right',
                                     fontFamily: 'monospace',
                                     fontVariantNumeric: 'tabular-nums',
@@ -5189,7 +5189,7 @@ export default function DocumentosFormPage({
                                     </Tooltip>
                                   )}
                                   {partidasMostrarImagenes && (
-                                    <Box sx={{ width: '1px', height: 16, bgcolor: '#e2e5ec', mx: 0.25, flexShrink: 0 }} />
+                                    <Box sx={{ width: '1px', height: 16, bgcolor: neutralColors.steel.dividerStrong, mx: 0.25, flexShrink: 0 }} />
                                   )}
                                   <Tooltip title={expanded ? 'Ocultar detalles de partida' : 'Ver detalles de partida'}>
                                     <IconButton
@@ -5203,7 +5203,7 @@ export default function DocumentosFormPage({
                                         border: '1px solid',
                                         borderColor: (theme) => (expanded ? theme.emphasys.action.disabled : neutralColors.steel.panelBorder),
                                         borderRadius: 1,
-                                        '&:hover': { borderColor: 'primary.main', color: 'primary.main', bgcolor: '#f7f9fc' },
+                                        '&:hover': { borderColor: 'primary.main', color: 'primary.main', bgcolor: neutralColors.steel.softSurface },
                                       }}
                                     >
                                       {expanded ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
@@ -5249,7 +5249,7 @@ export default function DocumentosFormPage({
                             variant="outlined"
                             sx={{
                               borderRadius: 1.5,
-                              borderColor: expanded ? 'primary.main' : '#e2e5ec',
+                              borderColor: expanded ? 'primary.main' : neutralColors.steel.dividerStrong,
                               overflow: 'hidden',
                             }}
                           >
@@ -5842,7 +5842,7 @@ export default function DocumentosFormPage({
             top: 72,
             zIndex: 2,
             py: 1,
-            backgroundColor: '#eef1f4',
+            backgroundColor: neutralColors.steel.wash,
           }}
         >
           <MobileBackIconButton
@@ -7334,7 +7334,7 @@ export default function DocumentosFormPage({
                             p: 1.5,
                             borderRadius: 1.75,
                             border: '1.5px solid',
-                            borderColor: '#96a7c7',
+                            borderColor: neutralColors.steel.totalsBorder,
                             bgcolor: '#ffffff',
                             boxShadow: '0 1px 0 rgba(29, 47, 104, 0.06)',
                             mb: 1.5,
@@ -7760,7 +7760,7 @@ export default function DocumentosFormPage({
                             p: 1.75,
                             borderRadius: 1.75,
                             border: '1.75px solid',
-                            borderColor: '#96a7c7',
+                            borderColor: neutralColors.steel.totalsBorder,
                             bgcolor: '#ffffff',
                             boxShadow: '0 1px 0 rgba(29, 47, 104, 0.06)',
                             display: 'flex',
@@ -8363,7 +8363,7 @@ export default function DocumentosFormPage({
                               py: 1,
                               borderRadius: 1.25,
                               borderColor: neutralColors.gray[200],
-                              bgcolor: '#fbfdff',
+                              bgcolor: neutralColors.steel.summarySurface,
                               minWidth: 0,
                               display: 'flex',
                               alignItems: 'center',
@@ -8433,7 +8433,7 @@ export default function DocumentosFormPage({
                       py: 1,
                       borderRadius: 1.5,
                       borderColor: neutralColors.gray[200],
-                      bgcolor: '#fbfdff',
+                      bgcolor: neutralColors.steel.summarySurface,
                       minWidth: 0,
                       display: 'flex',
                       flexDirection: 'column',
@@ -8827,7 +8827,7 @@ export default function DocumentosFormPage({
                 border: `1px solid ${neutralColors.gray[200]}`,
                 borderRadius: 1.5,
                 p: 1,
-                bgcolor: '#fafafa',
+                bgcolor: neutralColors.steel.attachmentSurface,
               }}
             >
               <Box
@@ -8964,7 +8964,7 @@ export default function DocumentosFormPage({
                               borderRadius: 1.5,
                               overflow: 'hidden',
                               border: selected ? '2px solid #1565c0' : `1px solid ${neutralColors.gray[200]}`,
-                              bgcolor: '#fafafa',
+                              bgcolor: neutralColors.steel.attachmentSurface,
                               aspectRatio: '1 / 1',
                             }}
                           >
