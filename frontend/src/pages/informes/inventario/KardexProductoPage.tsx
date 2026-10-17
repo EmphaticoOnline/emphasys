@@ -252,7 +252,7 @@ export default function KardexProductoPage() {
                   <TableHead>
                     <TableRow sx={{ bgcolor: COLOR }}>
                       {['Fecha', 'Tipo', 'Folio', 'Almacén', 'Entrada', 'Salida', 'Existencia', 'Costo', 'Valor', 'Obs.'].map((h) => (
-                        <TableCell key={h} sx={{ color: '#fff', fontWeight: 700, fontSize: '0.75rem' }}
+                        <TableCell key={h} sx={{ color: 'common.white', fontWeight: 700, fontSize: '0.75rem' }}
                           align={['Entrada', 'Salida', 'Existencia', 'Costo', 'Valor'].includes(h) ? 'right' : 'left'}>
                           {h}
                         </TableCell>

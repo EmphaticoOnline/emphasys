@@ -585,7 +585,7 @@ export default function MovimientosPorPeriodoPage({ config }: { config: Movimien
   };
   const exportBtnSx: SxProps<Theme> = {
     height: 32, px: 1.4, minWidth: 0, borderRadius: 2, textTransform: 'none', fontSize: 12.5, fontWeight: 600,
-    color: '#fff', boxShadow: 'none', '& .MuiButton-startIcon': { mr: 0.5 },
+    color: 'common.white', boxShadow: 'none', '& .MuiButton-startIcon': { mr: 0.5 },
   };
 
   return (
@@ -962,7 +962,7 @@ export default function MovimientosPorPeriodoPage({ config }: { config: Movimien
             <TableHead>
               <TableRow sx={esVentas
                 ? { bgcolor: tokens.table.headerBg, '& .MuiTableCell-root': { color: tokens.table.headerFg, fontWeight: 700, fontSize: 11, letterSpacing: '0.06em', textTransform: 'uppercase', py: 1, borderColor: tokens.table.line, whiteSpace: 'nowrap' } }
-                : { bgcolor: '#1d2f68', '& .MuiTableCell-root': { color: '#fff', fontWeight: 700, fontSize: '0.78rem', py: 0.75 } }}>
+                : { bgcolor: '#1d2f68', '& .MuiTableCell-root': { color: 'common.white', fontWeight: 700, fontSize: '0.78rem', py: 0.75 } }}>
                 <TableCell sx={{ width: 36 }} />
                 <TableCell>Período</TableCell>
                 <TableCell align="right">Documentos</TableCell>
