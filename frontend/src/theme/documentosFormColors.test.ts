@@ -129,3 +129,14 @@ test('subbloque 3: el indicador de imagen de partidas (estado) queda literal', (
   const migratedNumbers = Object.keys(s3.lines).map(Number);
   assert.ok(!migratedNumbers.includes(5184) && !migratedNumbers.includes(5519));
 });
+
+test('subbloque 4: tonos del resumen financiero y estados de recepción quedan literales', () => {
+  const s4 = subblocks.find(({ name }) => name === 'documentosForm.s4.baseline.json')!.fixture.files[FILE]!;
+  for (const n of Object.keys(s4.lines).map(Number)) assert.ok(n > 5601 && n < 8722, `línea ${n} fuera del rango`);
+  // Lo que se conserva de los mismos hex es exactamente lo funcional (subbloque 7) y lo de estado (subbloque 6).
+  assert.deepStrictEqual(s4.keptLiteral, { '#475569': 1, '#111827': 3, '#334155': 3, '#f1f5f9': 1, '#94a3b8': 1 });
+  const asOfS4 = asOfSubblock('documentosForm.s4.baseline.json');
+  assert.equal(asOfS4.match(/tone: '#334155'/g)?.length, 3, 'subtotal bruto en los 3 resúmenes');
+  assert.equal(asOfS4.match(/tone: '#111827'/g)?.length, 3, 'total en los 3 resúmenes');
+  assert.ok(asOfS4.includes("abierta: { label: 'Abierta', bgcolor: '#f1f5f9', color: '#475569' },"));
+});
