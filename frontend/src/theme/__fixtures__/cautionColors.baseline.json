@@ -1,0 +1,72 @@
+{
+  "source": "HEAD adc312d, antes de migrar naranja",
+  "files": {
+    "components/documentos/nota-credito/NotaCreditoCaptura.tsx": {
+      "headSha256": "d5df9bd3088f5d1782989bf72609e1ee3ecbc9d5b9b4e32042f891ae928b8209",
+      "lines": {
+        "745": [
+          {
+            "hex": "#9a3412",
+            "token": "alertColors.caution[800]"
+          }
+        ],
+        "774": [
+          {
+            "hex": "#c2410c",
+            "token": "alertColors.caution[700]"
+          }
+        ],
+        "806": [
+          {
+            "hex": "#c2410c",
+            "token": "alertColors.caution[700]"
+          }
+        ],
+        "1035": [
+          {
+            "hex": "#9a3412",
+            "token": "alertColors.caution[800]"
+          }
+        ],
+        "1136": [
+          {
+            "hex": "#9a3412",
+            "token": "alertColors.caution[800]"
+          }
+        ]
+      }
+    },
+    "modules/finanzas/AplicarSaldoNotaCreditoDialog.tsx": {
+      "headSha256": "a2d6cd79a805af4cb82f32fc69b2d75e9ae8d26a752cb43e6e5f3cc9de891237",
+      "lines": {
+        "110": [
+          {
+            "hex": "#9a3412",
+            "token": "alertColors.caution[800]"
+          }
+        ],
+        "186": [
+          {
+            "hex": "#9a3412",
+            "token": "alertColors.caution[800]"
+          }
+        ]
+      }
+    },
+    "modules/cotizaciones/estadoSeguimiento.ts": {
+      "headSha256": "b46ade8c1e397077a3387f7232cff57ee6dddacf4725d818be0178422be98c50",
+      "lines": {
+        "18": [
+          {
+            "hex": "#ffedd5",
+            "token": "alertColors.caution[100]"
+          },
+          {
+            "hex": "#9a3412",
+            "token": "alertColors.caution[800]"
+          }
+        ]
+      }
+    }
+  }
+}

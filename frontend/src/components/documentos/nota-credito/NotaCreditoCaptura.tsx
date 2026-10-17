@@ -742,7 +742,7 @@ export default function NotaCreditoCaptura({
                           {devolucion ? (
                             <>
                               <CeldaNumero>{formatCantidad(fila.facturado)}</CeldaNumero>
-                              <CeldaNumero color={fila.devuelto > 0 ? '#9a3412' : '#94a3b8'} peso={fila.devuelto > 0 ? 700 : 500}>
+                              <CeldaNumero color={fila.devuelto > 0 ? alertColors.caution[800] : '#94a3b8'} peso={fila.devuelto > 0 ? 700 : 500}>
                                 {formatCantidad(fila.devuelto)}
                               </CeldaNumero>
                               <TableCell align="right" sx={numCellSx}>
@@ -771,7 +771,7 @@ export default function NotaCreditoCaptura({
                                 {activo ? (
                                   <Box component="span" sx={{ fontWeight: 700, color: 'primary.main' }}>{money.format(importeLinea)}</Box>
                                 ) : (
-                                  <Box component="span" sx={{ fontWeight: 700, color: excede ? '#c2410c' : '#cbd5e1' }}>
+                                  <Box component="span" sx={{ fontWeight: 700, color: excede ? alertColors.caution[700] : '#cbd5e1' }}>
                                     {excede ? 'Excede' : '—'}
                                   </Box>
                                 )}
@@ -803,7 +803,7 @@ export default function NotaCreditoCaptura({
                                     onCommit={(next) => onValor(fila.partidaId, next)}
                                   />
                                   {excede && (
-                                    <Typography sx={{ mt: 0.35, fontSize: 11, fontWeight: 700, color: '#c2410c' }}>Excede</Typography>
+                                    <Typography sx={{ mt: 0.35, fontSize: 11, fontWeight: 700, color: alertColors.caution[700] }}>Excede</Typography>
                                   )}
                                 </Box>
                               </TableCell>
@@ -1032,7 +1032,7 @@ function Captura({
           textAlign: 'right',
           fontWeight: 700,
           fontSize: 13,
-          color: invalido ? '#9a3412' : activo ? 'primary.main' : '#64748b',
+          color: invalido ? alertColors.caution[800] : activo ? 'primary.main' : '#64748b',
           fontVariantNumeric: 'tabular-nums',
           '&::placeholder': { color: '#c5cdd8', opacity: 1, fontWeight: 600 },
         },
@@ -1133,7 +1133,7 @@ function PieNotaCredito({
           flex: '1 1 220px',
           fontSize: 13,
           fontWeight: 600,
-          color: problemas > 0 ? '#9a3412' : '#475569',
+          color: problemas > 0 ? alertColors.caution[800] : '#475569',
           minWidth: 180,
         }}
       >

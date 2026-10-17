@@ -88,7 +88,7 @@ export const agingBucketColors: Readonly<Record<'0-30' | '31-60' | '61-90' | '90
 /**
  * Alertas de éxito, advertencia y error usadas en componentes (chips de
  * estado, validaciones, conteos de errores). Son las escalas de Tailwind
- * (green / amber / red) que ya usaba el código, con su número de tono, para
+ * (green / amber / orange / red) que ya usaba el código, con su número de tono, para
  * conservar cada valor exacto. No son `palette.success/warning/error` de MUI,
  * que tienen otros valores (ver `feedbackTokens`).
  */
@@ -110,6 +110,12 @@ export const alertColors = {
     600: '#d97706',
     700: '#b45309',
     800: '#92400e',
+  },
+  /** Naranja: atención que no llega a error (excede, inválido, pausada). */
+  caution: {
+    100: '#ffedd5',
+    700: '#c2410c',
+    800: '#9a3412',
   },
   error: {
     50: '#fef2f2',

@@ -107,7 +107,7 @@ function parseNumero(raw: string): number | null {
 }
 
 function CifraOperacion({ label, value, tono }: { label: string; value: string; tono: 'base' | 'activa' | 'vacia' | 'alerta' }) {
-  const color = tono === 'alerta' ? '#9a3412' : tono === 'activa' ? 'primary.main' : tono === 'vacia' ? '#94a3b8' : '#334155';
+  const color = tono === 'alerta' ? alertColors.caution[800] : tono === 'activa' ? 'primary.main' : tono === 'vacia' ? '#94a3b8' : '#334155';
   return (
     <Box sx={{ flex: '1 1 0', minWidth: 0, px: { xs: 1.25, sm: 1.75 }, py: 1.15 }}>
       <Typography sx={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: '#8b93a7', lineHeight: 1 }}>
@@ -183,7 +183,7 @@ function CapturaImporte({
           textAlign: 'right',
           fontWeight: 700,
           fontSize: 13,
-          color: invalido ? '#9a3412' : activo ? 'primary.main' : '#64748b',
+          color: invalido ? alertColors.caution[800] : activo ? 'primary.main' : '#64748b',
           fontVariantNumeric: 'tabular-nums',
           '&::placeholder': { color: '#c5cdd8', opacity: 1, fontWeight: 600 },
         },

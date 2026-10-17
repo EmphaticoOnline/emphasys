@@ -18,7 +18,8 @@ const resolve = (family: string, step: string): string => {
   return value;
 };
 
-const allHexes = new Set(Object.values(alertColors).flatMap((scale) => Object.values(scale)));
+/** Familias de este bloque; `caution` (naranja) tiene su propio bloque y prueba. */
+const allHexes = new Set([alertColors.success, alertColors.warning, alertColors.error].flatMap((scale) => Object.values(scale)));
 
 function countTokens(source: string) {
   const counts: Record<string, number> = {};
