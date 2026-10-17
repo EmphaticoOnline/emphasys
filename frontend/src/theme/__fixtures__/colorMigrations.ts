@@ -2,7 +2,11 @@ import { activeBrand } from '../brand/active.ts';
 import {
   activityAccents,
   activityTypeChipColors,
+  advanceBoxColors,
   alertColors,
+  attachmentIndicatorColors,
+  feedbackTokens,
+  fiscalStatusColors,
   categoricalPalettes,
   destructiveHoverColors,
   environmentColors,
@@ -30,7 +34,7 @@ export const NEUTRAL_ORDER = [
 export const MINOR_FIXTURE = 'minorColors.baseline.json';
 export const REST_FIXTURE = 'restColors.baseline.json';
 /** Subbloques de `DocumentosFormPage`, en orden (ver docs/white-label-documentosformpage-audit.md). */
-export const DOCUMENTOS_FORM_ORDER = ['documentosForm.s1.baseline.json', 'documentosForm.s2.baseline.json', 'documentosForm.s3.baseline.json', 'documentosForm.s4.baseline.json', 'documentosForm.s5.baseline.json'] as const;
+export const DOCUMENTOS_FORM_ORDER = ['documentosForm.s1.baseline.json', 'documentosForm.s2.baseline.json', 'documentosForm.s3.baseline.json', 'documentosForm.s4.baseline.json', 'documentosForm.s5.baseline.json', 'documentosForm.s6.baseline.json'] as const;
 const LATER_CHAIN = [...NEUTRAL_ORDER, MINOR_FIXTURE, REST_FIXTURE, ...DOCUMENTOS_FORM_ORDER] as const;
 /** Todos los fixtures de la cadena, en orden: las pruebas cargan esta lista, no una copia. */
 export const LATER_FIXTURES: readonly string[] = LATER_CHAIN;
@@ -174,6 +178,44 @@ export function neutralTokenMap(p: NeutralPalette = neutralColors): Record<strin
   for (const [step, hex] of Object.entries(p.gray)) add(hex, `neutralColors.gray[${step}]`);
   for (const [step, hex] of Object.entries(p.slate)) add(hex, `neutralColors.slate[${step}]`);
   for (const [role, hex] of Object.entries(p.steel)) add(hex, `neutralColors.steel.${role}`);
+  return map;
+}
+
+// ── Resolvedor genérico de tokens (varias familias en una línea) ───────────────
+
+/** Raíces de color que pueden aparecer en un token migrado; clonables para pruebas de mutación. */
+export const colorTokenRoots = (): Record<string, unknown> =>
+  structuredClone({
+    neutralColors,
+    selectionColors,
+    alertColors,
+    feedbackTokens,
+    fiscalStatusColors,
+    attachmentIndicatorColors,
+    advanceBoxColors,
+  });
+
+/** Ruta de un token: `alertColors.success[800]` → ['alertColors', 'success', '800']. */
+export function colorTokenPath(token: string): string[] {
+  const match = /^([a-zA-Z]+)((?:\.[a-zA-Z_]+|\[\d+\])+)$/.exec(token);
+  if (!match) throw new Error(`Token no reconocido: ${token}`);
+  return [match[1]!, ...[...match[2]!.matchAll(/\.([a-zA-Z_]+)|\[(\d+)\]/g)].map(([, key, index]) => (key ?? index)!)];
+}
+
+export function resolveColorToken(token: string, roots: Record<string, unknown> = colorTokenRoots()): string {
+  const value = colorTokenPath(token).reduce<unknown>((node, key) => (node as Record<string, unknown> | undefined)?.[key], roots);
+  if (typeof value !== 'string') throw new Error(`${token} no resuelve a un color`);
+  return value;
+}
+
+/** Mapa hex → token limitado a los tokens de una línea, resueltos con `roots`. */
+export function entriesTokenMap(entries: { token: string }[], roots: Record<string, unknown> = colorTokenRoots()): Record<string, string> {
+  const map: Record<string, string> = {};
+  for (const { token } of entries) {
+    const hex = resolveColorToken(token, roots).toLowerCase();
+    if (map[hex] && map[hex] !== token) throw new Error(`${hex} con dos tokens en la misma línea: ${map[hex]} y ${token}`);
+    map[hex] = token;
+  }
   return map;
 }
 

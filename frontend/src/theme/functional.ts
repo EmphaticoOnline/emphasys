@@ -273,3 +273,28 @@ export const temperatureColors = {
   caliente: '#ed6c02',
   muy_caliente: '#d32f2f',
 } as const;
+
+/** Chip "datos fiscales completos / incompletos" del formulario de documentos (verde y ámbar propios). */
+export const fiscalStatusColors = {
+  completeBackground: '#e8f4ee',
+  completeText: '#1c6b47',
+  incompleteBackground: '#fdf3e3',
+  incompleteText: '#9a5b00',
+} as const;
+
+/**
+ * Indicador de imagen de partida: con imagen propia (éxito, mismo valor de MUI),
+ * con archivo del producto o sin imagen.
+ */
+export const attachmentIndicatorColors = {
+  withImage: feedbackTokens.success.main,
+  productFile: '#1565c0',
+  none: '#6b7280',
+} as const;
+
+/** Caja de anticipos del documento: borde con anticipos registrados, borde sin ellos y fondo. */
+export const advanceBoxColors = {
+  registeredBorder: '#9db4ff',
+  idleBorder: '#d7deed',
+  surface: '#f7faff',
+} as const;

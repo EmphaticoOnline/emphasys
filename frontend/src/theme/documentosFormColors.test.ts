@@ -2,17 +2,19 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import test from 'node:test';
+import { attachmentIndicatorColors, feedbackTokens, fiscalStatusColors } from './functional.ts';
 import { neutralColors } from './structural.ts';
 import {
+  colorTokenPath,
+  colorTokenRoots,
   convertLine,
   DOCUMENTOS_FORM_ORDER,
+  entriesTokenMap,
   LATER_FIXTURES,
-  neutralTokenMap,
   revertLater,
   revertMinor,
   type LaterFixtures,
   type MinorFileFixture,
-  type NeutralPalette,
 } from './__fixtures__/colorMigrations.ts';
 
 const readText = (path: string) => readFileSync(new URL(path, import.meta.url), 'utf8');
@@ -35,12 +37,6 @@ const laterFixtures: LaterFixtures = Object.fromEntries(
 /** El archivo tal como lo dejó el subbloque `name`: sin los subbloques posteriores. */
 const asOfSubblock = (name: string) => revertLater(name, FILE, readText(`../${FILE}`), laterFixtures);
 
-/** Mapa limitado a los tokens que la línea introdujo, resueltos con los valores de `map`. */
-const lineMap = (map: Record<string, string>, entries: { token: string }[]) => {
-  const tokens = new Set(entries.map((e) => e.token));
-  return Object.fromEntries(Object.entries(map).filter(([, token]) => tokens.has(token)));
-};
-
 const colorLines = (fixture: SubblockFixture) =>
   Object.entries(fixture.files[FILE]!.lines)
     .filter(([, line]) => line.entries.length > 0)
@@ -61,28 +57,27 @@ test('equivalencia contra HEAD: restaurar cada subbloque reproduce el archivo pr
   }
 });
 
-test('cada línea migrada es la transformación de su original con los valores actuales de neutralColors', () => {
-  const map = neutralTokenMap();
+test('cada línea migrada es la transformación de su original con los valores actuales de sus tokens', () => {
   for (const { name, fixture } of subblocks) {
     // Cada subbloque convierte solo sus propios valores: los posteriores quedan literales en su texto migrado.
     for (const { n, original, migrated, entries } of colorLines(fixture)) {
-      assert.equal(convertLine(original, lineMap(map, entries)), migrated, `${name} línea ${n}`);
+      assert.equal(convertLine(original, entriesTokenMap(entries)), migrated, `${name} línea ${n}`);
     }
   }
 });
 
-test('mutación: alterar cualquier neutral usado rompe la transformación de sus líneas', () => {
+test('mutación: alterar cualquier valor usado rompe la transformación de sus líneas', () => {
   for (const { name, fixture } of subblocks) {
     const used = new Set(colorLines(fixture).flatMap((line) => line.entries.map((e) => e.token)));
     for (const token of used) {
-      const palette = structuredClone(neutralColors) as unknown as Record<string, Record<string, string>>;
-      const [, family, key] = /^neutralColors\.([a-z]+)(?:\[(\d+)\]|\.([a-zA-Z]+))$/.exec(token)!.filter(Boolean);
-      const value = palette[family!]![key!]!;
-      palette[family!]![key!] = `${value.slice(0, -1)}${value.endsWith('0') ? '1' : '0'}`;
-      const map = neutralTokenMap(palette as unknown as NeutralPalette);
+      const roots = colorTokenRoots();
+      const path = colorTokenPath(token);
+      const parent = path.slice(0, -1).reduce<Record<string, unknown>>((node, key) => node[key] as Record<string, unknown>, roots);
+      const value = parent[path.at(-1)!] as string;
+      parent[path.at(-1)!] = `${value.slice(0, -1)}${value.endsWith('0') ? '1' : '0'}`;
       for (const { n, original, migrated, entries } of colorLines(fixture)) {
         if (!entries.some((e) => e.token === token)) continue;
-        assert.notEqual(convertLine(original, lineMap(map, entries)), migrated, `${name} línea ${n} no detectó ${token}`);
+        assert.notEqual(convertLine(original, entriesTokenMap(entries, roots)), migrated, `${name} línea ${n} no detectó ${token}`);
       }
     }
   }
@@ -157,4 +152,21 @@ test('subbloque 5: introduce los 11 roles steel del formulario y no deja ninguno
   const steel = neutralColors.steel as Record<string, string>;
   const asOfS5 = asOfSubblock('documentosForm.s5.baseline.json').toLowerCase();
   for (const role of roles) assert.ok(!asOfS5.includes(steel[role]!), `${role} (${steel[role]}) sigue literal`);
+});
+
+test('subbloque 6: estados con token propio; mismo hex con otro significado queda para su subbloque', () => {
+  const s6 = subblocks.find(({ name }) => name === 'documentosForm.s6.baseline.json')!.fixture.files[FILE]!;
+  // Retención #9a5b00 (subbloque 7) y foco de adjuntos #1565c0 (subbloque 8) quedan literales.
+  assert.deepStrictEqual(s6.keptLiteral, { '#1565c0': 6, '#9a5b00': 3 });
+  assert.equal(fiscalStatusColors.incompleteText, '#9a5b00');
+  assert.equal(attachmentIndicatorColors.productFile, '#1565c0');
+  assert.equal(attachmentIndicatorColors.withImage, feedbackTokens.success.main);
+  const tokens = Object.values(s6.lines).flatMap((l) => l.entries.map((e) => e.token));
+  // El indicador de imagen aparece en 3 lugares (escritorio, móvil, traslado) con los mismos tokens.
+  for (const role of ['withImage', 'productFile', 'none']) {
+    assert.equal(tokens.filter((t) => t === `attachmentIndicatorColors.${role}`).length, 3, role);
+  }
+  // Estado de recepción y cantidades: solo tokens existentes de alertas y neutrales.
+  const recepcion = Object.entries(s6.lines).filter(([n]) => Number(n) > 8500).flatMap(([, l]) => l.entries.map((e) => e.token));
+  assert.ok(recepcion.length === 13 && recepcion.every((t) => t.startsWith('alertColors.') || t.startsWith('neutralColors.')));
 });

@@ -132,6 +132,7 @@ import type { CampoValorPayload, CampoValorGuardado } from '../types/camposDinam
 import type { Concepto, DocumentoAnticipoResumen, EstadoCuentaItem, FinanzasCuenta } from '../types/finanzas';
 import { NumericFormat } from 'react-number-format';
 import { neutralColors } from '../theme/structural';
+import { advanceBoxColors, alertColors, attachmentIndicatorColors, fiscalStatusColors } from '../theme/functional';
 
 const toCivilDate = (date = new Date()) => {
   const year = date.getFullYear();
@@ -4307,8 +4308,8 @@ export default function DocumentosFormPage({
                 px: 1,
                 py: 0.3,
                 borderRadius: 999,
-                bgcolor: fiscalCompleto ? '#e8f4ee' : '#fdf3e3',
-                color: fiscalCompleto ? '#1c6b47' : '#9a5b00',
+                bgcolor: fiscalCompleto ? fiscalStatusColors.completeBackground : fiscalStatusColors.incompleteBackground,
+                color: fiscalCompleto ? fiscalStatusColors.completeText : fiscalStatusColors.incompleteText,
               }}
             >
               {fiscalLabel}
@@ -5181,7 +5182,7 @@ export default function DocumentosFormPage({
                                           aria-label="Imagen de partida"
                                           onClick={() => abrirImagenDialog(index)}
                                           disabled={Boolean(uploadingImagen[index])}
-                                          sx={{ color: partida.archivo_imagen_1 ? '#2e7d32' : partida.producto_archivo_id ? '#1565c0' : '#6b7280', p: 0.5 }}
+                                          sx={{ color: partida.archivo_imagen_1 ? attachmentIndicatorColors.withImage : partida.producto_archivo_id ? attachmentIndicatorColors.productFile : attachmentIndicatorColors.none, p: 0.5 }}
                                         >
                                           {uploadingImagen[index] ? <CircularProgress size={16} /> : <PhotoCameraOutlinedIcon fontSize="small" />}
                                         </IconButton>
@@ -5516,7 +5517,7 @@ export default function DocumentosFormPage({
                                         aria-label="Imagen de partida"
                                         onClick={() => abrirImagenDialog(index)}
                                         disabled={Boolean(uploadingImagen[index])}
-                                        sx={{ color: partida.archivo_imagen_1 ? '#2e7d32' : partida.producto_archivo_id ? '#1565c0' : '#6b7280' }}
+                                        sx={{ color: partida.archivo_imagen_1 ? attachmentIndicatorColors.withImage : partida.producto_archivo_id ? attachmentIndicatorColors.productFile : attachmentIndicatorColors.none }}
                                       >
                                         {uploadingImagen[index] ? <CircularProgress size={16} /> : <PhotoCameraOutlinedIcon fontSize="small" />}
                                       </IconButton>
@@ -6028,8 +6029,8 @@ export default function DocumentosFormPage({
             alignItems: 'center',
             gap: 1,
             flexWrap: 'wrap',
-            borderColor: hasAnticiposRegistrados ? '#9db4ff' : '#d7deed',
-            bgcolor: '#f7faff',
+            borderColor: hasAnticiposRegistrados ? advanceBoxColors.registeredBorder : advanceBoxColors.idleBorder,
+            bgcolor: advanceBoxColors.surface,
           }}
         >
           {loadingAnticiposResumen ? <CircularProgress size={16} /> : null}
@@ -8110,10 +8111,10 @@ export default function DocumentosFormPage({
                                     disabled={Boolean(uploadingImagen[index])}
                                     sx={{
                                       color: partida.archivo_imagen_1
-                                        ? '#2e7d32'
+                                        ? attachmentIndicatorColors.withImage
                                         : partida.producto_archivo_id
-                                          ? '#1565c0'
-                                          : '#6b7280',
+                                          ? attachmentIndicatorColors.productFile
+                                          : attachmentIndicatorColors.none,
                                     }}
                                   >
                                     {uploadingImagen[index] ? (
@@ -8503,9 +8504,9 @@ export default function DocumentosFormPage({
             {!recepcionLoading && recepcionResumen && (() => {
               const estado = recepcionResumen.estado_recepcion;
               const cfg: Record<string, { label: string; bgcolor: string; color: string }> = {
-                abierta: { label: 'Abierta', bgcolor: '#f1f5f9', color: '#475569' },
-                parcial: { label: 'Parcial', bgcolor: '#fef3c7', color: '#92400e' },
-                cerrada: { label: 'Cerrada', bgcolor: '#dcfce7', color: '#166534' },
+                abierta: { label: 'Abierta', bgcolor: neutralColors.slate[100], color: neutralColors.slate[600] },
+                parcial: { label: 'Parcial', bgcolor: alertColors.warning[100], color: alertColors.warning[800] },
+                cerrada: { label: 'Cerrada', bgcolor: alertColors.success[100], color: alertColors.success[800] },
               };
               const { label, bgcolor, color } = cfg[estado] ?? cfg.abierta!;
               return (
@@ -8547,10 +8548,10 @@ export default function DocumentosFormPage({
                         {Number(p.cantidad_ordenada).toLocaleString('es-MX', { maximumFractionDigits: 4 })}
                         {p.unidad ? ` ${p.unidad}` : ''}
                       </TableCell>
-                      <TableCell align="right" sx={{ color: p.cantidad_recibida > 0 ? '#166534' : '#94a3b8' }}>
+                      <TableCell align="right" sx={{ color: p.cantidad_recibida > 0 ? alertColors.success[800] : neutralColors.slate[400] }}>
                         {Number(p.cantidad_recibida).toLocaleString('es-MX', { maximumFractionDigits: 4 })}
                       </TableCell>
-                      <TableCell align="right" sx={{ color: p.cantidad_pendiente > 0.000001 ? '#92400e' : '#166534', fontWeight: 600 }}>
+                      <TableCell align="right" sx={{ color: p.cantidad_pendiente > 0.000001 ? alertColors.warning[800] : alertColors.success[800], fontWeight: 600 }}>
                         {Number(p.cantidad_pendiente).toLocaleString('es-MX', { maximumFractionDigits: 4 })}
                       </TableCell>
                     </TableRow>
@@ -8558,8 +8559,8 @@ export default function DocumentosFormPage({
                   <TableRow sx={{ bgcolor: neutralColors.slate[50], '& td': { fontWeight: 700, fontSize: '0.8rem', borderTop: '2px solid', borderColor: 'rgba(148,163,184,0.4)' } }}>
                     <TableCell>Total</TableCell>
                     <TableCell align="right">{Number(recepcionResumen.total_ordenado).toLocaleString('es-MX', { maximumFractionDigits: 4 })}</TableCell>
-                    <TableCell align="right" sx={{ color: '#166534' }}>{Number(recepcionResumen.total_recibido).toLocaleString('es-MX', { maximumFractionDigits: 4 })}</TableCell>
-                    <TableCell align="right" sx={{ color: recepcionResumen.total_pendiente > 0.000001 ? '#92400e' : '#166534' }}>{Number(recepcionResumen.total_pendiente).toLocaleString('es-MX', { maximumFractionDigits: 4 })}</TableCell>
+                    <TableCell align="right" sx={{ color: alertColors.success[800] }}>{Number(recepcionResumen.total_recibido).toLocaleString('es-MX', { maximumFractionDigits: 4 })}</TableCell>
+                    <TableCell align="right" sx={{ color: recepcionResumen.total_pendiente > 0.000001 ? alertColors.warning[800] : alertColors.success[800] }}>{Number(recepcionResumen.total_pendiente).toLocaleString('es-MX', { maximumFractionDigits: 4 })}</TableCell>
                   </TableRow>
                 </TableBody>
               </Table>
