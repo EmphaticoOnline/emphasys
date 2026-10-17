@@ -13,6 +13,8 @@ import {
   RelacionadosTab,
   InventarioTab,
 } from './DocumentoDetalleContent';
+import { neutralColors } from '../../theme/structural';
+import { activeBrand } from '../../theme/brand/active';
 
 function TabPanel({ value, index, children }: { value: number; index: number; children: React.ReactNode }) {
   if (value !== index) return null;
@@ -63,7 +65,7 @@ export default function DocumentoDetalleDrawer({ open, documentoId, tipoDocument
       <Box sx={{ p: 3, height: '100%', overflow: 'auto', display: 'flex', flexDirection: 'column', gap: 2 }}>
         <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
           <Box>
-            <Typography variant="h6" fontWeight={700} color="#1d2f68">
+            <Typography variant="h6" fontWeight={700} color={activeBrand.colors.blue.base}>
               {etiquetaTipoDocumento(tipoDocumento)} {folio}
             </Typography>
             {documento && (
@@ -93,7 +95,7 @@ export default function DocumentoDetalleDrawer({ open, documentoId, tipoDocument
               onChange={(_e, value) => setTab(value)}
               variant="scrollable"
               scrollButtons="auto"
-              sx={{ borderBottom: '1px solid #e5e7eb', minHeight: 36 }}
+              sx={{ borderBottom: `1px solid ${neutralColors.gray[200]}`, minHeight: 36 }}
             >
               <Tab label="Resumen" sx={{ minHeight: 36 }} />
               <Tab label="Partidas" sx={{ minHeight: 36 }} />

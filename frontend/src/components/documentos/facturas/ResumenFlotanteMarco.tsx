@@ -1,6 +1,8 @@
 import * as React from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Box, Typography } from '@mui/material';
+import { neutralColors } from '../../../theme/structural';
+import { activeBrand } from '../../../theme/brand/active';
 
 export type ResumenFlotantePosicion = { x: number; y: number };
 
@@ -162,7 +164,7 @@ export default function ResumenFlotanteMarco({
         width: 300,
         maxWidth: 'calc(100% - 32px)',
         bgcolor: apariencia === 'tema' ? theme.emphasys.content.elevated : '#fff',
-        border: `1px solid ${apariencia === 'tema' ? theme.emphasys.content.border : '#d9dde6'}`,
+        border: `1px solid ${apariencia === 'tema' ? theme.emphasys.content.border : neutralColors.steel.panelBorder}`,
         borderRadius: 2.5,
         boxShadow: dragging ? '0 20px 46px rgba(15,22,38,0.30)' : '0 12px 32px rgba(15,22,38,0.18)',
         overflow: 'hidden',
@@ -179,7 +181,7 @@ export default function ResumenFlotanteMarco({
         sx={(theme) => ({
           px: 1.25,
           py: 1,
-          borderBottom: `1px solid ${apariencia === 'tema' ? theme.emphasys.content.border : '#eef0f4'}`,
+          borderBottom: `1px solid ${apariencia === 'tema' ? theme.emphasys.content.border : neutralColors.steel.dividerSoft}`,
           display: 'flex',
           alignItems: 'center',
           gap: 0.75,
@@ -187,7 +189,7 @@ export default function ResumenFlotanteMarco({
           touchAction: 'none',
           userSelect: 'none',
           bgcolor: dragging
-            ? (apariencia === 'tema' ? theme.emphasys.content.hover : '#f0f2f6')
+            ? (apariencia === 'tema' ? theme.emphasys.content.hover : neutralColors.steel.hover)
             : (apariencia === 'tema' ? theme.emphasys.content.elevated : '#fff'),
         })}
       >
@@ -201,10 +203,10 @@ export default function ResumenFlotanteMarco({
           }}
         >
           {Array.from({ length: 6 }).map((_, i) => (
-            <Box key={i} sx={(theme) => ({ width: 3, height: 3, borderRadius: '50%', bgcolor: apariencia === 'tema' ? theme.emphasys.content.muted : '#a6adbd' })} />
+            <Box key={i} sx={(theme) => ({ width: 3, height: 3, borderRadius: '50%', bgcolor: apariencia === 'tema' ? theme.emphasys.content.muted : neutralColors.steel.dot })} />
           ))}
         </Box>
-        <Typography sx={(theme) => ({ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: apariencia === 'tema' ? theme.emphasys.content.muted : '#8b93a7' })}>
+        <Typography sx={(theme) => ({ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: apariencia === 'tema' ? theme.emphasys.content.muted : neutralColors.steel.label })}>
           {titulo}
         </Typography>
         <Box sx={{ flex: 1 }} />
@@ -215,7 +217,7 @@ export default function ResumenFlotanteMarco({
             sx={(theme) => ({
               border: 'none',
               background: 'transparent',
-              color: apariencia === 'tema' ? theme.emphasys.content.muted : '#8b93a7',
+              color: apariencia === 'tema' ? theme.emphasys.content.muted : neutralColors.steel.label,
               font: 'inherit',
               fontSize: 11,
               px: 0.75,
@@ -223,8 +225,8 @@ export default function ResumenFlotanteMarco({
               borderRadius: 1,
               cursor: 'pointer',
               '&:hover': {
-                color: apariencia === 'tema' ? theme.emphasys.content.foreground : '#1d2f68',
-                bgcolor: apariencia === 'tema' ? theme.emphasys.content.hover : '#f0f2f6',
+                color: apariencia === 'tema' ? theme.emphasys.content.foreground : activeBrand.colors.blue.base,
+                bgcolor: apariencia === 'tema' ? theme.emphasys.content.hover : neutralColors.steel.hover,
               },
             })}
           >
@@ -235,9 +237,9 @@ export default function ResumenFlotanteMarco({
           component="button"
           onClick={onExpand}
           sx={(theme) => ({
-            border: `1px solid ${apariencia === 'tema' ? theme.emphasys.content.border : '#d9dde6'}`,
+            border: `1px solid ${apariencia === 'tema' ? theme.emphasys.content.border : neutralColors.steel.panelBorder}`,
             background: apariencia === 'tema' ? theme.emphasys.content.elevated : '#fff',
-            color: apariencia === 'tema' ? theme.emphasys.content.foreground : '#1d2f68',
+            color: apariencia === 'tema' ? theme.emphasys.content.foreground : activeBrand.colors.blue.base,
             font: 'inherit',
             fontSize: 11.5,
             fontWeight: 600,
@@ -245,7 +247,7 @@ export default function ResumenFlotanteMarco({
             py: 0.5,
             borderRadius: 1,
             cursor: 'pointer',
-            '&:hover': { bgcolor: apariencia === 'tema' ? theme.emphasys.content.hover : '#eef1f8' },
+            '&:hover': { bgcolor: apariencia === 'tema' ? theme.emphasys.content.hover : neutralColors.steel.hoverAlt },
           })}
         >
           Expandir panel

@@ -1,0 +1,997 @@
+{
+  "source": "HEAD 9532968, bloque documentos",
+  "files": {
+    "components/documentos/DocumentoDetalleContent.tsx": {
+      "headSha256": "2f84d58f041ff9c95e5d9b3c69115cc1b7f5f1d195a5ab5b3fc575230c2b6999",
+      "addedImports": [
+        "import { neutralColors } from '../../theme/structural';",
+        "import { activeBrand } from '../../theme/brand/active';"
+      ],
+      "lines": {
+        "76": [
+          {
+            "hex": "#e5e7eb",
+            "token": "neutralColors.gray[200]"
+          }
+        ],
+        "223": [
+          {
+            "hex": "#e5e7eb",
+            "token": "neutralColors.gray[200]"
+          }
+        ],
+        "300": [
+          {
+            "hex": "#1d2f68",
+            "token": "activeBrand.colors.blue.base"
+          }
+        ],
+        "316": [
+          {
+            "hex": "#e5e7eb",
+            "token": "neutralColors.gray[200]"
+          }
+        ],
+        "381": [
+          {
+            "hex": "#e5e7eb",
+            "token": "neutralColors.gray[200]"
+          }
+        ],
+        "430": [
+          {
+            "hex": "#e5e7eb",
+            "token": "neutralColors.gray[200]"
+          }
+        ],
+        "473": [
+          {
+            "hex": "#e5e7eb",
+            "token": "neutralColors.gray[200]"
+          }
+        ],
+        "508": [
+          {
+            "hex": "#e5e7eb",
+            "token": "neutralColors.gray[200]"
+          }
+        ]
+      },
+      "keptLiteral": {}
+    },
+    "components/documentos/TratamientoFiscalControl.tsx": {
+      "headSha256": "a895a87608bde13a1696a58adca716d0c1d165516b9274c73aee91029da0d0fc",
+      "addedImports": [
+        "import { neutralColors } from '../../theme/structural';"
+      ],
+      "lines": {
+        "48": [
+          {
+            "hex": "#c9d2e8",
+            "token": "neutralColors.steel.controlBorder"
+          }
+        ],
+        "71": [
+          {
+            "hex": "#5b6479",
+            "token": "neutralColors.steel.text"
+          }
+        ]
+      },
+      "keptLiteral": {}
+    },
+    "components/documentos/DocumentosMobileView.tsx": {
+      "headSha256": "b8ee114648a46dd397c4727b44cca13e63a8f6e717d83ae396927257a530154d",
+      "addedImports": [
+        "import { neutralColors } from '../../theme/structural';",
+        "import { activeBrand } from '../../theme/brand/active';"
+      ],
+      "lines": {
+        "86": [
+          {
+            "hex": "#1d2f68",
+            "token": "activeBrand.colors.blue.base"
+          }
+        ],
+        "87": [
+          {
+            "hex": "#4b5563",
+            "token": "neutralColors.gray[600]"
+          }
+        ],
+        "122": [
+          {
+            "hex": "#1d2f68",
+            "token": "activeBrand.colors.blue.base"
+          }
+        ],
+        "124": [
+          {
+            "hex": "#f8fafc",
+            "token": "neutralColors.slate[50]"
+          }
+        ],
+        "141": [
+          {
+            "hex": "#e5e7eb",
+            "token": "neutralColors.gray[200]"
+          }
+        ],
+        "142": [
+          {
+            "hex": "#4b5563",
+            "token": "neutralColors.gray[600]"
+          }
+        ],
+        "173": [
+          {
+            "hex": "#e5e7eb",
+            "token": "neutralColors.gray[200]"
+          }
+        ],
+        "182": [
+          {
+            "hex": "#1d2f68",
+            "token": "activeBrand.colors.blue.base"
+          }
+        ],
+        "186": [
+          {
+            "hex": "#4b5563",
+            "token": "neutralColors.gray[600]"
+          }
+        ],
+        "241": [
+          {
+            "hex": "#6b7280",
+            "token": "neutralColors.gray[500]"
+          }
+        ],
+        "246": [
+          {
+            "hex": "#111827",
+            "token": "neutralColors.gray[900]"
+          }
+        ],
+        "279": [
+          {
+            "hex": "#1d2f68",
+            "token": "activeBrand.colors.blue.base"
+          }
+        ],
+        "282": [
+          {
+            "hex": "#162551",
+            "token": "activeBrand.colors.blue.hover"
+          }
+        ],
+        "303": [
+          {
+            "hex": "#cbd5e1",
+            "token": "neutralColors.slate[300]"
+          }
+        ],
+        "308": [
+          {
+            "hex": "#1d2f68",
+            "token": "activeBrand.colors.blue.base"
+          }
+        ],
+        "311": [
+          {
+            "hex": "#4b5563",
+            "token": "neutralColors.gray[600]"
+          }
+        ],
+        "333": [
+          {
+            "hex": "#1f2937",
+            "token": "neutralColors.gray[800]"
+          }
+        ],
+        "351": [
+          {
+            "hex": "#1f2937",
+            "token": "neutralColors.gray[800]"
+          }
+        ]
+      },
+      "keptLiteral": {}
+    },
+    "components/documentos/DocumentosDesktopView.tsx": {
+      "headSha256": "64bbec65f509611e13e0454d40f294fd6d97977168c99d8572a5d6dfa93c8d5f",
+      "addedImports": [
+        "import { neutralColors } from '../../theme/structural';",
+        "import { activeBrand } from '../../theme/brand/active';"
+      ],
+      "lines": {
+        "127": [
+          {
+            "hex": "#1d2f68",
+            "token": "activeBrand.colors.blue.base"
+          }
+        ],
+        "129": [
+          {
+            "hex": "#162551",
+            "token": "activeBrand.colors.blue.hover"
+          }
+        ],
+        "157": [
+          {
+            "hex": "#cbd5e1",
+            "token": "neutralColors.slate[300]"
+          }
+        ],
+        "162": [
+          {
+            "hex": "#1d2f68",
+            "token": "activeBrand.colors.blue.base"
+          }
+        ],
+        "165": [
+          {
+            "hex": "#4b5563",
+            "token": "neutralColors.gray[600]"
+          }
+        ],
+        "188": [
+          {
+            "hex": "#1f2937",
+            "token": "neutralColors.gray[800]"
+          }
+        ],
+        "199": [
+          {
+            "hex": "#1f2937",
+            "token": "neutralColors.gray[800]"
+          }
+        ],
+        "214": [
+          {
+            "hex": "#e5e7eb",
+            "token": "neutralColors.gray[200]"
+          }
+        ],
+        "319": [
+          {
+            "hex": "#1d2f68",
+            "token": "activeBrand.colors.blue.base"
+          }
+        ]
+      },
+      "keptLiteral": {}
+    },
+    "components/documentos/DocumentoDetalleDrawer.tsx": {
+      "headSha256": "3c69424474efbedd363a15e69d50c3de74bd16eb19fcbd3437dcd044fe4c3fe1",
+      "addedImports": [
+        "import { neutralColors } from '../../theme/structural';",
+        "import { activeBrand } from '../../theme/brand/active';"
+      ],
+      "lines": {
+        "66": [
+          {
+            "hex": "#1d2f68",
+            "token": "activeBrand.colors.blue.base"
+          }
+        ],
+        "96": [
+          {
+            "hex": "#e5e7eb",
+            "token": "neutralColors.gray[200]"
+          }
+        ]
+      },
+      "keptLiteral": {}
+    },
+    "components/documentos/cotizaciones/CotizacionPartidasTab.tsx": {
+      "headSha256": "21d81ad900bd3ec691ecedd1179daf556660a6e2c739af3f87413de42cbf46c5",
+      "addedImports": [
+        "import { neutralColors } from '../../../theme/structural';"
+      ],
+      "lines": {
+        "128": [
+          {
+            "hex": "#e5e7eb",
+            "token": "neutralColors.gray[200]"
+          }
+        ],
+        "152": [
+          {
+            "hex": "#eef0f3",
+            "token": "neutralColors.steel.rowDivider"
+          }
+        ],
+        "158": [
+          {
+            "hex": "#f8fafc",
+            "token": "neutralColors.slate[50]"
+          }
+        ],
+        "193": [
+          {
+            "hex": "#e5e7eb",
+            "token": "neutralColors.gray[200]"
+          }
+        ],
+        "195": [
+          {
+            "hex": "#f7f8fa",
+            "token": "neutralColors.steel.well"
+          }
+        ],
+        "214": [
+          {
+            "hex": "#e5e7eb",
+            "token": "neutralColors.gray[200]"
+          }
+        ]
+      },
+      "keptLiteral": {}
+    },
+    "components/documentos/facturas/CartaPorteViajeEditor.tsx": {
+      "headSha256": "76c79cd5bdfa050a199225628556bce9f26f435a6570714448a0f2afc022ad86",
+      "addedImports": [
+        "import { neutralColors } from '../../../theme/structural';",
+        "import { activeBrand } from '../../../theme/brand/active';"
+      ],
+      "lines": {
+        "43": [
+          {
+            "hex": "#1d2f68",
+            "token": "activeBrand.colors.blue.base"
+          }
+        ],
+        "1322": [
+          {
+            "hex": "#fbfcfe",
+            "token": "neutralColors.steel.surface"
+          }
+        ],
+        "1731": [
+          {
+            "hex": "#f8fafc",
+            "token": "neutralColors.slate[50]"
+          }
+        ]
+      },
+      "keptLiteral": {}
+    },
+    "components/documentos/facturas/ResumenFlotanteMarco.tsx": {
+      "headSha256": "026845dc7308ecc22c6e32fba118f2f0b16777adf5944e81367d80b56b6f6771",
+      "addedImports": [
+        "import { neutralColors } from '../../../theme/structural';",
+        "import { activeBrand } from '../../../theme/brand/active';"
+      ],
+      "lines": {
+        "165": [
+          {
+            "hex": "#d9dde6",
+            "token": "neutralColors.steel.panelBorder"
+          }
+        ],
+        "182": [
+          {
+            "hex": "#eef0f4",
+            "token": "neutralColors.steel.dividerSoft"
+          }
+        ],
+        "190": [
+          {
+            "hex": "#f0f2f6",
+            "token": "neutralColors.steel.hover"
+          }
+        ],
+        "204": [
+          {
+            "hex": "#a6adbd",
+            "token": "neutralColors.steel.dot"
+          }
+        ],
+        "207": [
+          {
+            "hex": "#8b93a7",
+            "token": "neutralColors.steel.label"
+          }
+        ],
+        "218": [
+          {
+            "hex": "#8b93a7",
+            "token": "neutralColors.steel.label"
+          }
+        ],
+        "226": [
+          {
+            "hex": "#1d2f68",
+            "token": "activeBrand.colors.blue.base"
+          }
+        ],
+        "227": [
+          {
+            "hex": "#f0f2f6",
+            "token": "neutralColors.steel.hover"
+          }
+        ],
+        "238": [
+          {
+            "hex": "#d9dde6",
+            "token": "neutralColors.steel.panelBorder"
+          }
+        ],
+        "240": [
+          {
+            "hex": "#1d2f68",
+            "token": "activeBrand.colors.blue.base"
+          }
+        ],
+        "248": [
+          {
+            "hex": "#eef1f8",
+            "token": "neutralColors.steel.hoverAlt"
+          }
+        ]
+      },
+      "keptLiteral": {}
+    },
+    "components/documentos/facturas/FacturaResumenFlotante.tsx": {
+      "headSha256": "c3a72da0cdf7b8699d186f1aef90f937043ca4755b84749a1cdbbf79ce114d25",
+      "addedImports": [
+        "import { neutralColors } from '../../../theme/structural';",
+        "import { activeBrand } from '../../../theme/brand/active';"
+      ],
+      "lines": {
+        "192": [
+          {
+            "hex": "#d9dde6",
+            "token": "neutralColors.steel.panelBorder"
+          }
+        ],
+        "209": [
+          {
+            "hex": "#eef0f4",
+            "token": "neutralColors.steel.dividerSoft"
+          }
+        ],
+        "216": [
+          {
+            "hex": "#f0f2f6",
+            "token": "neutralColors.steel.hover"
+          }
+        ],
+        "229": [
+          {
+            "hex": "#a6adbd",
+            "token": "neutralColors.steel.dot"
+          }
+        ],
+        "232": [
+          {
+            "hex": "#8b93a7",
+            "token": "neutralColors.steel.label"
+          }
+        ],
+        "243": [
+          {
+            "hex": "#8b93a7",
+            "token": "neutralColors.steel.label"
+          }
+        ],
+        "250": [
+          {
+            "hex": "#1d2f68",
+            "token": "activeBrand.colors.blue.base"
+          },
+          {
+            "hex": "#f0f2f6",
+            "token": "neutralColors.steel.hover"
+          }
+        ],
+        "260": [
+          {
+            "hex": "#d9dde6",
+            "token": "neutralColors.steel.panelBorder"
+          }
+        ],
+        "262": [
+          {
+            "hex": "#1d2f68",
+            "token": "activeBrand.colors.blue.base"
+          }
+        ],
+        "270": [
+          {
+            "hex": "#eef1f8",
+            "token": "neutralColors.steel.hoverAlt"
+          }
+        ],
+        "280": [
+          {
+            "hex": "#5b6479",
+            "token": "neutralColors.steel.text"
+          }
+        ],
+        "281": [
+          {
+            "hex": "#3d4557",
+            "token": "neutralColors.steel.strong"
+          }
+        ],
+        "288": [
+          {
+            "hex": "#1d2f68",
+            "token": "activeBrand.colors.blue.base"
+          }
+        ],
+        "297": [
+          {
+            "hex": "#eef0f4",
+            "token": "neutralColors.steel.dividerSoft"
+          }
+        ],
+        "325": [
+          {
+            "hex": "#1d2f68",
+            "token": "activeBrand.colors.blue.base"
+          }
+        ],
+        "338": [
+          {
+            "hex": "#1d2f68",
+            "token": "activeBrand.colors.blue.base"
+          },
+          {
+            "hex": "#162551",
+            "token": "activeBrand.colors.blue.hover"
+          },
+          {
+            "hex": "#c9d2e8",
+            "token": "neutralColors.steel.controlBorder"
+          }
+        ]
+      },
+      "keptLiteral": {}
+    },
+    "components/documentos/nota-credito/NotaCreditoCaptura.tsx": {
+      "headSha256": "9927fb7b10bcb0c518ce8a5926f94a637e66ef9eb3be17bd4fa58595cf142797",
+      "addedImports": [
+        "import { neutralColors } from '../../../theme/structural';"
+      ],
+      "lines": {
+        "179": [
+          {
+            "hex": "#f4f6f8",
+            "token": "neutralColors.steel.stripe"
+          }
+        ],
+        "194": [
+          {
+            "hex": "#94a3b8",
+            "token": "neutralColors.slate[400]"
+          }
+        ],
+        "208": [
+          {
+            "hex": "#1e293b",
+            "token": "neutralColors.slate[800]"
+          }
+        ],
+        "234": [
+          {
+            "hex": "#0f172a",
+            "token": "neutralColors.slate[900]"
+          },
+          {
+            "hex": "#334155",
+            "token": "neutralColors.slate[700]"
+          }
+        ],
+        "269": [
+          {
+            "hex": "#334155",
+            "token": "neutralColors.slate[700]"
+          }
+        ],
+        "578": [
+          {
+            "hex": "#64748b",
+            "token": "neutralColors.slate[500]"
+          }
+        ],
+        "587": [
+          {
+            "hex": "#d7dde7",
+            "token": "neutralColors.steel.inputBorder"
+          }
+        ],
+        "660": [
+          {
+            "hex": "#64748b",
+            "token": "neutralColors.slate[500]"
+          }
+        ],
+        "669": [
+          {
+            "hex": "#d7dde7",
+            "token": "neutralColors.steel.inputBorder"
+          }
+        ],
+        "672": [
+          {
+            "hex": "#64748b",
+            "token": "neutralColors.slate[500]"
+          }
+        ],
+        "681": [
+          {
+            "hex": "#d7dde7",
+            "token": "neutralColors.steel.inputBorder"
+          }
+        ],
+        "720": [
+          {
+            "hex": "#64748b",
+            "token": "neutralColors.slate[500]"
+          }
+        ],
+        "745": [
+          {
+            "hex": "#94a3b8",
+            "token": "neutralColors.slate[400]"
+          }
+        ],
+        "769": [
+          {
+            "hex": "#475569",
+            "token": "neutralColors.slate[600]"
+          }
+        ],
+        "774": [
+          {
+            "hex": "#cbd5e1",
+            "token": "neutralColors.slate[300]"
+          }
+        ],
+        "782": [
+          {
+            "hex": "#475569",
+            "token": "neutralColors.slate[600]"
+          }
+        ],
+        "833": [
+          {
+            "hex": "#64748b",
+            "token": "neutralColors.slate[500]"
+          }
+        ],
+        "1012": [
+          {
+            "hex": "#94a3b8",
+            "token": "neutralColors.slate[400]"
+          }
+        ],
+        "1025": [
+          {
+            "hex": "#d5dce6",
+            "token": "neutralColors.steel.fieldBorder"
+          }
+        ],
+        "1035": [
+          {
+            "hex": "#64748b",
+            "token": "neutralColors.slate[500]"
+          }
+        ],
+        "1037": [
+          {
+            "hex": "#c5cdd8",
+            "token": "neutralColors.steel.placeholder"
+          }
+        ],
+        "1053": [
+          {
+            "hex": "#8b93a7",
+            "token": "neutralColors.steel.label"
+          }
+        ],
+        "1064": [
+          {
+            "hex": "#334155",
+            "token": "neutralColors.slate[700]"
+          }
+        ],
+        "1109": [
+          {
+            "hex": "#d7dde7",
+            "token": "neutralColors.steel.inputBorder"
+          }
+        ],
+        "1110": [
+          {
+            "hex": "#e5eaf1",
+            "token": "neutralColors.steel.divider"
+          }
+        ],
+        "1122": [
+          {
+            "hex": "#d7dde7",
+            "token": "neutralColors.steel.inputBorder"
+          }
+        ],
+        "1136": [
+          {
+            "hex": "#475569",
+            "token": "neutralColors.slate[600]"
+          }
+        ],
+        "1146": [
+          {
+            "hex": "#e5eaf1",
+            "token": "neutralColors.steel.divider"
+          }
+        ],
+        "1159": [
+          {
+            "hex": "#334155",
+            "token": "neutralColors.slate[700]"
+          }
+        ],
+        "1160": [
+          {
+            "hex": "#cbd5e1",
+            "token": "neutralColors.slate[300]"
+          }
+        ],
+        "1161": [
+          {
+            "hex": "#94a3b8",
+            "token": "neutralColors.slate[400]"
+          },
+          {
+            "hex": "#f8fafc",
+            "token": "neutralColors.slate[50]"
+          }
+        ]
+      },
+      "keptLiteral": {}
+    },
+    "modules/documentos/DocumentoWhatsappDialog.tsx": {
+      "headSha256": "6f1e44d8b89e896831400c84386f250bf8fbd869d5eb2fd1f1c56f05dd5f17aa",
+      "addedImports": [
+        "import { neutralColors } from '../../theme/structural';",
+        "import { activeBrand } from '../../theme/brand/active';"
+      ],
+      "lines": {
+        "236": [
+          {
+            "hex": "#e5e7eb",
+            "token": "neutralColors.gray[200]"
+          }
+        ],
+        "238": [
+          {
+            "hex": "#1d2f68",
+            "token": "activeBrand.colors.blue.base"
+          }
+        ],
+        "276": [
+          {
+            "hex": "#f8fafc",
+            "token": "neutralColors.slate[50]"
+          }
+        ]
+      },
+      "keptLiteral": {}
+    },
+    "modules/documentos/FacturaGlobalDialog.tsx": {
+      "headSha256": "e2e7cc560130dda6cca09b0e588f909e04dde5a34de1b389979330366dd74d68",
+      "addedImports": [
+        "import { activeBrand } from '../../theme/brand/active';"
+      ],
+      "lines": {
+        "294": [
+          {
+            "hex": "#1d2f68",
+            "token": "activeBrand.colors.blue.base"
+          },
+          {
+            "hex": "#162551",
+            "token": "activeBrand.colors.blue.hover"
+          }
+        ]
+      },
+      "keptLiteral": {}
+    },
+    "modules/cotizaciones/estadoSeguimiento.ts": {
+      "headSha256": "8c4ed693ab86b175dfa530c7ce89eaa53ade9895dc26483f10b9928c25dd19a5",
+      "addedImports": [
+        "import { neutralColors } from '../../theme/structural';"
+      ],
+      "lines": {
+        "22": [
+          {
+            "hex": "#e5e7eb",
+            "token": "neutralColors.gray[200]"
+          },
+          {
+            "hex": "#4b5563",
+            "token": "neutralColors.gray[600]"
+          }
+        ],
+        "84": [
+          {
+            "hex": "#f8fafc",
+            "token": "neutralColors.slate[50]"
+          }
+        ],
+        "85": [
+          {
+            "hex": "#64748b",
+            "token": "neutralColors.slate[500]"
+          }
+        ]
+      },
+      "keptLiteral": {}
+    },
+    "pages/DocumentosPage.tsx": {
+      "headSha256": "093f398643d381d38654a94b6e75a9feea31162d665f06980c4e6e91ba5a428f",
+      "addedImports": [
+        "import { neutralColors } from '../theme/structural';"
+      ],
+      "lines": {
+        "235": [
+          {
+            "hex": "#111827",
+            "token": "neutralColors.gray[900]"
+          }
+        ],
+        "247": [
+          {
+            "hex": "#111827",
+            "token": "neutralColors.gray[900]"
+          }
+        ],
+        "478": [
+          {
+            "hex": "#f3f4f6",
+            "token": "neutralColors.gray[100]"
+          },
+          {
+            "hex": "#374151",
+            "token": "neutralColors.gray[700]"
+          }
+        ],
+        "2195": [
+          {
+            "hex": "#374151",
+            "token": "neutralColors.gray[700]"
+          }
+        ],
+        "2211": [
+          {
+            "hex": "#111827",
+            "token": "neutralColors.gray[900]"
+          },
+          {
+            "hex": "#9ca3af",
+            "token": "neutralColors.gray[400]"
+          }
+        ],
+        "2378": [
+          {
+            "hex": "#f1f5f9",
+            "token": "neutralColors.slate[100]"
+          },
+          {
+            "hex": "#475569",
+            "token": "neutralColors.slate[600]"
+          }
+        ],
+        "3566": [
+          {
+            "hex": "#4b5563",
+            "token": "neutralColors.gray[600]"
+          }
+        ],
+        "3568": [
+          {
+            "hex": "#d1d5db",
+            "token": "neutralColors.gray[300]"
+          }
+        ],
+        "3570": [
+          {
+            "hex": "#f8fafc",
+            "token": "neutralColors.slate[50]"
+          }
+        ],
+        "3625": [
+          {
+            "hex": "#f8fafc",
+            "token": "neutralColors.slate[50]"
+          }
+        ],
+        "3629": [
+          {
+            "hex": "#1f2937",
+            "token": "neutralColors.gray[800]"
+          }
+        ],
+        "3862": [
+          {
+            "hex": "#374151",
+            "token": "neutralColors.gray[700]"
+          }
+        ],
+        "3885": [
+          {
+            "hex": "#6b7280",
+            "token": "neutralColors.gray[500]"
+          }
+        ],
+        "3921": [
+          {
+            "hex": "#1f2937",
+            "token": "neutralColors.gray[800]"
+          }
+        ],
+        "5361": [
+          {
+            "hex": "#e5e7eb",
+            "token": "neutralColors.gray[200]"
+          }
+        ],
+        "5363": [
+          {
+            "hex": "#f8fafc",
+            "token": "neutralColors.slate[50]"
+          }
+        ],
+        "5367": [
+          {
+            "hex": "#6b7280",
+            "token": "neutralColors.gray[500]"
+          }
+        ],
+        "5434": [
+          {
+            "hex": "#cbd5e1",
+            "token": "neutralColors.slate[300]"
+          }
+        ],
+        "5439": [
+          {
+            "hex": "#e2e8f0",
+            "token": "neutralColors.slate[200]"
+          }
+        ],
+        "5473": [
+          {
+            "hex": "#111827",
+            "token": "neutralColors.gray[900]"
+          }
+        ],
+        "5601": [
+          {
+            "hex": "#374151",
+            "token": "neutralColors.gray[700]"
+          }
+        ],
+        "5652": [
+          {
+            "hex": "#475569",
+            "token": "neutralColors.slate[600]"
+          }
+        ],
+        "5671": [
+          {
+            "hex": "#475569",
+            "token": "neutralColors.slate[600]"
+          }
+        ]
+      },
+      "keptLiteral": {
+        "#e5e7eb": 2
+      }
+    }
+  }
+}

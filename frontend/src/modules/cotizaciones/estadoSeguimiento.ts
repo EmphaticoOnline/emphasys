@@ -2,6 +2,7 @@ import { darken } from '@mui/material/styles';
 import type { EstadoSeguimiento } from '../../types/cotizacion';
 import type { DocumentoRowAppearance } from '../documentos/documentoRowAppearance';
 import { alertColors } from '../../theme/functional';
+import { neutralColors } from '../../theme/structural';
 
 export type EstadoSeguimientoOption = {
   value: EstadoSeguimiento;
@@ -19,7 +20,7 @@ export const ESTADOS_SEGUIMIENTO: EstadoSeguimientoOption[] = [
   { value: 'convertida', label: 'Convertida', color: alertColors.success[100], textColor: alertColors.success[800], rowClassName: 'row-estado-convertida' },
   { value: 'perdida', label: 'Perdida', color: alertColors.error[100], textColor: alertColors.error[700], rowClassName: 'row-estado-perdida' },
   { value: 'no seleccionada', label: 'No seleccionada', color: alertColors.warning[100], textColor: alertColors.warning[800], rowClassName: 'row-estado-no-seleccionada' },
-  { value: 'cancelada', label: 'Cancelada', color: '#e5e7eb', textColor: '#4b5563', rowClassName: 'row-estado-cancelada' },
+  { value: 'cancelada', label: 'Cancelada', color: neutralColors.gray[200], textColor: neutralColors.gray[600], rowClassName: 'row-estado-cancelada' },
 ];
 
 const ESTADOS_SEGUIMIENTO_MAP = new Map(ESTADOS_SEGUIMIENTO.map((estado) => [estado.value, estado]));
@@ -81,8 +82,8 @@ export const getEstadoSeguimientoPresentation = (value: unknown) => {
   return {
     value: null,
     label: toHumanLabel(value),
-    color: '#f8fafc',
-    textColor: '#64748b',
+    color: neutralColors.slate[50],
+    textColor: neutralColors.slate[500],
     rowClassName: 'row-estado-desconocido',
   };
 };

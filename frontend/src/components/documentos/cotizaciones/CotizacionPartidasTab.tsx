@@ -6,6 +6,7 @@ import { EmptyState } from '../DocumentoDetalleContent';
 import type { DocumentoDetalleResponse } from '../../../types/documentoDetalle';
 import { fetchProductoArchivos, type ProductoArchivo } from '../../../services/productosService';
 import { buildAssetUrl } from '../../../services/empresasAssetsService';
+import { neutralColors } from '../../../theme/structural';
 
 type Partida = DocumentoDetalleResponse['partidas'][number];
 
@@ -125,7 +126,7 @@ export default function CotizacionPartidasTab({
           maxHeight: { xs: 280, md: '100%' },
           minHeight: 0,
           overflowY: 'auto',
-          border: '1px solid #e5e7eb',
+          border: `1px solid ${neutralColors.gray[200]}`,
           borderRadius: 2,
           bgcolor: '#fff',
         }}
@@ -149,13 +150,13 @@ export default function CotizacionPartidasTab({
                 px: 1.5,
                 py: 1.25,
                 border: 0,
-                borderBottom: '1px solid #eef0f3',
+                borderBottom: `1px solid ${neutralColors.steel.rowDivider}`,
                 borderLeft: '3px solid',
                 borderLeftColor: activa ? 'primary.main' : 'transparent',
                 bgcolor: activa ? 'rgba(29, 47, 104, 0.06)' : 'transparent',
                 cursor: 'pointer',
                 color: 'inherit',
-                '&:hover': { bgcolor: activa ? 'rgba(29, 47, 104, 0.08)' : '#f8fafc' },
+                '&:hover': { bgcolor: activa ? 'rgba(29, 47, 104, 0.08)' : neutralColors.slate[50] },
               }}
             >
               <Typography sx={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.02em', color: 'text.secondary' }} noWrap>
@@ -190,9 +191,9 @@ export default function CotizacionPartidasTab({
           width: { xs: '100%', md: '60%' },
           minWidth: 0,
           minHeight: { xs: 360, md: 0 },
-          border: '1px solid #e5e7eb',
+          border: `1px solid ${neutralColors.gray[200]}`,
           borderRadius: 2,
-          bgcolor: '#f7f8fa',
+          bgcolor: neutralColors.steel.well,
           display: 'flex',
           flexDirection: 'column',
           overflow: 'hidden',
@@ -211,7 +212,7 @@ export default function CotizacionPartidasTab({
           )}
         </Box>
         {imagenes.length > 1 ? (
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, py: 0.75, borderTop: '1px solid #e5e7eb', bgcolor: '#fff' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, py: 0.75, borderTop: `1px solid ${neutralColors.gray[200]}`, bgcolor: '#fff' }}>
             <IconButton
               size="small"
               aria-label="Imagen anterior"

@@ -29,6 +29,8 @@ import {
   type SatMaterialPeligroso,
 } from '../../../services/satCatalogos.api';
 import type { Producto } from '../../../types/producto';
+import { neutralColors } from '../../../theme/structural';
+import { activeBrand } from '../../../theme/brand/active';
 
 type Props = {
   open: boolean;
@@ -40,7 +42,7 @@ type Props = {
   onFirstSave?: () => void;
 };
 
-const AZUL = '#1d2f68';
+const AZUL = activeBrand.colors.blue.base;
 
 const pad = (n: number) => String(n).padStart(2, '0');
 const formatLocalDateTime = (d: Date): string =>
@@ -1319,7 +1321,7 @@ export default function CartaPorteViajeEditor({ open, documentoId, folio, tipoDo
     );
     if (!modal) {
       return (
-        <Box key={f.key} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1.5, p: 1, bgcolor: '#fbfcfe' }}>
+        <Box key={f.key} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1.5, p: 1, bgcolor: neutralColors.steel.surface }}>
           {encabezado}
           <Stack spacing={1}>
             <Autocomplete
@@ -1728,7 +1730,7 @@ export default function CartaPorteViajeEditor({ open, documentoId, folio, tipoDo
             />
           )}
           {operadorSel && !modal && (
-            <Box sx={{ bgcolor: modal ? tokens.content.well : '#f8fafc', borderRadius: 1.5, p: 1 }}>
+            <Box sx={{ bgcolor: modal ? tokens.content.well : neutralColors.slate[50], borderRadius: 1.5, p: 1 }}>
               <Typography variant="caption" display="block" color="text.secondary">
                 RFC: {operadorSel.rfc ?? '—'} · CURP: {operadorSel.curp ?? '—'}
               </Typography>

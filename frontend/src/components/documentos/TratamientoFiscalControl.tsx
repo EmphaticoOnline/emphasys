@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Box, ButtonBase, Menu, MenuItem, Tooltip, Typography } from '@mui/material';
 import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown';
 import type { TratamientoImpuestos } from '../../types/cotizacion';
+import { neutralColors } from '../../theme/structural';
 
 export const TRATAMIENTO_OPCIONES: { label: string; value: TratamientoImpuestos }[] = [
   { label: 'Operación estándar', value: 'normal' },
@@ -45,7 +46,7 @@ export default function TratamientoFiscalControl({ value, onChange, disabled = f
                 pr: 0.6,
                 borderRadius: 999,
                 bgcolor: '#eef2ff',
-                border: '1px solid #c9d2e8',
+                border: `1px solid ${neutralColors.steel.controlBorder}`,
                 '&.Mui-disabled': { opacity: 0.7 },
               }}
             >
@@ -68,7 +69,7 @@ export default function TratamientoFiscalControl({ value, onChange, disabled = f
             }}
             sx={{ gap: 1 }}
           >
-            <Typography sx={{ fontSize: 11, fontWeight: 700, color: '#5b6479', fontFamily: 'monospace', width: 24, flexShrink: 0 }}>
+            <Typography sx={{ fontSize: 11, fontWeight: 700, color: neutralColors.steel.text, fontFamily: 'monospace', width: 24, flexShrink: 0 }}>
               {TRATAMIENTO_ABREVIATURA[opt.value]}
             </Typography>
             <Typography sx={{ fontSize: 12.5 }}>{opt.label}</Typography>

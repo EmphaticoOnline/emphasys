@@ -3,6 +3,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Box, CircularProgress, IconButton, Stack, Tooltip, Typography } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import CheckIcon from '@mui/icons-material/Check';
+import { neutralColors } from '../../../theme/structural';
+import { activeBrand } from '../../../theme/brand/active';
 
 export type FacturaResumenFlotantePosicion = { x: number; y: number };
 
@@ -189,7 +191,7 @@ export default function FacturaResumenFlotante({
         width: 300,
         maxWidth: 'calc(100% - 32px)',
         bgcolor: '#fff',
-        border: '1px solid #d9dde6',
+        border: `1px solid ${neutralColors.steel.panelBorder}`,
         borderRadius: 2.5,
         boxShadow: dragging ? '0 20px 46px rgba(15,22,38,0.30)' : '0 12px 32px rgba(15,22,38,0.18)',
         overflow: 'hidden',
@@ -206,14 +208,14 @@ export default function FacturaResumenFlotante({
         sx={{
           px: 1.25,
           py: 1,
-          borderBottom: '1px solid #eef0f4',
+          borderBottom: `1px solid ${neutralColors.steel.dividerSoft}`,
           display: 'flex',
           alignItems: 'center',
           gap: 0.75,
           cursor: dragging ? 'grabbing' : 'grab',
           touchAction: 'none',
           userSelect: 'none',
-          bgcolor: dragging ? '#f0f2f6' : '#fff',
+          bgcolor: dragging ? neutralColors.steel.hover : '#fff',
         }}
       >
         <Box
@@ -226,10 +228,10 @@ export default function FacturaResumenFlotante({
           }}
         >
           {Array.from({ length: 6 }).map((_, i) => (
-            <Box key={i} sx={{ width: 3, height: 3, borderRadius: '50%', bgcolor: '#a6adbd' }} />
+            <Box key={i} sx={{ width: 3, height: 3, borderRadius: '50%', bgcolor: neutralColors.steel.dot }} />
           ))}
         </Box>
-        <Typography sx={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#8b93a7' }}>
+        <Typography sx={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: neutralColors.steel.label }}>
           Resumen
         </Typography>
         <Box sx={{ flex: 1 }} />
@@ -240,14 +242,14 @@ export default function FacturaResumenFlotante({
             sx={{
               border: 'none',
               background: 'transparent',
-              color: '#8b93a7',
+              color: neutralColors.steel.label,
               font: 'inherit',
               fontSize: 11,
               px: 0.75,
               py: 0.5,
               borderRadius: 1,
               cursor: 'pointer',
-              '&:hover': { color: '#1d2f68', bgcolor: '#f0f2f6' },
+              '&:hover': { color: activeBrand.colors.blue.base, bgcolor: neutralColors.steel.hover },
             }}
           >
             Restablecer
@@ -257,9 +259,9 @@ export default function FacturaResumenFlotante({
           component="button"
           onClick={onExpandRail}
           sx={{
-            border: '1px solid #d9dde6',
+            border: `1px solid ${neutralColors.steel.panelBorder}`,
             background: '#fff',
-            color: '#1d2f68',
+            color: activeBrand.colors.blue.base,
             font: 'inherit',
             fontSize: 11.5,
             fontWeight: 600,
@@ -267,7 +269,7 @@ export default function FacturaResumenFlotante({
             py: 0.5,
             borderRadius: 1,
             cursor: 'pointer',
-            '&:hover': { bgcolor: '#eef1f8' },
+            '&:hover': { bgcolor: neutralColors.steel.hoverAlt },
           }}
         >
           Expandir panel
@@ -277,15 +279,15 @@ export default function FacturaResumenFlotante({
       <Stack spacing={0.75} sx={{ px: 1.5, py: 1.25 }}>
         {filas.map((fila) => (
           <Box key={fila.label} sx={{ display: 'flex', justifyContent: 'space-between', gap: 1.5 }}>
-            <Typography sx={{ fontSize: 12, color: '#5b6479' }}>{fila.label}</Typography>
-            <Typography sx={{ fontSize: 12.5, color: '#3d4557', fontFamily: 'monospace', fontVariantNumeric: 'tabular-nums' }}>
+            <Typography sx={{ fontSize: 12, color: neutralColors.steel.text }}>{fila.label}</Typography>
+            <Typography sx={{ fontSize: 12.5, color: neutralColors.steel.strong, fontFamily: 'monospace', fontVariantNumeric: 'tabular-nums' }}>
               {formatCurrency(fila.value)}
             </Typography>
           </Box>
         ))}
       </Stack>
 
-      <Box sx={{ bgcolor: '#1d2f68', px: 1.5, py: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+      <Box sx={{ bgcolor: activeBrand.colors.blue.base, px: 1.5, py: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
         <Typography sx={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', letterSpacing: '0.06em', textTransform: 'uppercase', fontWeight: 600 }}>
           Total
         </Typography>
@@ -294,7 +296,7 @@ export default function FacturaResumenFlotante({
         </Typography>
       </Box>
 
-      <Box sx={{ px: 1.5, py: 1, borderTop: '1px solid #eef0f4', display: 'flex', alignItems: 'center', gap: 1 }}>
+      <Box sx={{ px: 1.5, py: 1, borderTop: `1px solid ${neutralColors.steel.dividerSoft}`, display: 'flex', alignItems: 'center', gap: 1 }}>
         <Box
           sx={{
             display: 'inline-flex',
@@ -322,7 +324,7 @@ export default function FacturaResumenFlotante({
               onClick={onBack}
               disabled={saving}
               aria-label="Volver"
-              sx={{ width: 30, height: 30, border: '1px solid rgba(29,47,104,0.5)', color: '#1d2f68', borderRadius: 1 }}
+              sx={{ width: 30, height: 30, border: '1px solid rgba(29,47,104,0.5)', color: activeBrand.colors.blue.base, borderRadius: 1 }}
             >
               <ArrowBackIcon fontSize="small" />
             </IconButton>
@@ -335,7 +337,7 @@ export default function FacturaResumenFlotante({
               onClick={onSave}
               disabled={saveDisabled || saving}
               aria-label="Guardar factura"
-              sx={{ width: 30, height: 30, bgcolor: '#1d2f68', color: '#fff', borderRadius: 1, '&:hover': { bgcolor: '#162551' }, '&.Mui-disabled': { bgcolor: '#c9d2e8', color: '#fff' } }}
+              sx={{ width: 30, height: 30, bgcolor: activeBrand.colors.blue.base, color: '#fff', borderRadius: 1, '&:hover': { bgcolor: activeBrand.colors.blue.hover }, '&.Mui-disabled': { bgcolor: neutralColors.steel.controlBorder, color: '#fff' } }}
             >
               {saving ? <CircularProgress size={16} color="inherit" /> : <CheckIcon fontSize="small" />}
             </IconButton>
