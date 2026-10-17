@@ -45,13 +45,13 @@ function SeccionBalance({ titulo, grupos, totalLabel, total }: {
   return (
     <>
       <TableRow>
-        <TableCell colSpan={2} sx={{ bgcolor: '#1d2f68', color: '#fff', fontWeight: 700 }}>{titulo}</TableCell>
+        <TableCell colSpan={2} sx={{ bgcolor: 'primary.main', color: 'common.white', fontWeight: 700 }}>{titulo}</TableCell>
       </TableRow>
       {grupos.map((g) => (
         <React.Fragment key={g.grupo}>
           <TableRow sx={{ bgcolor: '#eef2ff' }}>
-            <TableCell sx={{ fontWeight: 700, color: '#1d2f68' }}>{g.grupo}</TableCell>
-            <TableCell align="right" sx={{ fontWeight: 700, color: '#1d2f68' }}>{formatMoneda(g.subtotal)}</TableCell>
+            <TableCell sx={{ fontWeight: 700, color: 'primary.main' }}>{g.grupo}</TableCell>
+            <TableCell align="right" sx={{ fontWeight: 700, color: 'primary.main' }}>{formatMoneda(g.subtotal)}</TableCell>
           </TableRow>
           {g.cuentas.map((c) => (
             <TableRow key={c.id} hover>
