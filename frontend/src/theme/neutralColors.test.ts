@@ -13,7 +13,7 @@ import {
   type NeutralFixture,
   type NeutralSources,
 } from './__fixtures__/neutralRevert.ts';
-import { LATER_FIXTURES, NEUTRAL_ORDER, revertLater, type LaterFixtures } from './__fixtures__/colorMigrations.ts';
+import { DOCUMENTOS_FORM_ORDER, LATER_FIXTURES, NEUTRAL_ORDER, revertLater, type LaterFixtures } from './__fixtures__/colorMigrations.ts';
 
 const readText = (path: string) => readFileSync(new URL(path, import.meta.url), 'utf8');
 const sha256 = (text: string) => createHash('sha256').update(text).digest('hex');
@@ -124,18 +124,20 @@ test('cada valor de neutralColors se usa en al menos un bloque', () => {
   }
 });
 
-test('legado, DocumentosFormPage y colores de BD quedan fuera', () => {
+test('legado y colores de BD quedan fuera; DocumentosFormPage va en sus propios subbloques', () => {
   const migrated = new Set(files().map(({ file }) => file));
   for (const file of [
     'components/Sidebar.tsx',
     'components/SecondaryNav.tsx',
     'components/Layout.tsx',
     'components/Menu.tsx',
-    'pages/DocumentosFormPage.tsx',
     'pages/configuracion/FormatosImpresionPage.tsx',
     'pages/ConfiguracionEtapasProduccionPage.tsx',
   ]) {
     assert.ok(!migrated.has(file), `${file} no se migra`);
   }
   assert.ok(readText('../components/DynamicFieldControl.tsx').includes("const COLOR_POR_DEFECTO = '#000000';"));
+  // DocumentosFormPage no entra en los bloques neutrales: se migra por subbloques propios.
+  assert.ok(!migrated.has('pages/DocumentosFormPage.tsx'));
+  assert.ok(DOCUMENTOS_FORM_ORDER.length >= 1);
 });

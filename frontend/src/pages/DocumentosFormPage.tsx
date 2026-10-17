@@ -131,6 +131,7 @@ import {
 import type { CampoValorPayload, CampoValorGuardado } from '../types/camposDinamicos';
 import type { Concepto, DocumentoAnticipoResumen, EstadoCuentaItem, FinanzasCuenta } from '../types/finanzas';
 import { NumericFormat } from 'react-number-format';
+import { neutralColors } from '../theme/structural';
 
 const toCivilDate = (date = new Date()) => {
   const year = date.getFullYear();
@@ -3909,7 +3910,7 @@ export default function DocumentosFormPage({
     <Box
       sx={{
         display: 'inline-flex',
-        border: '1px solid #d9dde6',
+        border: `1px solid ${neutralColors.steel.panelBorder}`,
         borderRadius: 999,
         overflow: 'hidden',
         flexShrink: 0,
@@ -3929,7 +3930,7 @@ export default function DocumentosFormPage({
             py: 0.6,
             fontSize: 12.5,
             fontWeight: vistaFacturaCaptura === opt.value ? 700 : 500,
-            color: vistaFacturaCaptura === opt.value ? '#fff' : '#3d4557',
+            color: vistaFacturaCaptura === opt.value ? '#fff' : neutralColors.steel.strong,
             bgcolor: vistaFacturaCaptura === opt.value ? 'primary.main' : '#fff',
           }}
         >
@@ -4027,7 +4028,7 @@ export default function DocumentosFormPage({
             />
 
             {partidaImagenPreviewUrl && (
-              <Box sx={{ border: '1px solid #e5e7eb', borderRadius: 1.5, p: 1, bgcolor: '#fafafa' }}>
+              <Box sx={{ border: `1px solid ${neutralColors.gray[200]}`, borderRadius: 1.5, p: 1, bgcolor: '#fafafa' }}>
                 <Box
                   component="img"
                   src={partidaImagenPreviewUrl}
@@ -4083,11 +4084,11 @@ export default function DocumentosFormPage({
                   role="textbox"
                   aria-label="Área para pegar imagen del portapapeles"
                   sx={{
-                    border: '2px dashed #9ca3af',
+                    border: `2px dashed ${neutralColors.gray[400]}`,
                     borderRadius: 1.5,
                     p: 3,
                     textAlign: 'center',
-                    color: '#6b7280',
+                    color: neutralColors.gray[500],
                     outline: 'none',
                     '&:focus': { borderColor: '#1565c0', color: '#1565c0' },
                   }}
@@ -4152,7 +4153,7 @@ export default function DocumentosFormPage({
                                 position: 'relative',
                                 borderRadius: 1.5,
                                 overflow: 'hidden',
-                                border: selected ? '2px solid #1565c0' : '1px solid #e5e7eb',
+                                border: selected ? '2px solid #1565c0' : `1px solid ${neutralColors.gray[200]}`,
                                 bgcolor: '#fafafa',
                                 aspectRatio: '1 / 1',
                               }}
@@ -4181,7 +4182,7 @@ export default function DocumentosFormPage({
         <Dialog open={duplicateDialog.open} onClose={() => setDuplicateDialog({ open: false, message: '' })}>
           <DialogTitle fontWeight={700}>Documento duplicado</DialogTitle>
           <DialogContent>
-            <DialogContentText sx={{ color: '#374151' }}>
+            <DialogContentText sx={{ color: neutralColors.gray[700] }}>
               Ya existe un documento con la misma serie y número. Por favor verifique el consecutivo antes de continuar.
               {duplicateDialog.message && (
                 <>
@@ -4202,7 +4203,7 @@ export default function DocumentosFormPage({
         <Dialog open={trazabilidadDialog.open} onClose={() => setTrazabilidadDialog({ open: false, folioRelacionado: '' })}>
           <DialogTitle fontWeight={700}>Documento con trazabilidad activa</DialogTitle>
           <DialogContent>
-            <DialogContentText sx={{ color: '#374151' }}>
+            <DialogContentText sx={{ color: neutralColors.gray[700] }}>
               Este documento fue generado a partir de otro documento o ya participa en una cadena de trazabilidad.
               <br />
               <br />
@@ -8823,7 +8824,7 @@ export default function DocumentosFormPage({
           {partidaImagenPreviewUrl && (
             <Box
               sx={{
-                border: '1px solid #e5e7eb',
+                border: `1px solid ${neutralColors.gray[200]}`,
                 borderRadius: 1.5,
                 p: 1,
                 bgcolor: '#fafafa',
@@ -8886,11 +8887,11 @@ export default function DocumentosFormPage({
                 role="textbox"
                 aria-label="Área para pegar imagen del portapapeles"
                 sx={{
-                  border: '2px dashed #9ca3af',
+                  border: `2px dashed ${neutralColors.gray[400]}`,
                   borderRadius: 1.5,
                   p: 3,
                   textAlign: 'center',
-                  color: '#6b7280',
+                  color: neutralColors.gray[500],
                   outline: 'none',
                   '&:focus': { borderColor: '#1565c0', color: '#1565c0' },
                 }}
@@ -8962,7 +8963,7 @@ export default function DocumentosFormPage({
                               position: 'relative',
                               borderRadius: 1.5,
                               overflow: 'hidden',
-                              border: selected ? '2px solid #1565c0' : '1px solid #e5e7eb',
+                              border: selected ? '2px solid #1565c0' : `1px solid ${neutralColors.gray[200]}`,
                               bgcolor: '#fafafa',
                               aspectRatio: '1 / 1',
                             }}
