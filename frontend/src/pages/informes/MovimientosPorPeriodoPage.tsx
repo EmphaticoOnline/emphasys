@@ -49,6 +49,8 @@ import { fetchOrigenesContacto, type OrigenContacto } from '../../services/repor
 import { fetchVendedores } from '../../services/contactosService';
 import type { Contacto } from '../../types/contactos.types';
 import { categoricalPalettes, thirdPartyColors } from '../../theme/functional';
+import { neutralColors } from '../../theme/structural';
+import { activeBrand } from '../../theme/brand/active';
 
 // ── Configuración del reporte (inyectada desde el wrapper) ────────────────────
 
@@ -221,8 +223,8 @@ function PeriodosChart({ periodos, color, campo = 'total', colorPorMes = false }
           return (
             <g key={i}>
               <line x1={PAD_LEFT} y1={yPos} x2={PAD_LEFT + chartW} y2={yPos}
-                stroke="#e5e7eb" strokeWidth={i === 0 ? 1.5 : 1} />
-              <text x={PAD_LEFT - 5} y={yPos + 3.5} textAnchor="end" fontSize={9} fill="#9ca3af">
+                stroke={neutralColors.gray[200]} strokeWidth={i === 0 ? 1.5 : 1} />
+              <text x={PAD_LEFT - 5} y={yPos + 3.5} textAnchor="end" fontSize={9} fill={neutralColors.gray[400]}>
                 {fmtAxisY(tick)}
               </text>
             </g>
@@ -240,12 +242,12 @@ function PeriodosChart({ periodos, color, campo = 'total', colorPorMes = false }
               <title>{`${p.periodo_label}: $${formatMXN(monto(p))}`}</title>
               <rect x={bx} y={by} width={barW} height={barH} fill={colorPorMes ? colorMes(p.periodo_key, color) : color} rx={2} opacity={0.9} />
               {rotate ? (
-                <text x={labelX} y={labelY} fontSize={8} fill="#6b7280"
+                <text x={labelX} y={labelY} fontSize={8} fill={neutralColors.gray[500]}
                   textAnchor="end" transform={`rotate(-40, ${labelX}, ${labelY})`}>
                   {p.periodo_label}
                 </text>
               ) : (
-                <text x={labelX} y={labelY + 4} textAnchor="middle" fontSize={9} fill="#6b7280">
+                <text x={labelX} y={labelY + 4} textAnchor="middle" fontSize={9} fill={neutralColors.gray[500]}>
                   {p.periodo_label}
                 </text>
               )}
@@ -254,9 +256,9 @@ function PeriodosChart({ periodos, color, campo = 'total', colorPorMes = false }
         })}
 
         <line x1={PAD_LEFT} y1={PAD_TOP} x2={PAD_LEFT} y2={PAD_TOP + CHART_H}
-          stroke="#d1d5db" strokeWidth={1} />
+          stroke={neutralColors.gray[300]} strokeWidth={1} />
         <line x1={PAD_LEFT} y1={PAD_TOP + CHART_H} x2={PAD_LEFT + chartW} y2={PAD_TOP + CHART_H}
-          stroke="#d1d5db" strokeWidth={1} />
+          stroke={neutralColors.gray[300]} strokeWidth={1} />
       </svg>
     </div>
   );
@@ -339,10 +341,10 @@ function PeriodoRow({
         <TableRow>
           <TableCell colSpan={totalCols} sx={{ p: 0, borderBottom: 0 }}>
             <Collapse in={open} timeout="auto" unmountOnExit>
-              <Box sx={{ pl: 5, pr: 1, pb: 1, bgcolor: esVentas ? tokens.content.elevated : '#f8fafc' }}>
+              <Box sx={{ pl: 5, pr: 1, pb: 1, bgcolor: esVentas ? tokens.content.elevated : neutralColors.slate[50] }}>
                 <Table size="small" sx={{ '& .MuiTableCell-root': { fontSize: '0.76rem', py: 0.4 } }}>
                   <TableHead>
-                    <TableRow sx={{ bgcolor: esVentas ? tokens.table.headerBg : '#1d2f6810' }}>
+                    <TableRow sx={{ bgcolor: esVentas ? tokens.table.headerBg : `${activeBrand.colors.blue.base}10` }}>
                       <TableCell>Fecha</TableCell>
                       <TableCell>Documento</TableCell>
                       <TableCell>{contactoLabel}</TableCell>
@@ -370,7 +372,7 @@ function PeriodoRow({
                         )}
                       </TableRow>
                     ))}
-                    <TableRow sx={{ bgcolor: esVentas ? tokens.metric.amount.background : '#f1f5f9' }}>
+                    <TableRow sx={{ bgcolor: esVentas ? tokens.metric.amount.background : neutralColors.slate[100] }}>
                       <TableCell
                         colSpan={(esVentas ? 3 : 5) + (mostrarCantidad ? 1 : 0)}
                         align="right"
@@ -960,7 +962,7 @@ export default function MovimientosPorPeriodoPage({ config }: { config: Movimien
             <TableHead>
               <TableRow sx={esVentas
                 ? { bgcolor: tokens.table.headerBg, '& .MuiTableCell-root': { color: tokens.table.headerFg, fontWeight: 700, fontSize: 11, letterSpacing: '0.06em', textTransform: 'uppercase', py: 1, borderColor: tokens.table.line, whiteSpace: 'nowrap' } }
-                : { bgcolor: '#1d2f68', '& .MuiTableCell-root': { color: 'common.white', fontWeight: 700, fontSize: '0.78rem', py: 0.75 } }}>
+                : { bgcolor: activeBrand.colors.blue.base, '& .MuiTableCell-root': { color: 'common.white', fontWeight: 700, fontSize: '0.78rem', py: 0.75 } }}>
                 <TableCell sx={{ width: 36 }} />
                 <TableCell>Período</TableCell>
                 <TableCell align="right">Documentos</TableCell>

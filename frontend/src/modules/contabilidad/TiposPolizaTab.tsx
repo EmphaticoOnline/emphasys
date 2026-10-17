@@ -33,6 +33,7 @@ import {
 import TipoPolizaFormView from './TipoPolizaFormView';
 import { barraVistaSx, botonPrimarioSx, chipEstadoSx, encabezadoTablaSx, iconoAccionSx, iconoPeligroSx, panelEstadoSx, superficieCatalogoSx, textoEstadoSx, tonoDeClave } from './contabilidadVisual';
 import { alertColors } from '../../theme/functional';
+import { neutralColors } from '../../theme/structural';
 
 type Vista = 'lista' | 'formulario';
 
@@ -161,7 +162,7 @@ export default function TiposPolizaTab() {
             <IconButton
               size="small"
               onClick={() => handleToggleEstado(params.row)}
-              sx={{ color: params.row.activo ? alertColors.success[800] : '#9ca3af' }}
+              sx={{ color: params.row.activo ? alertColors.success[800] : neutralColors.gray[400] }}
             >
               {params.row.activo ? <ToggleOnIcon fontSize="small" /> : <ToggleOffIcon fontSize="small" />}
             </IconButton>

@@ -30,6 +30,7 @@ import {
 import type { EstadoResultadosResultado } from '../../../types/reportesContables';
 import { NOMBRES_MESES } from '../../../types/saldosCuentas';
 import { accountingColors } from '../../../theme/functional';
+import { neutralColors } from '../../../theme/structural';
 
 function formatMoneda(valor: number): string {
   return valor.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -54,7 +55,7 @@ function SeccionResultados({ titulo, cuentas, totalLabel, total }: {
           <TableCell align="right">{formatMoneda(c.importe)}</TableCell>
         </TableRow>
       ))}
-      <TableRow sx={{ bgcolor: '#f3f4f6' }}>
+      <TableRow sx={{ bgcolor: neutralColors.gray[100] }}>
         <TableCell sx={{ fontWeight: 700 }}>{totalLabel}</TableCell>
         <TableCell align="right" sx={{ fontWeight: 700 }}>{formatMoneda(total)}</TableCell>
       </TableRow>

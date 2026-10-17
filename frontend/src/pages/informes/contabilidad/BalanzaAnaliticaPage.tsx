@@ -30,6 +30,8 @@ import {
 } from '../../../services/reportesContablesService';
 import type { BalanzaAnaliticaResultado } from '../../../types/reportesContables';
 import { NOMBRES_MESES } from '../../../types/saldosCuentas';
+import { neutralColors } from '../../../theme/structural';
+import { activeBrand } from '../../../theme/brand/active';
 
 function formatMoneda(valor: number): string {
   return valor.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -184,12 +186,12 @@ export default function BalanzaAnaliticaPage() {
           <Table size="small" stickyHeader>
             <TableHead>
               <TableRow>
-                <TableCell sx={{ bgcolor: '#1d2f68', color: 'common.white', fontWeight: 700 }}>Cuenta</TableCell>
-                <TableCell sx={{ bgcolor: '#1d2f68', color: 'common.white', fontWeight: 700 }}>Descripción</TableCell>
-                <TableCell sx={{ bgcolor: '#1d2f68', color: 'common.white', fontWeight: 700 }} align="right">Saldo inicial</TableCell>
-                <TableCell sx={{ bgcolor: '#1d2f68', color: 'common.white', fontWeight: 700 }} align="right">Cargos</TableCell>
-                <TableCell sx={{ bgcolor: '#1d2f68', color: 'common.white', fontWeight: 700 }} align="right">Abonos</TableCell>
-                <TableCell sx={{ bgcolor: '#1d2f68', color: 'common.white', fontWeight: 700 }} align="right">Saldo final</TableCell>
+                <TableCell sx={{ bgcolor: activeBrand.colors.blue.base, color: 'common.white', fontWeight: 700 }}>Cuenta</TableCell>
+                <TableCell sx={{ bgcolor: activeBrand.colors.blue.base, color: 'common.white', fontWeight: 700 }}>Descripción</TableCell>
+                <TableCell sx={{ bgcolor: activeBrand.colors.blue.base, color: 'common.white', fontWeight: 700 }} align="right">Saldo inicial</TableCell>
+                <TableCell sx={{ bgcolor: activeBrand.colors.blue.base, color: 'common.white', fontWeight: 700 }} align="right">Cargos</TableCell>
+                <TableCell sx={{ bgcolor: activeBrand.colors.blue.base, color: 'common.white', fontWeight: 700 }} align="right">Abonos</TableCell>
+                <TableCell sx={{ bgcolor: activeBrand.colors.blue.base, color: 'common.white', fontWeight: 700 }} align="right">Saldo final</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -209,13 +211,13 @@ export default function BalanzaAnaliticaPage() {
               )}
               {!loading && resultado?.cuentas.map((c) => (
                 <TableRow key={c.id} hover>
-                  <TableCell sx={{ color: c.afectable ? '#1d2f68' : 'text.secondary', fontWeight: c.afectable ? 600 : 400 }}>
+                  <TableCell sx={{ color: c.afectable ? activeBrand.colors.blue.base : 'text.secondary', fontWeight: c.afectable ? 600 : 400 }}>
                     {c.cuenta}
                   </TableCell>
                   <TableCell
                     sx={{
                       pl: `${16 + Math.max(0, c.nivel - 1) * 20}px`,
-                      color: c.afectable ? '#1d2f68' : 'text.secondary',
+                      color: c.afectable ? activeBrand.colors.blue.base : 'text.secondary',
                       fontWeight: c.afectable ? 600 : 400,
                     }}
                   >
@@ -230,7 +232,7 @@ export default function BalanzaAnaliticaPage() {
             </TableBody>
             {resultado && resultado.cuentas.length > 0 && (
               <TableBody>
-                <TableRow sx={{ bgcolor: '#f3f4f6' }}>
+                <TableRow sx={{ bgcolor: neutralColors.gray[100] }}>
                   <TableCell colSpan={3} sx={{ fontWeight: 700 }}>Totales</TableCell>
                   <TableCell align="right" sx={{ fontWeight: 700 }}>{formatMoneda(resultado.totales.cargos)}</TableCell>
                   <TableCell align="right" sx={{ fontWeight: 700 }}>{formatMoneda(resultado.totales.abonos)}</TableCell>

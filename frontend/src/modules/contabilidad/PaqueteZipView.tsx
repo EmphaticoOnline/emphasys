@@ -34,6 +34,7 @@ import type { TipoEnvioBalanza } from '../../types/balanzaXml';
 import type { TipoSolicitudPolizas } from '../../types/polizasXml';
 import { botonPrimarioSx, chipEstadoSx, encabezadoTablaSx, iconoAccionSx, iconoPeligroSx, panelEstadoSx, textoEstadoSx, tonoDeClave } from './contabilidadVisual';
 import { alertColors } from '../../theme/functional';
+import { neutralColors } from '../../theme/structural';
 
 
 type EstadoFila = 'listo' | 'con_advertencias' | 'con_errores' | 'no_seleccionado';
@@ -42,7 +43,7 @@ const ESTADO_CONFIG: Record<EstadoFila, { label: string; color: string; bg: stri
   listo: { label: 'Listo', color: alertColors.success[800], bg: alertColors.success[50] },
   con_advertencias: { label: 'Con advertencias', color: alertColors.warning[800], bg: alertColors.warning[50] },
   con_errores: { label: 'Con errores', color: alertColors.error[700], bg: alertColors.error[50] },
-  no_seleccionado: { label: 'No seleccionado', color: '#6b7280', bg: '#f3f4f6' },
+  no_seleccionado: { label: 'No seleccionado', color: neutralColors.gray[500], bg: neutralColors.gray[100] },
 };
 
 function CeldaEstado({ value }: { value: EstadoFila }) {

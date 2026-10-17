@@ -35,6 +35,7 @@ import type {
   MovimientoEstadoCuenta,
 } from '../../services/reportesService';
 import { accountingColors } from '../../theme/functional';
+import { neutralColors } from '../../theme/structural';
 
 export type EstadoCuentaPageConfig = {
   titulo: string;
@@ -221,7 +222,7 @@ function buildColumnsEstandar(): GridColDef<MovimientoEstadoCuenta>[] {
 }
 
 // Estilos base para texto en filas de aplicación (nivel 1)
-const APL_TEXT: React.CSSProperties = { color: '#4b5563', fontSize: '0.72rem' };
+const APL_TEXT: React.CSSProperties = { color: neutralColors.gray[600], fontSize: '0.72rem' };
 
 function buildColumnsDetalle(): GridColDef<FilaPlana>[] {
   return [
@@ -233,7 +234,7 @@ function buildColumnsDetalle(): GridColDef<FilaPlana>[] {
       renderCell: (p: GridRenderCellParams<FilaPlana, string>) => {
         if (!p.row) return null;
         if (p.row._nivel === 1) {
-          return <span style={{ ...APL_TEXT, color: '#9ca3af' }}>{formatFecha(p.value ?? '')}</span>;
+          return <span style={{ ...APL_TEXT, color: neutralColors.gray[400] }}>{formatFecha(p.value ?? '')}</span>;
         }
         return (
           <span style={p.row.cancelado ? { color: accountingColors.cancelled, textDecoration: 'line-through' } : {}}>
@@ -325,7 +326,7 @@ function buildColumnsDetalle(): GridColDef<FilaPlana>[] {
       renderCell: (p: GridRenderCellParams<FilaPlana, number>) => {
         if (!p.row || p.row._nivel === 1) return null;
         const v = p.value ?? 0;
-        if (v === 0) return <span style={{ color: '#9ca3af' }}>—</span>;
+        if (v === 0) return <span style={{ color: neutralColors.gray[400] }}>—</span>;
         return (
           <span style={p.row.cancelado ? { color: accountingColors.cancelled } : {}}>
             {formatMXN(v)}
@@ -703,10 +704,10 @@ export default function EstadoCuentaPage({ config }: { config: EstadoCuentaPageC
                   border: '1px solid',
                   borderColor: 'divider',
                   '& .fila-aplicacion': {
-                    bgcolor: '#f8fafc',
-                    borderLeft: '3px solid #e2e8f0',
+                    bgcolor: neutralColors.slate[50],
+                    borderLeft: `3px solid ${neutralColors.slate[200]}`,
                     '& .MuiDataGrid-cell': {
-                      color: '#6b7280',
+                      color: neutralColors.gray[500],
                     },
                   },
                 },

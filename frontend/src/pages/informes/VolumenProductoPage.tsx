@@ -46,6 +46,8 @@ import type {
   PartidaVolumenDetalle,
 } from '../../services/reportesService';
 import { categoricalPalettes } from '../../theme/functional';
+import { neutralColors } from '../../theme/structural';
+import { activeBrand } from '../../theme/brand/active';
 
 export type VolumenProductoPageConfig = {
   titulo: string;
@@ -262,7 +264,7 @@ function DetalleTable({
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
-                bgcolor: esVentas ? tokens.metric.amount.background : '#f1f5f9',
+                bgcolor: esVentas ? tokens.metric.amount.background : neutralColors.slate[100],
                 border: '1px solid',
                 borderColor: esVentas ? tokens.content.border : 'divider',
                 borderRadius: '6px 6px 0 0',
@@ -300,7 +302,7 @@ function DetalleTable({
               }}
             >
               <TableHead>
-                <TableRow sx={{ bgcolor: esVentas ? tokens.table.headerBg : '#1d2f6808' }}>
+                <TableRow sx={{ bgcolor: esVentas ? tokens.table.headerBg : `${activeBrand.colors.blue.base}08` }}>
                   <TableCell>Fecha</TableCell>
                   <TableCell>Folio</TableCell>
                   <TableCell>{contactoLabel}</TableCell>
@@ -341,7 +343,7 @@ function DetalleTable({
                   ))
                 )}
                 {/* Subtotal del producto */}
-                <TableRow sx={{ bgcolor: esVentas ? tokens.content.elevated : '#f8fafc' }}>
+                <TableRow sx={{ bgcolor: esVentas ? tokens.content.elevated : neutralColors.slate[50] }}>
                   <TableCell
                     colSpan={esVentas ? 6 : 7}
                     align="right"

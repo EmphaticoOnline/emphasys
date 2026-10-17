@@ -34,6 +34,7 @@ import type {
   OCPendienteOC,
   OCPendientePartida,
 } from '../../services/reportesService';
+import { activeBrand } from '../../theme/brand/active';
 
 export type OCPendientesPageConfig = {
   titulo: string;
@@ -559,7 +560,7 @@ export default function OCPendientesPage({ config }: { config: OCPendientesPageC
                   '& .fila-oc': {
                     bgcolor: '#f0f4ff',
                     fontWeight: 700,
-                    borderLeft: '3px solid #1d2f68',
+                    borderLeft: `3px solid ${activeBrand.colors.blue.base}`,
                   },
                   '& .fila-partida': {
                     bgcolor: 'background.paper',

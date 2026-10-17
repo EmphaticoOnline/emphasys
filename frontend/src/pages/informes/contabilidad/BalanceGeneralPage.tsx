@@ -30,6 +30,7 @@ import {
 import type { BalanceGeneralResultado } from '../../../types/reportesContables';
 import { NOMBRES_MESES } from '../../../types/saldosCuentas';
 import { accountingColors } from '../../../theme/functional';
+import { neutralColors } from '../../../theme/structural';
 
 function formatMoneda(valor: number): string {
   return valor.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -62,7 +63,7 @@ function SeccionBalance({ titulo, grupos, totalLabel, total }: {
           ))}
         </React.Fragment>
       ))}
-      <TableRow sx={{ bgcolor: '#f3f4f6' }}>
+      <TableRow sx={{ bgcolor: neutralColors.gray[100] }}>
         <TableCell sx={{ fontWeight: 700 }}>{totalLabel}</TableCell>
         <TableCell align="right" sx={{ fontWeight: 700 }}>{formatMoneda(total)}</TableCell>
       </TableRow>
@@ -199,7 +200,7 @@ export default function BalanceGeneralPage() {
                   <SeccionBalance titulo="ACTIVO" grupos={resultado.activo} totalLabel="TOTAL ACTIVO" total={resultado.total_activo} />
                   <SeccionBalance titulo="PASIVO" grupos={resultado.pasivo} totalLabel="TOTAL PASIVO" total={resultado.total_pasivo} />
                   <SeccionBalance titulo="CAPITAL" grupos={resultado.capital} totalLabel="TOTAL CAPITAL" total={resultado.total_capital} />
-                  <TableRow sx={{ bgcolor: '#e5e7eb' }}>
+                  <TableRow sx={{ bgcolor: neutralColors.gray[200] }}>
                     <TableCell sx={{ fontWeight: 700 }}>TOTAL PASIVO + CAPITAL</TableCell>
                     <TableCell align="right" sx={{ fontWeight: 700 }}>
                       {formatMoneda(resultado.total_pasivo + resultado.total_capital)}

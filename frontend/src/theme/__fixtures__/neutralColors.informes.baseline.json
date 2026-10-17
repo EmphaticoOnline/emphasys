@@ -1,0 +1,342 @@
+{
+  "source": "HEAD c507c6a, bloque informes",
+  "files": {
+    "pages/informes/EstadoCuentaPage.tsx": {
+      "headSha256": "1272db6830330a7ef990f57a239100de9d29cc706d4d02146fcb0cde8c00bfcf",
+      "addedImports": [
+        "import { neutralColors } from '../../theme/structural';"
+      ],
+      "lines": {
+        "224": [
+          {
+            "hex": "#4b5563",
+            "token": "neutralColors.gray[600]"
+          }
+        ],
+        "236": [
+          {
+            "hex": "#9ca3af",
+            "token": "neutralColors.gray[400]"
+          }
+        ],
+        "328": [
+          {
+            "hex": "#9ca3af",
+            "token": "neutralColors.gray[400]"
+          }
+        ],
+        "706": [
+          {
+            "hex": "#f8fafc",
+            "token": "neutralColors.slate[50]"
+          }
+        ],
+        "707": [
+          {
+            "hex": "#e2e8f0",
+            "token": "neutralColors.slate[200]"
+          }
+        ],
+        "709": [
+          {
+            "hex": "#6b7280",
+            "token": "neutralColors.gray[500]"
+          }
+        ]
+      },
+      "keptLiteral": {}
+    },
+    "pages/informes/MovimientosPorPeriodoPage.tsx": {
+      "headSha256": "ee4617c6220571c38496d2d195643e4ee9026bdc0cf4d5df37b77e98a7c5301f",
+      "addedImports": [
+        "import { neutralColors } from '../../theme/structural';",
+        "import { activeBrand } from '../../theme/brand/active';"
+      ],
+      "lines": {
+        "224": [
+          {
+            "hex": "#e5e7eb",
+            "token": "neutralColors.gray[200]"
+          }
+        ],
+        "225": [
+          {
+            "hex": "#9ca3af",
+            "token": "neutralColors.gray[400]"
+          }
+        ],
+        "243": [
+          {
+            "hex": "#6b7280",
+            "token": "neutralColors.gray[500]"
+          }
+        ],
+        "248": [
+          {
+            "hex": "#6b7280",
+            "token": "neutralColors.gray[500]"
+          }
+        ],
+        "257": [
+          {
+            "hex": "#d1d5db",
+            "token": "neutralColors.gray[300]"
+          }
+        ],
+        "259": [
+          {
+            "hex": "#d1d5db",
+            "token": "neutralColors.gray[300]"
+          }
+        ],
+        "342": [
+          {
+            "hex": "#f8fafc",
+            "token": "neutralColors.slate[50]"
+          }
+        ],
+        "345": [
+          {
+            "hex": "#1d2f68",
+            "token": "activeBrand.colors.blue.base"
+          }
+        ],
+        "373": [
+          {
+            "hex": "#f1f5f9",
+            "token": "neutralColors.slate[100]"
+          }
+        ],
+        "963": [
+          {
+            "hex": "#1d2f68",
+            "token": "activeBrand.colors.blue.base"
+          }
+        ]
+      },
+      "keptLiteral": {
+        "#1d2f68": 1
+      }
+    },
+    "pages/informes/VolumenProductoPage.tsx": {
+      "headSha256": "7ed3becf61bd7907992c0118b2ecb2a13f9b3b833096de4f065f3e5216f149dc",
+      "addedImports": [
+        "import { neutralColors } from '../../theme/structural';",
+        "import { activeBrand } from '../../theme/brand/active';"
+      ],
+      "lines": {
+        "265": [
+          {
+            "hex": "#f1f5f9",
+            "token": "neutralColors.slate[100]"
+          }
+        ],
+        "303": [
+          {
+            "hex": "#1d2f68",
+            "token": "activeBrand.colors.blue.base"
+          }
+        ],
+        "344": [
+          {
+            "hex": "#f8fafc",
+            "token": "neutralColors.slate[50]"
+          }
+        ]
+      },
+      "keptLiteral": {}
+    },
+    "pages/informes/VolumenComprasPage.tsx": {
+      "headSha256": "0c5538bdd7e529c6f354677735a8c2fa3589c1978a5de45c36ea29fdeaff5b33",
+      "addedImports": [
+        "import { neutralColors } from '../../theme/structural';",
+        "import { activeBrand } from '../../theme/brand/active';"
+      ],
+      "lines": {
+        "257": [
+          {
+            "hex": "#f1f5f9",
+            "token": "neutralColors.slate[100]"
+          }
+        ],
+        "295": [
+          {
+            "hex": "#1d2f68",
+            "token": "activeBrand.colors.blue.base"
+          }
+        ],
+        "327": [
+          {
+            "hex": "#f8fafc",
+            "token": "neutralColors.slate[50]"
+          }
+        ]
+      },
+      "keptLiteral": {}
+    },
+    "pages/informes/OCPendientesPage.tsx": {
+      "headSha256": "9fc383e4d3688c7f80fa6967e01fd0741f9e11fbeba0e07d3b220b9ed0310586",
+      "addedImports": [
+        "import { activeBrand } from '../../theme/brand/active';"
+      ],
+      "lines": {
+        "562": [
+          {
+            "hex": "#1d2f68",
+            "token": "activeBrand.colors.blue.base"
+          }
+        ]
+      },
+      "keptLiteral": {}
+    },
+    "pages/informes/contabilidad/EstadoResultadosPage.tsx": {
+      "headSha256": "ab91f7c14f3adc31a679cc9d230d54dd18a7c27864100edd8787229ed93304bd",
+      "addedImports": [
+        "import { neutralColors } from '../../../theme/structural';"
+      ],
+      "lines": {
+        "57": [
+          {
+            "hex": "#f3f4f6",
+            "token": "neutralColors.gray[100]"
+          }
+        ]
+      },
+      "keptLiteral": {}
+    },
+    "pages/informes/contabilidad/BalanzaAnaliticaPage.tsx": {
+      "headSha256": "6c5092f51d8584b9eea891fdec03092525c42df1531b16e6d3a9733363637776",
+      "addedImports": [
+        "import { neutralColors } from '../../../theme/structural';",
+        "import { activeBrand } from '../../../theme/brand/active';"
+      ],
+      "lines": {
+        "187": [
+          {
+            "hex": "#1d2f68",
+            "token": "activeBrand.colors.blue.base"
+          }
+        ],
+        "188": [
+          {
+            "hex": "#1d2f68",
+            "token": "activeBrand.colors.blue.base"
+          }
+        ],
+        "189": [
+          {
+            "hex": "#1d2f68",
+            "token": "activeBrand.colors.blue.base"
+          }
+        ],
+        "190": [
+          {
+            "hex": "#1d2f68",
+            "token": "activeBrand.colors.blue.base"
+          }
+        ],
+        "191": [
+          {
+            "hex": "#1d2f68",
+            "token": "activeBrand.colors.blue.base"
+          }
+        ],
+        "192": [
+          {
+            "hex": "#1d2f68",
+            "token": "activeBrand.colors.blue.base"
+          }
+        ],
+        "212": [
+          {
+            "hex": "#1d2f68",
+            "token": "activeBrand.colors.blue.base"
+          }
+        ],
+        "218": [
+          {
+            "hex": "#1d2f68",
+            "token": "activeBrand.colors.blue.base"
+          }
+        ],
+        "233": [
+          {
+            "hex": "#f3f4f6",
+            "token": "neutralColors.gray[100]"
+          }
+        ]
+      },
+      "keptLiteral": {}
+    },
+    "pages/informes/contabilidad/BalanceGeneralPage.tsx": {
+      "headSha256": "7e1ffee71e616aae6657a2311cc04b9ea02d338727a415c13c7b47c5f36da1ac",
+      "addedImports": [
+        "import { neutralColors } from '../../../theme/structural';"
+      ],
+      "lines": {
+        "65": [
+          {
+            "hex": "#f3f4f6",
+            "token": "neutralColors.gray[100]"
+          }
+        ],
+        "202": [
+          {
+            "hex": "#e5e7eb",
+            "token": "neutralColors.gray[200]"
+          }
+        ]
+      },
+      "keptLiteral": {}
+    },
+    "modules/contabilidad/BitacoraView.tsx": {
+      "headSha256": "9275ba59d3c7e22f6fbac0a488489fabfce17db55024078a658273f0282dc88d",
+      "addedImports": [
+        "import { neutralColors } from '../../theme/structural';"
+      ],
+      "lines": {
+        "43": [
+          {
+            "hex": "#f8fafc",
+            "token": "neutralColors.slate[50]"
+          }
+        ]
+      },
+      "keptLiteral": {}
+    },
+    "modules/contabilidad/TiposPolizaTab.tsx": {
+      "headSha256": "45a9e5ce831893b21b17c130b46d39ad6183734dac865d09a5ffb23ad7258c87",
+      "addedImports": [
+        "import { neutralColors } from '../../theme/structural';"
+      ],
+      "lines": {
+        "164": [
+          {
+            "hex": "#9ca3af",
+            "token": "neutralColors.gray[400]"
+          }
+        ]
+      },
+      "keptLiteral": {}
+    },
+    "modules/contabilidad/PaqueteZipView.tsx": {
+      "headSha256": "17033bc70356e7fb6e21e6681db90b684eefe7023c1ad923f41955e6ceeb97f8",
+      "addedImports": [
+        "import { neutralColors } from '../../theme/structural';"
+      ],
+      "lines": {
+        "45": [
+          {
+            "hex": "#6b7280",
+            "token": "neutralColors.gray[500]"
+          },
+          {
+            "hex": "#f3f4f6",
+            "token": "neutralColors.gray[100]"
+          }
+        ]
+      },
+      "keptLiteral": {}
+    }
+  }
+}

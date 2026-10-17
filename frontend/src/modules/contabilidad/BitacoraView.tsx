@@ -30,6 +30,7 @@ import { fetchBitacoraPaquetes } from '../../services/eContabilidadService';
 import type { ItemBitacoraPaquete } from '../../types/bitacora';
 import { botonPrimarioSx, chipEstadoSx, encabezadoTablaSx, iconoAccionSx, iconoPeligroSx, panelEstadoSx, textoEstadoSx, tonoDeClave } from './contabilidadVisual';
 import { alertColors } from '../../theme/functional';
+import { neutralColors } from '../../theme/structural';
 
 
 function formatearFechaHora(iso: string): string {
@@ -40,7 +41,7 @@ function formatearFechaHora(iso: string): string {
 
 function FilaDetalle({ item }: { item: ItemBitacoraPaquete }) {
   return (
-    <Box sx={{ p: 2, bgcolor: '#f8fafc' }}>
+    <Box sx={{ p: 2, bgcolor: neutralColors.slate[50] }}>
       <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1 }}>
         Archivos incluidos
       </Typography>
