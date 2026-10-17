@@ -4886,7 +4886,7 @@ export default function DocumentosFormPage({
                           {partidasComputadas.map(({ partida, index, productoSeleccionado, impuestosPartida, breakdown, expanded }) => {
                             const filaBase = expanded ? '#f7f9fc' : index % 2 === 1 ? '#f4f6f9' : '#fff';
                             return (
-                            <Box key={index} sx={{ borderBottom: '1px solid #eef0f4' }}>
+                            <Box key={index} sx={{ borderBottom: `1px solid ${neutralColors.steel.dividerSoft}` }}>
                               <Box
                                 sx={{
                                   display: 'grid',
@@ -4899,7 +4899,7 @@ export default function DocumentosFormPage({
                                   '&:hover': { bgcolor: expanded ? '#f7f9fc' : '#eef1f4' },
                                 }}
                               >
-                                <Typography sx={{ fontSize: 11, color: '#a6adbd', fontFamily: 'monospace' }}>
+                                <Typography sx={{ fontSize: 11, color: neutralColors.steel.dot, fontFamily: 'monospace' }}>
                                   {String(index + 1).padStart(2, '0')}
                                 </Typography>
 
@@ -4944,10 +4944,10 @@ export default function DocumentosFormPage({
                                         width: '100%',
                                       }}
                                     >
-                                      <Typography component="span" fontWeight={700} sx={{ fontSize: 12, color: '#111827', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                      <Typography component="span" fontWeight={700} sx={{ fontSize: 12, color: neutralColors.gray[900], whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                         {'kind' in option ? option.clave : option.clave || ''}
                                       </Typography>
-                                      <Typography component="span" sx={{ fontSize: 12, color: '#374151', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                      <Typography component="span" sx={{ fontSize: 12, color: neutralColors.gray[700], whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                         {'kind' in option ? option.descripcion : option.descripcion || ''}
                                       </Typography>
                                     </Box>
@@ -5198,10 +5198,10 @@ export default function DocumentosFormPage({
                                       aria-label={expanded ? 'Ocultar detalles de partida' : 'Ver detalles de partida'}
                                       sx={{
                                         p: 0.5,
-                                        color: expanded ? 'primary.main' : '#5b6479',
-                                        bgcolor: expanded ? '#eef1f8' : 'transparent',
+                                        color: expanded ? 'primary.main' : neutralColors.steel.text,
+                                        bgcolor: expanded ? neutralColors.steel.hoverAlt : 'transparent',
                                         border: '1px solid',
-                                        borderColor: (theme) => (expanded ? theme.emphasys.action.disabled : '#d9dde6'),
+                                        borderColor: (theme) => (expanded ? theme.emphasys.action.disabled : neutralColors.steel.panelBorder),
                                         borderRadius: 1,
                                         '&:hover': { borderColor: 'primary.main', color: 'primary.main', bgcolor: '#f7f9fc' },
                                       }}
@@ -5237,7 +5237,7 @@ export default function DocumentosFormPage({
                             >
                               <AddIcon sx={{ fontSize: 18 }} />
                             </IconButton>
-                            <Typography sx={{ fontSize: 12, color: '#8b93a7' }}>Agregar partida</Typography>
+                            <Typography sx={{ fontSize: 12, color: neutralColors.steel.label }}>Agregar partida</Typography>
                           </Box>
                         </Box>
                       </Box>
@@ -5254,7 +5254,7 @@ export default function DocumentosFormPage({
                             }}
                           >
                             <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1, p: 1.25 }}>
-                              <Typography sx={{ fontSize: 11, color: '#a6adbd', fontFamily: 'monospace', flex: '0 0 20px' }}>
+                              <Typography sx={{ fontSize: 11, color: neutralColors.steel.dot, fontFamily: 'monospace', flex: '0 0 20px' }}>
                                 {String(index + 1).padStart(2, '0')}
                               </Typography>
 
@@ -5299,10 +5299,10 @@ export default function DocumentosFormPage({
                                       width: '100%',
                                     }}
                                   >
-                                    <Typography component="span" fontWeight={700} sx={{ fontSize: 12, color: '#111827', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                    <Typography component="span" fontWeight={700} sx={{ fontSize: 12, color: neutralColors.gray[900], whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                       {'kind' in option ? option.clave : option.clave || ''}
                                     </Typography>
-                                    <Typography component="span" sx={{ fontSize: 12, color: '#374151', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                    <Typography component="span" sx={{ fontSize: 12, color: neutralColors.gray[700], whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                       {'kind' in option ? option.descripcion : option.descripcion || ''}
                                     </Typography>
                                   </Box>
@@ -5483,7 +5483,7 @@ export default function DocumentosFormPage({
                               </Tooltip>
 
                               <Box sx={{ flex: '0 1 96px', minWidth: 88, display: 'flex', flexDirection: 'column' }}>
-                                <Typography sx={{ fontSize: 10, color: '#8b93a7' }}>Impuestos</Typography>
+                                <Typography sx={{ fontSize: 10, color: neutralColors.steel.label }}>Impuestos</Typography>
                                 <Typography sx={{ fontSize: 12.5, fontFamily: 'monospace', textAlign: 'right' }}>
                                   {formatter.format(impuestosPartida.traslados)}
                                 </Typography>

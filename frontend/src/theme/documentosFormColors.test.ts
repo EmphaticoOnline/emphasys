@@ -118,3 +118,14 @@ test('subbloque 2: neutrales sin token, chip fiscal y retención del panel queda
   assert.equal(asOfS2.match(/'#9a5b00'/g)?.length, 4);
   for (const n of Object.keys(s2.lines).map(Number)) assert.ok(n > 4250 && n < 4900, `línea ${n} fuera del panel de captura`);
 });
+
+test('subbloque 3: el indicador de imagen de partidas (estado) queda literal', () => {
+  const s3 = subblocks.find(({ name }) => name === 'documentosForm.s3.baseline.json')!.fixture.files[FILE]!;
+  for (const n of Object.keys(s3.lines).map(Number)) assert.ok(n > 4880 && n < 5602, `línea ${n} fuera de partidas`);
+  // Con imagen / archivo de producto / sin imagen: es estado y va en el subbloque 6, aunque #6b7280 tenga token.
+  const asOfS3 = asOfSubblock('documentosForm.s3.baseline.json');
+  const indicator = "partida.archivo_imagen_1 ? '#2e7d32' : partida.producto_archivo_id ? '#1565c0' : '#6b7280'";
+  assert.equal(asOfS3.split(indicator).length - 1, 2, 'las dos instancias de partidas (escritorio y móvil)');
+  const migratedNumbers = Object.keys(s3.lines).map(Number);
+  assert.ok(!migratedNumbers.includes(5184) && !migratedNumbers.includes(5519));
+});
