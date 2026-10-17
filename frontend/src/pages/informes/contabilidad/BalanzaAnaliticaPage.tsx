@@ -184,12 +184,12 @@ export default function BalanzaAnaliticaPage() {
           <Table size="small" stickyHeader>
             <TableHead>
               <TableRow>
-                <TableCell sx={{ bgcolor: '#1d2f68', color: '#fff', fontWeight: 700 }}>Cuenta</TableCell>
-                <TableCell sx={{ bgcolor: '#1d2f68', color: '#fff', fontWeight: 700 }}>Descripción</TableCell>
-                <TableCell sx={{ bgcolor: '#1d2f68', color: '#fff', fontWeight: 700 }} align="right">Saldo inicial</TableCell>
-                <TableCell sx={{ bgcolor: '#1d2f68', color: '#fff', fontWeight: 700 }} align="right">Cargos</TableCell>
-                <TableCell sx={{ bgcolor: '#1d2f68', color: '#fff', fontWeight: 700 }} align="right">Abonos</TableCell>
-                <TableCell sx={{ bgcolor: '#1d2f68', color: '#fff', fontWeight: 700 }} align="right">Saldo final</TableCell>
+                <TableCell sx={{ bgcolor: '#1d2f68', color: 'common.white', fontWeight: 700 }}>Cuenta</TableCell>
+                <TableCell sx={{ bgcolor: '#1d2f68', color: 'common.white', fontWeight: 700 }}>Descripción</TableCell>
+                <TableCell sx={{ bgcolor: '#1d2f68', color: 'common.white', fontWeight: 700 }} align="right">Saldo inicial</TableCell>
+                <TableCell sx={{ bgcolor: '#1d2f68', color: 'common.white', fontWeight: 700 }} align="right">Cargos</TableCell>
+                <TableCell sx={{ bgcolor: '#1d2f68', color: 'common.white', fontWeight: 700 }} align="right">Abonos</TableCell>
+                <TableCell sx={{ bgcolor: '#1d2f68', color: 'common.white', fontWeight: 700 }} align="right">Saldo final</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
