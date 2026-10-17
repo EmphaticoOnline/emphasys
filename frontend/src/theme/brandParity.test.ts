@@ -12,11 +12,17 @@ import {
   classicTokens,
   experimentalTokens,
 } from './tokens.ts';
+import { createEmphasysTheme } from './createEmphasysTheme.ts';
+import { classicTheme, experimentalTheme } from './themes.ts';
+import { serializeTheme } from './__fixtures__/serializeTheme.ts';
 
 const fromHere = (path: string) => new URL(path, import.meta.url);
 const readText = (path: string) => readFileSync(fromHere(path), 'utf8');
+const toJson = (value: unknown) => JSON.parse(JSON.stringify(value));
 
 const baseline = JSON.parse(readText('./__fixtures__/emphasysTokens.baseline.json'));
+/** Generado desde el código previo a la capa de marca (a736761). */
+const themeBaseline = JSON.parse(readText('./__fixtures__/emphasysMuiTheme.baseline.json'));
 
 const currentSnapshot = () => ({
   classicTokens,
@@ -32,6 +38,43 @@ test('los tokens derivados de la marca Emphasys son idénticos al fixture congel
     `${JSON.stringify(currentSnapshot(), null, 2)}\n`,
     readText('./__fixtures__/emphasysTokens.baseline.json'),
   );
+});
+
+test('classicTokens se construye desde emphasysBrand con los valores del fixture', () => {
+  assert.deepStrictEqual(toJson(buildClassicTokens(emphasysBrand)), baseline.classicTokens);
+  assert.deepStrictEqual(toJson(classicTokens), baseline.classicTokens);
+});
+
+test('experimentalTokens se construye desde emphasysBrand con los valores del fixture', () => {
+  assert.deepStrictEqual(toJson(buildExperimentalTokens(emphasysBrand)), baseline.experimentalTokens);
+  assert.deepStrictEqual(toJson(experimentalTokens), baseline.experimentalTokens);
+});
+
+test('los tokens conservan exactamente los roles de EmphasysTokens', () => {
+  const roleTree = (value: unknown): unknown =>
+    value && typeof value === 'object'
+      ? Object.fromEntries(Object.entries(value).map(([key, child]) => [key, roleTree(child)]))
+      : typeof value;
+  assert.deepStrictEqual(roleTree(classicTokens), roleTree(baseline.classicTokens));
+  assert.deepStrictEqual(roleTree(experimentalTokens), roleTree(baseline.experimentalTokens));
+});
+
+test('el tema MUI clásico generado es idéntico al baseline previo a la marca', () => {
+  assert.deepStrictEqual(toJson(serializeTheme(classicTheme)), themeBaseline.classicTheme);
+  assert.deepStrictEqual(toJson(classicTheme.emphasys), baseline.classicTokens);
+});
+
+test('el tema MUI experimental generado es idéntico al baseline previo a la marca', () => {
+  assert.deepStrictEqual(toJson(serializeTheme(experimentalTheme)), themeBaseline.experimentalTheme);
+  assert.deepStrictEqual(toJson(experimentalTheme.emphasys), baseline.experimentalTokens);
+});
+
+test('el fixture del tema MUI coincide byte a byte con la serialización actual', () => {
+  const current = {
+    classicTheme: serializeTheme(classicTheme),
+    experimentalTheme: serializeTheme(experimentalTheme),
+  };
+  assert.equal(`${JSON.stringify(current, null, 2)}\n`, readText('./__fixtures__/emphasysMuiTheme.baseline.json'));
 });
 
 test('la marca Emphasys conserva grafito, beige, marfil, azul y acento', () => {
@@ -98,6 +141,13 @@ test('otra marca cambia la identidad sin tocar colores funcionales', () => {
   assert.equal(classic.frame.background, '#000005');
   assert.equal(classic.documentNav.indicator, '#000007');
   assert.equal(experimental.action.primary, '#000006');
+
+  const otherTheme = createEmphasysTheme(classic, { editorialFigures: false, restyleSurfaces: false });
+  assert.equal(otherTheme.palette.primary.main, '#000001');
+  assert.equal(otherTheme.palette.primary.dark, '#000002');
+  assert.deepStrictEqual(toJson(otherTheme.palette.error), toJson(classicTheme.palette.error));
+  assert.deepStrictEqual(toJson(otherTheme.palette.success), toJson(classicTheme.palette.success));
+  assert.deepStrictEqual(toJson(otherTheme.palette.warning), toJson(classicTheme.palette.warning));
 
   for (const [tokens, base] of [
     [classic, classicTokens],
