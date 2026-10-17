@@ -83,7 +83,7 @@ export default function VersionUpdateDrawer({ open, version, onClose, onUpdateNo
                   placeItems: 'center',
                   flexShrink: 0,
                   backgroundColor: 'rgba(29, 47, 104, 0.08)',
-                  color: '#1d2f68',
+                  color: activeBrand.colors.blue.base,
                 }}
               >
                 <UpdateIcon sx={{ fontSize: 26 }} />

@@ -2,6 +2,7 @@ import * as React from 'react';
 import { Box, Divider, ListItemIcon, Menu, MenuItem, Typography } from '@mui/material';
 import type { GridContextMenuPosition } from '../../hooks/useGridContextMenu';
 import { alertColors } from '../../theme/functional';
+import { neutralColors } from '../../theme/structural';
 
 type GridContextMenuActionBase = {
   id: string;
@@ -74,7 +75,7 @@ export function GridContextMenu({ actions, anchorPosition, open, onClose }: Grid
           sx: {
             minWidth: 220,
             borderRadius: 2,
-            border: '1px solid #e5e7eb',
+            border: `1px solid ${neutralColors.gray[200]}`,
             boxShadow: '0 14px 34px rgba(15, 23, 42, 0.14)',
             py: 0.75,
             '& .MuiMenuItem-root': {
@@ -84,7 +85,7 @@ export function GridContextMenu({ actions, anchorPosition, open, onClose }: Grid
               borderRadius: 1.5,
               fontSize: 13,
               fontWeight: 500,
-              color: '#111827',
+              color: neutralColors.gray[900],
               '&:hover': {
                 backgroundColor: 'rgba(15, 23, 42, 0.06)',
               },
@@ -125,7 +126,7 @@ export function GridContextMenu({ actions, anchorPosition, open, onClose }: Grid
                 {action.label}
               </Typography>
               {action.shortcut ? (
-                <Typography component="span" sx={{ fontSize: 11, color: '#6b7280', letterSpacing: 0.2 }}>
+                <Typography component="span" sx={{ fontSize: 11, color: neutralColors.gray[500], letterSpacing: 0.2 }}>
                   {action.shortcut}
                 </Typography>
               ) : null}

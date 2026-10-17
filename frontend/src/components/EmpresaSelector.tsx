@@ -5,6 +5,7 @@ import type { SelectChangeEvent } from '@mui/material';
 import { useSession } from '../session/useSession';
 import type { Empresa } from '../session/sessionTypes';
 import { resolveRutaInicio } from '../utils/rutaInicio';
+import { neutralColors } from '../theme/structural';
 
 interface EmpresaSelectorProps {
   variant?: 'header' | 'panel';
@@ -43,14 +44,14 @@ export default function EmpresaSelector({ variant = 'header', fullWidth = false,
         minWidth: fullWidth ? '100%' : compact ? 0 : 220,
         maxWidth: compact ? 148 : 'none',
         width: fullWidth ? '100%' : 'auto',
-        '& .MuiInputLabel-root': { color: '#475569' },
+        '& .MuiInputLabel-root': { color: neutralColors.slate[600] },
         '& .MuiInputLabel-root.Mui-focused': { color: primary },
         '& .MuiOutlinedInput-notchedOutline': {
-          borderColor: isPanel ? '#cbd5e1' : frame.controlBorder,
+          borderColor: isPanel ? neutralColors.slate[300] : frame.controlBorder,
         },
-        '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: isPanel ? '#94a3b8' : frame.foreground },
+        '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: isPanel ? neutralColors.slate[400] : frame.foreground },
         '& .MuiOutlinedInput-root': {
-          color: isPanel ? '#0f172a' : frame.controlForeground,
+          color: isPanel ? neutralColors.slate[900] : frame.controlForeground,
           backgroundColor: isPanel ? '#fff' : frame.control,
           ...(compact ? { height: 30, fontSize: 13 } : {}),
           '&.Mui-focused .MuiOutlinedInput-notchedOutline': {

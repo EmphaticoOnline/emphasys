@@ -12,6 +12,7 @@ import {
   type Theme,
 } from '@mui/material';
 import CommentIcon from '@mui/icons-material/ModeCommentOutlined';
+import { activeBrand } from '../theme/brand/active';
 
 interface ObservacionesEncabezadoCampoProps {
   label: string;
@@ -107,7 +108,7 @@ export default function ObservacionesEncabezadoCampo({
           <Button
             onClick={handleSave}
             variant="contained"
-            sx={{ textTransform: 'none', borderRadius: 999, bgcolor: '#1d2f68', '&:hover': { bgcolor: '#162551' } }}
+            sx={{ textTransform: 'none', borderRadius: 999, bgcolor: activeBrand.colors.blue.base, '&:hover': { bgcolor: activeBrand.colors.blue.hover } }}
           >
             Guardar
           </Button>

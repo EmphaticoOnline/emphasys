@@ -2,6 +2,7 @@ import { Autocomplete, Box, CircularProgress, FormControl, FormControlLabel, Inp
 import type { CampoConfiguracion, CampoValorPayload, CatalogoValor } from '../types/camposDinamicos';
 import { useMemo, useState } from 'react';
 import { HexColorPicker } from 'react-colorful';
+import { neutralColors } from '../theme/structural';
 
 type PropsCampos = {
   campo: CampoConfiguracion;
@@ -103,7 +104,7 @@ function CampoColorDirecto({ label, value, disabled, onChange }: Omit<PropsDirec
                 width: 24,
                 height: 24,
                 borderRadius: 0.75,
-                border: '1px solid #d1d5db',
+                border: `1px solid ${neutralColors.gray[300]}`,
                 backgroundColor: colorActual,
                 cursor: disabled ? 'not-allowed' : 'pointer',
                 mr: 1.25,
