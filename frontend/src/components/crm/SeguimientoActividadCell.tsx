@@ -3,6 +3,7 @@ import { Chip, IconButton, Stack, Tooltip, Typography } from '@mui/material';
 import type { SxProps, Theme } from '@mui/material/styles';
 import AssignmentOutlinedIcon from '@mui/icons-material/AssignmentOutlined';
 import type { SeguimientoChipPresentation } from '../../hooks/useSeguimientoActividades';
+import { activeBrand } from '../../theme/brand/active';
 
 type SeguimientoActividadCellProps = {
   hasOportunidad: boolean;
@@ -60,7 +61,7 @@ export function SeguimientoActividadCell({ hasOportunidad, presentation, onOpen,
             event.stopPropagation();
             onOpen();
           }}
-          sx={{ color: '#1d2f68' }}
+          sx={{ color: activeBrand.colors.blue.base }}
         >
           <AssignmentOutlinedIcon fontSize="small" />
         </IconButton>

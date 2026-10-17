@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { apiFetch } from '../services/apiFetch';
 import { alertColors } from '../theme/functional';
+import { neutralColors } from '../theme/structural';
 
 type TipoActividad = 'llamada' | 'whatsapp' | 'visita' | 'tarea';
 
@@ -112,9 +113,9 @@ export function useSeguimientoActividades(enabled = true) {
     if (loadingSeguimientoResumen) {
       return {
         label: '...',
-        backgroundColor: '#f8fafc',
-        textColor: '#64748b',
-        borderColor: '#cbd5e1',
+        backgroundColor: neutralColors.slate[50],
+        textColor: neutralColors.slate[500],
+        borderColor: neutralColors.slate[300],
       };
     }
 

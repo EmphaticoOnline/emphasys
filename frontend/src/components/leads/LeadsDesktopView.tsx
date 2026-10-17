@@ -93,6 +93,7 @@ import type {
 } from '../../pages/LeadsPage';
 import TemperaturaScoreButton from './TemperaturaScoreButton';
 import { thirdPartyColors } from '../../theme/functional';
+import { neutralColors } from '../../theme/structural';
 
 // Vista de escritorio del módulo de Leads/conversaciones de WhatsApp.
 // LeadsPage.tsx sigue siendo dueño de todo el estado y la lógica de negocio
@@ -1117,7 +1118,7 @@ export default function LeadsDesktopView(props: LeadsDesktopViewProps) {
               aria-label="Abrir guía de ayuda"
               size="small"
               onClick={() => window.open('/docs/guia-leads.html', '_blank')}
-              sx={{ color: '#64748b', p: 0.25, flexShrink: 0 }}
+              sx={{ color: neutralColors.slate[500], p: 0.25, flexShrink: 0 }}
             >
               <HelpOutlineIcon sx={{ fontSize: 16 }} />
             </IconButton>

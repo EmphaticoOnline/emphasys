@@ -39,6 +39,8 @@ import { apiFetch } from '../../services/apiFetch';
 import { loadSession } from '../../session/sessionStorage';
 import RichTextEditor from '../RichTextEditor';
 import { alertColors } from '../../theme/functional';
+import { neutralColors } from '../../theme/structural';
+import { activeBrand } from '../../theme/brand/active';
 
 dayjs.locale('es');
 
@@ -183,10 +185,10 @@ function getActividadDuePresentation(fechaProgramada: string) {
   if (Number.isNaN(date.getTime())) {
     return {
       label: 'Sin fecha',
-      color: '#475569',
-      accentColor: '#94a3b8',
-      backgroundColor: '#f8fafc',
-      borderColor: '#cbd5e1',
+      color: neutralColors.slate[600],
+      accentColor: neutralColors.slate[400],
+      backgroundColor: neutralColors.slate[50],
+      borderColor: neutralColors.slate[300],
     };
   }
 
@@ -541,16 +543,16 @@ export default function ActividadSeguimientoDrawer({ open, onClose, target, init
           },
         }}
       >
-        <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', backgroundColor: '#f8fafc' }}>
-          <Stack direction="row" alignItems="flex-start" justifyContent="space-between" spacing={1.5} sx={{ p: 2.5, borderBottom: '1px solid #e2e8f0', backgroundColor: '#ffffff' }}>
+        <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', backgroundColor: neutralColors.slate[50] }}>
+          <Stack direction="row" alignItems="flex-start" justifyContent="space-between" spacing={1.5} sx={{ p: 2.5, borderBottom: `1px solid ${neutralColors.slate[200]}`, backgroundColor: '#ffffff' }}>
             <Box sx={{ minWidth: 0 }}>
-              <Typography variant="overline" sx={{ color: '#64748b', fontWeight: 700 }}>
+              <Typography variant="overline" sx={{ color: neutralColors.slate[500], fontWeight: 700 }}>
                 Seguimiento
               </Typography>
-              <Typography variant="h6" sx={{ color: '#0f172a', fontWeight: 800, lineHeight: 1.15 }}>
+              <Typography variant="h6" sx={{ color: neutralColors.slate[900], fontWeight: 800, lineHeight: 1.15 }}>
                 {target?.title || 'Sin selección'}
               </Typography>
-              <Typography variant="body2" sx={{ color: '#475569', mt: 0.5 }}>
+              <Typography variant="body2" sx={{ color: neutralColors.slate[600], mt: 0.5 }}>
                 {target?.subtitle || 'Sin información disponible'}
               </Typography>
               {target?.montoValor != null || target?.statusChip ? (
@@ -590,22 +592,22 @@ export default function ActividadSeguimientoDrawer({ open, onClose, target, init
           <Box sx={{ p: 2.5, overflowY: 'auto', flex: 1 }}>
             <Stack spacing={2.5}>
               {target && loadingActividadesTargetId === target.id ? (
-                <Stack direction="row" spacing={1} alignItems="center" sx={{ color: '#64748b' }}>
+                <Stack direction="row" spacing={1} alignItems="center" sx={{ color: neutralColors.slate[500] }}>
                   <CircularProgress size={18} />
                   <Typography variant="body2">Cargando actividades...</Typography>
                 </Stack>
               ) : null}
 
               {!target ? (
-                <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, borderColor: '#dbe3ee', backgroundColor: '#ffffff' }}>
-                  <Typography variant="body2" sx={{ color: '#64748b' }}>
+                <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, borderColor: neutralColors.steel.cardBorder, backgroundColor: '#ffffff' }}>
+                  <Typography variant="body2" sx={{ color: neutralColors.slate[500] }}>
                     Selecciona un registro para ver su seguimiento.
                   </Typography>
                 </Paper>
               ) : null}
 
               {target ? (
-                <Box sx={{ position: 'sticky', top: 0, zIndex: 1, pt: 0.25, pb: 1.25, backgroundColor: '#f8fafc' }}>
+                <Box sx={{ position: 'sticky', top: 0, zIndex: 1, pt: 0.25, pb: 1.25, backgroundColor: neutralColors.slate[50] }}>
                   <TextField
                     value={seguimientoSearchTerm}
                     onChange={(event) => setSeguimientoSearchTerm(event.target.value)}
@@ -615,7 +617,7 @@ export default function ActividadSeguimientoDrawer({ open, onClose, target, init
                     InputProps={{
                       startAdornment: (
                         <InputAdornment position="start">
-                          <SearchOutlinedIcon sx={{ fontSize: 18, color: '#64748b' }} />
+                          <SearchOutlinedIcon sx={{ fontSize: 18, color: neutralColors.slate[500] }} />
                         </InputAdornment>
                       ),
                       endAdornment: seguimientoSearchTerm ? (
@@ -632,22 +634,22 @@ export default function ActividadSeguimientoDrawer({ open, onClose, target, init
               ) : null}
 
               {showNoSearchMatches ? (
-                <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, borderColor: '#dbe3ee', backgroundColor: '#ffffff' }}>
-                  <Typography variant="body2" sx={{ color: '#475569' }}>
+                <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, borderColor: neutralColors.steel.cardBorder, backgroundColor: '#ffffff' }}>
+                  <Typography variant="body2" sx={{ color: neutralColors.slate[600] }}>
                     No se encontraron actividades.
                   </Typography>
                 </Paper>
               ) : null}
 
               <Box>
-                <Typography variant="subtitle2" sx={{ fontWeight: 800, color: '#0f172a', mb: 1 }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 800, color: neutralColors.slate[900], mb: 1 }}>
                   Actividades pendientes
                 </Typography>
                 <Stack spacing={2}>
                   {actividadesPendientes.length === 0 && target && !normalizedSeguimientoSearchTerm && loadingActividadesTargetId !== target.id ? (
-                    <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, borderColor: '#dbe3ee', backgroundColor: '#ffffff' }}>
+                    <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, borderColor: neutralColors.steel.cardBorder, backgroundColor: '#ffffff' }}>
                       <Stack spacing={1.5}>
-                        <Typography variant="body2" sx={{ color: '#475569' }}>
+                        <Typography variant="body2" sx={{ color: neutralColors.slate[600] }}>
                           Sin actividades pendientes. Programa la siguiente acción.
                         </Typography>
                         <Button
@@ -655,7 +657,7 @@ export default function ActividadSeguimientoDrawer({ open, onClose, target, init
                           variant="contained"
                           startIcon={<AddTaskOutlinedIcon />}
                           onClick={openCreateActividadDialog}
-                          sx={{ fontWeight: 700, textTransform: 'none', backgroundColor: '#1d2f68', '&:hover': { backgroundColor: '#162551' } }}
+                          sx={{ fontWeight: 700, textTransform: 'none', backgroundColor: activeBrand.colors.blue.base, '&:hover': { backgroundColor: activeBrand.colors.blue.hover } }}
                         >
                           Programar siguiente actividad
                         </Button>
@@ -694,11 +696,11 @@ export default function ActividadSeguimientoDrawer({ open, onClose, target, init
                                 }}
                               />
                             </Stack>
-                            <Typography variant="body2" sx={{ color: '#475569', fontWeight: 600 }}>
+                            <Typography variant="body2" sx={{ color: neutralColors.slate[600], fontWeight: 600 }}>
                               {formatDateTime(actividad.fecha_programada)}
                             </Typography>
                           </Stack>
-                          <Typography variant="body2" sx={{ color: '#334155' }}>
+                          <Typography variant="body2" sx={{ color: neutralColors.slate[700] }}>
                             {actividad.descripcion || `Actividad de ${formatTipoActividadLabel(actividad.tipo_actividad)}`}
                           </Typography>
                           <Stack direction="row" spacing={0.25} alignItems="center">
@@ -736,20 +738,20 @@ export default function ActividadSeguimientoDrawer({ open, onClose, target, init
                   variant="contained"
                   startIcon={<AddTaskOutlinedIcon />}
                   onClick={openCreateActividadDialog}
-                  sx={{ fontWeight: 700, textTransform: 'none', backgroundColor: '#1d2f68', '&:hover': { backgroundColor: '#162551' } }}
+                  sx={{ fontWeight: 700, textTransform: 'none', backgroundColor: activeBrand.colors.blue.base, '&:hover': { backgroundColor: activeBrand.colors.blue.hover } }}
                 >
                   Programar siguiente actividad
                 </Button>
               ) : null}
 
               <Box>
-                <Typography variant="subtitle2" sx={{ fontWeight: 800, color: '#0f172a', mb: 1 }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 800, color: neutralColors.slate[900], mb: 1 }}>
                   Historial
                 </Typography>
                 <Stack spacing={2}>
                   {actividadesRealizadas.length === 0 && target && !normalizedSeguimientoSearchTerm && loadingActividadesTargetId !== target.id ? (
-                    <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, borderColor: '#dbe3ee', backgroundColor: '#ffffff' }}>
-                      <Typography variant="body2" sx={{ color: '#64748b' }}>
+                    <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, borderColor: neutralColors.steel.cardBorder, backgroundColor: '#ffffff' }}>
+                      <Typography variant="body2" sx={{ color: neutralColors.slate[500] }}>
                         Sin actividades realizadas.
                       </Typography>
                     </Paper>
@@ -775,11 +777,11 @@ export default function ActividadSeguimientoDrawer({ open, onClose, target, init
                               }}
                             />
                           </Stack>
-                          <Typography variant="body2" sx={{ color: '#475569', fontWeight: 600 }}>
+                          <Typography variant="body2" sx={{ color: neutralColors.slate[600], fontWeight: 600 }}>
                             {formatDateTime(actividad.fecha_realizacion || actividad.fecha_programada)}
                           </Typography>
                         </Stack>
-                        <Typography variant="body2" sx={{ color: '#0f172a' }}>
+                        <Typography variant="body2" sx={{ color: neutralColors.slate[900] }}>
                           {actividad.resultado || 'Sin resultado'}
                         </Typography>
                       </Stack>
@@ -800,7 +802,7 @@ export default function ActividadSeguimientoDrawer({ open, onClose, target, init
         transformOrigin={{ vertical: 'top', horizontal: 'right' }}
       >
         <Stack spacing={1.25} sx={{ p: 1.5, width: 260 }}>
-          <Typography variant="body2" sx={{ fontWeight: 700, color: '#0f172a' }}>
+          <Typography variant="body2" sx={{ fontWeight: 700, color: neutralColors.slate[900] }}>
             Reagendar actividad
           </Typography>
           <TextField
@@ -827,7 +829,7 @@ export default function ActividadSeguimientoDrawer({ open, onClose, target, init
         <DialogTitle>Cancelar actividad</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ pt: 1 }}>
-            <Typography sx={{ color: '#475569' }}>
+            <Typography sx={{ color: neutralColors.slate[600] }}>
               ¿Estás seguro de que deseas cancelar esta actividad? Esta acción no se puede deshacer.
             </Typography>
             {cancelarDialog.error ? <Alert severity="error">{cancelarDialog.error}</Alert> : null}
@@ -849,10 +851,10 @@ export default function ActividadSeguimientoDrawer({ open, onClose, target, init
           <Stack spacing={1.5} sx={{ pt: 1 }}>
             {target ? (
               <Box>
-                <Typography variant="subtitle1" sx={{ color: '#0f172a', fontWeight: 700, lineHeight: 1.25 }}>
+                <Typography variant="subtitle1" sx={{ color: neutralColors.slate[900], fontWeight: 700, lineHeight: 1.25 }}>
                   {target.title}
                 </Typography>
-                <Typography variant="body2" sx={{ color: '#64748b', mt: 0.25 }}>
+                <Typography variant="body2" sx={{ color: neutralColors.slate[500], mt: 0.25 }}>
                   {target.subtitle}
                 </Typography>
               </Box>
@@ -962,7 +964,7 @@ export default function ActividadSeguimientoDrawer({ open, onClose, target, init
         <DialogContent>
           <Stack spacing={1.5} sx={{ pt: 1 }}>
             {realizarActividadDialog.actividad ? (
-              <Typography variant="body2" sx={{ color: '#64748b' }}>
+              <Typography variant="body2" sx={{ color: neutralColors.slate[500] }}>
                 {formatTipoActividadLabel(realizarActividadDialog.actividad.tipo_actividad)} · {formatDateTime(realizarActividadDialog.actividad.fecha_programada)}
               </Typography>
             ) : null}

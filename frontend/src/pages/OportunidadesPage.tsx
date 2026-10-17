@@ -60,6 +60,8 @@ import { useSeguimientoActividades } from '../hooks/useSeguimientoActividades';
 import ActividadSeguimientoDrawer from '../components/crm/ActividadSeguimientoDrawer';
 import { SeguimientoActividadCell } from '../components/crm/SeguimientoActividadCell';
 import { alertColors } from '../theme/functional';
+import { neutralColors } from '../theme/structural';
+import { activeBrand } from '../theme/brand/active';
 
 dayjs.locale('es');
 
@@ -331,7 +333,7 @@ function getStatusPresentation(estatus: string) {
     return { label: OPORTUNIDAD_STATUS_LABELS.pausada, backgroundColor: alertColors.caution[100], textColor: alertColors.caution[700], borderColor: alertColors.caution[300] };
   }
   if (normalized === 'cancelada') {
-    return { label: OPORTUNIDAD_STATUS_LABELS.cancelada, backgroundColor: '#f1f5f9', textColor: '#475569', borderColor: '#cbd5e1' };
+    return { label: OPORTUNIDAD_STATUS_LABELS.cancelada, backgroundColor: neutralColors.slate[100], textColor: neutralColors.slate[600], borderColor: neutralColors.slate[300] };
   }
 
   return { label: OPORTUNIDAD_STATUS_LABELS.abierta, backgroundColor: '#eff6ff', textColor: '#1e40af', borderColor: '#bfdbfe' };
@@ -362,7 +364,7 @@ function getStatusIndicatorColor(estatus: string): string {
   if (bucket === 'perdidas') return '#d32f2f';
   if (bucket === 'pausadas') return '#ed6c02';
   if (bucket === 'abiertas') return '#1976d2';
-  return '#94a3b8';
+  return neutralColors.slate[400];
 }
 
 function getAllowedTransitions(currentStatus: string, row: Oportunidad): OportunidadStatus[] {
@@ -1198,7 +1200,7 @@ export default function OportunidadesPage() {
           sx={{ width: '100%', justifyContent: 'flex-start', borderRadius: 1, px: 0.5, py: 0.25 }}
         >
           <Stack direction="row" spacing={0.75} alignItems="center" sx={{ minWidth: 0 }}>
-            {savingOperacionId === params.row.id ? <CircularProgress size={14} /> : <EditCalendarOutlinedIcon sx={{ fontSize: 16, color: '#64748b' }} />}
+            {savingOperacionId === params.row.id ? <CircularProgress size={14} /> : <EditCalendarOutlinedIcon sx={{ fontSize: 16, color: neutralColors.slate[500] }} />}
             <Typography variant="body2" sx={{ fontSize: 14.5 }}>
               {formatDate(params.value || '')}
             </Typography>
@@ -1218,7 +1220,7 @@ export default function OportunidadesPage() {
 
         if (!isPausada) {
           return (
-            <Typography variant="body2" sx={{ fontSize: 13.5, color: '#94a3b8' }}>
+            <Typography variant="body2" sx={{ fontSize: 13.5, color: neutralColors.slate[400] }}>
               No aplica
             </Typography>
           );
@@ -1267,8 +1269,8 @@ export default function OportunidadesPage() {
           sx={{ width: '100%', justifyContent: 'flex-start', borderRadius: 1, px: 0.5, py: 0.25 }}
         >
           <Stack direction="row" spacing={0.75} alignItems="center">
-            {savingOperacionId === params.row.id ? <CircularProgress size={14} /> : <EditNoteOutlinedIcon sx={{ fontSize: 16, color: '#64748b' }} />}
-            <Typography variant="body2" sx={{ fontSize: 13.5, color: params.row.observaciones ? '#0f172a' : '#94a3b8' }}>
+            {savingOperacionId === params.row.id ? <CircularProgress size={14} /> : <EditNoteOutlinedIcon sx={{ fontSize: 16, color: neutralColors.slate[500] }} />}
+            <Typography variant="body2" sx={{ fontSize: 13.5, color: params.row.observaciones ? neutralColors.slate[900] : neutralColors.slate[400] }}>
               {params.row.observaciones ? 'Editar nota' : 'Agregar nota'}
             </Typography>
           </Stack>
@@ -1359,10 +1361,10 @@ export default function OportunidadesPage() {
     <Container maxWidth={false} sx={{ py: 2 }}>
       <Stack spacing={2}>
         {loading ? (
-          <Paper variant="outlined" sx={{ p: 4, borderRadius: 2, borderColor: '#dbe3ee' }}>
+          <Paper variant="outlined" sx={{ p: 4, borderRadius: 2, borderColor: neutralColors.steel.cardBorder }}>
             <Stack spacing={1.5} alignItems="center" justifyContent="center">
               <CircularProgress size={30} />
-              <Typography sx={{ color: '#475569' }}>Cargando oportunidades...</Typography>
+              <Typography sx={{ color: neutralColors.slate[600] }}>Cargando oportunidades...</Typography>
             </Stack>
           </Paper>
         ) : null}
@@ -1406,9 +1408,9 @@ export default function OportunidadesPage() {
                       label: 'Abiertas',
                       monto: currencyFormatter.format(totals.abiertas.monto),
                       count: totals.abiertas.cantidad,
-                      backgroundColor: '#f8fafc',
-                      borderColor: '#cbd5e1',
-                      labelColor: '#475569',
+                      backgroundColor: neutralColors.slate[50],
+                      borderColor: neutralColors.slate[300],
+                      labelColor: neutralColors.slate[600],
                       amountColor: '#1e40af',
                     },
                     {
@@ -1446,10 +1448,10 @@ export default function OportunidadesPage() {
                       label: 'Canceladas',
                       monto: currencyFormatter.format(totals.canceladas.monto),
                       count: totals.canceladas.cantidad,
-                      backgroundColor: '#f8fafc',
-                      borderColor: '#cbd5e1',
-                      labelColor: '#64748b',
-                      amountColor: '#334155',
+                      backgroundColor: neutralColors.slate[50],
+                      borderColor: neutralColors.slate[300],
+                      labelColor: neutralColors.slate[500],
+                      amountColor: neutralColors.slate[700],
                     },
                   ].map((item) => (
                     <Box
@@ -1507,10 +1509,10 @@ export default function OportunidadesPage() {
                           ? '—'
                           : percentFormatter.format(commercialSummary.tasaCierre),
                       helper: 'basado en cierres',
-                      backgroundColor: '#fcfdff',
-                      borderColor: '#e2e8f0',
-                      labelColor: '#64748b',
-                      valueColor: '#0f172a',
+                      backgroundColor: neutralColors.steel.surfaceRaised,
+                      borderColor: neutralColors.slate[200],
+                      labelColor: neutralColors.slate[500],
+                      valueColor: neutralColors.slate[900],
                     },
                     {
                       label: 'Conversion $',
@@ -1519,19 +1521,19 @@ export default function OportunidadesPage() {
                           ? '—'
                           : percentFormatter.format(commercialSummary.conversionMonetaria),
                       helper: 'convertidas vs perdidas',
-                      backgroundColor: '#fcfdff',
-                      borderColor: '#e2e8f0',
-                      labelColor: '#64748b',
-                      valueColor: '#0f172a',
+                      backgroundColor: neutralColors.steel.surfaceRaised,
+                      borderColor: neutralColors.slate[200],
+                      labelColor: neutralColors.slate[500],
+                      valueColor: neutralColors.slate[900],
                     },
                     {
                       label: 'Ticket promedio convertido',
                       value: currencyFormatter.format(commercialSummary.ticketPromedioConvertida),
                       helper: 'ticket promedio',
-                      backgroundColor: '#fcfdff',
-                      borderColor: '#e2e8f0',
-                      labelColor: '#64748b',
-                      valueColor: '#0f172a',
+                      backgroundColor: neutralColors.steel.surfaceRaised,
+                      borderColor: neutralColors.slate[200],
+                      labelColor: neutralColors.slate[500],
+                      valueColor: neutralColors.slate[900],
                     },
                     {
                       label: 'Forecast esperado',
@@ -1559,7 +1561,7 @@ export default function OportunidadesPage() {
                         <Typography sx={{ fontSize: 9, fontWeight: 800, color: item.labelColor, textTransform: 'uppercase', letterSpacing: 0.32, lineHeight: 1.15 }}>
                           {item.label}
                         </Typography>
-                        <Typography sx={{ fontSize: 9, color: '#94a3b8', fontWeight: 500, lineHeight: 1.15 }}>
+                        <Typography sx={{ fontSize: 9, color: neutralColors.slate[400], fontWeight: 500, lineHeight: 1.15 }}>
                           {item.helper}
                         </Typography>
                       </Box>
@@ -1628,7 +1630,7 @@ export default function OportunidadesPage() {
                   >
                     <Stack spacing={1.25}>
                       <Stack direction="row" alignItems="center" justifyContent="space-between">
-                        <Typography variant="subtitle2" sx={{ fontWeight: 800, color: '#1d2f68' }}>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 800, color: activeBrand.colors.blue.base }}>
                           Filtros avanzados
                         </Typography>
                         {activeAdvancedFiltersCount ? (
@@ -1831,7 +1833,7 @@ export default function OportunidadesPage() {
                         <Button variant="outlined" onClick={handleLimpiarFiltros}>
                           Limpiar
                         </Button>
-                        <Button variant="contained" onClick={handleAplicarFiltros} sx={{ backgroundColor: '#1d2f68', '&:hover': { backgroundColor: '#162551' } }}>
+                        <Button variant="contained" onClick={handleAplicarFiltros} sx={{ backgroundColor: activeBrand.colors.blue.base, '&:hover': { backgroundColor: activeBrand.colors.blue.hover } }}>
                           Aplicar filtros
                         </Button>
                       </Stack>
@@ -1887,7 +1889,7 @@ export default function OportunidadesPage() {
                       color: '#ffffff',
                     },
                     '& .MuiDataGrid-columnHeader': {
-                      backgroundColor: '#1d2f68',
+                      backgroundColor: activeBrand.colors.blue.base,
                       color: '#ffffff',
                     },
                     '& .MuiDataGrid-columnHeaderTitle': {
@@ -1915,7 +1917,7 @@ export default function OportunidadesPage() {
                       alignItems: 'center',
                       py: 0.9,
                       px: 1,
-                      borderTop: '1px solid #f1f5f9',
+                      borderTop: `1px solid ${neutralColors.slate[100]}`,
                     },
                     '& .MuiDataGrid-row': {
                       minHeight: 40,
@@ -1976,7 +1978,7 @@ export default function OportunidadesPage() {
               <DialogTitle>Cancelar oportunidad</DialogTitle>
               <DialogContent>
                 <Stack spacing={1.5} sx={{ pt: 1 }}>
-                  <Typography variant="body2" sx={{ color: '#475569' }}>
+                  <Typography variant="body2" sx={{ color: neutralColors.slate[600] }}>
                     Captura el motivo de cancelacion para registrar el cambio de estatus.
                   </Typography>
                   <TextField
@@ -2008,7 +2010,7 @@ export default function OportunidadesPage() {
             >
               <DialogTitle>{conversionLockDialog.title}</DialogTitle>
               <DialogContent>
-                <Typography variant="body1" sx={{ color: '#475569', pt: 1 }}>
+                <Typography variant="body1" sx={{ color: neutralColors.slate[600], pt: 1 }}>
                   {conversionLockDialog.message}
                 </Typography>
               </DialogContent>
@@ -2132,7 +2134,7 @@ function PaperCard({ children }: { children: ReactNode }) {
         width: '100%',
         position: 'relative',
         overflow: 'visible',
-        border: '1px solid #e5e7eb',
+        border: `1px solid ${neutralColors.gray[200]}`,
         borderRadius: 2,
         p: 1.5,
         backgroundColor: '#fff',
