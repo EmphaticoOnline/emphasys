@@ -33,7 +33,7 @@ import {
   type ProductosBajoMinimoResult,
   type ProductoBajoMinimo,
 } from '../../../services/reportesService';
-import { moduleAccents } from '../../../theme/functional';
+import { alertColors, moduleAccents } from '../../../theme/functional';
 
 const COLOR = moduleAccents.inventoryReports;
 const fmt = (v: number) => v.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -243,9 +243,9 @@ export default function ProductosBajoMinimoPage() {
       {/* Tarjetas resumen */}
       {resultado && (
         <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
-          <SummaryCard icon={WarningAmberIcon} label="Productos bajo mínimo" value={String(resultado.total_productos)} color="#dc2626" />
-          <SummaryCard icon={InventoryIcon} label="Unidades faltantes" value={fmtCant(lineas.reduce((s, l) => s + l.faltante, 0))} color="#b45309" />
-          <SummaryCard icon={AttachMoneyIcon} label="Valor faltante aprox." value={`$${fmt(resultado.total_valor_faltante)}`} color="#dc2626" />
+          <SummaryCard icon={WarningAmberIcon} label="Productos bajo mínimo" value={String(resultado.total_productos)} color={alertColors.error[600]} />
+          <SummaryCard icon={InventoryIcon} label="Unidades faltantes" value={fmtCant(lineas.reduce((s, l) => s + l.faltante, 0))} color={alertColors.warning[700]} />
+          <SummaryCard icon={AttachMoneyIcon} label="Valor faltante aprox." value={`$${fmt(resultado.total_valor_faltante)}`} color={alertColors.error[600]} />
         </Box>
       )}
 

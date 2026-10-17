@@ -38,6 +38,7 @@ import { useNavigate } from 'react-router-dom';
 import { apiFetch } from '../../services/apiFetch';
 import { loadSession } from '../../session/sessionStorage';
 import RichTextEditor from '../RichTextEditor';
+import { alertColors } from '../../theme/functional';
 
 dayjs.locale('es');
 
@@ -195,18 +196,18 @@ function getActividadDuePresentation(fechaProgramada: string) {
   if (date < now) {
     return {
       label: 'Vencida',
-      color: '#b91c1c',
-      accentColor: '#dc2626',
-      backgroundColor: '#fef2f2',
-      borderColor: '#fecaca',
+      color: alertColors.error[700],
+      accentColor: alertColors.error[600],
+      backgroundColor: alertColors.error[50],
+      borderColor: alertColors.error[200],
     };
   }
 
   if (isSameDay) {
     return {
       label: 'Hoy',
-      color: '#b45309',
-      accentColor: '#f59e0b',
+      color: alertColors.warning[700],
+      accentColor: alertColors.warning[500],
       backgroundColor: '#fff7ed',
       borderColor: '#fdba74',
     };
@@ -755,7 +756,7 @@ export default function ActividadSeguimientoDrawer({ open, onClose, target, init
                   ) : null}
 
                   {actividadesRealizadas.map((actividad) => (
-                    <Paper key={actividad.id} variant="outlined" sx={{ p: 2, borderRadius: 2, borderColor: '#bbf7d0', backgroundColor: '#ffffff' }}>
+                    <Paper key={actividad.id} variant="outlined" sx={{ p: 2, borderRadius: 2, borderColor: alertColors.success[200], backgroundColor: '#ffffff' }}>
                       <Stack spacing={1.5}>
                         <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between" useFlexGap flexWrap="wrap">
                           <Stack direction="row" spacing={1} alignItems="center" useFlexGap flexWrap="wrap">
@@ -766,11 +767,11 @@ export default function ActividadSeguimientoDrawer({ open, onClose, target, init
                               label="Realizada"
                               sx={{
                                 fontWeight: 700,
-                                bgcolor: '#f0fdf4',
-                                color: '#15803d',
+                                bgcolor: alertColors.success[50],
+                                color: alertColors.success[700],
                                 border: '1px solid',
-                                borderColor: '#86efac',
-                                '& .MuiChip-icon': { color: '#16a34a' },
+                                borderColor: alertColors.success[300],
+                                '& .MuiChip-icon': { color: alertColors.success[600] },
                               }}
                             />
                           </Stack>

@@ -1,0 +1,226 @@
+{
+  "source": "HEAD 632bad8, antes de migrar alertas Tailwind",
+  "files": {
+    "components/cfdi-sat/ComprobanteDetalleDialog.tsx": {
+      "migrated": {
+        "#92400e": 1
+      },
+      "keptLiteral": {}
+    },
+    "components/crm/ActividadSeguimientoDrawer.tsx": {
+      "migrated": {
+        "#b91c1c": 1,
+        "#dc2626": 1,
+        "#fef2f2": 1,
+        "#fecaca": 1,
+        "#b45309": 1,
+        "#f59e0b": 1,
+        "#bbf7d0": 1,
+        "#f0fdf4": 1,
+        "#15803d": 1,
+        "#86efac": 1,
+        "#16a34a": 1
+      },
+      "keptLiteral": {}
+    },
+    "components/documentos/DocumentoDetalleContent.tsx": {
+      "migrated": {
+        "#f59e0b": 1,
+        "#fffbeb": 1,
+        "#92400e": 1
+      },
+      "keptLiteral": {}
+    },
+    "components/documentos/nota-credito/NotaCreditoCaptura.tsx": {
+      "migrated": {
+        "#dc2626": 1,
+        "#b91c1c": 1,
+        "#d97706": 3
+      },
+      "keptLiteral": {}
+    },
+    "components/grids/GridContextMenu.tsx": {
+      "migrated": {
+        "#b91c1c": 2
+      },
+      "keptLiteral": {}
+    },
+    "components/produccion/ProduccionDetalleDrawer.tsx": {
+      "migrated": {
+        "#16a34a": 2
+      },
+      "keptLiteral": {}
+    },
+    "hooks/useSeguimientoActividades.ts": {
+      "migrated": {
+        "#fffbeb": 1,
+        "#b45309": 2,
+        "#fde68a": 1,
+        "#fef2f2": 1,
+        "#b91c1c": 1,
+        "#fecaca": 1
+      },
+      "keptLiteral": {}
+    },
+    "modules/contabilidad/AuxiliaresSatView.tsx": {
+      "migrated": {
+        "#166534": 2,
+        "#f0fdf4": 2,
+        "#92400e": 9,
+        "#fffbeb": 4,
+        "#b91c1c": 5,
+        "#fef2f2": 2
+      },
+      "keptLiteral": {
+        "#b91c1c": 2
+      }
+    },
+    "modules/contabilidad/BalanzaXmlView.tsx": {
+      "migrated": {
+        "#b91c1c": 4,
+        "#92400e": 3
+      },
+      "keptLiteral": {
+        "#b91c1c": 1
+      }
+    },
+    "modules/contabilidad/BitacoraView.tsx": {
+      "migrated": {
+        "#f0fdf4": 1,
+        "#166534": 1,
+        "#fef2f2": 1,
+        "#b91c1c": 3,
+        "#92400e": 2
+      },
+      "keptLiteral": {}
+    },
+    "modules/contabilidad/CatalogoXmlView.tsx": {
+      "migrated": {
+        "#b91c1c": 3,
+        "#92400e": 3
+      },
+      "keptLiteral": {}
+    },
+    "modules/contabilidad/PaqueteZipView.tsx": {
+      "migrated": {
+        "#166534": 2,
+        "#f0fdf4": 1,
+        "#92400e": 3,
+        "#fffbeb": 1,
+        "#b91c1c": 4,
+        "#fef2f2": 1
+      },
+      "keptLiteral": {}
+    },
+    "modules/contabilidad/PolizasSatView.tsx": {
+      "migrated": {
+        "#166534": 1,
+        "#f0fdf4": 1,
+        "#92400e": 11,
+        "#fffbeb": 5,
+        "#b91c1c": 4,
+        "#fef2f2": 1
+      },
+      "keptLiteral": {}
+    },
+    "modules/contabilidad/PolizasXmlView.tsx": {
+      "migrated": {
+        "#166534": 1,
+        "#f0fdf4": 1,
+        "#92400e": 8,
+        "#fffbeb": 5,
+        "#b91c1c": 4,
+        "#fef2f2": 1
+      },
+      "keptLiteral": {}
+    },
+    "modules/contabilidad/TiposPolizaTab.tsx": {
+      "migrated": {
+        "#166534": 1
+      },
+      "keptLiteral": {}
+    },
+    "modules/cotizaciones/estadoSeguimiento.ts": {
+      "migrated": {
+        "#dcfce7": 1,
+        "#166534": 1,
+        "#fee2e2": 1,
+        "#b91c1c": 1,
+        "#fef3c7": 1,
+        "#92400e": 1
+      },
+      "keptLiteral": {}
+    },
+    "modules/finanzas/AplicarSaldoNotaCreditoDialog.tsx": {
+      "migrated": {
+        "#d97706": 3,
+        "#b45309": 1,
+        "#dc2626": 2,
+        "#b91c1c": 2
+      },
+      "keptLiteral": {}
+    },
+    "modules/finanzas/FacturaPagosDrawer.tsx": {
+      "migrated": {
+        "#b45309": 1,
+        "#15803d": 1
+      },
+      "keptLiteral": {}
+    },
+    "pages/AutorizacionesBandejaPage.tsx": {
+      "migrated": {
+        "#fef3c7": 1,
+        "#92400e": 1,
+        "#dcfce7": 1,
+        "#166534": 1,
+        "#fee2e2": 1,
+        "#991b1b": 1
+      },
+      "keptLiteral": {}
+    },
+    "pages/DocumentosPage.tsx": {
+      "migrated": {
+        "#fef3c7": 3,
+        "#92400e": 3,
+        "#dcfce7": 2,
+        "#166534": 2,
+        "#fee2e2": 1,
+        "#991b1b": 1,
+        "#16a34a": 2
+      },
+      "keptLiteral": {}
+    },
+    "pages/OportunidadesPage.tsx": {
+      "migrated": {
+        "#dcfce7": 1,
+        "#166534": 1,
+        "#86efac": 1,
+        "#fee2e2": 1,
+        "#b91c1c": 4,
+        "#fecaca": 3,
+        "#fef2f2": 2,
+        "#991b1b": 1
+      },
+      "keptLiteral": {}
+    },
+    "pages/informes/finanzas/VencimientosClientesPage.tsx": {
+      "migrated": {
+        "#fffbeb": 1
+      },
+      "keptLiteral": {}
+    },
+    "pages/informes/finanzas/VencimientosProveedoresPage.tsx": {
+      "migrated": {
+        "#fffbeb": 1
+      },
+      "keptLiteral": {}
+    },
+    "pages/informes/inventario/ProductosBajoMinimoPage.tsx": {
+      "migrated": {
+        "#dc2626": 2,
+        "#b45309": 1
+      },
+      "keptLiteral": {}
+    }
+  }
+}

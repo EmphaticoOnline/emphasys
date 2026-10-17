@@ -166,6 +166,7 @@ import {
   buildFacturaIndicatorModel,
   type DocumentoIndicatorModel,
 } from '../components/documentos/indicadores';
+import { alertColors } from '../theme/functional';
 
 const formatCivilDate = (value: unknown) => {
   const raw = String(value ?? '').trim();
@@ -471,7 +472,7 @@ const getCotizacionEstatusPresentation = (value: unknown) => {
     return { value: normalized, label: COTIZACION_ESTATUS_LABELS.enviado, color: '#dbeafe', textColor: '#1d4ed8' };
   }
   if (normalized === 'en negociacion') {
-    return { value: normalized, label: COTIZACION_ESTATUS_LABELS['en negociacion'], color: '#fef3c7', textColor: '#92400e' };
+    return { value: normalized, label: COTIZACION_ESTATUS_LABELS['en negociacion'], color: alertColors.warning[100], textColor: alertColors.warning[800] };
   }
 
   return { value: normalized, label: COTIZACION_ESTATUS_LABELS.borrador, color: '#f3f4f6', textColor: '#374151' };
@@ -2375,8 +2376,8 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
               const estado = String(params.row?.estado_recepcion ?? 'abierta');
               const cfg: Record<string, { label: string; bgcolor: string; color: string }> = {
                 abierta: { label: 'Abierta',  bgcolor: '#f1f5f9', color: '#475569' },
-                parcial: { label: 'Parcial',  bgcolor: '#fef3c7', color: '#92400e' },
-                cerrada: { label: 'Cerrada',  bgcolor: '#dcfce7', color: '#166534' },
+                parcial: { label: 'Parcial',  bgcolor: alertColors.warning[100], color: alertColors.warning[800] },
+                cerrada: { label: 'Cerrada',  bgcolor: alertColors.success[100], color: alertColors.success[800] },
               };
               const { label, bgcolor, color } = cfg[estado] ?? cfg.abierta!;
               return (
@@ -2400,9 +2401,9 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
             const estado = params.row?.estado_autorizacion as string | null | undefined;
             if (!estado || estado === 'no_requerida') return null;
             const MAP: Record<string, { label: string; bgcolor: string; color: string }> = {
-              pendiente: { label: 'Pendiente auth.', bgcolor: '#fef3c7', color: '#92400e' },
-              aprobada:  { label: 'Autorizado',      bgcolor: '#dcfce7', color: '#166534' },
-              rechazada: { label: 'Rechazado',        bgcolor: '#fee2e2', color: '#991b1b' },
+              pendiente: { label: 'Pendiente auth.', bgcolor: alertColors.warning[100], color: alertColors.warning[800] },
+              aprobada:  { label: 'Autorizado',      bgcolor: alertColors.success[100], color: alertColors.success[800] },
+              rechazada: { label: 'Rechazado',        bgcolor: alertColors.error[100], color: alertColors.error[800] },
             };
             const cfg = MAP[estado];
             if (!cfg) return null;
@@ -5430,7 +5431,7 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
                                 height: avance.activo ? 12 : 9,
                                 borderRadius: '50%',
                                 backgroundColor,
-                                boxShadow: avance.activo ? '0 0 0 2px #16a34a' : '0 0 0 1px #cbd5e1',
+                                boxShadow: avance.activo ? `0 0 0 2px ${alertColors.success[600]}` : '0 0 0 1px #cbd5e1',
                                 flexShrink: 0,
                               }}
                             />
@@ -5455,7 +5456,7 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
                                   }}
                                 />
                                 {avance.activo ? (
-                                  <Typography variant="caption" sx={{ color: '#16a34a', fontWeight: 700 }}>
+                                  <Typography variant="caption" sx={{ color: alertColors.success[600], fontWeight: 700 }}>
                                     Actual
                                   </Typography>
                                 ) : null}

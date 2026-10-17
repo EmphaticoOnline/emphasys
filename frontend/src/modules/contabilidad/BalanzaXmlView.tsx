@@ -30,6 +30,7 @@ import { fetchEjerciciosDisponibles } from '../../services/saldosCuentasService'
 import { fetchBalanzaXmlPreview, descargarBalanzaXml } from '../../services/eContabilidadService';
 import type { BalanzaComprobacionXmlResultado, CuentaBalanzaXml, TipoEnvioBalanza } from '../../types/balanzaXml';
 import { botonPrimarioSx, chipEstadoSx, encabezadoTablaSx, iconoAccionSx, iconoPeligroSx, panelEstadoSx, textoEstadoSx, tonoDeClave } from './contabilidadVisual';
+import { alertColors } from '../../theme/functional';
 
 
 interface FilaProblema {
@@ -306,13 +307,13 @@ export default function BalanzaXmlView({
               <Typography sx={{ fontSize: 13 }}>
                 <strong>Haber:</strong> {formatearImporte(resultado.resumen.total_haber)}
               </Typography>
-              <Typography sx={{ fontSize: 13, color: resultado.resumen.diferencia !== 0 ? '#b91c1c' : 'inherit' }}>
+              <Typography sx={{ fontSize: 13, color: resultado.resumen.diferencia !== 0 ? alertColors.error[700] : 'inherit' }}>
                 <strong>Diferencia:</strong> {formatearImporte(resultado.resumen.diferencia)}
               </Typography>
-              <Typography sx={{ fontSize: 13, color: resultado.resumen.errores > 0 ? '#b91c1c' : 'inherit' }}>
+              <Typography sx={{ fontSize: 13, color: resultado.resumen.errores > 0 ? alertColors.error[700] : 'inherit' }}>
                 <strong>Errores:</strong> {resultado.resumen.errores}
               </Typography>
-              <Typography sx={{ fontSize: 13, color: resultado.resumen.advertencias > 0 ? '#92400e' : 'inherit' }}>
+              <Typography sx={{ fontSize: 13, color: resultado.resumen.advertencias > 0 ? alertColors.warning[800] : 'inherit' }}>
                 <strong>Advertencias:</strong> {resultado.resumen.advertencias}
               </Typography>
               {resultado.ok ? (
@@ -326,7 +327,7 @@ export default function BalanzaXmlView({
           {resultado.errores.length > 0 && (
             <Paper variant="outlined" sx={(theme) => panelEstadoSx(theme, 'error')}>
               <Stack direction="row" justifyContent="space-between" alignItems="center" flexWrap="wrap" sx={{ mb: 1 }}>
-                <Typography sx={{ fontSize: 13, fontWeight: 700, color: '#b91c1c' }}>
+                <Typography sx={{ fontSize: 13, fontWeight: 700, color: alertColors.error[700] }}>
                   Errores ({resultado.errores.length})
                 </Typography>
                 <Stack direction="row" spacing={1}>
@@ -341,16 +342,16 @@ export default function BalanzaXmlView({
                   </Button>
                 </Stack>
               </Stack>
-              <TablaProblemas filas={resultado.errores} color="#b91c1c" />
+              <TablaProblemas filas={resultado.errores} color={alertColors.error[700]} />
             </Paper>
           )}
 
           {resultado.advertencias.length > 0 && (
             <Paper variant="outlined" sx={(theme) => panelEstadoSx(theme, 'warn')}>
-              <Typography sx={{ fontSize: 13, fontWeight: 700, color: '#92400e', mb: 1 }}>
+              <Typography sx={{ fontSize: 13, fontWeight: 700, color: alertColors.warning[800], mb: 1 }}>
                 Advertencias ({resultado.advertencias.length})
               </Typography>
-              <TablaProblemas filas={resultado.advertencias} color="#92400e" />
+              <TablaProblemas filas={resultado.advertencias} color={alertColors.warning[800]} />
             </Paper>
           )}
 

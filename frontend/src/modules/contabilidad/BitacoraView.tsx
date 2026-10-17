@@ -29,6 +29,7 @@ import { fetchEjerciciosDisponibles } from '../../services/saldosCuentasService'
 import { fetchBitacoraPaquetes } from '../../services/eContabilidadService';
 import type { ItemBitacoraPaquete } from '../../types/bitacora';
 import { botonPrimarioSx, chipEstadoSx, encabezadoTablaSx, iconoAccionSx, iconoPeligroSx, panelEstadoSx, textoEstadoSx, tonoDeClave } from './contabilidadVisual';
+import { alertColors } from '../../theme/functional';
 
 
 function formatearFechaHora(iso: string): string {
@@ -69,13 +70,13 @@ function FilaDetalle({ item }: { item: ItemBitacoraPaquete }) {
                   <Chip
                     label={a.ok ? 'Correcto' : 'Con errores'}
                     size="small"
-                    sx={a.ok ? { bgcolor: '#f0fdf4', color: '#166534', fontWeight: 600, fontSize: 11 } : { bgcolor: '#fef2f2', color: '#b91c1c', fontWeight: 600, fontSize: 11 }}
+                    sx={a.ok ? { bgcolor: alertColors.success[50], color: alertColors.success[800], fontWeight: 600, fontSize: 11 } : { bgcolor: alertColors.error[50], color: alertColors.error[700], fontWeight: 600, fontSize: 11 }}
                   />
                 </TableCell>
-                <TableCell align="center" sx={{ color: a.errores > 0 ? '#b91c1c' : 'inherit' }}>
+                <TableCell align="center" sx={{ color: a.errores > 0 ? alertColors.error[700] : 'inherit' }}>
                   {a.errores}
                 </TableCell>
-                <TableCell align="center" sx={{ color: a.advertencias > 0 ? '#92400e' : 'inherit' }}>
+                <TableCell align="center" sx={{ color: a.advertencias > 0 ? alertColors.warning[800] : 'inherit' }}>
                   {a.advertencias}
                 </TableCell>
               </TableRow>
@@ -269,10 +270,10 @@ export default function BitacoraView() {
                       <TableCell align="center">{String(item.periodo).padStart(2, '0')}</TableCell>
                       <TableCell sx={{ fontFamily: 'monospace', fontSize: 11.5 }}>{item.nombre_zip}</TableCell>
                       <TableCell align="center">{item.resumen.archivos_seleccionados}</TableCell>
-                      <TableCell align="center" sx={{ color: item.resumen.errores > 0 ? '#b91c1c' : 'inherit' }}>
+                      <TableCell align="center" sx={{ color: item.resumen.errores > 0 ? alertColors.error[700] : 'inherit' }}>
                         {item.resumen.errores}
                       </TableCell>
-                      <TableCell align="center" sx={{ color: item.resumen.advertencias > 0 ? '#92400e' : 'inherit' }}>
+                      <TableCell align="center" sx={{ color: item.resumen.advertencias > 0 ? alertColors.warning[800] : 'inherit' }}>
                         {item.resumen.advertencias}
                       </TableCell>
                       <TableCell>{item.generado_por_nombre ?? (item.generado_por ? `#${item.generado_por}` : '—')}</TableCell>

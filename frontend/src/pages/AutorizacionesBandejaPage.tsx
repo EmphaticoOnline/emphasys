@@ -10,11 +10,12 @@ import {
   getBandeja, getMisSolicitudes, responderSolicitud, cancelarSolicitud,
   type AutorizacionSolicitud, type EstadoSolicitud,
 } from '../services/autorizacionesService';
+import { alertColors } from '../theme/functional';
 
 const ESTADO_CHIP: Record<EstadoSolicitud, { label: string; bgcolor: string; color: string }> = {
-  pendiente: { label: 'Pendiente', bgcolor: '#fef3c7', color: '#92400e' },
-  aprobada:  { label: 'Aprobada',  bgcolor: '#dcfce7', color: '#166534' },
-  rechazada: { label: 'Rechazada', bgcolor: '#fee2e2', color: '#991b1b' },
+  pendiente: { label: 'Pendiente', bgcolor: alertColors.warning[100], color: alertColors.warning[800] },
+  aprobada:  { label: 'Aprobada',  bgcolor: alertColors.success[100], color: alertColors.success[800] },
+  rechazada: { label: 'Rechazada', bgcolor: alertColors.error[100], color: alertColors.error[800] },
   cancelada: { label: 'Cancelada', bgcolor: '#f3f4f6', color: '#6b7280' },
 };
 

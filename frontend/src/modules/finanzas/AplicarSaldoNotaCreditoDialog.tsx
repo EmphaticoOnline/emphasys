@@ -47,6 +47,7 @@ import {
   roundMoney,
   sugerirAplicacion,
 } from './aplicarSaldoNotaCredito.logic';
+import { alertColors } from '../../theme/functional';
 
 const headSx = {
   fontSize: 10,
@@ -172,9 +173,9 @@ function CapturaImporte({
           height: 28,
           bgcolor: '#fff',
           borderRadius: '6px',
-          '& fieldset': { borderColor: invalido ? '#d97706' : activo ? 'primary.main' : '#d5dce6' },
-          '&:hover fieldset': { borderColor: invalido ? '#d97706' : 'primary.main' },
-          '&.Mui-focused fieldset': { borderWidth: 1.5, borderColor: invalido ? '#d97706' : 'primary.main' },
+          '& fieldset': { borderColor: invalido ? alertColors.warning[600] : activo ? 'primary.main' : '#d5dce6' },
+          '&:hover fieldset': { borderColor: invalido ? alertColors.warning[600] : 'primary.main' },
+          '&.Mui-focused fieldset': { borderWidth: 1.5, borderColor: invalido ? alertColors.warning[600] : 'primary.main' },
         },
         '& .MuiOutlinedInput-input': {
           py: 0,
@@ -498,7 +499,7 @@ export function AplicarSaldoNotaCreditoDialog({
                     return (
                       <TableRow key={item.id} sx={{ bgcolor: marcada ? '#f8fafc' : '#fff' }}>
                         <TableCell sx={{ ...cellSx, color: marcada ? '#94a3b8' : '#334155', textDecoration: marcada ? 'line-through' : 'none' }}>{folioFactura}</TableCell>
-                        <TableCell sx={{ ...cellSx, color: marcada ? '#b45309' : '#64748b', fontWeight: marcada ? 700 : 500 }}>
+                        <TableCell sx={{ ...cellSx, color: marcada ? alertColors.warning[700] : '#64748b', fontWeight: marcada ? 700 : 500 }}>
                           {marcada ? 'Se quitará al guardar' : formatDateShort(item.fecha_aplicacion || item.fecha_documento)}
                         </TableCell>
                         <TableCell align="right" sx={{ ...cellSx, fontWeight: 700, color: marcada ? '#94a3b8' : '#334155', textDecoration: marcada ? 'line-through' : 'none' }}>{formatter.format(Number(item.monto_moneda_documento || item.monto || 0))}</TableCell>
@@ -513,8 +514,8 @@ export function AplicarSaldoNotaCreditoDialog({
                                 sx={{
                                   width: 28,
                                   height: 28,
-                                  color: marcada ? '#475569' : '#dc2626',
-                                  '&:hover': { color: marcada ? 'primary.main' : '#b91c1c', bgcolor: marcada ? (theme: Theme) => theme.emphasys.action.hoverTint : 'rgba(220, 38, 38, 0.08)' },
+                                  color: marcada ? '#475569' : alertColors.error[600],
+                                  '&:hover': { color: marcada ? 'primary.main' : alertColors.error[700], bgcolor: marcada ? (theme: Theme) => theme.emphasys.action.hoverTint : 'rgba(220, 38, 38, 0.08)' },
                                 }}
                               >
                                 {marcada
@@ -672,7 +673,7 @@ export function AplicarSaldoNotaCreditoDialog({
         <Button
           variant="contained"
           onClick={aceptarQuitar}
-          sx={{ textTransform: 'none', fontWeight: 700, bgcolor: '#dc2626', boxShadow: 'none', '&:hover': { bgcolor: '#b91c1c' } }}
+          sx={{ textTransform: 'none', fontWeight: 700, bgcolor: alertColors.error[600], boxShadow: 'none', '&:hover': { bgcolor: alertColors.error[700] } }}
         >
           Quitar aplicación
         </Button>

@@ -1,6 +1,7 @@
 import * as React from 'react';
 import { Box, Divider, ListItemIcon, Menu, MenuItem, Typography } from '@mui/material';
 import type { GridContextMenuPosition } from '../../hooks/useGridContextMenu';
+import { alertColors } from '../../theme/functional';
 
 type GridContextMenuActionBase = {
   id: string;
@@ -107,13 +108,13 @@ export function GridContextMenu({ actions, anchorPosition, open, onClose }: Grid
               }
               void action.onClick?.(event);
             }}
-            sx={action.destructive ? { color: '#b91c1c !important' } : {}}
+            sx={action.destructive ? { color: `${alertColors.error[700]} !important` } : {}}
           >
             {action.icon ? (
               <ListItemIcon
                 sx={{
                   minWidth: 30,
-                  color: action.destructive ? '#b91c1c' : 'inherit',
+                  color: action.destructive ? alertColors.error[700] : 'inherit',
                 }}
               >
                 {action.icon}

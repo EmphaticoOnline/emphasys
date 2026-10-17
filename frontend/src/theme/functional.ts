@@ -85,6 +85,42 @@ export const agingBucketColors: Readonly<Record<'0-30' | '31-60' | '61-90' | '90
   '90+': '#7b1fa2',
 };
 
+/**
+ * Alertas de éxito, advertencia y error usadas en componentes (chips de
+ * estado, validaciones, conteos de errores). Son las escalas de Tailwind
+ * (green / amber / red) que ya usaba el código, con su número de tono, para
+ * conservar cada valor exacto. No son `palette.success/warning/error` de MUI,
+ * que tienen otros valores (ver `feedbackTokens`).
+ */
+export const alertColors = {
+  success: {
+    50: '#f0fdf4',
+    100: '#dcfce7',
+    200: '#bbf7d0',
+    300: '#86efac',
+    600: '#16a34a',
+    700: '#15803d',
+    800: '#166534',
+  },
+  warning: {
+    50: '#fffbeb',
+    100: '#fef3c7',
+    200: '#fde68a',
+    500: '#f59e0b',
+    600: '#d97706',
+    700: '#b45309',
+    800: '#92400e',
+  },
+  error: {
+    50: '#fef2f2',
+    100: '#fee2e2',
+    200: '#fecaca',
+    600: '#dc2626',
+    700: '#b91c1c',
+    800: '#991b1b',
+  },
+} as const;
+
 /** Dirección de movimientos de inventario (Kardex, Movimientos de inventario). */
 export const inventoryFlowColors = {
   inbound: '#16a34a',

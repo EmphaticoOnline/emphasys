@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { apiFetch } from '../services/apiFetch';
+import { alertColors } from '../theme/functional';
 
 type TipoActividad = 'llamada' | 'whatsapp' | 'visita' | 'tarea';
 
@@ -124,9 +125,9 @@ export function useSeguimientoActividades(enabled = true) {
     if (!summary || summary.pendingCount === 0) {
       return {
         label: 'Sin actividad',
-        backgroundColor: '#fffbeb',
-        textColor: '#b45309',
-        borderColor: '#fde68a',
+        backgroundColor: alertColors.warning[50],
+        textColor: alertColors.warning[700],
+        borderColor: alertColors.warning[200],
       };
     }
 
@@ -134,9 +135,9 @@ export function useSeguimientoActividades(enabled = true) {
     if (summary.overdueCount > 0) {
       return {
         label: `Vencida (${summary.overdueCount})`,
-        backgroundColor: '#fef2f2',
-        textColor: '#b91c1c',
-        borderColor: '#fecaca',
+        backgroundColor: alertColors.error[50],
+        textColor: alertColors.error[700],
+        borderColor: alertColors.error[200],
       };
     }
 
@@ -144,7 +145,7 @@ export function useSeguimientoActividades(enabled = true) {
       return {
         label: 'Pendiente hoy',
         backgroundColor: '#fff7ed',
-        textColor: '#b45309',
+        textColor: alertColors.warning[700],
         borderColor: '#fdba74',
       };
     }

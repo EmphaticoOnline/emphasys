@@ -19,6 +19,7 @@ import {
   type CfdiSatComprobanteDetalle,
 } from '../../services/cfdiSatService';
 import { ESTADO_IMPORTACION_INFO, POSIBLE_DUPLICADO_LABEL } from './estadoImportacion';
+import { alertColors } from '../../theme/functional';
 
 function formatFecha(raw?: string | null): string {
   if (!raw) return '—';
@@ -189,7 +190,7 @@ export default function ComprobanteDetalleDialog({
               )}
 
               {detalle?.evaluacion?.posible_documento_existente && (
-                <Typography variant="body2" color="#92400e">
+                <Typography variant="body2" color={alertColors.warning[800]}>
                   Posible duplicado (documento #{detalle.evaluacion.posible_documento_existente.documento_id},
                   confianza {detalle.evaluacion.posible_documento_existente.confianza}):{' '}
                   {detalle.evaluacion.posible_documento_existente.motivo}

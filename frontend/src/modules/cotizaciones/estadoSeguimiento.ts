@@ -1,6 +1,7 @@
 import { darken } from '@mui/material/styles';
 import type { EstadoSeguimiento } from '../../types/cotizacion';
 import type { DocumentoRowAppearance } from '../documentos/documentoRowAppearance';
+import { alertColors } from '../../theme/functional';
 
 export type EstadoSeguimientoOption = {
   value: EstadoSeguimiento;
@@ -15,9 +16,9 @@ export const DEFAULT_ESTADO_SEGUIMIENTO: EstadoSeguimiento = 'abierta';
 export const ESTADOS_SEGUIMIENTO: EstadoSeguimientoOption[] = [
   { value: 'abierta', label: 'Abierta', color: '#e0f2fe', textColor: '#075985', rowClassName: 'row-estado-abierta' },
   { value: 'pausada', label: 'Pausada', color: '#ffedd5', textColor: '#9a3412', rowClassName: 'row-estado-pausada' },
-  { value: 'convertida', label: 'Convertida', color: '#dcfce7', textColor: '#166534', rowClassName: 'row-estado-convertida' },
-  { value: 'perdida', label: 'Perdida', color: '#fee2e2', textColor: '#b91c1c', rowClassName: 'row-estado-perdida' },
-  { value: 'no seleccionada', label: 'No seleccionada', color: '#fef3c7', textColor: '#92400e', rowClassName: 'row-estado-no-seleccionada' },
+  { value: 'convertida', label: 'Convertida', color: alertColors.success[100], textColor: alertColors.success[800], rowClassName: 'row-estado-convertida' },
+  { value: 'perdida', label: 'Perdida', color: alertColors.error[100], textColor: alertColors.error[700], rowClassName: 'row-estado-perdida' },
+  { value: 'no seleccionada', label: 'No seleccionada', color: alertColors.warning[100], textColor: alertColors.warning[800], rowClassName: 'row-estado-no-seleccionada' },
   { value: 'cancelada', label: 'Cancelada', color: '#e5e7eb', textColor: '#4b5563', rowClassName: 'row-estado-cancelada' },
 ];
 

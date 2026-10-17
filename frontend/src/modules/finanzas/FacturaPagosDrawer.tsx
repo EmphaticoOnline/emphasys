@@ -45,6 +45,7 @@ import DocumentosFormPage from '../../pages/DocumentosFormPage';
 import { DesaplicarPagoDialog } from './DesaplicarPagoDialog';
 import { loadSession } from '../../session/sessionStorage';
 import { esRolAdmin } from '../../session/rolScope';
+import { alertColors } from '../../theme/functional';
 
 const formatDateShort = (value?: string | null) => {
   if (!value) return '';
@@ -441,7 +442,7 @@ export function FacturaPagosDrawer({ open, onClose, documentoId, contactoId, sal
               <Typography variant="body2" color="text.secondary">
                 {esNotaCredito ? 'Saldo disponible' : 'Saldo pendiente'}
               </Typography>
-              <Typography variant="h6" fontWeight={700} color={effectiveSaldo > 0 ? '#b45309' : '#15803d'}>
+              <Typography variant="h6" fontWeight={700} color={effectiveSaldo > 0 ? alertColors.warning[700] : alertColors.success[700]}>
                 {formatter.format(effectiveSaldo)}
               </Typography>
             </Box>

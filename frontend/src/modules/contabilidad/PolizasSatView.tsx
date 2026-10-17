@@ -28,6 +28,7 @@ import { fetchEjerciciosDisponibles } from '../../services/saldosCuentasService'
 import { fetchPolizasSatPreview } from '../../services/eContabilidadService';
 import type { EstadoMovimientoPolizaSat, MovimientoPolizaSat, PolizasSatResultado } from '../../types/polizasSat';
 import { botonPrimarioSx, chipEstadoSx, encabezadoTablaSx, iconoAccionSx, iconoPeligroSx, panelEstadoSx, textoEstadoSx, tonoDeClave } from './contabilidadVisual';
+import { alertColors } from '../../theme/functional';
 
 
 interface FilaProblema {
@@ -66,13 +67,13 @@ function TablaProblemas({ filas, color }: { filas: FilaProblema[]; color: string
 }
 
 const ESTADO_CONFIG: Record<EstadoMovimientoPolizaSat, { label: string; color: string; bg: string }> = {
-  correcto: { label: 'Correcto', color: '#166534', bg: '#f0fdf4' },
-  uuid_no_encontrado: { label: 'UUID no encontrado', color: '#92400e', bg: '#fffbeb' },
-  cfdi_cancelado: { label: 'CFDI cancelado', color: '#92400e', bg: '#fffbeb' },
-  rfc_no_coincide: { label: 'RFC no coincide', color: '#92400e', bg: '#fffbeb' },
-  uuid_sin_rfc: { label: 'UUID sin RFC', color: '#92400e', bg: '#fffbeb' },
-  sin_uuid: { label: 'Sin UUID', color: '#92400e', bg: '#fffbeb' },
-  error: { label: 'Error', color: '#b91c1c', bg: '#fef2f2' },
+  correcto: { label: 'Correcto', color: alertColors.success[800], bg: alertColors.success[50] },
+  uuid_no_encontrado: { label: 'UUID no encontrado', color: alertColors.warning[800], bg: alertColors.warning[50] },
+  cfdi_cancelado: { label: 'CFDI cancelado', color: alertColors.warning[800], bg: alertColors.warning[50] },
+  rfc_no_coincide: { label: 'RFC no coincide', color: alertColors.warning[800], bg: alertColors.warning[50] },
+  uuid_sin_rfc: { label: 'UUID sin RFC', color: alertColors.warning[800], bg: alertColors.warning[50] },
+  sin_uuid: { label: 'Sin UUID', color: alertColors.warning[800], bg: alertColors.warning[50] },
+  error: { label: 'Error', color: alertColors.error[700], bg: alertColors.error[50] },
 };
 
 function CeldaEstado({ value }: { value: EstadoMovimientoPolizaSat }) {
@@ -290,27 +291,27 @@ export default function PolizasSatView({ onIrAValidaciones }: { onIrAValidacione
               <ResumenValor
                 etiqueta="UUID no encontrados"
                 valor={resultado.resumen.uuid_no_encontrados}
-                color={resultado.resumen.uuid_no_encontrados > 0 ? '#92400e' : undefined}
+                color={resultado.resumen.uuid_no_encontrados > 0 ? alertColors.warning[800] : undefined}
               />
               <ResumenValor
                 etiqueta="CFDI cancelados"
                 valor={resultado.resumen.cfdi_cancelados}
-                color={resultado.resumen.cfdi_cancelados > 0 ? '#92400e' : undefined}
+                color={resultado.resumen.cfdi_cancelados > 0 ? alertColors.warning[800] : undefined}
               />
               <ResumenValor
                 etiqueta="RFC no coincide"
                 valor={resultado.resumen.rfc_no_coincide}
-                color={resultado.resumen.rfc_no_coincide > 0 ? '#92400e' : undefined}
+                color={resultado.resumen.rfc_no_coincide > 0 ? alertColors.warning[800] : undefined}
               />
               <ResumenValor
                 etiqueta="Errores"
                 valor={resultado.resumen.errores}
-                color={resultado.resumen.errores > 0 ? '#b91c1c' : undefined}
+                color={resultado.resumen.errores > 0 ? alertColors.error[700] : undefined}
               />
               <ResumenValor
                 etiqueta="Advertencias"
                 valor={resultado.resumen.advertencias}
-                color={resultado.resumen.advertencias > 0 ? '#92400e' : undefined}
+                color={resultado.resumen.advertencias > 0 ? alertColors.warning[800] : undefined}
               />
               {resultado.ok ? (
                 <Chip label="Sin errores" color="success" size="small" />
@@ -323,23 +324,23 @@ export default function PolizasSatView({ onIrAValidaciones }: { onIrAValidacione
           {resultado.errores.length > 0 && (
             <Paper variant="outlined" sx={(theme) => panelEstadoSx(theme, 'error')}>
               <Stack direction="row" justifyContent="space-between" alignItems="center" flexWrap="wrap" sx={{ mb: 1 }}>
-                <Typography sx={{ fontSize: 13, fontWeight: 700, color: '#b91c1c' }}>
+                <Typography sx={{ fontSize: 13, fontWeight: 700, color: alertColors.error[700] }}>
                   Errores ({resultado.errores.length})
                 </Typography>
                 <Button size="small" onClick={onIrAValidaciones} sx={{ textTransform: 'none', fontSize: 12 }}>
                   Ir a Validaciones
                 </Button>
               </Stack>
-              <TablaProblemas filas={resultado.errores} color="#b91c1c" />
+              <TablaProblemas filas={resultado.errores} color={alertColors.error[700]} />
             </Paper>
           )}
 
           {resultado.advertencias.length > 0 && (
             <Paper variant="outlined" sx={(theme) => panelEstadoSx(theme, 'warn')}>
-              <Typography sx={{ fontSize: 13, fontWeight: 700, color: '#92400e', mb: 1 }}>
+              <Typography sx={{ fontSize: 13, fontWeight: 700, color: alertColors.warning[800], mb: 1 }}>
                 Advertencias ({resultado.advertencias.length})
               </Typography>
-              <TablaProblemas filas={resultado.advertencias} color="#92400e" />
+              <TablaProblemas filas={resultado.advertencias} color={alertColors.warning[800]} />
             </Paper>
           )}
 

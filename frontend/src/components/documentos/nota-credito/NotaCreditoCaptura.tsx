@@ -35,6 +35,7 @@ import type { TratamientoImpuestos } from '../../../types/cotizacion';
 import type { Contacto } from '../../../types/contactos.types';
 import type { Concepto } from '../../../types/finanzas';
 import type { PrepararGeneracionResponse } from '../../../services/documentGenerationService';
+import { alertColors } from '../../../theme/functional';
 
 const MENSAJE_PARTIDAS_INCOMPATIBLES = 'Solo pueden combinarse partidas compatibles en la misma nota.';
 
@@ -250,8 +251,8 @@ function CeldaProducto({
                 flexShrink: 0,
                 width: 28,
                 height: 28,
-                color: '#dc2626',
-                '&:hover': { color: '#b91c1c', bgcolor: 'rgba(220, 38, 38, 0.08)' },
+                color: alertColors.error[600],
+                '&:hover': { color: alertColors.error[700], bgcolor: 'rgba(220, 38, 38, 0.08)' },
               }}
             >
               <RemoveCircleOutlineIcon sx={{ fontSize: 18 }} />
@@ -1021,9 +1022,9 @@ function Captura({
           height: 28,
           bgcolor: '#fff',
           borderRadius: '6px',
-          '& fieldset': { borderColor: invalido ? '#d97706' : activo ? 'primary.main' : '#d5dce6' },
-          '&:hover fieldset': { borderColor: invalido ? '#d97706' : 'primary.main' },
-          '&.Mui-focused fieldset': { borderWidth: 1.5, borderColor: invalido ? '#d97706' : 'primary.main' },
+          '& fieldset': { borderColor: invalido ? alertColors.warning[600] : activo ? 'primary.main' : '#d5dce6' },
+          '&:hover fieldset': { borderColor: invalido ? alertColors.warning[600] : 'primary.main' },
+          '&.Mui-focused fieldset': { borderWidth: 1.5, borderColor: invalido ? alertColors.warning[600] : 'primary.main' },
         },
         '& .MuiOutlinedInput-input': {
           py: 0,

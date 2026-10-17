@@ -59,6 +59,7 @@ import { useGridPreferences } from '../hooks/useGridPreferences';
 import { useSeguimientoActividades } from '../hooks/useSeguimientoActividades';
 import ActividadSeguimientoDrawer from '../components/crm/ActividadSeguimientoDrawer';
 import { SeguimientoActividadCell } from '../components/crm/SeguimientoActividadCell';
+import { alertColors } from '../theme/functional';
 
 dayjs.locale('es');
 
@@ -321,10 +322,10 @@ function getStatusPresentation(estatus: string) {
   const normalized = normalizeStatus(estatus);
 
   if (normalized === 'convertida') {
-    return { label: OPORTUNIDAD_STATUS_LABELS.convertida, backgroundColor: '#dcfce7', textColor: '#166534', borderColor: '#86efac' };
+    return { label: OPORTUNIDAD_STATUS_LABELS.convertida, backgroundColor: alertColors.success[100], textColor: alertColors.success[800], borderColor: alertColors.success[300] };
   }
   if (normalized === 'perdida') {
-    return { label: OPORTUNIDAD_STATUS_LABELS.perdida, backgroundColor: '#fee2e2', textColor: '#b91c1c', borderColor: '#fecaca' };
+    return { label: OPORTUNIDAD_STATUS_LABELS.perdida, backgroundColor: alertColors.error[100], textColor: alertColors.error[700], borderColor: alertColors.error[200] };
   }
   if (normalized === 'pausada') {
     return { label: OPORTUNIDAD_STATUS_LABELS.pausada, backgroundColor: '#ffedd5', textColor: '#c2410c', borderColor: '#fdba74' };
@@ -1367,8 +1368,8 @@ export default function OportunidadesPage() {
         ) : null}
 
         {!loading && error ? (
-          <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, borderColor: '#fecaca', backgroundColor: '#fef2f2' }}>
-            <Typography sx={{ color: '#b91c1c', fontWeight: 600 }}>No se pudieron cargar las oportunidades.</Typography>
+          <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, borderColor: alertColors.error[200], backgroundColor: alertColors.error[50] }}>
+            <Typography sx={{ color: alertColors.error[700], fontWeight: 600 }}>No se pudieron cargar las oportunidades.</Typography>
             <Typography sx={{ color: '#7f1d1d', mt: 0.5 }}>{error}</Typography>
           </Paper>
         ) : null}
@@ -1435,10 +1436,10 @@ export default function OportunidadesPage() {
                       label: 'Perdidas',
                       monto: currencyFormatter.format(totals.perdidas.monto),
                       count: totals.perdidas.cantidad,
-                      backgroundColor: '#fef2f2',
-                      borderColor: '#fecaca',
-                      labelColor: '#b91c1c',
-                      amountColor: '#991b1b',
+                      backgroundColor: alertColors.error[50],
+                      borderColor: alertColors.error[200],
+                      labelColor: alertColors.error[700],
+                      amountColor: alertColors.error[800],
                     },
                     {
                       value: 'canceladas' as const,
@@ -2094,7 +2095,7 @@ export default function OportunidadesPage() {
                       Si tiene cotización asociada, también será eliminada.
                     </Alert>
                   ) : null}
-                  <Typography sx={{ color: '#b91c1c', fontWeight: 600 }}>
+                  <Typography sx={{ color: alertColors.error[700], fontWeight: 600 }}>
                     Esta acción no se puede deshacer.
                   </Typography>
                 </Stack>

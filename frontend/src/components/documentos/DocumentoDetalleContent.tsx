@@ -35,6 +35,7 @@ import type { TipoDocumento } from '../../types/documentos.types';
 import { formatearFolioDocumento } from '../../utils/documentos.utils';
 import { getDocumentoTypeConfig, resolveDocumentoTextos } from '../../modules/documentos/documentoTypeConfig';
 import { summarizeDocumentTaxes } from '../../utils/documentTaxSummary';
+import { alertColors } from '../../theme/functional';
 
 export const formatDateShort = (value?: string | null) => {
   if (!value) return '—';
@@ -236,8 +237,8 @@ export function ResumenTab({
         ))}
       </Box>
       {cancelacionRelevante ? (
-        <Box sx={{ border: '1px solid #f59e0b', borderRadius: 2, p: 2, bgcolor: '#fffbeb' }}>
-          <Typography variant="subtitle2" fontWeight={700} color="#92400e" sx={{ mb: 1 }}>
+        <Box sx={{ border: `1px solid ${alertColors.warning[500]}`, borderRadius: 2, p: 2, bgcolor: alertColors.warning[50] }}>
+          <Typography variant="subtitle2" fontWeight={700} color={alertColors.warning[800]} sx={{ mb: 1 }}>
             CANCELACIÓN CFDI
           </Typography>
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 1 }}>

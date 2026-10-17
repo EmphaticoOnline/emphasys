@@ -33,14 +33,15 @@ import type { ArchivoPaqueteZip, ClaveArchivoPaquete, PaqueteZipPreviewResultado
 import type { TipoEnvioBalanza } from '../../types/balanzaXml';
 import type { TipoSolicitudPolizas } from '../../types/polizasXml';
 import { botonPrimarioSx, chipEstadoSx, encabezadoTablaSx, iconoAccionSx, iconoPeligroSx, panelEstadoSx, textoEstadoSx, tonoDeClave } from './contabilidadVisual';
+import { alertColors } from '../../theme/functional';
 
 
 type EstadoFila = 'listo' | 'con_advertencias' | 'con_errores' | 'no_seleccionado';
 
 const ESTADO_CONFIG: Record<EstadoFila, { label: string; color: string; bg: string }> = {
-  listo: { label: 'Listo', color: '#166534', bg: '#f0fdf4' },
-  con_advertencias: { label: 'Con advertencias', color: '#92400e', bg: '#fffbeb' },
-  con_errores: { label: 'Con errores', color: '#b91c1c', bg: '#fef2f2' },
+  listo: { label: 'Listo', color: alertColors.success[800], bg: alertColors.success[50] },
+  con_advertencias: { label: 'Con advertencias', color: alertColors.warning[800], bg: alertColors.warning[50] },
+  con_errores: { label: 'Con errores', color: alertColors.error[700], bg: alertColors.error[50] },
   no_seleccionado: { label: 'No seleccionado', color: '#6b7280', bg: '#f3f4f6' },
 };
 
@@ -395,16 +396,16 @@ export default function PaqueteZipView({
             <Typography sx={{ fontSize: 13 }}>
               <strong>Archivos seleccionados:</strong> {resultado.resumen.archivos_seleccionados}
             </Typography>
-            <Typography sx={{ fontSize: 13, color: '#166534' }}>
+            <Typography sx={{ fontSize: 13, color: alertColors.success[800] }}>
               <strong>Correctos:</strong> {resultado.resumen.archivos_ok}
             </Typography>
-            <Typography sx={{ fontSize: 13, color: resultado.resumen.archivos_con_error > 0 ? '#b91c1c' : 'inherit' }}>
+            <Typography sx={{ fontSize: 13, color: resultado.resumen.archivos_con_error > 0 ? alertColors.error[700] : 'inherit' }}>
               <strong>Con error:</strong> {resultado.resumen.archivos_con_error}
             </Typography>
-            <Typography sx={{ fontSize: 13, color: resultado.resumen.errores > 0 ? '#b91c1c' : 'inherit' }}>
+            <Typography sx={{ fontSize: 13, color: resultado.resumen.errores > 0 ? alertColors.error[700] : 'inherit' }}>
               <strong>Errores:</strong> {resultado.resumen.errores}
             </Typography>
-            <Typography sx={{ fontSize: 13, color: resultado.resumen.advertencias > 0 ? '#92400e' : 'inherit' }}>
+            <Typography sx={{ fontSize: 13, color: resultado.resumen.advertencias > 0 ? alertColors.warning[800] : 'inherit' }}>
               <strong>Advertencias:</strong> {resultado.resumen.advertencias}
             </Typography>
             {resultado.ok ? (
@@ -439,10 +440,10 @@ export default function PaqueteZipView({
                     <TableCell align="center">
                       <CeldaEstado value={estado} />
                     </TableCell>
-                    <TableCell align="center" sx={{ color: (fila.datos?.errores ?? 0) > 0 ? '#b91c1c' : 'inherit' }}>
+                    <TableCell align="center" sx={{ color: (fila.datos?.errores ?? 0) > 0 ? alertColors.error[700] : 'inherit' }}>
                       {fila.datos?.errores ?? '—'}
                     </TableCell>
-                    <TableCell align="center" sx={{ color: (fila.datos?.advertencias ?? 0) > 0 ? '#92400e' : 'inherit' }}>
+                    <TableCell align="center" sx={{ color: (fila.datos?.advertencias ?? 0) > 0 ? alertColors.warning[800] : 'inherit' }}>
                       {fila.datos?.advertencias ?? '—'}
                     </TableCell>
                     <TableCell align="center">

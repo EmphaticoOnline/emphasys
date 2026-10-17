@@ -22,6 +22,7 @@ import {
   type ProduccionPartidaOperativa,
   type SeguimientoProduccionHistorialRow,
 } from '../../services/produccionService';
+import { alertColors } from '../../theme/functional';
 
 const formatCivilDate = (value: string | null | undefined) => {
   const raw = String(value ?? '').trim();
@@ -320,7 +321,7 @@ function HistorialAvancesList({ historial }: { historial: SeguimientoProduccionH
                   height: avance.activo ? 12 : 9,
                   borderRadius: '50%',
                   backgroundColor,
-                  boxShadow: avance.activo ? '0 0 0 2px #16a34a' : '0 0 0 1px #cbd5e1',
+                  boxShadow: avance.activo ? `0 0 0 2px ${alertColors.success[600]}` : '0 0 0 1px #cbd5e1',
                   flexShrink: 0,
                 }}
               />
@@ -343,7 +344,7 @@ function HistorialAvancesList({ historial }: { historial: SeguimientoProduccionH
                     }}
                   />
                   {avance.activo ? (
-                    <Typography variant="caption" sx={{ color: '#16a34a', fontWeight: 700 }}>
+                    <Typography variant="caption" sx={{ color: alertColors.success[600], fontWeight: 700 }}>
                       Actual
                     </Typography>
                   ) : null}
