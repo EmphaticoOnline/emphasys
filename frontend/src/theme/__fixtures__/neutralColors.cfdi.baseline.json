@@ -1,0 +1,281 @@
+{
+  "source": "HEAD 15f1735, bloque cfdi",
+  "files": {
+    "components/cfdi-sat/BitacoraSatSection.tsx": {
+      "headSha256": "ed3f80fc4f50b618094b9459dc1cce29e8fa58d0bf04e410661a939f827e2492",
+      "addedImports": [
+        "import { neutralColors } from '../../theme/structural';",
+        "import { activeBrand } from '../../theme/brand/active';"
+      ],
+      "lines": {
+        "109": [
+          {
+            "hex": "#dbe3f0",
+            "token": "neutralColors.steel.line"
+          }
+        ],
+        "112": [
+          {
+            "hex": "#1d2f68",
+            "token": "activeBrand.colors.blue.base"
+          }
+        ],
+        "115": [
+          {
+            "hex": "#4b5563",
+            "token": "neutralColors.gray[600]"
+          }
+        ],
+        "214": [
+          {
+            "hex": "#1d2f68",
+            "token": "activeBrand.colors.blue.base"
+          }
+        ]
+      },
+      "keptLiteral": {}
+    },
+    "components/cfdi-sat/ResumenSatCards.tsx": {
+      "headSha256": "b97d6afd87eb5a16986f1f0bbbe4281f73d523d330bc7814382d518a34ef7cdf",
+      "addedImports": [
+        "import { neutralColors } from '../../theme/structural';",
+        "import { activeBrand } from '../../theme/brand/active';"
+      ],
+      "lines": {
+        "31": [
+          {
+            "hex": "#dbe3f0",
+            "token": "neutralColors.steel.line"
+          }
+        ],
+        "38": [
+          {
+            "hex": "#6b7280",
+            "token": "neutralColors.gray[500]"
+          }
+        ],
+        "79": [
+          {
+            "hex": "#dbe3f0",
+            "token": "neutralColors.steel.line"
+          }
+        ],
+        "81": [
+          {
+            "hex": "#1d2f68",
+            "token": "activeBrand.colors.blue.base"
+          }
+        ],
+        "112": [
+          {
+            "hex": "#6b7280",
+            "token": "neutralColors.gray[500]"
+          }
+        ]
+      },
+      "keptLiteral": {}
+    },
+    "components/cfdi-sat/ImportarComprasDialog.tsx": {
+      "headSha256": "7c5f2b0e832776804683edcf89f36d9028b581993bf1a21cf824f65ceaf75e4f",
+      "addedImports": [
+        "import { neutralColors } from '../../theme/structural';",
+        "import { activeBrand } from '../../theme/brand/active';"
+      ],
+      "lines": {
+        "162": [
+          {
+            "hex": "#6b7280",
+            "token": "neutralColors.gray[500]"
+          }
+        ],
+        "179": [
+          {
+            "hex": "#1d2f68",
+            "token": "activeBrand.colors.blue.base"
+          }
+        ]
+      },
+      "keptLiteral": {}
+    },
+    "components/cfdi-sat/ImportarLoteComprasDialog.tsx": {
+      "headSha256": "4fe42c99dbacd4db515bd1f2ce56149e7181bf9a63fdfbe1291d6faab119fedd",
+      "addedImports": [
+        "import { activeBrand } from '../../theme/brand/active';"
+      ],
+      "lines": {
+        "145": [
+          {
+            "hex": "#1d2f68",
+            "token": "activeBrand.colors.blue.base"
+          }
+        ]
+      },
+      "keptLiteral": {}
+    },
+    "components/cfdi-sat/ComprobantesSatSection.tsx": {
+      "headSha256": "14b066c7e33d61b9889fee4656d47ea7c20303e39c7eb57bec292ba254a11639",
+      "addedImports": [
+        "import { neutralColors } from '../../theme/structural';",
+        "import { activeBrand } from '../../theme/brand/active';"
+      ],
+      "lines": {
+        "282": [
+          {
+            "hex": "#dbe3f0",
+            "token": "neutralColors.steel.line"
+          }
+        ],
+        "285": [
+          {
+            "hex": "#1d2f68",
+            "token": "activeBrand.colors.blue.base"
+          }
+        ],
+        "288": [
+          {
+            "hex": "#4b5563",
+            "token": "neutralColors.gray[600]"
+          }
+        ],
+        "409": [
+          {
+            "hex": "#1d2f68",
+            "token": "activeBrand.colors.blue.base"
+          }
+        ],
+        "428": [
+          {
+            "hex": "#6b7280",
+            "token": "neutralColors.gray[500]"
+          }
+        ],
+        "453": [
+          {
+            "hex": "#6b7280",
+            "token": "neutralColors.gray[500]"
+          }
+        ]
+      },
+      "keptLiteral": {}
+    },
+    "components/cfdi-sat/ComprobanteDetalleDialog.tsx": {
+      "headSha256": "be3d81dfb6885a99a8f06fa82950f7de1baf64281d0d84e847ea2cde33e34dbf",
+      "addedImports": [
+        "import { neutralColors } from '../../theme/structural';",
+        "import { activeBrand } from '../../theme/brand/active';"
+      ],
+      "lines": {
+        "34": [
+          {
+            "hex": "#6b7280",
+            "token": "neutralColors.gray[500]"
+          }
+        ],
+        "37": [
+          {
+            "hex": "#1f2937",
+            "token": "neutralColors.gray[800]"
+          }
+        ],
+        "159": [
+          {
+            "hex": "#6b7280",
+            "token": "neutralColors.gray[500]"
+          }
+        ],
+        "175": [
+          {
+            "hex": "#1f2937",
+            "token": "neutralColors.gray[800]"
+          }
+        ],
+        "181": [
+          {
+            "hex": "#4b5563",
+            "token": "neutralColors.gray[600]"
+          }
+        ],
+        "187": [
+          {
+            "hex": "#4b5563",
+            "token": "neutralColors.gray[600]"
+          }
+        ],
+        "244": [
+          {
+            "hex": "#1d2f68",
+            "token": "activeBrand.colors.blue.base"
+          }
+        ]
+      },
+      "keptLiteral": {}
+    },
+    "components/cfdi-sat/AutomatizacionSatSection.tsx": {
+      "headSha256": "938649553b2d442157e4805c2f1a5f58c0d986d5d0fcec7c3abb1ad88a0fa7b0",
+      "addedImports": [
+        "import { neutralColors } from '../../theme/structural';",
+        "import { activeBrand } from '../../theme/brand/active';"
+      ],
+      "lines": {
+        "154": [
+          {
+            "hex": "#dbe3f0",
+            "token": "neutralColors.steel.line"
+          }
+        ],
+        "157": [
+          {
+            "hex": "#1d2f68",
+            "token": "activeBrand.colors.blue.base"
+          }
+        ],
+        "160": [
+          {
+            "hex": "#4b5563",
+            "token": "neutralColors.gray[600]"
+          }
+        ],
+        "230": [
+          {
+            "hex": "#6b7280",
+            "token": "neutralColors.gray[500]"
+          }
+        ],
+        "242": [
+          {
+            "hex": "#1d2f68",
+            "token": "activeBrand.colors.blue.base"
+          }
+        ],
+        "326": [
+          {
+            "hex": "#1d2f68",
+            "token": "activeBrand.colors.blue.base"
+          }
+        ]
+      },
+      "keptLiteral": {}
+    },
+    "components/cfdi-sat/VincularDocumentoDialog.tsx": {
+      "headSha256": "8e0b6374555a0632fe555c0d437ed7cd95a54bf26038aa63c88dc1f3ae52d1be",
+      "addedImports": [
+        "import { activeBrand } from '../../theme/brand/active';"
+      ],
+      "lines": {
+        "234": [
+          {
+            "hex": "#1d2f68",
+            "token": "activeBrand.colors.blue.base"
+          }
+        ],
+        "247": [
+          {
+            "hex": "#1d2f68",
+            "token": "activeBrand.colors.blue.base"
+          }
+        ]
+      },
+      "keptLiteral": {}
+    }
+  }
+}

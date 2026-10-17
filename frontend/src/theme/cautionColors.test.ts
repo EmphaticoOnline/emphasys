@@ -1,11 +1,18 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import test from 'node:test';
+import { revertNeutralFor, type NeutralFixture } from './__fixtures__/neutralRevert.ts';
 import { emphasysBrand } from './brand/emphasys.ts';
 import { alertColors } from './functional.ts';
 
 const readText = (path: string) => readFileSync(new URL(path, import.meta.url), 'utf8');
+
+/** Bloques de neutrales posteriores que también tocan estos archivos: se revierten primero. */
+const neutralFixtures: NeutralFixture[] = readdirSync(new URL('./__fixtures__/', import.meta.url))
+  .filter((name) => /^neutralColors.*\.baseline\.json$/.test(name))
+  .map((name) => JSON.parse(readText(`./__fixtures__/${name}`)));
+const withoutNeutral = (file: string) => revertNeutralFor(file, readText(`../${file}`), neutralFixtures);
 const sha256 = (text: string) => createHash('sha256').update(text).digest('hex');
 
 type Entry = { hex: string; token: string };
@@ -34,7 +41,7 @@ test('cada token naranja resuelve exactamente al literal que reemplazó', () => 
 
 test('equivalencia contra HEAD: revertir los tokens reproduce cada archivo byte a byte', () => {
   for (const [file, { headSha256 }] of Object.entries(baseline.files)) {
-    assert.equal(sha256(revert(readText(`../${file}`), caution)), headSha256, file);
+    assert.equal(sha256(revert(withoutNeutral(file), caution)), headSha256, file);
   }
 });
 
@@ -48,7 +55,7 @@ test('mutación: alterar cualquier tono de la escala rompe la equivalencia', () 
     );
     assert.ok(affected.length > 0, `caution[${step}] no se usa`);
     for (const [file, { headSha256 }] of affected) {
-      assert.notEqual(sha256(revert(readText(`../${file}`), mutated)), headSha256, `${file} no detectó caution[${step}]`);
+      assert.notEqual(sha256(revert(withoutNeutral(file), mutated)), headSha256, `${file} no detectó caution[${step}]`);
     }
   }
 });

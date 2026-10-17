@@ -1,10 +1,17 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import test from 'node:test';
+import { revertNeutralFor, type NeutralFixture } from './__fixtures__/neutralRevert.ts';
 import { emphasysBrand } from './brand/emphasys.ts';
 import { accountingColors, alertColors } from './functional.ts';
 
 const readText = (path: string) => readFileSync(new URL(path, import.meta.url), 'utf8');
+
+/** Bloques de neutrales posteriores que también tocan estos archivos: se revierten primero. */
+const neutralFixtures: NeutralFixture[] = readdirSync(new URL('./__fixtures__/', import.meta.url))
+  .filter((name) => /^neutralColors.*\.baseline\.json$/.test(name))
+  .map((name) => JSON.parse(readText(`./__fixtures__/${name}`)));
+const withoutNeutral = (file: string) => revertNeutralFor(file, readText(`../${file}`), neutralFixtures);
 
 type Entry = { hex: string; token: string };
 /** Literales por línea en HEAD (2af87e7) y el token que reemplaza a cada uno. */
@@ -44,7 +51,7 @@ test('cada archivo usa los tokens contables tantas veces como literales tenía',
 test('en los archivos migrados solo quedan los literales excluidos a propósito', () => {
   for (const [file, { lines, keptLiteral }] of Object.entries(baseline.files)) {
     const hexes = new Set(Object.values(lines).flat().map((entry) => entry.hex));
-    const source = readText(`../${file}`);
+    const source = withoutNeutral(file);
     const remaining = count([...source.matchAll(/#[0-9a-fA-F]{6}/g)].map((m) => m[0].toLowerCase()).filter((hex) => hexes.has(hex)));
     assert.deepStrictEqual(remaining, keptLiteral, file);
   }

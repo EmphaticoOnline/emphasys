@@ -27,6 +27,7 @@ import {
   type CfdiSatConfianzaDuplicado,
   type CfdiSatVinculacionResultado,
 } from '../../services/cfdiSatService';
+import { activeBrand } from '../../theme/brand/active';
 
 function formatFecha(raw?: string | null): string {
   if (!raw) return '—';
@@ -231,7 +232,7 @@ export default function VincularDocumentoDialog({
               variant="contained"
               onClick={() => void handleConfirmarVinculacion()}
               disabled={vinculando}
-              sx={{ textTransform: 'none', fontWeight: 700, backgroundColor: '#1d2f68' }}
+              sx={{ textTransform: 'none', fontWeight: 700, backgroundColor: activeBrand.colors.blue.base }}
             >
               {vinculando ? 'Vinculando...' : 'Confirmar vinculación'}
             </Button>
@@ -244,7 +245,7 @@ export default function VincularDocumentoDialog({
             <Button
               variant="contained"
               onClick={() => navigate(`/compras/factura_compra/${resultado.documento_id}`)}
-              sx={{ textTransform: 'none', fontWeight: 700, backgroundColor: '#1d2f68' }}
+              sx={{ textTransform: 'none', fontWeight: 700, backgroundColor: activeBrand.colors.blue.base }}
             >
               Ver factura
             </Button>

@@ -10,21 +10,71 @@
  */
 export const neutralColors = {
   gray: {
+    100: '#f3f4f6',
     200: '#e5e7eb',
     300: '#d1d5db',
+    400: '#9ca3af',
     500: '#6b7280',
+    600: '#4b5563',
+    700: '#374151',
+    800: '#1f2937',
     900: '#111827',
   },
   slate: {
     50: '#f8fafc',
+    100: '#f1f5f9',
+    200: '#e2e8f0',
     300: '#cbd5e1',
     400: '#94a3b8',
+    500: '#64748b',
     600: '#475569',
+    700: '#334155',
+    800: '#1e293b',
     900: '#0f172a',
   },
-  /** Azul-grises propios de Emphasys (no son de Tailwind). */
+  /** Azul-grises propios de Emphasys (no son de Tailwind), por rol. */
   steel: {
-    /** Borde de controles flotantes sobre fondo claro. */
+    /** Borde de controles flotantes y tarjetas SAT sobre fondo claro. */
     line: '#dbe3f0',
+    /** Borde de tarjetas de CRM. */
+    cardBorder: '#dbe3ee',
+    /** Borde de paneles flotantes (resumen de factura). */
+    panelBorder: '#d9dde6',
+    /** Borde de bloques de captura (nota de crédito). */
+    inputBorder: '#d7dde7',
+    /** Borde de campo de importe inactivo. */
+    fieldBorder: '#d5dce6',
+    /** Borde del selector de tratamiento fiscal. */
+    controlBorder: '#c9d2e8',
+    /** Divisores dentro de paneles de captura. */
+    divider: '#e5eaf1',
+    /** Divisor suave de paneles flotantes. */
+    dividerSoft: '#eef0f4',
+    /** Divisor entre filas de partidas. */
+    rowDivider: '#eef0f3',
+    /** Fondo al pasar el cursor en paneles flotantes. */
+    hover: '#f0f2f6',
+    /** Fondo al pasar el cursor en botones de paneles flotantes. */
+    hoverAlt: '#eef1f8',
+    /** Franja alterna de tablas de captura. */
+    stripe: '#f4f6f8',
+    /** Fondo de chips del índice de secciones. */
+    chip: '#f1f3f5',
+    /** Fondo de bloques de totales de partidas. */
+    well: '#f7f8fa',
+    /** Fondo de tarjetas de captura repetibles. */
+    surface: '#fbfcfe',
+    /** Fondo de tarjetas de métricas de CRM. */
+    surfaceRaised: '#fcfdff',
+    /** Placeholder de campos de importe. */
+    placeholder: '#c5cdd8',
+    /** Puntos del asa de arrastre. */
+    dot: '#a6adbd',
+    /** Etiquetas en mayúsculas (eyebrow). */
+    label: '#8b93a7',
+    /** Texto secundario en paneles flotantes. */
+    text: '#5b6479',
+    /** Cifras en paneles flotantes. */
+    strong: '#3d4557',
   },
 } as const;

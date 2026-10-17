@@ -21,6 +21,7 @@ import {
   importarCfdiSatComprobantesLote,
   type CfdiSatImportacionLoteResultado,
 } from '../../services/cfdiSatService';
+import { activeBrand } from '../../theme/brand/active';
 
 export default function ImportarLoteComprasDialog({
   comprobanteIds,
@@ -142,7 +143,7 @@ export default function ImportarLoteComprasDialog({
             variant="contained"
             disabled={procesando}
             onClick={() => void handleConfirmar()}
-            sx={{ textTransform: 'none', fontWeight: 700, backgroundColor: '#1d2f68' }}
+            sx={{ textTransform: 'none', fontWeight: 700, backgroundColor: activeBrand.colors.blue.base }}
           >
             {procesando ? 'Importando...' : `Importar ${cantidad}`}
           </Button>

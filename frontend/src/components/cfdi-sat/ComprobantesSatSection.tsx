@@ -36,6 +36,8 @@ import ImportarComprasDialog from './ImportarComprasDialog';
 import ImportarLoteComprasDialog from './ImportarLoteComprasDialog';
 import VincularDocumentoDialog from './VincularDocumentoDialog';
 import { ESTADO_IMPORTACION_INFO, POSIBLE_DUPLICADO_LABEL } from './estadoImportacion';
+import { neutralColors } from '../../theme/structural';
+import { activeBrand } from '../../theme/brand/active';
 
 function formatFecha(raw?: string | null): string {
   if (!raw) return '—';
@@ -279,13 +281,13 @@ export default function ComprobantesSatSection({
   };
 
   return (
-    <Card variant="outlined" sx={{ borderRadius: 2, borderColor: '#dbe3f0' }}>
+    <Card variant="outlined" sx={{ borderRadius: 2, borderColor: neutralColors.steel.line }}>
       <CardContent sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 2 }}>
         <Stack spacing={0.5}>
-          <Typography variant="h6" fontWeight={700} color="#1d2f68">
+          <Typography variant="h6" fontWeight={700} color={activeBrand.colors.blue.base}>
             Comprobantes descargados
           </Typography>
-          <Typography variant="body2" color="#4b5563">
+          <Typography variant="body2" color={neutralColors.gray[600]}>
             Bandeja de CFDIs ya descargados del SAT. Los comprobantes recibidos tipo Ingreso, no cancelados y con
             XML disponible se pueden importar como factura de compra en borrador.
           </Typography>
@@ -406,7 +408,7 @@ export default function ComprobantesSatSection({
         </Box>
 
         <Stack direction="row" spacing={1.5} alignItems="center" flexWrap="wrap" useFlexGap>
-          <Button variant="contained" onClick={handleBuscar} sx={{ textTransform: 'none', fontWeight: 700, backgroundColor: '#1d2f68' }}>
+          <Button variant="contained" onClick={handleBuscar} sx={{ textTransform: 'none', fontWeight: 700, backgroundColor: activeBrand.colors.blue.base }}>
             Buscar
           </Button>
           <Button variant="outlined" onClick={handleLimpiar} sx={{ textTransform: 'none' }}>
@@ -425,7 +427,7 @@ export default function ComprobantesSatSection({
           )}
         </Stack>
         {!puedeAdministrar && (
-          <Typography variant="caption" color="#6b7280">
+          <Typography variant="caption" color={neutralColors.gray[500]}>
             Solo un administrador de la empresa puede importar o vincular comprobantes a Compras.
           </Typography>
         )}
@@ -450,7 +452,7 @@ export default function ComprobantesSatSection({
                   <Tab key={tab.value} value={tab.value} label={`${tab.label} (${conteosPorTab[tab.value]})`} />
                 ))}
               </Tabs>
-              <Typography variant="caption" color="#6b7280">
+              <Typography variant="caption" color={neutralColors.gray[500]}>
                 El estado operativo y estos conteos se calculan solo sobre la página actual ({comprobantes.length}{' '}
                 comprobante{comprobantes.length === 1 ? '' : 's'}).
               </Typography>

@@ -1,11 +1,18 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import test from 'node:test';
+import { revertNeutralFor, type NeutralFixture } from './__fixtures__/neutralRevert.ts';
 import { emphasysBrand } from './brand/emphasys.ts';
 import { accountingColors, alertColors, thirdPartyColors } from './functional.ts';
 
 const readText = (path: string) => readFileSync(new URL(path, import.meta.url), 'utf8');
+
+/** Bloques de neutrales posteriores que también tocan estos archivos: se revierten primero. */
+const neutralFixtures: NeutralFixture[] = readdirSync(new URL('./__fixtures__/', import.meta.url))
+  .filter((name) => /^neutralColors.*\.baseline\.json$/.test(name))
+  .map((name) => JSON.parse(readText(`./__fixtures__/${name}`)));
+const withoutNeutral = (file: string) => revertNeutralFor(file, readText(`../${file}`), neutralFixtures);
 const sha256 = (text: string) => createHash('sha256').update(text).digest('hex');
 
 type Entry = { hex: string; token: string };
@@ -44,7 +51,7 @@ test('cada token resuelve exactamente al literal que reemplazó', () => {
 
 test('equivalencia contra HEAD: revertir los tokens reproduce cada archivo byte a byte', () => {
   for (const [file, { headSha256, addedImport }] of Object.entries(baseline.files)) {
-    assert.equal(sha256(revert(readText(`../${file}`), addedImport, current)), headSha256, file);
+    assert.equal(sha256(revert(withoutNeutral(file), addedImport, current)), headSha256, file);
   }
 });
 
@@ -63,7 +70,7 @@ test('mutación: alterar cualquier tono usado rompe la equivalencia de los archi
           })();
     for (const [file, { headSha256, addedImport, lines }] of Object.entries(baseline.files)) {
       if (!Object.values(lines).flat().some((e) => e.token === token)) continue;
-      assert.notEqual(sha256(revert(readText(`../${file}`), addedImport, mutated)), headSha256, `${file} no detectó ${token}`);
+      assert.notEqual(sha256(revert(withoutNeutral(file), addedImport, mutated)), headSha256, `${file} no detectó ${token}`);
     }
   }
 });
