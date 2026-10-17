@@ -38,7 +38,7 @@ import { useNavigate } from 'react-router-dom';
 import { apiFetch } from '../../services/apiFetch';
 import { loadSession } from '../../session/sessionStorage';
 import RichTextEditor from '../RichTextEditor';
-import { alertColors } from '../../theme/functional';
+import { activityTypeChipColors, alertColors } from '../../theme/functional';
 import { neutralColors } from '../../theme/structural';
 import { activeBrand } from '../../theme/brand/active';
 
@@ -683,7 +683,7 @@ export default function ActividadSeguimientoDrawer({ open, onClose, target, init
                         <Stack spacing={1.5}>
                           <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between" useFlexGap flexWrap="wrap">
                             <Stack direction="row" spacing={1} alignItems="center" useFlexGap flexWrap="wrap">
-                              <Chip size="small" label={formatTipoActividadLabel(actividad.tipo_actividad)} sx={{ fontWeight: 700, bgcolor: '#eef2ff', color: '#3730a3' }} />
+                              <Chip size="small" label={formatTipoActividadLabel(actividad.tipo_actividad)} sx={{ fontWeight: 700, bgcolor: activityTypeChipColors.pendingBackground, color: activityTypeChipColors.pendingText }} />
                               <Chip
                                 size="small"
                                 label={duePresentation.label}

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import test from 'node:test';
-import { MINOR_FIXTURE, NEUTRAL_ORDER, revertLater, type LaterFixtures } from './__fixtures__/colorMigrations.ts';
+import { LATER_FIXTURES, revertLater, type LaterFixtures } from './__fixtures__/colorMigrations.ts';
 import { emphasysBrand } from './brand/emphasys.ts';
 import { accountingColors, alertColors, thirdPartyColors } from './functional.ts';
 
@@ -10,7 +10,7 @@ const readText = (path: string) => readFileSync(new URL(path, import.meta.url), 
 
 /** Bloques posteriores que también tocan estos archivos: se revierten primero, del más nuevo al más viejo. */
 const laterFixtures: LaterFixtures = Object.fromEntries(
-  [...NEUTRAL_ORDER, MINOR_FIXTURE]
+  LATER_FIXTURES
     .filter((name) => existsSync(new URL(`./__fixtures__/${name}`, import.meta.url)))
     .map((name) => [name, JSON.parse(readText(`./__fixtures__/${name}`))]),
 );

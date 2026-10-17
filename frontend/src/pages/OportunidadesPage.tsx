@@ -59,7 +59,7 @@ import { useGridPreferences } from '../hooks/useGridPreferences';
 import { useSeguimientoActividades } from '../hooks/useSeguimientoActividades';
 import ActividadSeguimientoDrawer from '../components/crm/ActividadSeguimientoDrawer';
 import { SeguimientoActividadCell } from '../components/crm/SeguimientoActividadCell';
-import { alertColors } from '../theme/functional';
+import { alertColors, opportunityBucketColors } from '../theme/functional';
 import { neutralColors } from '../theme/structural';
 import { activeBrand } from '../theme/brand/active';
 
@@ -360,10 +360,10 @@ function getStatusChipColor(estatus: string): 'primary' | 'warning' | 'success' 
 
 function getStatusIndicatorColor(estatus: string): string {
   const bucket = getQuickBucket(estatus);
-  if (bucket === 'convertidas') return '#2e7d32';
-  if (bucket === 'perdidas') return '#d32f2f';
-  if (bucket === 'pausadas') return '#ed6c02';
-  if (bucket === 'abiertas') return '#1976d2';
+  if (bucket === 'convertidas') return opportunityBucketColors.convertidas;
+  if (bucket === 'perdidas') return opportunityBucketColors.perdidas;
+  if (bucket === 'pausadas') return opportunityBucketColors.pausadas;
+  if (bucket === 'abiertas') return opportunityBucketColors.abiertas;
   return neutralColors.slate[400];
 }
 

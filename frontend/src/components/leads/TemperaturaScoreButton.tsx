@@ -3,15 +3,16 @@ import { Box, IconButton, Tooltip } from '@mui/material';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import type { LeadConPrioridad, TemperaturaResumen } from '../../pages/LeadsPage';
 import TemperaturaProspectoModal from './TemperaturaProspectoModal';
+import { temperatureColors } from '../../theme/functional';
 
 export const temperaturaLabel = (nivel: TemperaturaResumen['nivel']) =>
   nivel === 'muy_caliente' ? 'Muy caliente' : nivel.charAt(0).toUpperCase() + nivel.slice(1);
 
 export const temperaturaColor = (nivel: TemperaturaResumen['nivel']) => ({
-  frio: '#607d8b',
-  tibio: '#1976d2',
-  caliente: '#ed6c02',
-  muy_caliente: '#d32f2f',
+  frio: temperatureColors.frio,
+  tibio: temperatureColors.tibio,
+  caliente: temperatureColors.caliente,
+  muy_caliente: temperatureColors.muy_caliente,
 }[nivel]);
 
 const motivoLabel: Record<NonNullable<TemperaturaResumen['motivos_desactualizacion']>[number], string> = {

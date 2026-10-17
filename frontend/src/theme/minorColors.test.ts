@@ -1,12 +1,17 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import test from 'node:test';
 import { emphasysBrand } from './brand/emphasys.ts';
 import { categoricalPalettes } from './functional.ts';
 import {
   convertLine,
   currentMinorPalettes,
+  LATER_FIXTURES,
+  MINOR_FIXTURE,
+  REST_FIXTURE,
+  revertLater,
+  type LaterFixtures,
   minorTokenMap,
   revertMinor,
   type MinorFixture,
@@ -19,6 +24,13 @@ const sha256 = (text: string) => createHash('sha256').update(text).digest('hex')
 /** HEAD 3e06d2f: texto original y migrado de cada línea, fragmentos e imports agregados. */
 const baseline: MinorFixture = JSON.parse(readText('./__fixtures__/minorColors.baseline.json'));
 const files = () => Object.entries(baseline.files);
+/** Bloques posteriores (restos) que tocan los mismos archivos: se revierten primero. */
+const laterFixtures: LaterFixtures = Object.fromEntries(
+  LATER_FIXTURES
+    .filter((name) => existsSync(new URL(`./__fixtures__/${name}`, import.meta.url)))
+    .map((name) => [name, JSON.parse(readText(`./__fixtures__/${name}`))]),
+);
+const asOfBlock = (file: string) => revertLater(MINOR_FIXTURE, file, readText(`../${file}`), laterFixtures);
 const colorLines = () =>
   files().flatMap(([file, { lines }]) =>
     Object.entries(lines)
@@ -28,7 +40,7 @@ const colorLines = () =>
 
 test('equivalencia contra HEAD: restaurar líneas, fragmentos e imports reproduce cada archivo', () => {
   for (const [file, entry] of files()) {
-    assert.equal(sha256(revertMinor(readText(`../${file}`), entry)), entry.headSha256, file);
+    assert.equal(sha256(revertMinor(asOfBlock(file), entry)), entry.headSha256, file);
   }
 });
 
@@ -85,13 +97,15 @@ test('la actividad futura usa el mismo acento en ActivityCard y ActividadesPage'
   }
 });
 
-test('los colores de BD, el chip índigo y las escalas de MUI quedan fuera', () => {
+test('los colores de BD quedan fuera; el chip índigo y las escalas MUI son del bloque de restos', () => {
   const migrated = new Set(Object.keys(baseline.files));
   for (const file of ['modules/configuracion/ConceptosPage.tsx', 'pages/ConfiguracionEtapasProduccionPage.tsx', 'components/leads/TemperaturaScoreButton.tsx']) {
     assert.ok(!migrated.has(file), `${file} no se migra`);
   }
   assert.equal(readText('../modules/configuracion/ConceptosPage.tsx').match(/'#3e3428'/g)?.length, 2, 'color de concepto (BD)');
   assert.equal(readText('../pages/ConfiguracionEtapasProduccionPage.tsx').match(/#1D4ED8/g)?.length, 5, 'color de etapa (BD)');
-  assert.ok(readText('../components/crm/ActividadSeguimientoDrawer.tsx').includes("bgcolor: '#eef2ff', color: '#3730a3'"), 'chip índigo');
-  assert.ok(readText('../pages/OportunidadesPage.tsx').includes("if (bucket === 'abiertas') return '#1976d2';"), 'buckets MUI');
+  const rest: { files: Record<string, unknown> } = JSON.parse(readText(`./__fixtures__/${REST_FIXTURE}`));
+  for (const file of ['components/crm/ActividadSeguimientoDrawer.tsx', 'pages/OportunidadesPage.tsx', 'components/leads/TemperaturaScoreButton.tsx']) {
+    assert.ok(file in rest.files, `${file} debe estar en el bloque de restos`);
+  }
 });

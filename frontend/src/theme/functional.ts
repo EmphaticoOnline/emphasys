@@ -235,3 +235,41 @@ export const activityAccents = {
   upcoming: '#6a5a86',
   visit: '#8a5a32',
 } as const;
+
+/** Indicador de entorno en el cromado: producción, advertencia (pruebas) y por defecto. */
+export const environmentColors = {
+  productionBackground: '#b3261e',
+  productionBorder: '#ffb4ab',
+  warningBackground: '#ffc857',
+  warningText: '#4a2b00',
+  warningBorder: '#ffe08a',
+  defaultText: '#e8edf7',
+} as const;
+
+/**
+ * Chip de tipo de actividad en la lista de pendientes (índigo). El fondo coincide
+ * con el tinte de marca, pero aquí es índigo-50 y no sigue a la marca.
+ */
+export const activityTypeChipColors = {
+  pendingBackground: '#eef2ff',
+  pendingText: '#3730a3',
+} as const;
+
+/**
+ * Punto de estado por bucket de oportunidades. Convertida, perdida y pausada
+ * significan éxito, error y advertencia: usan los mismos valores de MUI.
+ */
+export const opportunityBucketColors = {
+  convertidas: feedbackTokens.success.main,
+  perdidas: feedbackTokens.error.main,
+  pausadas: feedbackTokens.warning.main,
+  abiertas: '#1976d2',
+} as const;
+
+/** Escala de temperatura de leads (frío → muy caliente). No son estados de error. */
+export const temperatureColors = {
+  frio: '#607d8b',
+  tibio: '#1976d2',
+  caliente: '#ed6c02',
+  muy_caliente: '#d32f2f',
+} as const;

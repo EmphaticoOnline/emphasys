@@ -13,7 +13,7 @@ import {
   type NeutralFixture,
   type NeutralSources,
 } from './__fixtures__/neutralRevert.ts';
-import { MINOR_FIXTURE, NEUTRAL_ORDER, revertLater, type LaterFixtures } from './__fixtures__/colorMigrations.ts';
+import { LATER_FIXTURES, NEUTRAL_ORDER, revertLater, type LaterFixtures } from './__fixtures__/colorMigrations.ts';
 
 const readText = (path: string) => readFileSync(new URL(path, import.meta.url), 'utf8');
 const sha256 = (text: string) => createHash('sha256').update(text).digest('hex');
@@ -26,7 +26,7 @@ const fixtures: Record<string, NeutralFixture> = Object.fromEntries(
   fixtureNames.map((name) => [name, JSON.parse(readText(`./__fixtures__/${name}`))]),
 );
 const laterFixtures: LaterFixtures = Object.fromEntries(
-  [...NEUTRAL_ORDER, MINOR_FIXTURE]
+  LATER_FIXTURES
     .filter((name) => existsSync(new URL(`./__fixtures__/${name}`, import.meta.url)))
     .map((name) => [name, JSON.parse(readText(`./__fixtures__/${name}`))]),
 );

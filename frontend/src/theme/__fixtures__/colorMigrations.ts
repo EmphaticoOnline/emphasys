@@ -1,9 +1,13 @@
 import { activeBrand } from '../brand/active.ts';
 import {
   activityAccents,
+  activityTypeChipColors,
   alertColors,
   categoricalPalettes,
   destructiveHoverColors,
+  environmentColors,
+  opportunityBucketColors,
+  temperatureColors,
   thirdPartyColors,
 } from '../functional.ts';
 import { selectionColors } from '../structural.ts';
@@ -24,7 +28,10 @@ export const NEUTRAL_ORDER = [
   'neutralColors.catalogos.baseline.json',
 ] as const;
 export const MINOR_FIXTURE = 'minorColors.baseline.json';
-const LATER_CHAIN = [...NEUTRAL_ORDER, MINOR_FIXTURE] as const;
+export const REST_FIXTURE = 'restColors.baseline.json';
+const LATER_CHAIN = [...NEUTRAL_ORDER, MINOR_FIXTURE, REST_FIXTURE] as const;
+/** Todos los fixtures de la cadena, en orden: las pruebas cargan esta lista, no una copia. */
+export const LATER_FIXTURES: readonly string[] = LATER_CHAIN;
 
 // ── Bloque de pendientes menores (revertido por línea) ─────────────────────────
 
@@ -114,9 +121,45 @@ export function revertMinor(source: string, file: MinorFileFixture): string {
   return lines.join('\n');
 }
 
+// ── Bloque de restos (revertido por línea, mapa por grupo) ─────────────────────
+
+/** Cada archivo del bloque pertenece a un grupo: el mismo hex significa cosas distintas entre grupos. */
+export type RestGroup = 'environment' | 'activityChip' | 'buckets' | 'temperature';
+export type RestPalettes = Record<
+  'environmentColors' | 'activityTypeChipColors' | 'opportunityBucketColors' | 'temperatureColors',
+  Record<string, string>
+>;
+export type RestFileFixture = MinorFileFixture & { group: RestGroup };
+export type RestFixture = { source: string; files: Record<string, RestFileFixture> };
+
+const GROUP_ROOT: Record<RestGroup, keyof RestPalettes> = {
+  environment: 'environmentColors',
+  activityChip: 'activityTypeChipColors',
+  buckets: 'opportunityBucketColors',
+  temperature: 'temperatureColors',
+};
+
+export const currentRestPalettes = (): RestPalettes => ({
+  environmentColors: { ...environmentColors },
+  activityTypeChipColors: { ...activityTypeChipColors },
+  opportunityBucketColors: { ...opportunityBucketColors },
+  temperatureColors: { ...temperatureColors },
+});
+
+export function restTokenMap(group: RestGroup, p: RestPalettes): Record<string, string> {
+  const root = GROUP_ROOT[group];
+  const map: Record<string, string> = {};
+  for (const [key, hex] of Object.entries(p[root])) {
+    const lower = hex.toLowerCase();
+    if (map[lower]) throw new Error(`${hex} repetido en ${root}`);
+    map[lower] = `${root}.${key}`;
+  }
+  return map;
+}
+
 // ── Cadena de bloques posteriores ─────────────────────────────────────────────
 
-export type LaterFixtures = Partial<Record<(typeof LATER_CHAIN)[number], NeutralFixture | MinorFixture>>;
+export type LaterFixtures = Partial<Record<(typeof LATER_CHAIN)[number], NeutralFixture | MinorFixture | RestFixture>>;
 
 /**
  * Revierte, del más nuevo al más viejo, los bloques posteriores a `after` que
@@ -130,7 +173,10 @@ export function revertLater(after: string | null, file: string, source: string, 
     const fixture = fixtures[name];
     const entry = fixture?.files[file];
     if (!entry) continue;
-    out = name === MINOR_FIXTURE ? revertMinor(out, entry as MinorFileFixture) : revertNeutral(out, (entry as NeutralFixture['files'][string]).addedImports);
+    // Los neutrales revierten por familia de token; los bloques posteriores, por línea.
+    out = (NEUTRAL_ORDER as readonly string[]).includes(name)
+      ? revertNeutral(out, (entry as NeutralFixture['files'][string]).addedImports)
+      : revertMinor(out, entry as MinorFileFixture);
   }
   return out;
 }
