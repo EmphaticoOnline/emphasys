@@ -39,6 +39,7 @@ import { DesaplicarPagoDialog } from './DesaplicarPagoDialog';
 import { loadSession } from '../../session/sessionStorage';
 import { esRolAdmin } from '../../session/rolScope';
 import { AplicarDistribucionPagoDialog } from './AplicarDistribucionPagoDialog';
+import { neutralColors } from '../../theme/structural';
 
 const compatibilidadNaturaleza: Record<string, string[]> = {
   cobro_cliente: ['factura', 'nota_credito'],
@@ -548,7 +549,7 @@ export function OperacionDetalleDrawer({ operacionId, open, onClose }: Operacion
                                 display: 'flex',
                                 alignItems: 'center',
                                 backgroundColor: '#fff',
-                                border: '1px solid #cbd5e1',
+                                border: `1px solid ${neutralColors.slate[300]}`,
                                 borderRadius: 1,
                               },
                               '& .MuiInputBase-input': {

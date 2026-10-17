@@ -27,6 +27,8 @@ import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/DeleteOutline';
 import { crearConcepto, eliminarConcepto, fetchConceptos, actualizarConcepto } from '../../services';
 import type { Concepto } from '../../types/finanzas';
+import { neutralColors } from '../../theme/structural';
+import { activeBrand } from '../../theme/brand/active';
 
 interface ConceptoDialogState {
   open: boolean;
@@ -114,7 +116,7 @@ export function ConceptosPage() {
     <Box sx={{ px: 3, py: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
       <Stack direction="row" alignItems="center" justifyContent="space-between">
         <Box>
-          <Typography variant="h5" fontWeight={700} color="#1d2f68">
+          <Typography variant="h5" fontWeight={700} color={activeBrand.colors.blue.base}>
             Conceptos financieros
           </Typography>
           <Typography variant="body2" color="text.secondary">
@@ -125,7 +127,7 @@ export function ConceptosPage() {
           variant="contained"
           startIcon={<AddIcon />}
           onClick={() => openDialog(null)}
-          sx={{ textTransform: 'none', borderRadius: 999, bgcolor: '#1d2f68', '&:hover': { bgcolor: '#162551' } }}
+          sx={{ textTransform: 'none', borderRadius: 999, bgcolor: activeBrand.colors.blue.base, '&:hover': { bgcolor: activeBrand.colors.blue.hover } }}
         >
           Nuevo concepto
         </Button>
@@ -137,7 +139,7 @@ export function ConceptosPage() {
         </Alert>
       )}
 
-      <Paper elevation={0} sx={{ border: '1px solid #e5e7eb', borderRadius: 3 }}>
+      <Paper elevation={0} sx={{ border: `1px solid ${neutralColors.gray[200]}`, borderRadius: 3 }}>
         <Table>
           <TableHead>
             <TableRow>
@@ -229,7 +231,7 @@ export function ConceptosPage() {
             onClick={handleSave}
             disabled={saving}
             variant="contained"
-            sx={{ textTransform: 'none', borderRadius: 999, bgcolor: '#1d2f68', '&:hover': { bgcolor: '#162551' } }}
+            sx={{ textTransform: 'none', borderRadius: 999, bgcolor: activeBrand.colors.blue.base, '&:hover': { bgcolor: activeBrand.colors.blue.hover } }}
           >
             {saving ? 'Guardando...' : 'Guardar'}
           </Button>
