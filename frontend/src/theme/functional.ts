@@ -121,6 +121,28 @@ export const alertColors = {
   },
 } as const;
 
+/**
+ * Colores contables: expresan signo o resultado, no error ni éxito. Aunque
+ * algunos valores coinciden con `alertColors`, su significado es otro y se
+ * mantienen separados.
+ */
+export const accountingColors = {
+  /** Estado de cuenta: cargo / saldo deudor. */
+  debit: '#dc2626',
+  /** Estado de cuenta: abono / saldo a favor. */
+  credit: '#16a34a',
+  /** Estado de cuenta: importe o saldo en cero. */
+  zero: '#111827',
+  /** Estado de cuenta: movimiento cancelado. */
+  cancelled: '#9ca3af',
+  /** Importe negativo en vistas SAT (auxiliares, balanza). */
+  negativeAmount: '#b91c1c',
+  /** Panel de resultado: utilidad del periodo o balance cuadrado. */
+  favorable: { surface: '#ecfdf5', border: '#166534', text: '#166534' },
+  /** Panel de resultado: pérdida del periodo o balance con diferencia. */
+  unfavorable: { surface: '#fef2f2', border: '#b91c1c', text: '#b91c1c' },
+} as const;
+
 /** Dirección de movimientos de inventario (Kardex, Movimientos de inventario). */
 export const inventoryFlowColors = {
   inbound: '#16a34a',

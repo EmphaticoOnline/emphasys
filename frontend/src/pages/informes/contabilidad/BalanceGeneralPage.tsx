@@ -29,6 +29,7 @@ import {
 } from '../../../services/reportesContablesService';
 import type { BalanceGeneralResultado } from '../../../types/reportesContables';
 import { NOMBRES_MESES } from '../../../types/saldosCuentas';
+import { accountingColors } from '../../../theme/functional';
 
 function formatMoneda(valor: number): string {
   return valor.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -217,11 +218,11 @@ export default function BalanceGeneralPage() {
           sx={{
             p: 1.5,
             borderRadius: 2,
-            bgcolor: resultado.cuadrado ? '#ecfdf5' : '#fef2f2',
-            borderColor: resultado.cuadrado ? '#166534' : '#b91c1c',
+            bgcolor: resultado.cuadrado ? accountingColors.favorable.surface : accountingColors.unfavorable.surface,
+            borderColor: resultado.cuadrado ? accountingColors.favorable.border : accountingColors.unfavorable.border,
           }}
         >
-          <Typography sx={{ fontWeight: 700, color: resultado.cuadrado ? '#166534' : '#b91c1c' }}>
+          <Typography sx={{ fontWeight: 700, color: resultado.cuadrado ? accountingColors.favorable.text : accountingColors.unfavorable.text }}>
             {resultado.cuadrado ? 'Balance cuadrado' : `Diferencia: ${formatMoneda(resultado.diferencia)}`}
           </Typography>
         </Paper>

@@ -42,7 +42,7 @@ import type {
   EstadoFolioXml,
   TipoSolicitudPolizas,
 } from '../../types/auxiliaresSat';
-import { alertColors } from '../../theme/functional';
+import { accountingColors, alertColors } from '../../theme/functional';
 
 
 interface FilaProblema {
@@ -283,7 +283,7 @@ export default function AuxiliaresSatView({
         align: 'right',
         headerAlign: 'center',
         headerClassName: 'finanzas-header',
-        renderCell: ({ value }) => <span style={{ color: value < 0 ? '#b91c1c' : 'inherit' }}>{formatearImporte(value)}</span>,
+        renderCell: ({ value }) => <span style={{ color: value < 0 ? accountingColors.negativeAmount : 'inherit' }}>{formatearImporte(value)}</span>,
       },
       {
         field: 'saldo_fin',
@@ -292,7 +292,7 @@ export default function AuxiliaresSatView({
         align: 'right',
         headerAlign: 'center',
         headerClassName: 'finanzas-header',
-        renderCell: ({ value }) => <span style={{ color: value < 0 ? '#b91c1c' : 'inherit' }}>{formatearImporte(value)}</span>,
+        renderCell: ({ value }) => <span style={{ color: value < 0 ? accountingColors.negativeAmount : 'inherit' }}>{formatearImporte(value)}</span>,
       },
       {
         field: 'naturaleza_descripcion',

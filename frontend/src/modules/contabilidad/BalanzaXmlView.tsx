@@ -30,7 +30,7 @@ import { fetchEjerciciosDisponibles } from '../../services/saldosCuentasService'
 import { fetchBalanzaXmlPreview, descargarBalanzaXml } from '../../services/eContabilidadService';
 import type { BalanzaComprobacionXmlResultado, CuentaBalanzaXml, TipoEnvioBalanza } from '../../types/balanzaXml';
 import { botonPrimarioSx, chipEstadoSx, encabezadoTablaSx, iconoAccionSx, iconoPeligroSx, panelEstadoSx, textoEstadoSx, tonoDeClave } from './contabilidadVisual';
-import { alertColors } from '../../theme/functional';
+import { accountingColors, alertColors } from '../../theme/functional';
 
 
 interface FilaProblema {
@@ -72,7 +72,7 @@ function formatearImporte(valor: number): string {
 }
 
 function CeldaImporte({ value }: { value: number }) {
-  return <span style={{ color: value < 0 ? '#b91c1c' : 'inherit' }}>{formatearImporte(value)}</span>;
+  return <span style={{ color: value < 0 ? accountingColors.negativeAmount : 'inherit' }}>{formatearImporte(value)}</span>;
 }
 
 export default function BalanzaXmlView({

@@ -45,12 +45,22 @@ test('cada archivo migrado resuelve exactamente los mismos colores que tenía en
   }
 });
 
+/** Literales que este bloque dejó y que después migró el bloque contable. */
+const accountingBaseline: { files: Record<string, { lines: Record<string, { hex: string }[]> }> } = JSON.parse(
+  readText('./__fixtures__/accountingColors.baseline.json'),
+);
+
 test('en los archivos migrados solo quedan los literales excluidos a propósito', () => {
   for (const [file, expected] of Object.entries(baseline.files)) {
     const source = readText(`../${file}`);
-    assert.deepStrictEqual(countLiterals(source), expected.keptLiteral, file);
+    const remaining = { ...expected.keptLiteral };
+    for (const { hex } of Object.values(accountingBaseline.files[file]?.lines ?? {}).flat()) {
+      if (remaining[hex]) remaining[hex] -= 1;
+      if (remaining[hex] === 0) delete remaining[hex];
+    }
+    assert.deepStrictEqual(countLiterals(source), remaining, file);
   }
-  // Importes negativos (signo contable, no error): fuera del bloque.
+  // Importes negativos (signo contable, no error): los dejó este bloque y los migró el contable.
   assert.deepStrictEqual(baseline.files['modules/contabilidad/AuxiliaresSatView.tsx']?.keptLiteral, { '#b91c1c': 2 });
   assert.deepStrictEqual(baseline.files['modules/contabilidad/BalanzaXmlView.tsx']?.keptLiteral, { '#b91c1c': 1 });
 });
