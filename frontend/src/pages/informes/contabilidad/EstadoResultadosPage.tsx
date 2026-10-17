@@ -45,7 +45,7 @@ function SeccionResultados({ titulo, cuentas, totalLabel, total }: {
   return (
     <>
       <TableRow>
-        <TableCell colSpan={2} sx={{ bgcolor: '#1d2f68', color: '#fff', fontWeight: 700 }}>{titulo}</TableCell>
+        <TableCell colSpan={2} sx={{ bgcolor: 'primary.main', color: 'common.white', fontWeight: 700 }}>{titulo}</TableCell>
       </TableRow>
       {cuentas.map((c) => (
         <TableRow key={c.id} hover>
