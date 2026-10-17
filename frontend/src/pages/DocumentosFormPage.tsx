@@ -4258,8 +4258,8 @@ export default function DocumentosFormPage({
     const railContenido = (
       <>
         <Paper variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden' }}>
-          <Box sx={{ px: 1.75, py: 1, borderBottom: '1px solid #eef0f4' }}>
-            <Typography sx={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#8b93a7' }}>
+          <Box sx={{ px: 1.75, py: 1, borderBottom: `1px solid ${neutralColors.steel.dividerSoft}` }}>
+            <Typography sx={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: neutralColors.steel.label }}>
               Totales
             </Typography>
           </Box>
@@ -4277,8 +4277,8 @@ export default function DocumentosFormPage({
                   ]),
             ].map((item) => (
               <Box key={item.label} sx={{ display: 'flex', justifyContent: 'space-between', gap: 1.5 }}>
-                <Typography sx={{ fontSize: 12.5, color: '#5b6479' }}>{item.label}</Typography>
-                <Typography sx={{ fontSize: 13, color: '#3d4557', fontFamily: 'monospace', fontVariantNumeric: 'tabular-nums' }}>
+                <Typography sx={{ fontSize: 12.5, color: neutralColors.steel.text }}>{item.label}</Typography>
+                <Typography sx={{ fontSize: 13, color: neutralColors.steel.strong, fontFamily: 'monospace', fontVariantNumeric: 'tabular-nums' }}>
                   {formatter.format(item.value)}
                 </Typography>
               </Box>
@@ -4295,8 +4295,8 @@ export default function DocumentosFormPage({
         </Paper>
 
         <Paper variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden' }}>
-          <Box sx={{ px: 1.75, py: 1, borderBottom: '1px solid #eef0f4', display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Typography sx={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#8b93a7' }}>
+          <Box sx={{ px: 1.75, py: 1, borderBottom: `1px solid ${neutralColors.steel.dividerSoft}`, display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Typography sx={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: neutralColors.steel.label }}>
               Datos fiscales
             </Typography>
             <Box sx={{ flex: 1 }} />
@@ -4372,7 +4372,7 @@ export default function DocumentosFormPage({
               <Button
                 size="small"
                 onClick={() => setRailFacturaAbierto((prev) => !prev)}
-                sx={{ fontSize: 12, color: '#5b6479', textTransform: 'none', flexShrink: 0 }}
+                sx={{ fontSize: 12, color: neutralColors.steel.text, textTransform: 'none', flexShrink: 0 }}
               >
                 {railFacturaAbierto ? 'Colapsar panel ⇥' : 'Expandir panel ⇤'}
               </Button>
@@ -4569,9 +4569,9 @@ export default function DocumentosFormPage({
                         height: 26,
                         borderRadius: 1,
                         border: '1px solid',
-                        borderColor: (theme) => (encabezadoDetalleAbierto ? theme.emphasys.action.disabled : '#d9dde6'),
-                        bgcolor: encabezadoDetalleAbierto ? '#eef1f8' : 'transparent',
-                        color: encabezadoDetalleAbierto ? 'primary.main' : '#5b6479',
+                        borderColor: (theme) => (encabezadoDetalleAbierto ? theme.emphasys.action.disabled : neutralColors.steel.panelBorder),
+                        bgcolor: encabezadoDetalleAbierto ? neutralColors.steel.hoverAlt : 'transparent',
+                        color: encabezadoDetalleAbierto ? 'primary.main' : neutralColors.steel.text,
                       }}
                     >
                       {encabezadoDetalleAbierto ? <ExpandLessIcon sx={{ fontSize: 18 }} /> : <ExpandMoreIcon sx={{ fontSize: 18 }} />}
@@ -4629,8 +4629,8 @@ export default function DocumentosFormPage({
                     <Box
                       sx={{
                         fontSize: 11,
-                        color: '#5b6479',
-                        bgcolor: '#f0f2f6',
+                        color: neutralColors.steel.text,
+                        bgcolor: neutralColors.steel.hover,
                         px: 1,
                         borderRadius: 999,
                         fontFamily: 'monospace',
@@ -4681,13 +4681,13 @@ export default function DocumentosFormPage({
                       fontWeight: 700,
                       letterSpacing: '0.06em',
                       textTransform: 'uppercase' as const,
-                      color: '#8b93a7',
+                      color: neutralColors.steel.label,
                     };
                     // Celdas editables sin apariencia de TextField: sin borde/label, solo un
                     // subrayado que aparece en hover y se remarca en foco (accesible vía aria-label).
                     const cellUnderlineSx = {
                       '& .MuiInput-underline:before': { borderBottomColor: 'transparent' },
-                      '& .MuiInput-underline:hover:not(.Mui-disabled):before': { borderBottomColor: '#d9dde6' },
+                      '& .MuiInput-underline:hover:not(.Mui-disabled):before': { borderBottomColor: neutralColors.steel.panelBorder },
                       '& .MuiInput-underline:after': { borderBottomColor: 'primary.main' },
                       width: '100%',
                     };
@@ -4698,7 +4698,7 @@ export default function DocumentosFormPage({
                       breakdown: ReturnType<typeof getPartidaDiscountBreakdown>,
                       impuestosPartida: ReturnType<typeof getPartidaTaxSummary>
                     ) => (
-                      <Box sx={{ bgcolor: '#fafbfd', borderTop: '1px solid #eef0f4', p: 1.5, display: 'flex', flexDirection: 'column', gap: 1.25 }}>
+                      <Box sx={{ bgcolor: '#fafbfd', borderTop: `1px solid ${neutralColors.steel.dividerSoft}`, p: 1.5, display: 'flex', flexDirection: 'column', gap: 1.25 }}>
                         <TextField
                           label="Descripción"
                           value={partida.descripcion_alterna ?? ''}
@@ -4719,7 +4719,7 @@ export default function DocumentosFormPage({
                           // derecha). Solo apilan (1 columna) cuando de verdad no cabe
                           // una a lado de la otra.
                           const detalleBoxSx = {
-                            border: '1px solid #eef0f4',
+                            border: `1px solid ${neutralColors.steel.dividerSoft}`,
                             borderRadius: 1,
                             bgcolor: '#fff',
                             p: { xs: 0.75, sm: 1 },
@@ -4738,7 +4738,7 @@ export default function DocumentosFormPage({
                               }}
                             >
                               <Box sx={detalleBoxSx}>
-                                <Typography sx={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: '#8b93a7' }}>
+                                <Typography sx={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: neutralColors.steel.label }}>
                                   Desglose del subtotal
                                 </Typography>
                                 {[
@@ -4747,7 +4747,7 @@ export default function DocumentosFormPage({
                                   { label: 'Subtotal final', value: breakdown.subtotalFinal, strong: true },
                                 ].map((row) => (
                                   <Box key={row.label} sx={detalleRowSx}>
-                                    <Typography sx={{ fontSize: 12, color: row.strong ? '#0f1626' : '#5b6479', fontWeight: row.strong ? 700 : 400 }}>
+                                    <Typography sx={{ fontSize: 12, color: row.strong ? '#0f1626' : neutralColors.steel.text, fontWeight: row.strong ? 700 : 400 }}>
                                       {row.label}
                                     </Typography>
                                     <Typography sx={{ fontSize: 12, fontFamily: 'monospace', fontWeight: row.strong ? 700 : 400 }}>
@@ -4758,11 +4758,11 @@ export default function DocumentosFormPage({
                               </Box>
 
                               <Box sx={detalleBoxSx}>
-                                <Typography sx={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: '#8b93a7' }}>
+                                <Typography sx={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: neutralColors.steel.label }}>
                                   Impuestos de la partida
                                 </Typography>
                                 <Box sx={detalleRowSx}>
-                                  <Typography sx={{ fontSize: 12, color: '#5b6479' }}>IVA trasladado</Typography>
+                                  <Typography sx={{ fontSize: 12, color: neutralColors.steel.text }}>IVA trasladado</Typography>
                                   <Typography sx={{ fontSize: 12, fontFamily: 'monospace' }}>{formatter.format(impuestosPartida.traslados)}</Typography>
                                 </Box>
                                 {impuestosPartida.retenciones > 0 && (
@@ -4819,7 +4819,7 @@ export default function DocumentosFormPage({
                         */}
                         {(especificacionesHabilitadas || (partida.especificaciones ?? []).length > 0) && (
                           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                            <Typography sx={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: '#8b93a7' }}>
+                            <Typography sx={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: neutralColors.steel.label }}>
                               Especificaciones de partida
                             </Typography>
                             <PartidaEspecificacionesEditor
@@ -4841,7 +4841,7 @@ export default function DocumentosFormPage({
                           especificacionesHabilitadas.
                         */}
                         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                          <Typography sx={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: '#8b93a7' }}>
+                          <Typography sx={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: neutralColors.steel.label }}>
                             Observaciones de partida
                           </Typography>
                           <PartidaObservacionesEditor

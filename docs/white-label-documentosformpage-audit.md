@@ -231,7 +231,8 @@ antes y después del subbloque. Requiere backend local; no reemplaza las pruebas
 | # | Estado | Fixture | Detalle |
 |---|---|---|---|
 | 1 | **Aplicado** | `frontend/src/theme/__fixtures__/documentosForm.s1.baseline.json` | 12 literales en 12 líneas (3912, 3932, 4030, 4086, 4090, 4155, 4184, 4205, 8826, 8889, 8893, 8965) → `neutralColors.gray[200/400/500/700]`, `steel.panelBorder`, `steel.strong`. En esas mismas líneas quedan literales `#1565c0` (×2), `#fafafa` y `#fff`. Pendientes de los mismos hex en otros subbloques: `#e5e7eb` ×5, `#374151` ×7, `#6b7280` ×3, `#d9dde6` ×3, `#3d4557` ×1. |
-| 2–8 | Pendientes | — | Ver §3. Cada uno se agrega a `DOCUMENTOS_FORM_ORDER` en `colorMigrations.ts`. |
+| 2 | **Aplicado** | `frontend/src/theme/__fixtures__/documentosForm.s2.baseline.json` | 22 literales en 22 líneas del panel de captura (4261–4844, numeración posterior al subbloque 1) → `neutralColors.steel` (`label`, `text`, `strong`, `dividerSoft`, `panelBorder`, `hover`, `hoverAlt`). En esas líneas quedan `#fafbfd` y `#0f1626` (subbloque 5). En el mismo rango no se tocaron el chip fiscal (subbloque 6) ni la retención `#9a5b00` (subbloque 7). Sin imports nuevos. |
+| 3–8 | Pendientes | — | Ver §3. Cada uno se agrega a `DOCUMENTOS_FORM_ORDER` en `colorMigrations.ts`. Los números de línea de §2 corresponden al HEAD `90e6063`; el subbloque 1 los desplaza una línea por su import. |
 
 Pruebas del subbloque: `frontend/src/theme/documentosFormColors.test.ts`. Comprueba:
 - equivalencia por SHA-256 contra el HEAD previo, revirtiendo antes los subbloques posteriores;

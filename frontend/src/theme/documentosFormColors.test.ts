@@ -105,3 +105,16 @@ test('subbloque 1: foco de adjuntos, fondo gris MUI y blancos quedan literales',
   const lines = Object.keys(s1.lines).map(Number);
   assert.ok(lines.some((n) => n < 4300) && lines.some((n) => n > 8700));
 });
+
+test('subbloque 2: neutrales sin token, chip fiscal y retención del panel quedan literales', () => {
+  const s2 = subblocks.find(({ name }) => name === 'documentosForm.s2.baseline.json')!.fixture.files[FILE]!;
+  const migrated = Object.values(s2.lines).map((l) => l.migrated).join('\n');
+  // Mismas líneas, para el subbloque 5 (neutrales nuevos).
+  assert.equal(migrated.match(/#fafbfd/g)?.length, 1);
+  assert.equal(migrated.match(/#0f1626/g)?.length, 1);
+  // Mismo rango, otras líneas: estado (chip fiscal) y funcional (retención), subbloques 6 y 7.
+  const asOfS2 = asOfSubblock('documentosForm.s2.baseline.json');
+  assert.ok(asOfS2.includes("bgcolor: fiscalCompleto ? '#e8f4ee' : '#fdf3e3',"));
+  assert.equal(asOfS2.match(/'#9a5b00'/g)?.length, 4);
+  for (const n of Object.keys(s2.lines).map(Number)) assert.ok(n > 4250 && n < 4900, `línea ${n} fuera del panel de captura`);
+});
