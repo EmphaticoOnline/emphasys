@@ -48,7 +48,7 @@ import type {
 import { fetchOrigenesContacto, type OrigenContacto } from '../../services/reportesService';
 import { fetchVendedores } from '../../services/contactosService';
 import type { Contacto } from '../../types/contactos.types';
-import { categoricalPalettes } from '../../theme/functional';
+import { categoricalPalettes, thirdPartyColors } from '../../theme/functional';
 
 // ── Configuración del reporte (inyectada desde el wrapper) ────────────────────
 
@@ -98,8 +98,8 @@ const AGRUPACIONES: { value: Agrupacion; label: string }[] = [
 // Exportación (Ventas): PDF anaranjado, Excel verde Excel
 const PDF_NARANJA       = '#d9622b';
 const PDF_NARANJA_HOVER = '#bf5321';
-const EXCEL_VERDE       = '#217346';
-const EXCEL_VERDE_HOVER = '#1a5c38';
+const EXCEL_VERDE       = thirdPartyColors.excel;
+const EXCEL_VERDE_HOVER = thirdPartyColors.excelHover;
 
 // Color fijo por mes (enero → diciembre) para la gráfica de evolución de Ventas
 const COLORES_MES = categoricalPalettes.months;
@@ -911,18 +911,18 @@ export default function MovimientosPorPeriodoPage({ config }: { config: Movimien
         ) : (
         <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
           <KpiCard icon={AttachMoneyIcon} label={config.montoLabel ?? 'Total comprado'}
-            value={`$${formatMXN(kpis.total)}`} color="#1d2f68" />
+            value={`$${formatMXN(kpis.total)}`} color={categoricalPalettes.reportKpis[0]} />
           <KpiCard icon={ReceiptIcon} label="Documentos"
-            value={kpis.cantidad_documentos.toLocaleString('es-MX')} color="#006261" />
+            value={kpis.cantidad_documentos.toLocaleString('es-MX')} color={categoricalPalettes.reportKpis[1]} />
           <KpiCard icon={GroupIcon} label={`${config.contactoLabel}s`}
-            value={kpis.cantidad_contactos.toLocaleString('es-MX')} color="#7c3aed" />
+            value={kpis.cantidad_contactos.toLocaleString('es-MX')} color={categoricalPalettes.reportKpis[2]} />
           {mostrarCantidad && (
             <KpiCard icon={InventoryIcon} label={config.cantidadLabel ?? 'Cantidad comprada'}
-              value={formatCant(kpis.cantidad_total)} color="#b45309" />
+              value={formatCant(kpis.cantidad_total)} color={categoricalPalettes.reportKpis[3]} />
           )}
           <KpiCard icon={TrendingUpIcon} label="Ticket promedio"
             value={kpis.cantidad_documentos > 0 ? `$${formatMXN(kpis.ticket_promedio)}` : '—'}
-            color="#0369a1" />
+            color={categoricalPalettes.reportKpis[4]} />
         </Box>
         )
       )}

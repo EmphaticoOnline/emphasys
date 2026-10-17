@@ -30,8 +30,9 @@ import {
   type KardexResult,
   type KardexLinea,
 } from '../../../services/reportesService';
+import { inventoryFlowColors, moduleAccents } from '../../../theme/functional';
 
-const COLOR = '#7c3aed';
+const COLOR = moduleAccents.inventoryReports;
 const fmt = (v: number) => v.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmtCant = (v: number) => v.toLocaleString('es-MX', { maximumFractionDigits: 4 });
 const fmtFecha = (iso: string) => {
@@ -271,10 +272,10 @@ export default function KardexProductoPage() {
                           )}
                         </TableCell>
                         <TableCell>{l.almacen}</TableCell>
-                        <TableCell align="right" sx={{ color: '#16a34a', fontWeight: l.entrada > 0 ? 600 : 400 }}>
+                        <TableCell align="right" sx={{ color: inventoryFlowColors.inbound, fontWeight: l.entrada > 0 ? 600 : 400 }}>
                           {l.entrada > 0 ? fmtCant(l.entrada) : ''}
                         </TableCell>
-                        <TableCell align="right" sx={{ color: '#dc2626', fontWeight: l.salida > 0 ? 600 : 400 }}>
+                        <TableCell align="right" sx={{ color: inventoryFlowColors.outbound, fontWeight: l.salida > 0 ? 600 : 400 }}>
                           {l.salida > 0 ? fmtCant(l.salida) : ''}
                         </TableCell>
                         <TableCell align="right" sx={{ fontWeight: 700 }}>{fmtCant(l.existencia_despues)}</TableCell>

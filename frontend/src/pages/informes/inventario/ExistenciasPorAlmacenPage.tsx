@@ -35,8 +35,9 @@ import {
   type ExistenciasPorAlmacenResult,
   type ExistenciaPorAlmacen,
 } from '../../../services/reportesService';
+import { moduleAccents } from '../../../theme/functional';
 
-const COLOR = '#7c3aed';
+const COLOR = moduleAccents.inventoryReports;
 
 const fmt = (v: number) => v.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmtCant = (v: number) => v.toLocaleString('es-MX', { maximumFractionDigits: 4 });

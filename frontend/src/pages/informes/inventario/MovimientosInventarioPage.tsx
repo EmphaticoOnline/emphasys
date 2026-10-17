@@ -36,8 +36,9 @@ import {
   type MovimientosPeriodoInvResult,
   type MovimientoInventario,
 } from '../../../services/reportesService';
+import { inventoryFlowColors, moduleAccents } from '../../../theme/functional';
 
-const COLOR = '#7c3aed';
+const COLOR = moduleAccents.inventoryReports;
 const fmt = (v: number) => v.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmtCant = (v: number) => v.toLocaleString('es-MX', { maximumFractionDigits: 4 });
 function formatCivilDate(value: string | null | undefined): string {
@@ -287,8 +288,8 @@ export default function MovimientosInventarioPage() {
       {/* Tarjetas resumen */}
       {resultado && (
         <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
-          <SummaryCard icon={TrendingUpIcon} label="Total entradas" value={fmtCant(resultado.total_entradas)} color="#16a34a" />
-          <SummaryCard icon={TrendingDownIcon} label="Total salidas" value={fmtCant(resultado.total_salidas)} color="#dc2626" />
+          <SummaryCard icon={TrendingUpIcon} label="Total entradas" value={fmtCant(resultado.total_entradas)} color={inventoryFlowColors.inbound} />
+          <SummaryCard icon={TrendingDownIcon} label="Total salidas" value={fmtCant(resultado.total_salidas)} color={inventoryFlowColors.outbound} />
           <SummaryCard icon={AttachMoneyIcon} label="Valor total" value={`$${fmt(resultado.total_valor)}`} />
         </Box>
       )}

@@ -45,6 +45,7 @@ import type {
   ContactoVolumen,
   FacturaVolumenDetalle,
 } from '../../services/reportesService';
+import { categoricalPalettes } from '../../theme/functional';
 
 export type VolumenComprasPageConfig = {
   titulo: string;
@@ -617,25 +618,25 @@ export default function VolumenComprasPage({ config }: { config: VolumenComprasP
             icon={StoreIcon}
             label={`${etiquetaContactoPlural} activos`}
             value={String(contactos.length)}
-            color="#1d2f68"
+            color={categoricalPalettes.reportKpis[0]}
           />
           <SummaryCard
             icon={ShoppingCartIcon}
             label={`${etiquetaMovimiento} totales`}
             value={`$${formatMXN(totalComprado)}`}
-            color="#006261"
+            color={categoricalPalettes.reportKpis[1]}
           />
           <SummaryCard
             icon={ReceiptIcon}
             label="Factura promedio"
             value={totalFacturas > 0 ? `$${formatMXN(facturaPromedio)}` : '—'}
-            color="#7c3aed"
+            color={categoricalPalettes.reportKpis[2]}
           />
           <SummaryCard
             icon={TrendingUpIcon}
             label={`Principal ${config.contactoLabel.toLowerCase()}`}
             value={principal ? principal.nombre : '—'}
-            color="#b45309"
+            color={categoricalPalettes.reportKpis[3]}
           />
         </Box>
         )

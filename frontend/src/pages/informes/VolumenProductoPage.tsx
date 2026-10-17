@@ -45,6 +45,7 @@ import type {
   ProductoVolumen,
   PartidaVolumenDetalle,
 } from '../../services/reportesService';
+import { categoricalPalettes } from '../../theme/functional';
 
 export type VolumenProductoPageConfig = {
   titulo: string;
@@ -738,25 +739,25 @@ export default function VolumenProductoPage({ config }: { config: VolumenProduct
             icon={InventoryIcon}
             label="Artículos con movimiento"
             value={String(productos.length)}
-            color="#1d2f68"
+            color={categoricalPalettes.reportKpis[0]}
           />
           <SummaryCard
             icon={AttachMoneyIcon}
             label={config.totalLabel}
           value={`$${formatMXN(totalGeneral)}`}
-            color="#006261"
+            color={categoricalPalettes.reportKpis[1]}
           />
           <SummaryCard
             icon={TrendingUpIcon}
             label="Precio prom. ponderado"
             value={totalCantidad > 0 ? `$${formatMXN(precioProm)}` : '—'}
-            color="#7c3aed"
+            color={categoricalPalettes.reportKpis[2]}
           />
           <SummaryCard
             icon={StarIcon}
             label="Artículo principal"
             value={principal ? `${principal.clave}` : '—'}
-            color="#b45309"
+            color={categoricalPalettes.reportKpis[3]}
           />
         </Box>
         )

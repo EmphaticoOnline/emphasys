@@ -127,7 +127,8 @@ test('un tema construido con otra marca conserva la paleta de estados de MUI', (
 });
 
 test('paletas categóricas y de antigüedad son idénticas a las que tenían los componentes', () => {
-  assert.deepStrictEqual(toJson(categoricalPalettes), {
+  const { series, months, avatars } = categoricalPalettes;
+  assert.deepStrictEqual(toJson({ series, months, avatars }), {
     series: palettesBaseline.series,
     months: palettesBaseline.months,
     avatars: palettesBaseline.avatars,

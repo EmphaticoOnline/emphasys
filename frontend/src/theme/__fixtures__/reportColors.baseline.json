@@ -1,0 +1,38 @@
+{
+  "inventoryReportAccent": "#7c3aed",
+  "reportKpis": {
+    "movimientosPorPeriodo": [
+      "#1d2f68",
+      "#006261",
+      "#7c3aed",
+      "#b45309",
+      "#0369a1"
+    ],
+    "volumenProducto": [
+      "#1d2f68",
+      "#006261",
+      "#7c3aed",
+      "#b45309"
+    ],
+    "volumenCompras": [
+      "#1d2f68",
+      "#006261",
+      "#7c3aed",
+      "#b45309"
+    ]
+  },
+  "inventoryFlow": {
+    "kardex": {
+      "inbound": "#16a34a",
+      "outbound": "#dc2626"
+    },
+    "movimientosInventario": {
+      "inbound": "#16a34a",
+      "outbound": "#dc2626"
+    }
+  },
+  "excel": {
+    "base": "#217346",
+    "hover": "#1a5c38"
+  }
+}

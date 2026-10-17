@@ -85,6 +85,21 @@ export const agingBucketColors: Readonly<Record<'0-30' | '31-60' | '61-90' | '90
   '90+': '#7b1fa2',
 };
 
+/** Dirección de movimientos de inventario (Kardex, Movimientos de inventario). */
+export const inventoryFlowColors = {
+  inbound: '#16a34a',
+  outbound: '#dc2626',
+} as const;
+
+/**
+ * Acentos decorativos por módulo. Identifican visualmente un grupo de
+ * pantallas; no son marca ni estado. Los informes de inventario concatenan
+ * un sufijo alfa (`${accent}18`), por eso el valor es hex de 6 dígitos.
+ */
+export const moduleAccents = {
+  inventoryReports: '#7c3aed',
+} as const;
+
 /** Colores de marcas de terceros. Nunca se derivan de la marca propia. */
 export const thirdPartyColors = {
   whatsapp: '#25D366',
@@ -104,6 +119,11 @@ export const categoricalPalettes = {
     '#3d5f86', '#6b86a8', '#4e8784', '#5f8a68', '#86965a', '#b39552',
     '#c27f4e', '#ad6250', '#96586a', '#775f92', '#59658f', '#7b7266',
   ],
+  /**
+   * Tarjetas KPI de resumen en informes, por posición (1.ª, 2.ª, …). Coincide
+   * con el azul y el acento Emphasys, pero no los sigue: es categórica.
+   */
+  reportKpis: ['#1d2f68', '#006261', '#7c3aed', '#b45309', '#0369a1'],
   /** Avatares de leads, elegidos por hash del id. */
   avatars: ['#1d2f68', '#0f766e', '#b45309', '#7c3aed', '#be123c', '#0369a1', '#4d7c0f', '#a21caf'],
 } as const satisfies Record<string, readonly string[]>;
