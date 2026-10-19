@@ -7,6 +7,7 @@ import type { DocumentoDetalleResponse } from '../../../types/documentoDetalle';
 import { fetchProductoArchivos, type ProductoArchivo } from '../../../services/productosService';
 import { buildAssetUrl } from '../../../services/empresasAssetsService';
 import { neutralColors } from '../../../theme/structural';
+import { brandTints } from '../../../theme/tints';
 
 type Partida = DocumentoDetalleResponse['partidas'][number];
 
@@ -153,10 +154,10 @@ export default function CotizacionPartidasTab({
                 borderBottom: `1px solid ${neutralColors.steel.rowDivider}`,
                 borderLeft: '3px solid',
                 borderLeftColor: activa ? 'primary.main' : 'transparent',
-                bgcolor: activa ? 'rgba(29, 47, 104, 0.06)' : 'transparent',
+                bgcolor: activa ? brandTints.activeItem : 'transparent',
                 cursor: 'pointer',
                 color: 'inherit',
-                '&:hover': { bgcolor: activa ? 'rgba(29, 47, 104, 0.08)' : neutralColors.slate[50] },
+                '&:hover': { bgcolor: activa ? brandTints.activeItemHover : neutralColors.slate[50] },
               }}
             >
               <Typography sx={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.02em', color: 'text.secondary' }} noWrap>

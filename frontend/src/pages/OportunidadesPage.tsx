@@ -63,6 +63,7 @@ import { alertColors, opportunityBucketColors } from '../theme/functional';
 import { neutralColors } from '../theme/structural';
 import { activeBrand } from '../theme/brand/active';
 import { brandElevation, elevation, surfaceGradients } from '../theme/elevation';
+import { brandTints } from '../theme/tints';
 
 dayjs.locale('es');
 
@@ -1931,10 +1932,10 @@ export default function OportunidadesPage() {
                       backgroundColor: 'rgba(15, 23, 42, 0.04)',
                     },
                     '& .MuiDataGrid-row.Mui-selected': {
-                      backgroundColor: 'rgba(29, 47, 104, 0.08)',
+                      backgroundColor: brandTints.gridRowSelected,
                     },
                     '& .MuiDataGrid-row.Mui-selected:hover': {
-                      backgroundColor: 'rgba(29, 47, 104, 0.12)',
+                      backgroundColor: brandTints.gridRowSelectedHover,
                     },
                   }}
                 />

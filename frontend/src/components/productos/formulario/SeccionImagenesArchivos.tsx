@@ -10,6 +10,7 @@ import type { ProductoArchivo } from '../../../services/productosService';
 import SeccionCard from './SeccionCard';
 import { neutralColors, selectionColors } from '../../../theme/structural';
 import { activeBrand } from '../../../theme/brand/active';
+import { brandTints } from '../../../theme/tints';
 
 type Props = {
   disponible: boolean;
@@ -34,7 +35,7 @@ const badgeInstante = (
       fontSize: 10.5,
       fontWeight: 700,
       color: activeBrand.colors.accent,
-      backgroundColor: 'rgba(0,98,97,0.1)',
+      backgroundColor: brandTints.accentWash,
       borderRadius: 1,
       px: 0.75,
       py: 0.125,

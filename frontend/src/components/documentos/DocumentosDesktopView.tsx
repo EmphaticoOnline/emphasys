@@ -16,6 +16,7 @@ import { catalogoOutlinedButtonSx, catalogoPrimaryButtonSx, catalogoSearchSx } f
 import type { DocumentosDesktopViewProps } from './DocumentosView.types';
 import { neutralColors } from '../../theme/structural';
 import { activeBrand } from '../../theme/brand/active';
+import { brandTints } from '../../theme/tints';
 
 export default function DocumentosDesktopView({
   searchTerm,
@@ -305,17 +306,17 @@ export default function DocumentosDesktopView({
                       alignItems: 'center',
                     },
                     '& .documento-focus-row': {
-                      backgroundColor: 'rgba(29, 47, 104, 0.10) !important',
+                      backgroundColor: `${brandTints.focusRow} !important`,
                     },
                     '& .documento-focus-row.Mui-selected': {
-                      backgroundColor: 'rgba(29, 47, 104, 0.16) !important',
+                      backgroundColor: `${brandTints.focusRowSelected} !important`,
                     },
                     '& .documento-focus-row.Mui-selected:hover': {
-                      backgroundColor: 'rgba(29, 47, 104, 0.20) !important',
+                      backgroundColor: `${brandTints.focusRowSelectedHover} !important`,
                     },
                     '& .documento-focus-row .MuiDataGrid-cell': {
-                      borderTop: '1px solid rgba(29, 47, 104, 0.24)',
-                      borderBottom: '1px solid rgba(29, 47, 104, 0.24)',
+                      borderTop: `1px solid ${brandTints.focusRowBorder}`,
+                      borderBottom: `1px solid ${brandTints.focusRowBorder}`,
                     },
                     '& .documento-focus-row .MuiDataGrid-cell:first-of-type': {
                       borderLeft: `3px solid ${activeBrand.colors.blue.base}`,
@@ -325,7 +326,7 @@ export default function DocumentosDesktopView({
                     },
                     '@keyframes documentoFocusPulse': {
                       '0%': { backgroundColor: 'rgba(56, 189, 248, 0.24)' },
-                      '100%': { backgroundColor: 'rgba(29, 47, 104, 0.10)' },
+                      '100%': { backgroundColor: brandTints.focusPulseEnd },
                     },
                   },
               ...(Array.isArray(rowAppearanceSx) ? rowAppearanceSx : rowAppearanceSx ? [rowAppearanceSx] : []),

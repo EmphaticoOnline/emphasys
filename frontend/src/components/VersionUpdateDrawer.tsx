@@ -9,6 +9,7 @@ import CloseIcon from '@mui/icons-material/Close';
 import UpdateIcon from '@mui/icons-material/SystemUpdateAlt';
 import { activeBrand } from '../theme/brand/active';
 import { brandGradients, elevation } from '../theme/elevation';
+import { brandTints } from '../theme/tints';
 type VersionUpdateDrawerProps = {
   open: boolean;
   version: string | null;
@@ -48,7 +49,7 @@ export default function VersionUpdateDrawer({ open, version, onClose, onUpdateNo
             maxWidth: 760,
             borderRadius: 4,
             overflow: 'hidden',
-            border: '1px solid rgba(29, 47, 104, 0.16)',
+            border: `1px solid ${brandTints.drawerBorder}`,
             backgroundColor: 'rgba(255, 255, 255, 0.98)',
             boxShadow: elevation.drawer,
             backdropFilter: 'blur(12px)',
@@ -83,7 +84,7 @@ export default function VersionUpdateDrawer({ open, version, onClose, onUpdateNo
                   display: 'grid',
                   placeItems: 'center',
                   flexShrink: 0,
-                  backgroundColor: 'rgba(29, 47, 104, 0.08)',
+                  backgroundColor: brandTints.iconWash,
                   color: activeBrand.colors.blue.base,
                 }}
               >

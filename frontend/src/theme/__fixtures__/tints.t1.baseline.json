@@ -1,0 +1,290 @@
+{
+  "source": "HEAD 2a96ab6, tintes alfa bloque t1",
+  "files": {
+    "components/VersionUpdateDrawer.tsx": {
+      "headSha256": "7f4fd45862ea55623d4dd5ef935cadabefdb85cf6d7f6127b1f0b2afc14b7a22",
+      "addedImports": [
+        "import { brandTints } from '../theme/tints';"
+      ],
+      "lines": {
+        "51": {
+          "original": "            border: '1px solid rgba(29, 47, 104, 0.16)',",
+          "migrated": "            border: `1px solid ${brandTints.drawerBorder}`,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'1px solid rgba(29, 47, 104, 0.16)'",
+              "to": "`1px solid ${brandTints.drawerBorder}`",
+              "times": 1
+            }
+          ]
+        },
+        "86": {
+          "original": "                  backgroundColor: 'rgba(29, 47, 104, 0.08)',",
+          "migrated": "                  backgroundColor: brandTints.iconWash,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'rgba(29, 47, 104, 0.08)'",
+              "to": "brandTints.iconWash",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "components/documentos/DocumentosDesktopView.tsx": {
+      "headSha256": "973de6f3124a0e8679f235b7c709e4d2878b9ee37727124c91ae55bd86f8cc59",
+      "addedImports": [
+        "import { brandTints } from '../../theme/tints';"
+      ],
+      "lines": {
+        "308": {
+          "original": "                      backgroundColor: 'rgba(29, 47, 104, 0.10) !important',",
+          "migrated": "                      backgroundColor: `${brandTints.focusRow} !important`,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'rgba(29, 47, 104, 0.10) !important'",
+              "to": "`${brandTints.focusRow} !important`",
+              "times": 1
+            }
+          ]
+        },
+        "311": {
+          "original": "                      backgroundColor: 'rgba(29, 47, 104, 0.16) !important',",
+          "migrated": "                      backgroundColor: `${brandTints.focusRowSelected} !important`,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'rgba(29, 47, 104, 0.16) !important'",
+              "to": "`${brandTints.focusRowSelected} !important`",
+              "times": 1
+            }
+          ]
+        },
+        "314": {
+          "original": "                      backgroundColor: 'rgba(29, 47, 104, 0.20) !important',",
+          "migrated": "                      backgroundColor: `${brandTints.focusRowSelectedHover} !important`,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'rgba(29, 47, 104, 0.20) !important'",
+              "to": "`${brandTints.focusRowSelectedHover} !important`",
+              "times": 1
+            }
+          ]
+        },
+        "317": {
+          "original": "                      borderTop: '1px solid rgba(29, 47, 104, 0.24)',",
+          "migrated": "                      borderTop: `1px solid ${brandTints.focusRowBorder}`,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'1px solid rgba(29, 47, 104, 0.24)'",
+              "to": "`1px solid ${brandTints.focusRowBorder}`",
+              "times": 1
+            }
+          ]
+        },
+        "318": {
+          "original": "                      borderBottom: '1px solid rgba(29, 47, 104, 0.24)',",
+          "migrated": "                      borderBottom: `1px solid ${brandTints.focusRowBorder}`,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'1px solid rgba(29, 47, 104, 0.24)'",
+              "to": "`1px solid ${brandTints.focusRowBorder}`",
+              "times": 1
+            }
+          ]
+        },
+        "328": {
+          "original": "                      '100%': { backgroundColor: 'rgba(29, 47, 104, 0.10)' },",
+          "migrated": "                      '100%': { backgroundColor: brandTints.focusPulseEnd },",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'rgba(29, 47, 104, 0.10)'",
+              "to": "brandTints.focusPulseEnd",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "components/documentos/cotizaciones/CotizacionPartidasTab.tsx": {
+      "headSha256": "7be2f343a897dace06c860d7e4a310adf6cde12002ebb08e10d1621588901a4e",
+      "addedImports": [
+        "import { brandTints } from '../../../theme/tints';"
+      ],
+      "lines": {
+        "156": {
+          "original": "                bgcolor: activa ? 'rgba(29, 47, 104, 0.06)' : 'transparent',",
+          "migrated": "                bgcolor: activa ? brandTints.activeItem : 'transparent',",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'rgba(29, 47, 104, 0.06)'",
+              "to": "brandTints.activeItem",
+              "times": 1
+            }
+          ]
+        },
+        "159": {
+          "original": "                '&:hover': { bgcolor: activa ? 'rgba(29, 47, 104, 0.08)' : neutralColors.slate[50] },",
+          "migrated": "                '&:hover': { bgcolor: activa ? brandTints.activeItemHover : neutralColors.slate[50] },",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'rgba(29, 47, 104, 0.08)'",
+              "to": "brandTints.activeItemHover",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "components/documentos/facturas/FacturaResumenFlotante.tsx": {
+      "headSha256": "789e402207dda11dad0904aedf09d4d80415c8360ada342df39ce6bfd54af1f0",
+      "addedImports": [
+        "import { brandTints } from '../../../theme/tints';"
+      ],
+      "lines": {
+        "328": {
+          "original": "              sx={{ width: 30, height: 30, border: '1px solid rgba(29,47,104,0.5)', color: activeBrand.colors.blue.base, borderRadius: 1 }}",
+          "migrated": "              sx={{ width: 30, height: 30, border: `1px solid ${brandTints.outlineButtonBorder}`, color: activeBrand.colors.blue.base, borderRadius: 1 }}",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'1px solid rgba(29,47,104,0.5)'",
+              "to": "`1px solid ${brandTints.outlineButtonBorder}`",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "components/productos/formulario/SeccionImagenesArchivos.tsx": {
+      "headSha256": "1b1cc48d259d16fb265613a286d80c098904be8a9e143937fd571f1e24677e09",
+      "addedImports": [
+        "import { brandTints } from '../../../theme/tints';"
+      ],
+      "lines": {
+        "37": {
+          "original": "      backgroundColor: 'rgba(0,98,97,0.1)',",
+          "migrated": "      backgroundColor: brandTints.accentWash,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'rgba(0,98,97,0.1)'",
+              "to": "brandTints.accentWash",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "modules/finanzas/BuscadorMovimientos.tsx": {
+      "headSha256": "ca1976ebd149cff47cf4fe62c732735e239412ff33af2a91ada6087ca580cffb",
+      "addedImports": [
+        "import { brandTints } from '../../theme/tints';"
+      ],
+      "lines": {
+        "133": {
+          "original": "                sx={{ p: '1px', ml: 0.25, color: 'rgba(244,240,232,0.72)', '&:hover': { color: tokens.action.primaryForeground, bgcolor: 'rgba(255,255,255,0.12)' } }}",
+          "migrated": "                sx={{ p: '1px', ml: 0.25, color: brandTints.onChromeMutedIcon, '&:hover': { color: tokens.action.primaryForeground, bgcolor: 'rgba(255,255,255,0.12)' } }}",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'rgba(244,240,232,0.72)'",
+              "to": "brandTints.onChromeMutedIcon",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "modules/finanzas/MovimientosTable.tsx": {
+      "headSha256": "76e9a06089fdfec60c0eccf50e2ef9b40fe776bff53bb27118709614c39efa60",
+      "addedImports": [
+        "import { brandTints } from '../../theme/tints';"
+      ],
+      "lines": {
+        "1296": {
+          "original": "              color: 'rgba(244, 240, 232, 0.55)',",
+          "migrated": "              color: brandTints.onChromeSeparator,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'rgba(244, 240, 232, 0.55)'",
+              "to": "brandTints.onChromeSeparator",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "pages/AIReportesPage.tsx": {
+      "headSha256": "69b40dccf23c50bde53c4609cb067f70395c335431aae17b33fffda9bae99754",
+      "addedImports": [
+        "import { brandTints } from '../theme/tints';"
+      ],
+      "lines": {
+        "243": {
+          "original": "            backgroundColor: 'rgba(29,47,104,0.05)',",
+          "migrated": "            backgroundColor: brandTints.noteSurface,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'rgba(29,47,104,0.05)'",
+              "to": "brandTints.noteSurface",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "pages/OportunidadesPage.tsx": {
+      "headSha256": "d84a5faa55f804d8e8e40b4eba9ad25a6b82c95aa5e48772040bece863e7e396",
+      "addedImports": [
+        "import { brandTints } from '../theme/tints';"
+      ],
+      "lines": {
+        "1934": {
+          "original": "                      backgroundColor: 'rgba(29, 47, 104, 0.08)',",
+          "migrated": "                      backgroundColor: brandTints.gridRowSelected,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'rgba(29, 47, 104, 0.08)'",
+              "to": "brandTints.gridRowSelected",
+              "times": 1
+            }
+          ]
+        },
+        "1937": {
+          "original": "                      backgroundColor: 'rgba(29, 47, 104, 0.12)',",
+          "migrated": "                      backgroundColor: brandTints.gridRowSelectedHover,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'rgba(29, 47, 104, 0.12)'",
+              "to": "brandTints.gridRowSelectedHover",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    }
+  }
+}

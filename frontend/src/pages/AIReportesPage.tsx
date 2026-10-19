@@ -22,6 +22,7 @@ import { STANDARD_DATA_GRID_HEADER_HEIGHT, STANDARD_DATA_GRID_ROW_HEIGHT, standa
 import { useSession } from '../session/useSession';
 import { neutralColors } from '../theme/structural';
 import { activeBrand } from '../theme/brand/active';
+import { brandTints } from '../theme/tints';
 
 type ResultadoFila = Record<string, unknown>;
 
@@ -240,7 +241,7 @@ export default function AIReportesPage() {
           sx={{
             p: 2,
             borderLeft: `4px solid ${activeBrand.colors.blue.base}`,
-            backgroundColor: 'rgba(29,47,104,0.05)',
+            backgroundColor: brandTints.noteSurface,
           }}
         >
           <Typography variant="subtitle1" fontWeight={700} gutterBottom>

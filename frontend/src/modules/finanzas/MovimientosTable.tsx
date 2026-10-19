@@ -56,6 +56,7 @@ import {
   type CapturaInline,
 } from './FilaCapturaMovimiento';
 import { amountSignColor, inflowColor, outflowColor } from '../../theme/sign';
+import { brandTints } from '../../theme/tints';
 
 // El DataGrid MIT siempre pagina (pageSize por defecto = 100, máximo 100) aunque
 // el pie esté oculto: sin esto sólo se renderizan las primeras 100 filas y el
@@ -1293,7 +1294,7 @@ export function MovimientosTable({
             '& .MuiDataGrid-virtualScroller': { pb: filasSeleccionadas.length ? '56px' : 0 },
             '& .MuiDataGrid-columnSeparator': {
               height: '100%',
-              color: 'rgba(244, 240, 232, 0.55)',
+              color: brandTints.onChromeSeparator,
               '& svg': { height: 22 },
             },
           },

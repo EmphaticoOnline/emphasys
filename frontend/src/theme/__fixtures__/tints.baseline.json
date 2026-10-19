@@ -1,0 +1,69 @@
+{
+  "source": "HEAD 2a96ab6, literales rgba de marca antes de los tintes (docs/white-label-tintes-alfa-audit.md, T1)",
+  "brand": {
+    "focusRow": {
+      "value": "rgba(29, 47, 104, 0.10)",
+      "headOccurrences": 2
+    },
+    "focusRowSelected": {
+      "value": "rgba(29, 47, 104, 0.16)",
+      "headOccurrences": 2
+    },
+    "focusRowSelectedHover": {
+      "value": "rgba(29, 47, 104, 0.20)",
+      "headOccurrences": 1
+    },
+    "focusRowBorder": {
+      "value": "rgba(29, 47, 104, 0.24)",
+      "headOccurrences": 2
+    },
+    "focusPulseEnd": {
+      "value": "rgba(29, 47, 104, 0.10)",
+      "headOccurrences": 2
+    },
+    "gridRowSelected": {
+      "value": "rgba(29, 47, 104, 0.08)",
+      "headOccurrences": 3
+    },
+    "gridRowSelectedHover": {
+      "value": "rgba(29, 47, 104, 0.12)",
+      "headOccurrences": 1
+    },
+    "activeItem": {
+      "value": "rgba(29, 47, 104, 0.06)",
+      "headOccurrences": 1
+    },
+    "activeItemHover": {
+      "value": "rgba(29, 47, 104, 0.08)",
+      "headOccurrences": 3
+    },
+    "drawerBorder": {
+      "value": "rgba(29, 47, 104, 0.16)",
+      "headOccurrences": 2
+    },
+    "iconWash": {
+      "value": "rgba(29, 47, 104, 0.08)",
+      "headOccurrences": 3
+    },
+    "noteSurface": {
+      "value": "rgba(29,47,104,0.05)",
+      "headOccurrences": 1
+    },
+    "outlineButtonBorder": {
+      "value": "rgba(29,47,104,0.5)",
+      "headOccurrences": 1
+    },
+    "onChromeSeparator": {
+      "value": "rgba(244, 240, 232, 0.55)",
+      "headOccurrences": 1
+    },
+    "onChromeMutedIcon": {
+      "value": "rgba(244,240,232,0.72)",
+      "headOccurrences": 1
+    },
+    "accentWash": {
+      "value": "rgba(0,98,97,0.1)",
+      "headOccurrences": 1
+    }
+  }
+}

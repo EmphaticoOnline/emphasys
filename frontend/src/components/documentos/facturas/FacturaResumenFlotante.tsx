@@ -6,6 +6,7 @@ import CheckIcon from '@mui/icons-material/Check';
 import { neutralColors } from '../../../theme/structural';
 import { activeBrand } from '../../../theme/brand/active';
 import { elevation } from '../../../theme/elevation';
+import { brandTints } from '../../../theme/tints';
 
 export type FacturaResumenFlotantePosicion = { x: number; y: number };
 
@@ -325,7 +326,7 @@ export default function FacturaResumenFlotante({
               onClick={onBack}
               disabled={saving}
               aria-label="Volver"
-              sx={{ width: 30, height: 30, border: '1px solid rgba(29,47,104,0.5)', color: activeBrand.colors.blue.base, borderRadius: 1 }}
+              sx={{ width: 30, height: 30, border: `1px solid ${brandTints.outlineButtonBorder}`, color: activeBrand.colors.blue.base, borderRadius: 1 }}
             >
               <ArrowBackIcon fontSize="small" />
             </IconButton>
