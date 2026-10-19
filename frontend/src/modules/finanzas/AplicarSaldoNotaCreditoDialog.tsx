@@ -48,7 +48,7 @@ import {
   sugerirAplicacion,
 } from './aplicarSaldoNotaCredito.logic';
 import { alertColors, alertTints } from '../../theme/functional';
-import { neutralColors } from '../../theme/structural';
+import { neutralColors, whiteSurfaces } from '../../theme/structural';
 
 const headSx = {
   fontSize: 10,
@@ -172,7 +172,7 @@ function CapturaImporte({
         width: 112,
         '& .MuiOutlinedInput-root': {
           height: 28,
-          bgcolor: '#fff',
+          bgcolor: whiteSurfaces.panel,
           borderRadius: '6px',
           '& fieldset': { borderColor: invalido ? alertColors.warning[600] : activo ? 'primary.main' : neutralColors.steel.fieldBorder },
           '&:hover fieldset': { borderColor: invalido ? alertColors.warning[600] : 'primary.main' },
@@ -498,7 +498,7 @@ export function AplicarSaldoNotaCreditoDialog({
                     const folioFactura = formatearFolioDocumento(item.serie || '', item.numero || 0) || 'Factura';
                     const marcada = pendientesQuitar.has(item.id);
                     return (
-                      <TableRow key={item.id} sx={{ bgcolor: marcada ? neutralColors.slate[50] : '#fff' }}>
+                      <TableRow key={item.id} sx={{ bgcolor: marcada ? neutralColors.slate[50] : whiteSurfaces.tableRow }}>
                         <TableCell sx={{ ...cellSx, color: marcada ? neutralColors.slate[400] : neutralColors.slate[700], textDecoration: marcada ? 'line-through' : 'none' }}>{folioFactura}</TableCell>
                         <TableCell sx={{ ...cellSx, color: marcada ? alertColors.warning[700] : neutralColors.slate[500], fontWeight: marcada ? 700 : 500 }}>
                           {marcada ? 'Se quitará al guardar' : formatDateShort(item.fecha_aplicacion || item.fecha_documento)}
@@ -568,7 +568,7 @@ export function AplicarSaldoNotaCreditoDialog({
                   const aplicar = Number(montos[factura.id] ?? 0);
                   const excede = aplicar - Number(factura.saldo ?? 0) > 0.000001;
                   return (
-                    <TableRow key={factura.id} sx={{ bgcolor: index % 2 === 0 ? '#fff' : neutralColors.steel.stripe }}>
+                    <TableRow key={factura.id} sx={{ bgcolor: index % 2 === 0 ? whiteSurfaces.tableRow : neutralColors.steel.stripe }}>
                       <TableCell sx={{ ...cellSx, fontWeight: 700, color: 'primary.main' }}>{folioFactura}</TableCell>
                       <TableCell sx={{ ...cellSx, color: neutralColors.slate[500] }}>{formatDateShort(factura.fecha)}</TableCell>
                       <TableCell align="right" sx={{ ...cellSx, color: neutralColors.slate[600] }}>{formatter.format(Number(factura.monto || 0))}</TableCell>
@@ -626,7 +626,7 @@ export function AplicarSaldoNotaCreditoDialog({
           display: 'flex',
           justifyContent: 'flex-end',
           gap: 1,
-          bgcolor: '#fff',
+          bgcolor: whiteSurfaces.panel,
         }}
       >
         <Button onClick={onClose} disabled={guardando} sx={{ textTransform: 'none', fontWeight: 700, color: neutralColors.slate[600] }}>

@@ -226,9 +226,7 @@ test('cierre: en DocumentosFormPage solo quedan los colores fuera de alcance doc
   // Informe §2.6: blancos y rgba que no son de marca (17). La sombra del resumen flotante pasó a
   // `elevation.floatingSummary` (elevación E3) y los 6 velos y bordes a `overlayColors` (tintes T4):
   // quedan solo los 10 blancos. Los 5 `#fff` de contraste sobre `primary.main` pasaron a
-  // `onPrimaryColors.text` (blancos W1): quedan 5 blancos de superficie y fila.
-  assert.deepStrictEqual(count, {
-    '#fff': 3,
-    '#ffffff': 2,
-  });
+  // `onPrimaryColors.text` (blancos W1) y las 5 superficies y filas a `whiteSurfaces` (W2):
+  // la página ya no tiene colores escritos a mano.
+  assert.deepStrictEqual(count, {});
 });

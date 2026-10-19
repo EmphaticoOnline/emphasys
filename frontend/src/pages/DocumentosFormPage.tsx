@@ -131,7 +131,7 @@ import {
 import type { CampoValorPayload, CampoValorGuardado } from '../types/camposDinamicos';
 import type { Concepto, DocumentoAnticipoResumen, EstadoCuentaItem, FinanzasCuenta } from '../types/finanzas';
 import { NumericFormat } from 'react-number-format';
-import { neutralColors, onPrimaryColors, overlayColors, selectionColors } from '../theme/structural';
+import { neutralColors, onPrimaryColors, overlayColors, selectionColors, whiteSurfaces } from '../theme/structural';
 import { advanceBoxColors, alertColors, attachmentIndicatorColors, balanceColors, documentSummaryTones, fiscalStatusColors, moduleAccents } from '../theme/functional';
 import { brandBlueAlpha } from '../theme/brand/derived';
 import { elevation } from '../theme/elevation';
@@ -3934,7 +3934,7 @@ export default function DocumentosFormPage({
             fontSize: 12.5,
             fontWeight: vistaFacturaCaptura === opt.value ? 700 : 500,
             color: vistaFacturaCaptura === opt.value ? onPrimaryColors.text : neutralColors.steel.strong,
-            bgcolor: vistaFacturaCaptura === opt.value ? 'primary.main' : '#fff',
+            bgcolor: vistaFacturaCaptura === opt.value ? 'primary.main' : whiteSurfaces.controlIdle,
           }}
         >
           {opt.label}
@@ -4724,7 +4724,7 @@ export default function DocumentosFormPage({
                           const detalleBoxSx = {
                             border: `1px solid ${neutralColors.steel.dividerSoft}`,
                             borderRadius: 1,
-                            bgcolor: '#fff',
+                            bgcolor: whiteSurfaces.panel,
                             p: { xs: 0.75, sm: 1 },
                             display: 'flex' as const,
                             flexDirection: 'column' as const,
@@ -4887,7 +4887,7 @@ export default function DocumentosFormPage({
                           </Box>
 
                           {partidasComputadas.map(({ partida, index, productoSeleccionado, impuestosPartida, breakdown, expanded }) => {
-                            const filaBase = expanded ? neutralColors.steel.softSurface : index % 2 === 1 ? neutralColors.steel.rowStripe : '#fff';
+                            const filaBase = expanded ? neutralColors.steel.softSurface : index % 2 === 1 ? neutralColors.steel.rowStripe : whiteSurfaces.tableRow;
                             return (
                             <Box key={index} sx={{ borderBottom: `1px solid ${neutralColors.steel.dividerSoft}` }}>
                               <Box
@@ -7338,7 +7338,7 @@ export default function DocumentosFormPage({
                             borderRadius: 1.75,
                             border: '1.5px solid',
                             borderColor: neutralColors.steel.totalsBorder,
-                            bgcolor: '#ffffff',
+                            bgcolor: whiteSurfaces.totalsPanel,
                             boxShadow: `0 1px 0 ${brandBlueAlpha(0.06)}`,
                             mb: 1.5,
                           }}
@@ -7764,7 +7764,7 @@ export default function DocumentosFormPage({
                             borderRadius: 1.75,
                             border: '1.75px solid',
                             borderColor: neutralColors.steel.totalsBorder,
-                            bgcolor: '#ffffff',
+                            bgcolor: whiteSurfaces.totalsPanel,
                             boxShadow: `0 1px 0 ${brandBlueAlpha(0.06)}`,
                             display: 'flex',
                             flexDirection: 'column',

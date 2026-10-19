@@ -6,7 +6,7 @@ import {
   type CfdiSatAlmacenamiento,
   type CfdiSatResumenModulo,
 } from '../../services/cfdiSatService';
-import { neutralColors } from '../../theme/structural';
+import { neutralColors, whiteSurfaces } from '../../theme/structural';
 import { activeBrand } from '../../theme/brand/active';
 
 function formatBytes(bytes: number): string {
@@ -33,7 +33,7 @@ function StatTile({
         border: `1px solid ${neutralColors.steel.line}`,
         borderRadius: 2,
         p: 2,
-        backgroundColor: '#fff',
+        backgroundColor: whiteSurfaces.panel,
         minWidth: 0,
       }}
     >

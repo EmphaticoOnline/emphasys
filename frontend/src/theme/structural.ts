@@ -232,3 +232,40 @@ export const onPrimaryColors = {
   /** Spinner dentro del botón primario, escrito `'white'`. */
   progress: 'white',
 } as const;
+
+/**
+ * Superficies y filas blancas por subrol (D-B2). Fijas y sin marca. Ver
+ * docs/white-label-blancos-audit.md (rol A y B).
+ *
+ * Cada subrol conserva la escritura que usa hoy (`'#fff'` o `'#ffffff'`): no
+ * se unifican formatos ni roles. Donde el componente tiene una rama del tema
+ * (`catalog ? content.card : …`), solo la rama literal usa estos tokens.
+ */
+export const whiteSurfaces = {
+  /** Panel o tarjeta de escritorio. */
+  panel: '#fff',
+  /** Panel de totales del formulario de documentos. */
+  totalsPanel: '#ffffff',
+  /** Resumen flotante de factura (rama no tematizada). */
+  floatingSummary: '#fff',
+  /** Estado vacío de lista móvil. */
+  mobileEmptyState: '#fff',
+  /** Tarjeta de lista móvil. */
+  mobileListCard: '#ffffff',
+  /** Contenedor de la lista móvil de contactos. */
+  mobileList: '#fff',
+  /** Encabezado, tarjetas y campos del drawer de seguimiento de actividad. */
+  activityDrawer: '#ffffff',
+  /** Control no seleccionado (toggle, chip). */
+  controlIdle: '#fff',
+  /** Fondo de botón delineado. */
+  outlineButton: '#ffffff',
+  /** Botón flotante ("atrás" en móvil). */
+  floatingButton: '#ffffff',
+  /** Fondo de miniatura de imagen. */
+  imageThumb: '#ffffff',
+  /** Fila de tabla alterna o no seleccionada. */
+  tableRow: '#fff',
+  /** Fila alterna de documentos de tesorería (par de `rowStripeColors.treasuryDocuments`). */
+  treasuryRowAlt: '#ffffff',
+} as const;

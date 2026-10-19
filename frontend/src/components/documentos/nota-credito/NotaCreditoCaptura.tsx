@@ -36,7 +36,7 @@ import type { Contacto } from '../../../types/contactos.types';
 import type { Concepto } from '../../../types/finanzas';
 import type { PrepararGeneracionResponse } from '../../../services/documentGenerationService';
 import { alertColors, alertTints } from '../../../theme/functional';
-import { neutralColors, onPrimaryColors } from '../../../theme/structural';
+import { neutralColors, onPrimaryColors, whiteSurfaces } from '../../../theme/structural';
 
 const MENSAJE_PARTIDAS_INCOMPATIBLES = 'Solo pueden combinarse partidas compatibles en la misma nota.';
 
@@ -177,7 +177,7 @@ const capturaHeadSx = {
 };
 
 function fondoFila(index: number) {
-  return index % 2 === 0 ? '#fff' : neutralColors.steel.stripe;
+  return index % 2 === 0 ? whiteSurfaces.tableRow : neutralColors.steel.stripe;
 }
 
 function CeldaFactura({ folio, fecha }: { folio: string; fecha: string }) {
@@ -586,7 +586,7 @@ export default function NotaCreditoCaptura({
           flexShrink: 0,
           p: { xs: 1.5, md: 2 },
           borderColor: neutralColors.steel.inputBorder,
-          bgcolor: '#fff',
+          bgcolor: whiteSurfaces.panel,
           borderRadius: motivo === 'otro' ? '8px 8px 0 0' : 2,
           borderBottom: motivo === 'otro' ? 'none' : undefined,
         }}
@@ -667,7 +667,7 @@ export default function NotaCreditoCaptura({
           {!clienteId ? (
             <Paper
               variant="outlined"
-              sx={{ borderStyle: 'dashed', borderColor: neutralColors.steel.inputBorder, borderRadius: 2, py: 7, px: 3, textAlign: 'center', bgcolor: '#fff', flexShrink: 0 }}
+              sx={{ borderStyle: 'dashed', borderColor: neutralColors.steel.inputBorder, borderRadius: 2, py: 7, px: 3, textAlign: 'center', bgcolor: whiteSurfaces.panel, flexShrink: 0 }}
             >
               <Typography sx={{ fontSize: 16, fontWeight: 700, color: 'primary.main' }}>Selecciona un {tituloCliente.toLowerCase()}</Typography>
               <Typography sx={{ mt: 0.75, fontSize: 13, color: neutralColors.slate[500] }}>
@@ -1021,7 +1021,7 @@ function Captura({
         width,
         '& .MuiOutlinedInput-root': {
           height: 28,
-          bgcolor: '#fff',
+          bgcolor: whiteSurfaces.panel,
           borderRadius: '6px',
           '& fieldset': { borderColor: invalido ? alertColors.warning[600] : activo ? 'primary.main' : neutralColors.steel.fieldBorder },
           '&:hover fieldset': { borderColor: invalido ? alertColors.warning[600] : 'primary.main' },
@@ -1109,7 +1109,7 @@ function PieNotaCredito({
         borderRadius: '0 0 8px 8px',
         border: `1px solid ${neutralColors.steel.inputBorder}`,
         borderTop: `1px solid ${neutralColors.steel.divider}`,
-        bgcolor: '#fff',
+        bgcolor: whiteSurfaces.panel,
         boxShadow: 'none',
         display: 'flex',
         flexWrap: 'wrap',
@@ -1121,7 +1121,7 @@ function PieNotaCredito({
         py: 1.25,
         borderRadius: 2,
         border: `1px solid ${neutralColors.steel.inputBorder}`,
-        bgcolor: '#fff',
+        bgcolor: whiteSurfaces.panel,
         boxShadow: (theme: Theme) => `0 10px 28px ${theme.emphasys.action.hoverTint}`,
         display: 'flex',
         flexWrap: 'wrap',

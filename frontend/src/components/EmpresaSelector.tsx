@@ -5,7 +5,7 @@ import type { SelectChangeEvent } from '@mui/material';
 import { useSession } from '../session/useSession';
 import type { Empresa } from '../session/sessionTypes';
 import { resolveRutaInicio } from '../utils/rutaInicio';
-import { neutralColors } from '../theme/structural';
+import { neutralColors, whiteSurfaces } from '../theme/structural';
 
 interface EmpresaSelectorProps {
   variant?: 'header' | 'panel';
@@ -52,7 +52,7 @@ export default function EmpresaSelector({ variant = 'header', fullWidth = false,
         '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: isPanel ? neutralColors.slate[400] : frame.foreground },
         '& .MuiOutlinedInput-root': {
           color: isPanel ? neutralColors.slate[900] : frame.controlForeground,
-          backgroundColor: isPanel ? '#fff' : frame.control,
+          backgroundColor: isPanel ? whiteSurfaces.panel : frame.control,
           ...(compact ? { height: 30, fontSize: 13 } : {}),
           '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
             borderColor: isPanel ? primary : frame.foreground,

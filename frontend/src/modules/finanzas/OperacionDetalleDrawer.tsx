@@ -39,7 +39,7 @@ import { DesaplicarPagoDialog } from './DesaplicarPagoDialog';
 import { loadSession } from '../../session/sessionStorage';
 import { esRolAdmin } from '../../session/rolScope';
 import { AplicarDistribucionPagoDialog } from './AplicarDistribucionPagoDialog';
-import { neutralColors, rowStripeColors } from '../../theme/structural';
+import { neutralColors, rowStripeColors, whiteSurfaces } from '../../theme/structural';
 
 const compatibilidadNaturaleza: Record<string, string[]> = {
   cobro_cliente: ['factura', 'nota_credito'],
@@ -418,7 +418,7 @@ export function OperacionDetalleDrawer({ operacionId, open, onClose }: Operacion
                   const folio = formatearFolioDocumento(row?.serie || '', row?.numero || 0);
                   const tipo = row?.tipo_documento ? `${row.tipo_documento.charAt(0).toUpperCase()}${row.tipo_documento.slice(1)}` : '';
                   const label = `${tipo} ${folio}`.trim();
-                  const backgroundColor = idx % 2 === 0 ? rowStripeColors.treasuryDocuments : '#ffffff';
+                  const backgroundColor = idx % 2 === 0 ? rowStripeColors.treasuryDocuments : whiteSurfaces.treasuryRowAlt;
                   return (
                     <TableRow key={row.id} sx={{ ...rowBaseSx, backgroundColor }} className="erp-row">
                       <TableCell sx={{ ...bodyCellSx, width: '30%' }}>
@@ -516,7 +516,7 @@ export function OperacionDetalleDrawer({ operacionId, open, onClose }: Operacion
                     const folio = formatearFolioDocumento(row?.serie || '', row?.numero || 0);
                     const tipo = row?.tipo ? `${row.tipo.charAt(0).toUpperCase()}${row.tipo.slice(1)}` : '';
                     const label = `${tipo} ${folio}`.trim();
-                    const backgroundColor = idx % 2 === 0 ? rowStripeColors.treasuryDocuments : '#ffffff';
+                    const backgroundColor = idx % 2 === 0 ? rowStripeColors.treasuryDocuments : whiteSurfaces.treasuryRowAlt;
                     return (
                       <TableRow key={row.id} sx={{ ...rowBaseSx, backgroundColor }}>
                         <TableCell
@@ -548,7 +548,7 @@ export function OperacionDetalleDrawer({ operacionId, open, onClose }: Operacion
                                 px: 1,
                                 display: 'flex',
                                 alignItems: 'center',
-                                backgroundColor: '#fff',
+                                backgroundColor: whiteSurfaces.panel,
                                 border: `1px solid ${neutralColors.slate[300]}`,
                                 borderRadius: 1,
                               },

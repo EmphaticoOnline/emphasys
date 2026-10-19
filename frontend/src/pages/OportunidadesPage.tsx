@@ -60,7 +60,7 @@ import { useSeguimientoActividades } from '../hooks/useSeguimientoActividades';
 import ActividadSeguimientoDrawer from '../components/crm/ActividadSeguimientoDrawer';
 import { SeguimientoActividadCell } from '../components/crm/SeguimientoActividadCell';
 import { alertColors, crmAccents, opportunityBucketColors } from '../theme/functional';
-import { neutralColors, overlayColors } from '../theme/structural';
+import { neutralColors, overlayColors, whiteSurfaces } from '../theme/structural';
 import { activeBrand } from '../theme/brand/active';
 import { brandElevation, elevation, surfaceGradients } from '../theme/elevation';
 import { brandTints } from '../theme/tints';
@@ -2139,7 +2139,7 @@ function PaperCard({ children }: { children: ReactNode }) {
         border: `1px solid ${neutralColors.gray[200]}`,
         borderRadius: 2,
         p: 1.5,
-        backgroundColor: '#fff',
+        backgroundColor: whiteSurfaces.panel,
         boxShadow: elevation.hairlineBlack,
       }}
     >

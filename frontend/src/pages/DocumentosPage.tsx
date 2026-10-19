@@ -167,7 +167,7 @@ import {
   type DocumentoIndicatorModel,
 } from '../components/documentos/indicadores';
 import { alertColors, balanceColors } from '../theme/functional';
-import { neutralColors, selectionColors } from '../theme/structural';
+import { neutralColors, selectionColors, whiteSurfaces } from '../theme/structural';
 import { elevation } from '../theme/elevation';
 
 const formatCivilDate = (value: unknown) => {
@@ -3566,7 +3566,7 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
                   fontWeight: selected ? 700 : 600,
                   px: 0.35,
                   color: selected ? 'primary.main' : neutralColors.gray[600],
-                  backgroundColor: selected ? selectionColors.chipSurface : '#fff',
+                  backgroundColor: selected ? selectionColors.chipSurface : whiteSurfaces.controlIdle,
                   borderColor: selected ? selectionColors.border : neutralColors.gray[300],
                   '&:hover': {
                     backgroundColor: selected ? selectionColors.surface : neutralColors.slate[50],

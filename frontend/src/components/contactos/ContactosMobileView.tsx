@@ -10,7 +10,7 @@ import ClearIcon from '@mui/icons-material/Clear';
 import type { ContactosMobileViewProps } from './ContactosView.types';
 import ContactosAdvancedFilters from './ContactosAdvancedFilters';
 import { formatearTelefonoParaMostrar } from '../../utils/telefono';
-import { neutralColors } from '../../theme/structural';
+import { neutralColors, whiteSurfaces } from '../../theme/structural';
 import { brandElevation, elevation } from '../../theme/elevation';
 
 function hasValue(value?: string | number | null) {
@@ -148,7 +148,7 @@ export default function ContactosMobileView({
               <CircularProgress size={28} />
             </Box>
           ) : contactos.length === 0 ? (
-            <Box sx={{ border: `1px solid ${neutralColors.gray[200]}`, borderRadius: 2, backgroundColor: '#fff', px: 2, py: 4, textAlign: 'center' }}>
+            <Box sx={{ border: `1px solid ${neutralColors.gray[200]}`, borderRadius: 2, backgroundColor: whiteSurfaces.mobileEmptyState, px: 2, py: 4, textAlign: 'center' }}>
               <Typography variant="body2" sx={{ color: (theme) => theme.emphasys.content.secondary }}>No hay contactos para mostrar.</Typography>
             </Box>
           ) : (
@@ -170,7 +170,7 @@ export default function ContactosMobileView({
                   sx={{
                     borderColor: neutralColors.gray[200],
                     borderRadius: 2.5,
-                    backgroundColor: '#ffffff',
+                    backgroundColor: whiteSurfaces.mobileListCard,
                     boxShadow: elevation.card,
                   }}
                 >
@@ -222,7 +222,7 @@ export default function ContactosMobileView({
           )}
         </Box>
 
-        <Box sx={{ border: `1px solid ${neutralColors.gray[200]}`, borderRadius: 2, backgroundColor: '#fff', overflow: 'hidden' }}>
+        <Box sx={{ border: `1px solid ${neutralColors.gray[200]}`, borderRadius: 2, backgroundColor: whiteSurfaces.mobileList, overflow: 'hidden' }}>
           <TablePagination
             component="div"
             count={rowCount}

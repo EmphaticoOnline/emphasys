@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Box, CircularProgress, IconButton, Stack, Tooltip, Typography } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import CheckIcon from '@mui/icons-material/Check';
-import { neutralColors, onPrimaryColors, overlayColors } from '../../../theme/structural';
+import { neutralColors, onPrimaryColors, overlayColors, whiteSurfaces } from '../../../theme/structural';
 import { activeBrand } from '../../../theme/brand/active';
 import { elevation } from '../../../theme/elevation';
 import { brandTints } from '../../../theme/tints';
@@ -193,7 +193,7 @@ export default function FacturaResumenFlotante({
         top: pos.y,
         width: 300,
         maxWidth: 'calc(100% - 32px)',
-        bgcolor: '#fff',
+        bgcolor: whiteSurfaces.floatingSummary,
         border: `1px solid ${neutralColors.steel.panelBorder}`,
         borderRadius: 2.5,
         boxShadow: dragging ? elevation.dragging : elevation.draggable,
@@ -218,7 +218,7 @@ export default function FacturaResumenFlotante({
           cursor: dragging ? 'grabbing' : 'grab',
           touchAction: 'none',
           userSelect: 'none',
-          bgcolor: dragging ? neutralColors.steel.hover : '#fff',
+          bgcolor: dragging ? neutralColors.steel.hover : whiteSurfaces.floatingSummary,
         }}
       >
         <Box
@@ -263,7 +263,7 @@ export default function FacturaResumenFlotante({
           onClick={onExpandRail}
           sx={{
             border: `1px solid ${neutralColors.steel.panelBorder}`,
-            background: '#fff',
+            background: whiteSurfaces.floatingSummary,
             color: activeBrand.colors.blue.base,
             font: 'inherit',
             fontSize: 11.5,

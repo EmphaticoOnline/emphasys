@@ -198,3 +198,21 @@ Cambios en pruebas:
   - verificación de que el fondo de cada reemplazo es azul o primario;
   - mutación de formato (`'#fff'` ↔ `'#ffffff'` ↔ `'white'`);
   - exclusiones.
+
+### 7.2 W2 — superficies y filas (completado)
+
+- **D-B2, aprobado por subrol.** Nuevo `whiteSurfaces` en `structural.ts`, con 13 subroles fijos y sin marca. Cada subrol conserva su escritura:
+  - `panel`, `floatingSummary`, `mobileEmptyState`, `mobileList`, `controlIdle` y `tableRow` usan `'#fff'`;
+  - `totalsPanel`, `mobileListCard`, `activityDrawer`, `outlineButton`, `floatingButton`, `imageThumb` y `treasuryRowAlt` usan `'#ffffff'`.
+- **50 literales en 19 archivos** (`'#fff'` ×32, `'#ffffff'` ×18), con las líneas y subroles de §1 (A y B). Antes de migrar se verificó en HEAD `627c28d` que cada línea tenía exactamente un literal.
+- En las ramas tematizadas (`catalog ? theme.emphasys.content.card : …`, `apariencia === 'tema' ? … : …`) solo cambia la rama literal.
+- **`DocumentosFormPage` queda sin colores escritos a mano.** La prueba de cierre de la página ahora exige `{}`.
+- `whitesColors.test.ts` agrega:
+  - el alcance por formato de W2;
+  - la verificación de que cada reemplazo es un fondo (`backgroundColor`, `bgcolor`, `background:`, un helper de fila o `filaBase`, buscando hasta dos líneas antes);
+  - los 13 subroles con su valor exacto.
+  - Su equivalencia SHA-256 contra `627c28d` es 19/19.
+- Pendientes (27):
+  - funcionales y overlays (E + F, 18);
+  - encabezado oscuro de grid (D, 7);
+  - los 2 excluidos de W1, por clasificar.

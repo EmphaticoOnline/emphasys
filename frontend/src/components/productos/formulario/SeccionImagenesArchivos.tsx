@@ -8,7 +8,7 @@ import StarIcon from '@mui/icons-material/Star';
 import { buildAssetUrl } from '../../../services/empresasAssetsService';
 import type { ProductoArchivo } from '../../../services/productosService';
 import SeccionCard from './SeccionCard';
-import { neutralColors, selectionColors } from '../../../theme/structural';
+import { neutralColors, selectionColors, whiteSurfaces } from '../../../theme/structural';
 import { activeBrand } from '../../../theme/brand/active';
 import { brandTints } from '../../../theme/tints';
 
@@ -138,7 +138,7 @@ export default function SeccionImagenesArchivos({
                         objectFit: 'cover',
                         borderRadius: 1,
                         border: `1px solid ${neutralColors.gray[200]}`,
-                        backgroundColor: '#ffffff',
+                        backgroundColor: whiteSurfaces.imageThumb,
                       }}
                     />
                     {isPrincipal && (

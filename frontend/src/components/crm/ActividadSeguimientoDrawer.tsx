@@ -39,7 +39,7 @@ import { apiFetch } from '../../services/apiFetch';
 import { loadSession } from '../../session/sessionStorage';
 import RichTextEditor from '../RichTextEditor';
 import { activityTypeChipColors, alertColors, crmAccents } from '../../theme/functional';
-import { neutralColors } from '../../theme/structural';
+import { neutralColors, whiteSurfaces } from '../../theme/structural';
 import { activeBrand } from '../../theme/brand/active';
 
 dayjs.locale('es');
@@ -544,7 +544,7 @@ export default function ActividadSeguimientoDrawer({ open, onClose, target, init
         }}
       >
         <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', backgroundColor: neutralColors.slate[50] }}>
-          <Stack direction="row" alignItems="flex-start" justifyContent="space-between" spacing={1.5} sx={{ p: 2.5, borderBottom: `1px solid ${neutralColors.slate[200]}`, backgroundColor: '#ffffff' }}>
+          <Stack direction="row" alignItems="flex-start" justifyContent="space-between" spacing={1.5} sx={{ p: 2.5, borderBottom: `1px solid ${neutralColors.slate[200]}`, backgroundColor: whiteSurfaces.activityDrawer }}>
             <Box sx={{ minWidth: 0 }}>
               <Typography variant="overline" sx={{ color: neutralColors.slate[500], fontWeight: 700 }}>
                 Seguimiento
@@ -599,7 +599,7 @@ export default function ActividadSeguimientoDrawer({ open, onClose, target, init
               ) : null}
 
               {!target ? (
-                <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, borderColor: neutralColors.steel.cardBorder, backgroundColor: '#ffffff' }}>
+                <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, borderColor: neutralColors.steel.cardBorder, backgroundColor: whiteSurfaces.activityDrawer }}>
                   <Typography variant="body2" sx={{ color: neutralColors.slate[500] }}>
                     Selecciona un registro para ver su seguimiento.
                   </Typography>
@@ -628,13 +628,13 @@ export default function ActividadSeguimientoDrawer({ open, onClose, target, init
                         </InputAdornment>
                       ) : undefined,
                     }}
-                    sx={{ '& .MuiOutlinedInput-root': { backgroundColor: '#ffffff' } }}
+                    sx={{ '& .MuiOutlinedInput-root': { backgroundColor: whiteSurfaces.activityDrawer } }}
                   />
                 </Box>
               ) : null}
 
               {showNoSearchMatches ? (
-                <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, borderColor: neutralColors.steel.cardBorder, backgroundColor: '#ffffff' }}>
+                <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, borderColor: neutralColors.steel.cardBorder, backgroundColor: whiteSurfaces.activityDrawer }}>
                   <Typography variant="body2" sx={{ color: neutralColors.slate[600] }}>
                     No se encontraron actividades.
                   </Typography>
@@ -647,7 +647,7 @@ export default function ActividadSeguimientoDrawer({ open, onClose, target, init
                 </Typography>
                 <Stack spacing={2}>
                   {actividadesPendientes.length === 0 && target && !normalizedSeguimientoSearchTerm && loadingActividadesTargetId !== target.id ? (
-                    <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, borderColor: neutralColors.steel.cardBorder, backgroundColor: '#ffffff' }}>
+                    <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, borderColor: neutralColors.steel.cardBorder, backgroundColor: whiteSurfaces.activityDrawer }}>
                       <Stack spacing={1.5}>
                         <Typography variant="body2" sx={{ color: neutralColors.slate[600] }}>
                           Sin actividades pendientes. Programa la siguiente acción.
@@ -677,7 +677,7 @@ export default function ActividadSeguimientoDrawer({ open, onClose, target, init
                           borderRadius: 2,
                           borderColor: duePresentation.borderColor,
                           borderLeft: `4px solid ${duePresentation.accentColor}`,
-                          backgroundColor: '#ffffff',
+                          backgroundColor: whiteSurfaces.activityDrawer,
                         }}
                       >
                         <Stack spacing={1.5}>
@@ -750,7 +750,7 @@ export default function ActividadSeguimientoDrawer({ open, onClose, target, init
                 </Typography>
                 <Stack spacing={2}>
                   {actividadesRealizadas.length === 0 && target && !normalizedSeguimientoSearchTerm && loadingActividadesTargetId !== target.id ? (
-                    <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, borderColor: neutralColors.steel.cardBorder, backgroundColor: '#ffffff' }}>
+                    <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, borderColor: neutralColors.steel.cardBorder, backgroundColor: whiteSurfaces.activityDrawer }}>
                       <Typography variant="body2" sx={{ color: neutralColors.slate[500] }}>
                         Sin actividades realizadas.
                       </Typography>
@@ -758,7 +758,7 @@ export default function ActividadSeguimientoDrawer({ open, onClose, target, init
                   ) : null}
 
                   {actividadesRealizadas.map((actividad) => (
-                    <Paper key={actividad.id} variant="outlined" sx={{ p: 2, borderRadius: 2, borderColor: alertColors.success[200], backgroundColor: '#ffffff' }}>
+                    <Paper key={actividad.id} variant="outlined" sx={{ p: 2, borderRadius: 2, borderColor: alertColors.success[200], backgroundColor: whiteSurfaces.activityDrawer }}>
                       <Stack spacing={1.5}>
                         <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between" useFlexGap flexWrap="wrap">
                           <Stack direction="row" spacing={1} alignItems="center" useFlexGap flexWrap="wrap">

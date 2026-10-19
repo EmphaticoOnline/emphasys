@@ -13,7 +13,7 @@ import { getEstadoSeguimientoPresentation } from '../../modules/cotizaciones/est
 import type { CotizacionListado } from '../../types/cotizacion';
 import type { DocumentosMobileViewProps } from './DocumentosView.types';
 import DocumentoStatusIndicators from './indicadores/DocumentoStatusIndicators';
-import { neutralColors, onPrimaryColors, selectionColors } from '../../theme/structural';
+import { neutralColors, onPrimaryColors, selectionColors, whiteSurfaces } from '../../theme/structural';
 import { activeBrand } from '../../theme/brand/active';
 import { balanceColors } from '../../theme/functional';
 import { brandElevation, elevation } from '../../theme/elevation';
@@ -124,7 +124,7 @@ export default function DocumentosMobileView({
                 fontWeight: 700,
                 borderColor: neutralColors.steel.outlineButtonBorder,
                 color: activeBrand.colors.blue.base,
-                backgroundColor: '#ffffff',
+                backgroundColor: whiteSurfaces.outlineButton,
                 '&:hover': { borderColor: selectionColors.border, backgroundColor: neutralColors.slate[50] },
               }}
             >
@@ -142,7 +142,7 @@ export default function DocumentosMobileView({
               <CircularProgress size={28} />
             </Box>
           ) : rows.length === 0 ? (
-            <Box sx={{ border: `1px solid ${catalog ? theme.emphasys.content.border : neutralColors.gray[200]}`, borderRadius: 2, backgroundColor: catalog ? theme.emphasys.content.card : '#fff', px: 2, py: 4, textAlign: 'center' }}>
+            <Box sx={{ border: `1px solid ${catalog ? theme.emphasys.content.border : neutralColors.gray[200]}`, borderRadius: 2, backgroundColor: catalog ? theme.emphasys.content.card : whiteSurfaces.mobileEmptyState, px: 2, py: 4, textAlign: 'center' }}>
               <Typography variant="body2" color={catalog ? theme.emphasys.content.secondary : neutralColors.gray[600]}>No hay documentos registrados.</Typography>
             </Box>
           ) : (
@@ -176,7 +176,7 @@ export default function DocumentosMobileView({
                       ? (catalog ? theme.emphasys.content.foreground : selectionColors.border)
                       : (catalog ? theme.emphasys.content.border : neutralColors.gray[200]),
                     borderRadius: 2.5,
-                    backgroundColor: catalog ? theme.emphasys.content.card : '#ffffff',
+                    backgroundColor: catalog ? theme.emphasys.content.card : whiteSurfaces.mobileListCard,
                     boxShadow: catalog ? 'none' : elevation.card,
                   }}
                 >

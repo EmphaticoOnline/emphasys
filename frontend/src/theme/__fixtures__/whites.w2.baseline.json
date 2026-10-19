@@ -1,0 +1,866 @@
+{
+  "source": "HEAD 627c28d, blancos bloque w2",
+  "files": {
+    "components/EmpresaSelector.tsx": {
+      "headSha256": "18694be2984fc3ea720aa4ba52d48bf2cb1fa00e9b9f634f388de3c89a64bac6",
+      "addedImports": [],
+      "lines": {
+        "8": {
+          "original": "import { neutralColors } from '../theme/structural';",
+          "migrated": "import { neutralColors, whiteSurfaces } from '../theme/structural';",
+          "entries": [],
+          "replacements": [],
+          "importMerge": true
+        },
+        "55": {
+          "original": "          backgroundColor: isPanel ? '#fff' : frame.control,",
+          "migrated": "          backgroundColor: isPanel ? whiteSurfaces.panel : frame.control,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'#fff'",
+              "to": "whiteSurfaces.panel",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "components/cfdi-sat/ResumenSatCards.tsx": {
+      "headSha256": "fa109b85015c8a0b13356700b4e477e029f029b314e111f936ce4964c6e46a95",
+      "addedImports": [],
+      "lines": {
+        "9": {
+          "original": "import { neutralColors } from '../../theme/structural';",
+          "migrated": "import { neutralColors, whiteSurfaces } from '../../theme/structural';",
+          "entries": [],
+          "replacements": [],
+          "importMerge": true
+        },
+        "36": {
+          "original": "        backgroundColor: '#fff',",
+          "migrated": "        backgroundColor: whiteSurfaces.panel,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'#fff'",
+              "to": "whiteSurfaces.panel",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "components/documentos/cotizaciones/CotizacionPartidasTab.tsx": {
+      "headSha256": "f5bc17be80da655a59655083a374807c300d70dcd8cc513aea94db771f4a1ec5",
+      "addedImports": [],
+      "lines": {
+        "9": {
+          "original": "import { neutralColors } from '../../../theme/structural';",
+          "migrated": "import { neutralColors, whiteSurfaces } from '../../../theme/structural';",
+          "entries": [],
+          "replacements": [],
+          "importMerge": true
+        },
+        "132": {
+          "original": "          bgcolor: '#fff',",
+          "migrated": "          bgcolor: whiteSurfaces.panel,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'#fff'",
+              "to": "whiteSurfaces.panel",
+              "times": 1
+            }
+          ]
+        },
+        "216": {
+          "original": "          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, py: 0.75, borderTop: `1px solid ${neutralColors.gray[200]}`, bgcolor: '#fff' }}>",
+          "migrated": "          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, py: 0.75, borderTop: `1px solid ${neutralColors.gray[200]}`, bgcolor: whiteSurfaces.panel }}>",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'#fff'",
+              "to": "whiteSurfaces.panel",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "components/documentos/nota-credito/NotaCreditoCaptura.tsx": {
+      "headSha256": "5ea0e2dc0d22a65c018ccf54d10bd4c3a0fc363163bd7e5404946af6e7b0d794",
+      "addedImports": [],
+      "lines": {
+        "39": {
+          "original": "import { neutralColors, onPrimaryColors } from '../../../theme/structural';",
+          "migrated": "import { neutralColors, onPrimaryColors, whiteSurfaces } from '../../../theme/structural';",
+          "entries": [],
+          "replacements": [],
+          "importMerge": true
+        },
+        "180": {
+          "original": "  return index % 2 === 0 ? '#fff' : neutralColors.steel.stripe;",
+          "migrated": "  return index % 2 === 0 ? whiteSurfaces.tableRow : neutralColors.steel.stripe;",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'#fff'",
+              "to": "whiteSurfaces.tableRow",
+              "times": 1
+            }
+          ]
+        },
+        "589": {
+          "original": "          bgcolor: '#fff',",
+          "migrated": "          bgcolor: whiteSurfaces.panel,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'#fff'",
+              "to": "whiteSurfaces.panel",
+              "times": 1
+            }
+          ]
+        },
+        "670": {
+          "original": "              sx={{ borderStyle: 'dashed', borderColor: neutralColors.steel.inputBorder, borderRadius: 2, py: 7, px: 3, textAlign: 'center', bgcolor: '#fff', flexShrink: 0 }}",
+          "migrated": "              sx={{ borderStyle: 'dashed', borderColor: neutralColors.steel.inputBorder, borderRadius: 2, py: 7, px: 3, textAlign: 'center', bgcolor: whiteSurfaces.panel, flexShrink: 0 }}",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'#fff'",
+              "to": "whiteSurfaces.panel",
+              "times": 1
+            }
+          ]
+        },
+        "1024": {
+          "original": "          bgcolor: '#fff',",
+          "migrated": "          bgcolor: whiteSurfaces.panel,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'#fff'",
+              "to": "whiteSurfaces.panel",
+              "times": 1
+            }
+          ]
+        },
+        "1112": {
+          "original": "        bgcolor: '#fff',",
+          "migrated": "        bgcolor: whiteSurfaces.panel,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'#fff'",
+              "to": "whiteSurfaces.panel",
+              "times": 1
+            }
+          ]
+        },
+        "1124": {
+          "original": "        bgcolor: '#fff',",
+          "migrated": "        bgcolor: whiteSurfaces.panel,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'#fff'",
+              "to": "whiteSurfaces.panel",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "modules/finanzas/AplicarSaldoNotaCreditoDialog.tsx": {
+      "headSha256": "5343c1953a41e2aca325c0865046cb51373b0649dca29dde5f86b06b7429a3ff",
+      "addedImports": [],
+      "lines": {
+        "51": {
+          "original": "import { neutralColors } from '../../theme/structural';",
+          "migrated": "import { neutralColors, whiteSurfaces } from '../../theme/structural';",
+          "entries": [],
+          "replacements": [],
+          "importMerge": true
+        },
+        "175": {
+          "original": "          bgcolor: '#fff',",
+          "migrated": "          bgcolor: whiteSurfaces.panel,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'#fff'",
+              "to": "whiteSurfaces.panel",
+              "times": 1
+            }
+          ]
+        },
+        "501": {
+          "original": "                      <TableRow key={item.id} sx={{ bgcolor: marcada ? neutralColors.slate[50] : '#fff' }}>",
+          "migrated": "                      <TableRow key={item.id} sx={{ bgcolor: marcada ? neutralColors.slate[50] : whiteSurfaces.tableRow }}>",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'#fff'",
+              "to": "whiteSurfaces.tableRow",
+              "times": 1
+            }
+          ]
+        },
+        "571": {
+          "original": "                    <TableRow key={factura.id} sx={{ bgcolor: index % 2 === 0 ? '#fff' : neutralColors.steel.stripe }}>",
+          "migrated": "                    <TableRow key={factura.id} sx={{ bgcolor: index % 2 === 0 ? whiteSurfaces.tableRow : neutralColors.steel.stripe }}>",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'#fff'",
+              "to": "whiteSurfaces.tableRow",
+              "times": 1
+            }
+          ]
+        },
+        "629": {
+          "original": "          bgcolor: '#fff',",
+          "migrated": "          bgcolor: whiteSurfaces.panel,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'#fff'",
+              "to": "whiteSurfaces.panel",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "modules/finanzas/OperacionDetalleDrawer.tsx": {
+      "headSha256": "834bb94a2503e41cb58eed05b1ec1df3f8dc6de6867a4ae0c406b4806f13de2a",
+      "addedImports": [],
+      "lines": {
+        "42": {
+          "original": "import { neutralColors, rowStripeColors } from '../../theme/structural';",
+          "migrated": "import { neutralColors, rowStripeColors, whiteSurfaces } from '../../theme/structural';",
+          "entries": [],
+          "replacements": [],
+          "importMerge": true
+        },
+        "421": {
+          "original": "                  const backgroundColor = idx % 2 === 0 ? rowStripeColors.treasuryDocuments : '#ffffff';",
+          "migrated": "                  const backgroundColor = idx % 2 === 0 ? rowStripeColors.treasuryDocuments : whiteSurfaces.treasuryRowAlt;",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'#ffffff'",
+              "to": "whiteSurfaces.treasuryRowAlt",
+              "times": 1
+            }
+          ]
+        },
+        "519": {
+          "original": "                    const backgroundColor = idx % 2 === 0 ? rowStripeColors.treasuryDocuments : '#ffffff';",
+          "migrated": "                    const backgroundColor = idx % 2 === 0 ? rowStripeColors.treasuryDocuments : whiteSurfaces.treasuryRowAlt;",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'#ffffff'",
+              "to": "whiteSurfaces.treasuryRowAlt",
+              "times": 1
+            }
+          ]
+        },
+        "551": {
+          "original": "                                backgroundColor: '#fff',",
+          "migrated": "                                backgroundColor: whiteSurfaces.panel,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'#fff'",
+              "to": "whiteSurfaces.panel",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "components/documentos/DocumentosDesktopView.tsx": {
+      "headSha256": "a54dd56e2d44579bd039a0731f4f98a633210e19de3415553221c1e804e8a262",
+      "addedImports": [],
+      "lines": {
+        "17": {
+          "original": "import { neutralColors, onPrimaryColors, overlayColors } from '../../theme/structural';",
+          "migrated": "import { neutralColors, onPrimaryColors, overlayColors, whiteSurfaces } from '../../theme/structural';",
+          "entries": [],
+          "replacements": [],
+          "importMerge": true
+        },
+        "215": {
+          "original": "          backgroundColor: catalog ? theme.emphasys.content.card : '#fff',",
+          "migrated": "          backgroundColor: catalog ? theme.emphasys.content.card : whiteSurfaces.panel,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'#fff'",
+              "to": "whiteSurfaces.panel",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "pages/OportunidadesPage.tsx": {
+      "headSha256": "bb079536744ce8b214f15e47fc4e68e7bb75777b891686831814b37800557766",
+      "addedImports": [],
+      "lines": {
+        "63": {
+          "original": "import { neutralColors, overlayColors } from '../theme/structural';",
+          "migrated": "import { neutralColors, overlayColors, whiteSurfaces } from '../theme/structural';",
+          "entries": [],
+          "replacements": [],
+          "importMerge": true
+        },
+        "2142": {
+          "original": "        backgroundColor: '#fff',",
+          "migrated": "        backgroundColor: whiteSurfaces.panel,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'#fff'",
+              "to": "whiteSurfaces.panel",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "pages/DocumentosFormPage.tsx": {
+      "headSha256": "c4078347e4029b97c6998960d1e8566080b8f540ab2721a3cca9e9dbe1e34a25",
+      "addedImports": [],
+      "lines": {
+        "134": {
+          "original": "import { neutralColors, onPrimaryColors, overlayColors, selectionColors } from '../theme/structural';",
+          "migrated": "import { neutralColors, onPrimaryColors, overlayColors, selectionColors, whiteSurfaces } from '../theme/structural';",
+          "entries": [],
+          "replacements": [],
+          "importMerge": true
+        },
+        "3937": {
+          "original": "            bgcolor: vistaFacturaCaptura === opt.value ? 'primary.main' : '#fff',",
+          "migrated": "            bgcolor: vistaFacturaCaptura === opt.value ? 'primary.main' : whiteSurfaces.controlIdle,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'#fff'",
+              "to": "whiteSurfaces.controlIdle",
+              "times": 1
+            }
+          ]
+        },
+        "4727": {
+          "original": "                            bgcolor: '#fff',",
+          "migrated": "                            bgcolor: whiteSurfaces.panel,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'#fff'",
+              "to": "whiteSurfaces.panel",
+              "times": 1
+            }
+          ]
+        },
+        "4890": {
+          "original": "                            const filaBase = expanded ? neutralColors.steel.softSurface : index % 2 === 1 ? neutralColors.steel.rowStripe : '#fff';",
+          "migrated": "                            const filaBase = expanded ? neutralColors.steel.softSurface : index % 2 === 1 ? neutralColors.steel.rowStripe : whiteSurfaces.tableRow;",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'#fff'",
+              "to": "whiteSurfaces.tableRow",
+              "times": 1
+            }
+          ]
+        },
+        "7341": {
+          "original": "                            bgcolor: '#ffffff',",
+          "migrated": "                            bgcolor: whiteSurfaces.totalsPanel,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'#ffffff'",
+              "to": "whiteSurfaces.totalsPanel",
+              "times": 1
+            }
+          ]
+        },
+        "7767": {
+          "original": "                            bgcolor: '#ffffff',",
+          "migrated": "                            bgcolor: whiteSurfaces.totalsPanel,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'#ffffff'",
+              "to": "whiteSurfaces.totalsPanel",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "components/documentos/facturas/FacturaResumenFlotante.tsx": {
+      "headSha256": "d45acc0ca24d9c49917337082b4e6c63fda6833eee6de497e683dec70e76af9d",
+      "addedImports": [],
+      "lines": {
+        "6": {
+          "original": "import { neutralColors, onPrimaryColors, overlayColors } from '../../../theme/structural';",
+          "migrated": "import { neutralColors, onPrimaryColors, overlayColors, whiteSurfaces } from '../../../theme/structural';",
+          "entries": [],
+          "replacements": [],
+          "importMerge": true
+        },
+        "196": {
+          "original": "        bgcolor: '#fff',",
+          "migrated": "        bgcolor: whiteSurfaces.floatingSummary,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'#fff'",
+              "to": "whiteSurfaces.floatingSummary",
+              "times": 1
+            }
+          ]
+        },
+        "221": {
+          "original": "          bgcolor: dragging ? neutralColors.steel.hover : '#fff',",
+          "migrated": "          bgcolor: dragging ? neutralColors.steel.hover : whiteSurfaces.floatingSummary,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'#fff'",
+              "to": "whiteSurfaces.floatingSummary",
+              "times": 1
+            }
+          ]
+        },
+        "266": {
+          "original": "            background: '#fff',",
+          "migrated": "            background: whiteSurfaces.floatingSummary,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'#fff'",
+              "to": "whiteSurfaces.floatingSummary",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "components/documentos/facturas/ResumenFlotanteMarco.tsx": {
+      "headSha256": "c5bc03f251bc2f2d90a51613246e356fc16dc9df3a4ae44037566d913c850a2c",
+      "addedImports": [],
+      "lines": {
+        "4": {
+          "original": "import { neutralColors } from '../../../theme/structural';",
+          "migrated": "import { neutralColors, whiteSurfaces } from '../../../theme/structural';",
+          "entries": [],
+          "replacements": [],
+          "importMerge": true
+        },
+        "167": {
+          "original": "        bgcolor: apariencia === 'tema' ? theme.emphasys.content.elevated : '#fff',",
+          "migrated": "        bgcolor: apariencia === 'tema' ? theme.emphasys.content.elevated : whiteSurfaces.floatingSummary,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'#fff'",
+              "to": "whiteSurfaces.floatingSummary",
+              "times": 1
+            }
+          ]
+        },
+        "194": {
+          "original": "            : (apariencia === 'tema' ? theme.emphasys.content.elevated : '#fff'),",
+          "migrated": "            : (apariencia === 'tema' ? theme.emphasys.content.elevated : whiteSurfaces.floatingSummary),",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'#fff'",
+              "to": "whiteSurfaces.floatingSummary",
+              "times": 1
+            }
+          ]
+        },
+        "242": {
+          "original": "            background: apariencia === 'tema' ? theme.emphasys.content.elevated : '#fff',",
+          "migrated": "            background: apariencia === 'tema' ? theme.emphasys.content.elevated : whiteSurfaces.floatingSummary,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'#fff'",
+              "to": "whiteSurfaces.floatingSummary",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "components/contactos/ContactosMobileView.tsx": {
+      "headSha256": "64aef9ea773decea05a14b9b150e7c367c3032ab0c50c37987130bb04cc77b2e",
+      "addedImports": [],
+      "lines": {
+        "13": {
+          "original": "import { neutralColors } from '../../theme/structural';",
+          "migrated": "import { neutralColors, whiteSurfaces } from '../../theme/structural';",
+          "entries": [],
+          "replacements": [],
+          "importMerge": true
+        },
+        "151": {
+          "original": "            <Box sx={{ border: `1px solid ${neutralColors.gray[200]}`, borderRadius: 2, backgroundColor: '#fff', px: 2, py: 4, textAlign: 'center' }}>",
+          "migrated": "            <Box sx={{ border: `1px solid ${neutralColors.gray[200]}`, borderRadius: 2, backgroundColor: whiteSurfaces.mobileEmptyState, px: 2, py: 4, textAlign: 'center' }}>",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'#fff'",
+              "to": "whiteSurfaces.mobileEmptyState",
+              "times": 1
+            }
+          ]
+        },
+        "173": {
+          "original": "                    backgroundColor: '#ffffff',",
+          "migrated": "                    backgroundColor: whiteSurfaces.mobileListCard,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'#ffffff'",
+              "to": "whiteSurfaces.mobileListCard",
+              "times": 1
+            }
+          ]
+        },
+        "225": {
+          "original": "        <Box sx={{ border: `1px solid ${neutralColors.gray[200]}`, borderRadius: 2, backgroundColor: '#fff', overflow: 'hidden' }}>",
+          "migrated": "        <Box sx={{ border: `1px solid ${neutralColors.gray[200]}`, borderRadius: 2, backgroundColor: whiteSurfaces.mobileList, overflow: 'hidden' }}>",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'#fff'",
+              "to": "whiteSurfaces.mobileList",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "components/documentos/DocumentosMobileView.tsx": {
+      "headSha256": "3bd0825d6ebd2ce327c5fe13decbf423f4325c382033d4643fc37e220e64de77",
+      "addedImports": [],
+      "lines": {
+        "16": {
+          "original": "import { neutralColors, onPrimaryColors, selectionColors } from '../../theme/structural';",
+          "migrated": "import { neutralColors, onPrimaryColors, selectionColors, whiteSurfaces } from '../../theme/structural';",
+          "entries": [],
+          "replacements": [],
+          "importMerge": true
+        },
+        "127": {
+          "original": "                backgroundColor: '#ffffff',",
+          "migrated": "                backgroundColor: whiteSurfaces.outlineButton,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'#ffffff'",
+              "to": "whiteSurfaces.outlineButton",
+              "times": 1
+            }
+          ]
+        },
+        "145": {
+          "original": "            <Box sx={{ border: `1px solid ${catalog ? theme.emphasys.content.border : neutralColors.gray[200]}`, borderRadius: 2, backgroundColor: catalog ? theme.emphasys.content.card : '#fff', px: 2, py: 4, textAlign: 'center' }}>",
+          "migrated": "            <Box sx={{ border: `1px solid ${catalog ? theme.emphasys.content.border : neutralColors.gray[200]}`, borderRadius: 2, backgroundColor: catalog ? theme.emphasys.content.card : whiteSurfaces.mobileEmptyState, px: 2, py: 4, textAlign: 'center' }}>",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'#fff'",
+              "to": "whiteSurfaces.mobileEmptyState",
+              "times": 1
+            }
+          ]
+        },
+        "179": {
+          "original": "                    backgroundColor: catalog ? theme.emphasys.content.card : '#ffffff',",
+          "migrated": "                    backgroundColor: catalog ? theme.emphasys.content.card : whiteSurfaces.mobileListCard,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'#ffffff'",
+              "to": "whiteSurfaces.mobileListCard",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "components/productos/ProductosMobileView.tsx": {
+      "headSha256": "637e43ecc8096fa41093fac8eb83012c9881bc377033f9e61e889c69059fe336",
+      "addedImports": [],
+      "lines": {
+        "10": {
+          "original": "import { neutralColors } from '../../theme/structural';",
+          "migrated": "import { neutralColors, whiteSurfaces } from '../../theme/structural';",
+          "entries": [],
+          "replacements": [],
+          "importMerge": true
+        },
+        "107": {
+          "original": "            <Box sx={{ border: `1px solid ${neutralColors.gray[200]}`, borderRadius: 2, backgroundColor: '#fff', px: 2, py: 4, textAlign: 'center' }}>",
+          "migrated": "            <Box sx={{ border: `1px solid ${neutralColors.gray[200]}`, borderRadius: 2, backgroundColor: whiteSurfaces.mobileEmptyState, px: 2, py: 4, textAlign: 'center' }}>",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'#fff'",
+              "to": "whiteSurfaces.mobileEmptyState",
+              "times": 1
+            }
+          ]
+        },
+        "127": {
+          "original": "                    backgroundColor: '#ffffff',",
+          "migrated": "                    backgroundColor: whiteSurfaces.mobileListCard,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'#ffffff'",
+              "to": "whiteSurfaces.mobileListCard",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "components/crm/ActividadSeguimientoDrawer.tsx": {
+      "headSha256": "d44a4f5d52f387fc5ef672f012cb8eaba34607dc92076eb3cbff6b90f1cfdd23",
+      "addedImports": [],
+      "lines": {
+        "42": {
+          "original": "import { neutralColors } from '../../theme/structural';",
+          "migrated": "import { neutralColors, whiteSurfaces } from '../../theme/structural';",
+          "entries": [],
+          "replacements": [],
+          "importMerge": true
+        },
+        "547": {
+          "original": "          <Stack direction=\"row\" alignItems=\"flex-start\" justifyContent=\"space-between\" spacing={1.5} sx={{ p: 2.5, borderBottom: `1px solid ${neutralColors.slate[200]}`, backgroundColor: '#ffffff' }}>",
+          "migrated": "          <Stack direction=\"row\" alignItems=\"flex-start\" justifyContent=\"space-between\" spacing={1.5} sx={{ p: 2.5, borderBottom: `1px solid ${neutralColors.slate[200]}`, backgroundColor: whiteSurfaces.activityDrawer }}>",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'#ffffff'",
+              "to": "whiteSurfaces.activityDrawer",
+              "times": 1
+            }
+          ]
+        },
+        "602": {
+          "original": "                <Paper variant=\"outlined\" sx={{ p: 2, borderRadius: 2, borderColor: neutralColors.steel.cardBorder, backgroundColor: '#ffffff' }}>",
+          "migrated": "                <Paper variant=\"outlined\" sx={{ p: 2, borderRadius: 2, borderColor: neutralColors.steel.cardBorder, backgroundColor: whiteSurfaces.activityDrawer }}>",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'#ffffff'",
+              "to": "whiteSurfaces.activityDrawer",
+              "times": 1
+            }
+          ]
+        },
+        "631": {
+          "original": "                    sx={{ '& .MuiOutlinedInput-root': { backgroundColor: '#ffffff' } }}",
+          "migrated": "                    sx={{ '& .MuiOutlinedInput-root': { backgroundColor: whiteSurfaces.activityDrawer } }}",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'#ffffff'",
+              "to": "whiteSurfaces.activityDrawer",
+              "times": 1
+            }
+          ]
+        },
+        "637": {
+          "original": "                <Paper variant=\"outlined\" sx={{ p: 2, borderRadius: 2, borderColor: neutralColors.steel.cardBorder, backgroundColor: '#ffffff' }}>",
+          "migrated": "                <Paper variant=\"outlined\" sx={{ p: 2, borderRadius: 2, borderColor: neutralColors.steel.cardBorder, backgroundColor: whiteSurfaces.activityDrawer }}>",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'#ffffff'",
+              "to": "whiteSurfaces.activityDrawer",
+              "times": 1
+            }
+          ]
+        },
+        "650": {
+          "original": "                    <Paper variant=\"outlined\" sx={{ p: 2, borderRadius: 2, borderColor: neutralColors.steel.cardBorder, backgroundColor: '#ffffff' }}>",
+          "migrated": "                    <Paper variant=\"outlined\" sx={{ p: 2, borderRadius: 2, borderColor: neutralColors.steel.cardBorder, backgroundColor: whiteSurfaces.activityDrawer }}>",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'#ffffff'",
+              "to": "whiteSurfaces.activityDrawer",
+              "times": 1
+            }
+          ]
+        },
+        "680": {
+          "original": "                          backgroundColor: '#ffffff',",
+          "migrated": "                          backgroundColor: whiteSurfaces.activityDrawer,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'#ffffff'",
+              "to": "whiteSurfaces.activityDrawer",
+              "times": 1
+            }
+          ]
+        },
+        "753": {
+          "original": "                    <Paper variant=\"outlined\" sx={{ p: 2, borderRadius: 2, borderColor: neutralColors.steel.cardBorder, backgroundColor: '#ffffff' }}>",
+          "migrated": "                    <Paper variant=\"outlined\" sx={{ p: 2, borderRadius: 2, borderColor: neutralColors.steel.cardBorder, backgroundColor: whiteSurfaces.activityDrawer }}>",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'#ffffff'",
+              "to": "whiteSurfaces.activityDrawer",
+              "times": 1
+            }
+          ]
+        },
+        "761": {
+          "original": "                    <Paper key={actividad.id} variant=\"outlined\" sx={{ p: 2, borderRadius: 2, borderColor: alertColors.success[200], backgroundColor: '#ffffff' }}>",
+          "migrated": "                    <Paper key={actividad.id} variant=\"outlined\" sx={{ p: 2, borderRadius: 2, borderColor: alertColors.success[200], backgroundColor: whiteSurfaces.activityDrawer }}>",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'#ffffff'",
+              "to": "whiteSurfaces.activityDrawer",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "pages/DocumentosPage.tsx": {
+      "headSha256": "0d1bbb0df41201521ac58da0cb044fceb0e12b3f920e373ce2231481a0a428dc",
+      "addedImports": [],
+      "lines": {
+        "170": {
+          "original": "import { neutralColors, selectionColors } from '../theme/structural';",
+          "migrated": "import { neutralColors, selectionColors, whiteSurfaces } from '../theme/structural';",
+          "entries": [],
+          "replacements": [],
+          "importMerge": true
+        },
+        "3569": {
+          "original": "                  backgroundColor: selected ? selectionColors.chipSurface : '#fff',",
+          "migrated": "                  backgroundColor: selected ? selectionColors.chipSurface : whiteSurfaces.controlIdle,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'#fff'",
+              "to": "whiteSurfaces.controlIdle",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "components/leads/TemperaturaScoreButton.tsx": {
+      "headSha256": "7df26de8fcea89c91cbf293c3c8e4bdcfa66aee6c354b0862a9956dbb0211b2e",
+      "addedImports": [
+        "import { whiteSurfaces } from '../../theme/structural';"
+      ],
+      "lines": {
+        "91": {
+          "original": "                  bgcolor: analysis.desactualizado ? '#fff' : temperaturaColor(analysis.nivel),",
+          "migrated": "                  bgcolor: analysis.desactualizado ? whiteSurfaces.controlIdle : temperaturaColor(analysis.nivel),",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'#fff'",
+              "to": "whiteSurfaces.controlIdle",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "components/MobileBackIconButton.tsx": {
+      "headSha256": "c5be6157924e56d4874fd33ee4c54df762edf373213f413db1c50c18fd0e978d",
+      "addedImports": [],
+      "lines": {
+        "3": {
+          "original": "import { neutralColors } from '../theme/structural';",
+          "migrated": "import { neutralColors, whiteSurfaces } from '../theme/structural';",
+          "entries": [],
+          "replacements": [],
+          "importMerge": true
+        },
+        "24": {
+          "original": "        backgroundColor: '#ffffff',",
+          "migrated": "        backgroundColor: whiteSurfaces.floatingButton,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'#ffffff'",
+              "to": "whiteSurfaces.floatingButton",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "components/productos/formulario/SeccionImagenesArchivos.tsx": {
+      "headSha256": "bb96512213e3ec386ba94b671e6abc9cb1040cf30550344849828033229f4122",
+      "addedImports": [],
+      "lines": {
+        "11": {
+          "original": "import { neutralColors, selectionColors } from '../../../theme/structural';",
+          "migrated": "import { neutralColors, selectionColors, whiteSurfaces } from '../../../theme/structural';",
+          "entries": [],
+          "replacements": [],
+          "importMerge": true
+        },
+        "141": {
+          "original": "                        backgroundColor: '#ffffff',",
+          "migrated": "                        backgroundColor: whiteSurfaces.imageThumb,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'#ffffff'",
+              "to": "whiteSurfaces.imageThumb",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    }
+  }
+}

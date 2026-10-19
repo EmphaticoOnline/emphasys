@@ -4,6 +4,7 @@ import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import type { LeadConPrioridad, TemperaturaResumen } from '../../pages/LeadsPage';
 import TemperaturaProspectoModal from './TemperaturaProspectoModal';
 import { temperatureColors } from '../../theme/functional';
+import { whiteSurfaces } from '../../theme/structural';
 
 export const temperaturaLabel = (nivel: TemperaturaResumen['nivel']) =>
   nivel === 'muy_caliente' ? 'Muy caliente' : nivel.charAt(0).toUpperCase() + nivel.slice(1);
@@ -88,7 +89,7 @@ export default function TemperaturaScoreButton({ lead, updateLead, desktop = fal
               flexShrink: 0,
               ...(analysis
                 ? {
-                  bgcolor: analysis.desactualizado ? '#fff' : temperaturaColor(analysis.nivel),
+                  bgcolor: analysis.desactualizado ? whiteSurfaces.controlIdle : temperaturaColor(analysis.nivel),
                   color: analysis.desactualizado ? temperaturaColor(analysis.nivel) : '#fff',
                   border: `1px solid ${temperaturaColor(analysis.nivel)}`,
                   fontSize: analysis.puntuacion === 100 ? 8 : 9,

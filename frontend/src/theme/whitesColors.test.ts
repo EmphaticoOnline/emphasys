@@ -36,7 +36,7 @@ const allLines = () =>
   );
 
 /** Familias de blancos (ver docs/white-label-blancos-audit.md). Ninguna depende de la marca. */
-const ROOTS = { onPrimaryColors: structural.onPrimaryColors } as const;
+const ROOTS = { onPrimaryColors: structural.onPrimaryColors, whiteSurfaces: structural.whiteSurfaces } as const;
 type Roots = Record<string, Record<string, string>>;
 const currentRoots = (): Roots => structuredClone(ROOTS) as Roots;
 const TOKEN = new RegExp(`\\b(?:${Object.keys(ROOTS).join('|')})\\.\\w+`, 'g');
@@ -60,6 +60,8 @@ const restoredSha = (name: string, file: string, entry: WhiteFileFixture, roots:
 /** Literales por subbloque y por formato: W1 = contraste sobre azul de marca o primario (D-B1, opción A). */
 const BLOCK_SCOPE: Record<string, { files: number; formats: Record<string, number> }> = {
   'whites.w1.baseline.json': { files: 7, formats: { "'#fff'": 9, "'#ffffff'": 2, "'white'": 1 } },
+  // W2 = superficies y filas (D-B2, por subrol).
+  'whites.w2.baseline.json': { files: 19, formats: { "'#fff'": 32, "'#ffffff'": 18 } },
 };
 
 test('cada subbloque tiene alcance declarado, por formato', () => {
@@ -121,6 +123,38 @@ test('W1: cada reemplazo es contraste sobre azul de marca o primario', () => {
     const context = lines.slice(Math.max(0, index - 10), index + 3).join('\n');
     assert.match(context, background, `${file}:${n} no está sobre azul o primario`);
   }
+});
+
+test('W2: cada reemplazo es un fondo (superficie o fila) y cada subrol conserva su formato', () => {
+  for (const { name, file, n, migrated, replacements, importMerge } of allLines()) {
+    if (importMerge || name !== 'whites.w2.baseline.json') continue;
+    // La propiedad puede estar en la línea o en las dos anteriores (`bgcolor:` partido en ternarios).
+    // `filaBase` (DocumentosFormPage) es el fondo de la fila de partidas: se aplica como `bgcolor` más abajo.
+    const lines = readText(`../${file}`).split('\n');
+    const index = lines.indexOf(migrated);
+    assert.ok(index >= 0, `${file}:${n}`);
+    const context = lines.slice(Math.max(0, index - 2), index + 1).join('\n');
+    assert.match(context, /backgroundColor|bgcolor|background:|return index % 2|const filaBase =/, `${file}:${n} no es un fondo`);
+    for (const { to } of replacements) assert.match(to, /^whiteSurfaces\.\w+$/, `${file}:${n}`);
+  }
+  assert.deepEqual(
+    Object.fromEntries(Object.entries(structural.whiteSurfaces).map(([key, value]) => [key, value])),
+    {
+      panel: '#fff',
+      totalsPanel: '#ffffff',
+      floatingSummary: '#fff',
+      mobileEmptyState: '#fff',
+      mobileListCard: '#ffffff',
+      mobileList: '#fff',
+      activityDrawer: '#ffffff',
+      controlIdle: '#fff',
+      outlineButton: '#ffffff',
+      floatingButton: '#ffffff',
+      imageThumb: '#ffffff',
+      tableRow: '#fff',
+      treasuryRowAlt: '#ffffff',
+    },
+  );
 });
 
 test('mutación: alterar el formato o el valor de un token rompe la equivalencia de cada archivo que lo usa', () => {

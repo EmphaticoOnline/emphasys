@@ -14,7 +14,7 @@ import {
 } from '../grids/standardDataGridSx';
 import { catalogoOutlinedButtonSx, catalogoPrimaryButtonSx, catalogoSearchSx } from '../catalogo/catalogoSurfaces';
 import type { DocumentosDesktopViewProps } from './DocumentosView.types';
-import { neutralColors, onPrimaryColors, overlayColors } from '../../theme/structural';
+import { neutralColors, onPrimaryColors, overlayColors, whiteSurfaces } from '../../theme/structural';
 import { activeBrand } from '../../theme/brand/active';
 import { brandTints } from '../../theme/tints';
 
@@ -212,7 +212,7 @@ export default function DocumentosDesktopView({
         {/* Grid */}
         <Box sx={{
           width: '100%',
-          backgroundColor: catalog ? theme.emphasys.content.card : '#fff',
+          backgroundColor: catalog ? theme.emphasys.content.card : whiteSurfaces.panel,
           borderRadius: catalog ? 2 : 1,
           border: `1px solid ${catalog ? theme.emphasys.content.border : neutralColors.gray[200]}`,
           overflow: 'hidden',

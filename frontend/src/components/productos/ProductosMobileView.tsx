@@ -7,7 +7,7 @@ import MoreVertIcon from '@mui/icons-material/MoreVert';
 import SearchIcon from '@mui/icons-material/Search';
 import ClearIcon from '@mui/icons-material/Clear';
 import type { ProductosMobileViewProps } from './ProductosView.types';
-import { neutralColors } from '../../theme/structural';
+import { neutralColors, whiteSurfaces } from '../../theme/structural';
 import { brandElevation, elevation } from '../../theme/elevation';
 
 function hasValue(value?: string | number | boolean | null) {
@@ -104,7 +104,7 @@ export default function ProductosMobileView({
               <CircularProgress size={28} />
             </Box>
           ) : productos.length === 0 ? (
-            <Box sx={{ border: `1px solid ${neutralColors.gray[200]}`, borderRadius: 2, backgroundColor: '#fff', px: 2, py: 4, textAlign: 'center' }}>
+            <Box sx={{ border: `1px solid ${neutralColors.gray[200]}`, borderRadius: 2, backgroundColor: whiteSurfaces.mobileEmptyState, px: 2, py: 4, textAlign: 'center' }}>
               <Typography variant="body2" color={neutralColors.gray[600]}>
                 {searchTerm.trim() ? `No hay productos que coincidan con "${searchTerm}".` : 'No hay productos registrados.'}
               </Typography>
@@ -124,7 +124,7 @@ export default function ProductosMobileView({
                   sx={{
                     borderColor: neutralColors.gray[200],
                     borderRadius: 2.5,
-                    backgroundColor: '#ffffff',
+                    backgroundColor: whiteSurfaces.mobileListCard,
                     boxShadow: elevation.card,
                   }}
                 >

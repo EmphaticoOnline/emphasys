@@ -6,7 +6,7 @@ import { EmptyState } from '../DocumentoDetalleContent';
 import type { DocumentoDetalleResponse } from '../../../types/documentoDetalle';
 import { fetchProductoArchivos, type ProductoArchivo } from '../../../services/productosService';
 import { buildAssetUrl } from '../../../services/empresasAssetsService';
-import { neutralColors } from '../../../theme/structural';
+import { neutralColors, whiteSurfaces } from '../../../theme/structural';
 import { brandTints } from '../../../theme/tints';
 
 type Partida = DocumentoDetalleResponse['partidas'][number];
@@ -129,7 +129,7 @@ export default function CotizacionPartidasTab({
           overflowY: 'auto',
           border: `1px solid ${neutralColors.gray[200]}`,
           borderRadius: 2,
-          bgcolor: '#fff',
+          bgcolor: whiteSurfaces.panel,
         }}
       >
         {filas.map((partida) => {
@@ -213,7 +213,7 @@ export default function CotizacionPartidasTab({
           )}
         </Box>
         {imagenes.length > 1 ? (
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, py: 0.75, borderTop: `1px solid ${neutralColors.gray[200]}`, bgcolor: '#fff' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, py: 0.75, borderTop: `1px solid ${neutralColors.gray[200]}`, bgcolor: whiteSurfaces.panel }}>
             <IconButton
               size="small"
               aria-label="Imagen anterior"

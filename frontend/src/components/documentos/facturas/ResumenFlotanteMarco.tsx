@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Box, Typography } from '@mui/material';
-import { neutralColors } from '../../../theme/structural';
+import { neutralColors, whiteSurfaces } from '../../../theme/structural';
 import { activeBrand } from '../../../theme/brand/active';
 import { elevation } from '../../../theme/elevation';
 
@@ -164,7 +164,7 @@ export default function ResumenFlotanteMarco({
         top: pos.y,
         width: 300,
         maxWidth: 'calc(100% - 32px)',
-        bgcolor: apariencia === 'tema' ? theme.emphasys.content.elevated : '#fff',
+        bgcolor: apariencia === 'tema' ? theme.emphasys.content.elevated : whiteSurfaces.floatingSummary,
         border: `1px solid ${apariencia === 'tema' ? theme.emphasys.content.border : neutralColors.steel.panelBorder}`,
         borderRadius: 2.5,
         boxShadow: dragging ? elevation.dragging : elevation.draggable,
@@ -191,7 +191,7 @@ export default function ResumenFlotanteMarco({
           userSelect: 'none',
           bgcolor: dragging
             ? (apariencia === 'tema' ? theme.emphasys.content.hover : neutralColors.steel.hover)
-            : (apariencia === 'tema' ? theme.emphasys.content.elevated : '#fff'),
+            : (apariencia === 'tema' ? theme.emphasys.content.elevated : whiteSurfaces.floatingSummary),
         })}
       >
         <Box
@@ -239,7 +239,7 @@ export default function ResumenFlotanteMarco({
           onClick={onExpand}
           sx={(theme) => ({
             border: `1px solid ${apariencia === 'tema' ? theme.emphasys.content.border : neutralColors.steel.panelBorder}`,
-            background: apariencia === 'tema' ? theme.emphasys.content.elevated : '#fff',
+            background: apariencia === 'tema' ? theme.emphasys.content.elevated : whiteSurfaces.floatingSummary,
             color: apariencia === 'tema' ? theme.emphasys.content.foreground : activeBrand.colors.blue.base,
             font: 'inherit',
             fontSize: 11.5,
