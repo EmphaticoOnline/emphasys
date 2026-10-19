@@ -3,7 +3,7 @@ import { Box, IconButton, Tooltip } from '@mui/material';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import type { LeadConPrioridad, TemperaturaResumen } from '../../pages/LeadsPage';
 import TemperaturaProspectoModal from './TemperaturaProspectoModal';
-import { temperatureColors } from '../../theme/functional';
+import { onStatusColors, temperatureColors } from '../../theme/functional';
 import { whiteSurfaces } from '../../theme/structural';
 
 export const temperaturaLabel = (nivel: TemperaturaResumen['nivel']) =>
@@ -90,7 +90,7 @@ export default function TemperaturaScoreButton({ lead, updateLead, desktop = fal
               ...(analysis
                 ? {
                   bgcolor: analysis.desactualizado ? whiteSurfaces.controlIdle : temperaturaColor(analysis.nivel),
-                  color: analysis.desactualizado ? temperaturaColor(analysis.nivel) : '#fff',
+                  color: analysis.desactualizado ? temperaturaColor(analysis.nivel) : onStatusColors.temperature,
                   border: `1px solid ${temperaturaColor(analysis.nivel)}`,
                   fontSize: analysis.puntuacion === 100 ? 8 : 9,
                   fontWeight: 600,

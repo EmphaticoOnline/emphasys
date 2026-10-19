@@ -460,3 +460,23 @@ export const cartaPorteSectionColors = {
 export const leadPriorityColors = {
   mediumText: '#7c5a00',
 } as const;
+
+// ── Blancos W3: contraste sobre colores de estado y de terceros ───────────────
+
+/**
+ * Texto o icono blanco sobre un color funcional o de tercero. Fijo y sin marca.
+ * Cada rol conserva su escritura (`'#fff'`, `'#ffffff'` o `'white'`): no se
+ * unifican. Ver docs/white-label-blancos-audit.md (rol E).
+ */
+export const onStatusColors = {
+  /** Sobre el indicador de entorno de producción. */
+  environmentProduction: '#fff',
+  /** Sobre el avatar verde de WhatsApp. */
+  whatsapp: 'white',
+  /** Sobre el chip de filtro de leads activo (`leadFilterChipColors.activeBackground`). */
+  leadFilterChip: '#ffffff',
+  /** Sobre el chip "Finalizadas" activo de leads. */
+  leadViewToggle: '#ffffff',
+  /** Sobre el color de temperatura del prospecto. */
+  temperature: '#fff',
+} as const;

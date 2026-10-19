@@ -1,7 +1,7 @@
 import React from 'react';
 import Chip from '@mui/material/Chip';
 import { apiFetch } from '../services/apiFetch';
-import { environmentColors } from '../theme/functional';
+import { environmentColors, onStatusColors } from '../theme/functional';
 
 type RuntimeInfo = {
   appEnv: 'development' | 'production';
@@ -53,7 +53,7 @@ export default function RuntimeEnvironmentIndicator({ email }: { email?: string 
       sx={{
         fontWeight: 800,
         letterSpacing: 0.35,
-        color: production ? '#fff' : warning ? environmentColors.warningText : environmentColors.defaultText,
+        color: production ? onStatusColors.environmentProduction : warning ? environmentColors.warningText : environmentColors.defaultText,
         backgroundColor: production ? environmentColors.productionBackground : warning ? environmentColors.warningBackground : environmentColors.defaultBackground,
         border: production ? `1px solid ${environmentColors.productionBorder}` : warning ? `1px solid ${environmentColors.warningBorder}` : `1px solid ${environmentColors.defaultBorder}`,
         '& .MuiChip-label': { px: 1.1 },

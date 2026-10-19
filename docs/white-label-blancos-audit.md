@@ -216,3 +216,32 @@ Cambios en pruebas:
   - funcionales y overlays (E + F, 18);
   - encabezado oscuro de grid (D, 7);
   - los 2 excluidos de W1, por clasificar.
+
+### 7.3 W3 — contraste sobre colores de estado y de terceros (completado)
+
+- **D-B3:** queda pendiente para los casos derivados de datos de BD: el chip sobre `tag.color` (2) y el contraste calculado contra el color de etapa (3). W3 cubre solo los casos sin esa dependencia.
+- Nuevo `onStatusColors` en `functional.ts`, fijo y sin marca. Cada rol conserva su escritura:
+  - `environmentProduction` `'#fff'`;
+  - `whatsapp` `'white'`;
+  - `leadFilterChip` `'#ffffff'`;
+  - `leadViewToggle` `'#ffffff'`;
+  - `temperature` `'#fff'`.
+- Nuevo `onMediaColors.badgeIcon` `'#fff'` en `structural.ts`. Es el icono sobre la insignia de imagen de `ProduccionDetalleDrawer:165`.
+- No se agregaron claves a `thirdPartyColors`, `temperatureColors` ni `overlayColors`, porque otras pruebas fijan esas familias.
+- **11 literales en 7 archivos** (`'#fff'` ×4, `'#ffffff'` ×4, `'white'` ×3):
+
+| Archivo:línea (HEAD `2e0c312`) | Fondo | Token |
+|---|---|---|
+| `RuntimeEnvironmentIndicator:56` | `environmentColors.productionBackground` | `onStatusColors.environmentProduction` |
+| `LeadsDesktopView:1491`, `LeadsMobileView:2097`, `LeadsPage:2969` | `thirdPartyColors.whatsapp` | `onStatusColors.whatsapp` |
+| `LeadsMobileView:1981, 2011` | `leadFilterChipColors.activeBackground` | `onStatusColors.leadFilterChip` |
+| `LeadsDesktopView:1413`, `LeadsMobileView:2022` | `'text.secondary'` (chip "Finalizadas" activo) | `onStatusColors.leadViewToggle` |
+| `TemperaturaProspectoModal:115`, `TemperaturaScoreButton:93` | `temperaturaColor(…)` | `onStatusColors.temperature` |
+| `ProduccionDetalleDrawer:165` | `overlayColors.media.imageBadge` | `onMediaColors.badgeIcon` |
+
+- `whitesColors.test.ts` agrega:
+  - el alcance por formato de W3;
+  - la verificación de que cada token está junto a su fondo funcional o de imagen;
+  - los valores exactos de las dos familias.
+  - Su equivalencia SHA-256 contra `2e0c312` es 7/7.
+- Los dos iconos sobre adjuntos de `LeadsDesktopView:1860, 1861` (`'white'`) van en W3b, porque importan desde otro módulo.

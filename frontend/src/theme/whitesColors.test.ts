@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import test from 'node:test';
 import { emphasysBrand } from './brand/emphasys.ts';
+import * as functional from './functional.ts';
 import * as structural from './structural.ts';
 import {
   LATER_FIXTURES,
@@ -36,7 +37,12 @@ const allLines = () =>
   );
 
 /** Familias de blancos (ver docs/white-label-blancos-audit.md). Ninguna depende de la marca. */
-const ROOTS = { onPrimaryColors: structural.onPrimaryColors, whiteSurfaces: structural.whiteSurfaces } as const;
+const ROOTS = {
+  onPrimaryColors: structural.onPrimaryColors,
+  whiteSurfaces: structural.whiteSurfaces,
+  onStatusColors: functional.onStatusColors,
+  onMediaColors: structural.onMediaColors,
+} as const;
 type Roots = Record<string, Record<string, string>>;
 const currentRoots = (): Roots => structuredClone(ROOTS) as Roots;
 const TOKEN = new RegExp(`\\b(?:${Object.keys(ROOTS).join('|')})\\.\\w+`, 'g');
@@ -62,6 +68,8 @@ const BLOCK_SCOPE: Record<string, { files: number; formats: Record<string, numbe
   'whites.w1.baseline.json': { files: 7, formats: { "'#fff'": 9, "'#ffffff'": 2, "'white'": 1 } },
   // W2 = superficies y filas (D-B2, por subrol).
   'whites.w2.baseline.json': { files: 19, formats: { "'#fff'": 32, "'#ffffff'": 18 } },
+  // W3 = contraste sobre colores de estado y de terceros (rol E) y el icono sobre la insignia de imagen (F).
+  'whites.w3.baseline.json': { files: 7, formats: { "'#fff'": 4, "'#ffffff'": 4, "'white'": 3 } },
 };
 
 test('cada subbloque tiene alcance declarado, por formato', () => {
@@ -155,6 +163,35 @@ test('W2: cada reemplazo es un fondo (superficie o fila) y cada subrol conserva 
       treasuryRowAlt: '#ffffff',
     },
   );
+});
+
+test('W3: cada reemplazo es contraste sobre su color funcional, de tercero o de imagen', () => {
+  // Fondo esperado de cada token, en la línea o hasta 3 líneas alrededor.
+  const background: Record<string, RegExp> = {
+    'onStatusColors.environmentProduction': /environmentColors\.productionBackground/,
+    'onStatusColors.whatsapp': /thirdPartyColors\.whatsapp/,
+    'onStatusColors.leadFilterChip': /leadFilterChipColors\.activeBackground/,
+    'onStatusColors.leadViewToggle': /backgroundColor: vistaFinalizadas \? 'text\.secondary'/,
+    'onStatusColors.temperature': /temperaturaColor\(/,
+    'onMediaColors.badgeIcon': /overlayColors\.media\.imageBadge/,
+    'onMediaColors.icon': /position: 'absolute'/,
+  };
+  for (const { name, file, n, migrated, replacements, importMerge } of allLines()) {
+    if (importMerge || name !== 'whites.w3.baseline.json') continue;
+    const lines = readText(`../${file}`).split('\n');
+    const index = lines.indexOf(migrated);
+    assert.ok(index >= 0, `${file}:${n}`);
+    const context = lines.slice(Math.max(0, index - 6), index + 4).join('\n');
+    for (const { to } of replacements) {
+      for (const token of to.match(TOKEN) ?? []) assert.match(context, background[token]!, `${file}:${n}: ${token} sin su fondo`);
+    }
+  }
+  assert.deepEqual(
+    { ...functional.onStatusColors },
+    { environmentProduction: '#fff', whatsapp: 'white', leadFilterChip: '#ffffff', leadViewToggle: '#ffffff', temperature: '#fff' },
+  );
+  assert.deepEqual({ ...structural.onMediaColors }, { badgeIcon: '#fff' });
+  assert.ok(!/from '\.\/brand\//.test(readText('./functional.ts')));
 });
 
 test('mutación: alterar el formato o el valor de un token rompe la equivalencia de cada archivo que lo usa', () => {

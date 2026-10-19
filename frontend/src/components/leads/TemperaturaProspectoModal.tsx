@@ -10,6 +10,7 @@ import { apiFetch } from '../../api/apiClient';
 import type { LeadConPrioridad, TemperaturaResumen } from '../../pages/LeadsPage';
 import { motivosTooltip, temperaturaColor, temperaturaLabel } from './TemperaturaScoreButton';
 import ActividadSeguimientoDrawer, { type SeguimientoTarget } from '../crm/ActividadSeguimientoDrawer';
+import { onStatusColors } from '../../theme/functional';
 
 type Props = {
   open: boolean;
@@ -112,7 +113,7 @@ export default function TemperaturaProspectoModal({ open, lead, onClose, onUpdat
     <Dialog open={open} onClose={onClose} fullScreen={fullScreen} fullWidth maxWidth="sm" scroll="paper">
       <DialogTitle sx={{ pr: 6 }}>
         <Stack direction="row" alignItems="center" spacing={1.5}>
-          <Box sx={{ width: 54, height: 54, borderRadius: '50%', display: 'grid', placeItems: 'center', bgcolor: current ? temperaturaColor(current.nivel) : 'action.hover', color: current ? '#fff' : 'text.secondary', flexShrink: 0 }}>
+          <Box sx={{ width: 54, height: 54, borderRadius: '50%', display: 'grid', placeItems: 'center', bgcolor: current ? temperaturaColor(current.nivel) : 'action.hover', color: current ? onStatusColors.temperature : 'text.secondary', flexShrink: 0 }}>
             {current ? <Typography fontWeight={800} fontSize={20}>{current.puntuacion}</Typography> : <AutoAwesomeIcon />}
           </Box>
           <Box sx={{ minWidth: 0, flex: 1 }}>

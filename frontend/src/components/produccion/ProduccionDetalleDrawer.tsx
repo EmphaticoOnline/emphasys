@@ -23,7 +23,7 @@ import {
   type SeguimientoProduccionHistorialRow,
 } from '../../services/produccionService';
 import { alertColors } from '../../theme/functional';
-import { neutralColors, overlayColors } from '../../theme/structural';
+import { neutralColors, onMediaColors, overlayColors } from '../../theme/structural';
 import { activeBrand } from '../../theme/brand/active';
 
 const formatCivilDate = (value: string | null | undefined) => {
@@ -162,7 +162,7 @@ function PartidaOperativaCard({ partida }: { partida: ProduccionPartidaOperativa
                 justifyContent: 'center',
               }}
             >
-              <OpenInNewIcon sx={{ fontSize: 11, color: '#fff' }} />
+              <OpenInNewIcon sx={{ fontSize: 11, color: onMediaColors.badgeIcon }} />
             </Box>
           </Box>
         ) : null}

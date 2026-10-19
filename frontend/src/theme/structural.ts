@@ -269,3 +269,9 @@ export const whiteSurfaces = {
   /** Fila alterna de documentos de tesorería (par de `rowStripeColors.treasuryDocuments`). */
   treasuryRowAlt: '#ffffff',
 } as const;
+
+/** Iconos blancos sobre imágenes o insignias de imagen (rol F). Conservan su escritura. */
+export const onMediaColors = {
+  /** Icono sobre la insignia `overlayColors.media.imageBadge`. */
+  badgeIcon: '#fff',
+} as const;

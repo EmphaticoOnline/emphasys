@@ -92,7 +92,7 @@ import type {
   WhatsappEtiqueta,
 } from '../../pages/LeadsPage';
 import TemperaturaScoreButton from './TemperaturaScoreButton';
-import { searchHighlightColors, thirdPartyColors } from '../../theme/functional';
+import { onStatusColors, searchHighlightColors, thirdPartyColors } from '../../theme/functional';
 import { neutralColors, overlayColors } from '../../theme/structural';
 
 // Vista de escritorio del módulo de Leads/conversaciones de WhatsApp.
@@ -1410,7 +1410,7 @@ export default function LeadsDesktopView(props: LeadsDesktopViewProps) {
                     onClick={() => setVistaFinalizadas((prev) => !prev)}
                     sx={{
                       fontWeight: 700,
-                      color: vistaFinalizadas ? '#ffffff' : 'text.secondary',
+                      color: vistaFinalizadas ? onStatusColors.leadViewToggle : 'text.secondary',
                       backgroundColor: vistaFinalizadas ? 'text.secondary' : 'transparent',
                       border: '1px solid',
                       borderColor: 'divider',
@@ -1488,7 +1488,7 @@ export default function LeadsDesktopView(props: LeadsDesktopViewProps) {
                             <Stack direction="row" spacing={0.75} alignItems="center" minWidth={0}>
                               <Typography variant="body2" color="text.secondary" noWrap sx={{ minWidth: 0, flex: 1 }}>{conversationLead.lastMessage || 'Sin mensajes'}</Typography>
                               {conversationLead.unreadCount && conversationLead.unreadCount > 0 ? (
-                                <Box sx={{ minWidth: 20, height: 20, px: 0.5, flexShrink: 0, borderRadius: '50%', bgcolor: thirdPartyColors.whatsapp, color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700 }}>{conversationLead.unreadCount}</Box>
+                                <Box sx={{ minWidth: 20, height: 20, px: 0.5, flexShrink: 0, borderRadius: '50%', bgcolor: thirdPartyColors.whatsapp, color: onStatusColors.whatsapp, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700 }}>{conversationLead.unreadCount}</Box>
                               ) : null}
                             </Stack>
                           </Stack>

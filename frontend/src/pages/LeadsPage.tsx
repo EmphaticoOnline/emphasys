@@ -86,7 +86,7 @@ import {
   normalizeEtapaOportunidad,
   ordenarLeads,
 } from '../utils/leadsDerivation';
-import { leadPriorityColors, thirdPartyColors } from '../theme/functional';
+import { leadPriorityColors, onStatusColors, thirdPartyColors } from '../theme/functional';
 
 export type Priority = 'Alta' | 'Media' | 'Baja';
 export type NextAction = 'Responder' | 'Llamar' | 'Enviar cotización' | 'Agendar demo' | 'Cerrar';
@@ -2966,7 +2966,7 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
                 {lead.lastMessage}
               </Typography>
               {lead.unreadCount && lead.unreadCount > 0 ? (
-                <Box sx={{ minWidth: 20, height: 20, px: 0.5, flexShrink: 0, borderRadius: '50%', bgcolor: thirdPartyColors.whatsapp, color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700 }}>{lead.unreadCount}</Box>
+                <Box sx={{ minWidth: 20, height: 20, px: 0.5, flexShrink: 0, borderRadius: '50%', bgcolor: thirdPartyColors.whatsapp, color: onStatusColors.whatsapp, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700 }}>{lead.unreadCount}</Box>
               ) : null}
             </Stack>
 

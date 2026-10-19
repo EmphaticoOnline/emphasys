@@ -85,7 +85,7 @@ import type {
   WhatsappEtiqueta,
 } from '../../pages/LeadsPage';
 import type { NavigateFunction } from 'react-router-dom';
-import { leadFilterChipColors, thirdPartyColors } from '../../theme/functional';
+import { leadFilterChipColors, onStatusColors, thirdPartyColors } from '../../theme/functional';
 import { overlayColors } from '../../theme/structural';
 
 // SidebarLayout (mobile) envuelve el <Outlet/> en un Box con mt del AppBar
@@ -1978,7 +1978,7 @@ export default function LeadsMobileView(props: LeadsMobileViewProps) {
                   onClick={() => setWhatsappWindowFilter(opt.key)}
                   sx={{
                     fontWeight: 700,
-                    color: whatsappWindowFilter === opt.key ? '#ffffff' : leadFilterChipColors.foreground,
+                    color: whatsappWindowFilter === opt.key ? onStatusColors.leadFilterChip : leadFilterChipColors.foreground,
                     backgroundColor: whatsappWindowFilter === opt.key ? leadFilterChipColors.activeBackground : leadFilterChipColors.surface,
                     borderColor: leadFilterChipColors.border,
                   }}
@@ -2008,7 +2008,7 @@ export default function LeadsMobileView(props: LeadsMobileViewProps) {
                   onClick={() => setOpportunityFilter(opt.key)}
                   sx={{
                     fontWeight: 700,
-                    color: opportunityFilter === opt.key ? '#ffffff' : leadFilterChipColors.foreground,
+                    color: opportunityFilter === opt.key ? onStatusColors.leadFilterChip : leadFilterChipColors.foreground,
                     backgroundColor: opportunityFilter === opt.key ? leadFilterChipColors.activeBackground : leadFilterChipColors.surface,
                     borderColor: leadFilterChipColors.border,
                   }}
@@ -2019,7 +2019,7 @@ export default function LeadsMobileView(props: LeadsMobileViewProps) {
                 onClick={() => setVistaFinalizadas((prev) => !prev)}
                 sx={{
                   fontWeight: 700,
-                  color: vistaFinalizadas ? '#ffffff' : 'text.secondary',
+                  color: vistaFinalizadas ? onStatusColors.leadViewToggle : 'text.secondary',
                   backgroundColor: vistaFinalizadas ? 'text.secondary' : 'transparent',
                   border: '1px solid',
                   borderColor: 'divider',
@@ -2094,7 +2094,7 @@ export default function LeadsMobileView(props: LeadsMobileViewProps) {
                           {lead.lastMessage || 'Sin mensajes'}
                         </Typography>
                         {lead.unreadCount && lead.unreadCount > 0 ? (
-                          <Box sx={{ minWidth: 20, height: 20, px: 0.5, flexShrink: 0, borderRadius: '50%', bgcolor: thirdPartyColors.whatsapp, color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700 }}>{lead.unreadCount}</Box>
+                          <Box sx={{ minWidth: 20, height: 20, px: 0.5, flexShrink: 0, borderRadius: '50%', bgcolor: thirdPartyColors.whatsapp, color: onStatusColors.whatsapp, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700 }}>{lead.unreadCount}</Box>
                         ) : null}
                       </Stack>
                       {/* Línea 3 (secundaria, compacta): señal de atención
