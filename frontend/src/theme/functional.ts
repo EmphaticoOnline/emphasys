@@ -453,3 +453,10 @@ export const cartaPorteSectionColors = {
   generales: '#f3ecf6',
   mercancias: '#e8f2f0',
 } as const;
+
+// ── Restos R1.4 ───────────────────────────────────────────────────────────────
+
+/** Chip de prioridad de lead: texto de prioridad "Media" (las demás usan `palette`). */
+export const leadPriorityColors = {
+  mediumText: '#7c5a00',
+} as const;

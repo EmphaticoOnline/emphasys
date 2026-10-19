@@ -1,0 +1,31 @@
+{
+  "source": "HEAD bb760d2, restos R1 bloque r1-4",
+  "files": {
+    "pages/LeadsPage.tsx": {
+      "headSha256": "957b6be279d8f88e45ebfb59df6775b6424f97f4cc0687424018111711c1da1a",
+      "addedImports": [],
+      "lines": {
+        "89": {
+          "original": "import { thirdPartyColors } from '../theme/functional';",
+          "migrated": "import { leadPriorityColors, thirdPartyColors } from '../theme/functional';",
+          "entries": [],
+          "replacements": [],
+          "importMerge": true
+        },
+        "3012": {
+          "original": "                      ? '#7c5a00'",
+          "migrated": "                      ? leadPriorityColors.mediumText",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "? '#7c5a00'",
+              "to": "? leadPriorityColors.mediumText",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    }
+  }
+}

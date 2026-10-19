@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import test from 'node:test';
 import * as functional from './functional.ts';
 import * as structural from './structural.ts';
@@ -49,6 +49,7 @@ const ROOTS = {
   authorizationModeColors: functional.authorizationModeColors,
   inventoryAffectationColors: functional.inventoryAffectationColors,
   alertRowColors: functional.alertRowColors,
+  leadPriorityColors: functional.leadPriorityColors,
   cartaPorteSectionColors: functional.cartaPorteSectionColors,
   neutralColors: structural.neutralColors,
   selectionColors: structural.selectionColors,
@@ -85,6 +86,7 @@ const restoredSha = (name: string, file: string, entry: LeftoverFileFixture, roo
 const BLOCK_SCOPE: Record<string, { literals: number; files: number }> = {
   'restos.r1-1.baseline.json': { literals: 30, files: 11 },
   'restos.r1-2.baseline.json': { literals: 16, files: 9 },
+  'restos.r1-4.baseline.json': { literals: 1, files: 1 },
 };
 
 test('cada subbloque tiene alcance declarado', () => {
@@ -200,4 +202,41 @@ test('cierre: los literales migrados de cada subbloque ya no aparecen en sus arc
       }
     }
   }
+});
+
+test('cierre global de R1: fuera de theme/ y del legado solo quedan blancos y las exclusiones documentadas', () => {
+  const files: string[] = [];
+  const walk = (dir: URL, rel: string) => {
+    for (const name of readdirSync(dir)) {
+      if (rel === '' && ['dev-mockups', 'theme', 'compass'].includes(name)) continue;
+      const path = `${rel}${name}`;
+      if (statSync(new URL(name, dir)).isDirectory()) walk(new URL(`${name}/`, dir), `${path}/`);
+      else if (/\.(tsx?|css)$/.test(name) && !/\.test\.ts$/.test(name)) files.push(path);
+    }
+  };
+  walk(new URL('../', import.meta.url), '');
+  const legacy = ['components/Layout.tsx', 'components/Menu.tsx', 'components/Sidebar.tsx', 'components/SecondaryNav.tsx'];
+  const remaining: Record<string, Record<string, number>> = {};
+  for (const file of files.filter((f) => !legacy.includes(f))) {
+    for (const [hex] of readText(`../${file}`).matchAll(/#[0-9a-fA-F]{6}\b/g)) {
+      if (hex.toLowerCase() === '#ffffff') continue; // bloque de blancos
+      (remaining[file] ??= {})[hex] = (remaining[file]![hex] ?? 0) + 1;
+    }
+  }
+  // docs/white-label-restos-r1-audit.md §0: datos de usuario o BD, fallbacks de BD, KPI y serie de gráfica.
+  assert.deepEqual(remaining, {
+    'components/DynamicFieldControl.tsx': { '#000000': 1 },
+    'components/produccion/ProduccionDetalleDrawer.tsx': { '#e5e7eb': 2 },
+    'modules/configuracion/ConceptosPage.tsx': { '#3e3428': 2 },
+    'pages/ConfiguracionEtapasProduccionPage.tsx': { '#1D4ED8': 5, '#E5E7EB': 2 },
+    'pages/DocumentosPage.tsx': { '#e5e7eb': 2 },
+    'pages/LeadsPage.tsx': { '#25D366': 8 },
+    'pages/ProduccionPage.tsx': { '#e5e7eb': 1 },
+    'pages/configuracion/FormatosImpresionPage.tsx': { '#1d2f68': 4 },
+    'pages/configuracion/WhatsappEtiquetasPage.tsx': { '#25D366': 1 },
+    'pages/informes/MovimientosPorPeriodoPage.tsx': { '#1d2f68': 1 },
+    'pages/informes/compras/HistorialPreciosCompraPage.tsx': { '#1d2f68': 1 },
+    'pages/informes/ventas/HistorialPreciosVentaPage.tsx': { '#1d2f68': 1 },
+    'utils/leadsDerivation.ts': { '#1d2f68': 1 },
+  });
 });

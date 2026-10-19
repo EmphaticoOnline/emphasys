@@ -86,7 +86,7 @@ import {
   normalizeEtapaOportunidad,
   ordenarLeads,
 } from '../utils/leadsDerivation';
-import { thirdPartyColors } from '../theme/functional';
+import { leadPriorityColors, thirdPartyColors } from '../theme/functional';
 
 export type Priority = 'Alta' | 'Media' | 'Baja';
 export type NextAction = 'Responder' | 'Llamar' | 'Enviar cotización' | 'Agendar demo' | 'Cerrar';
@@ -3009,7 +3009,7 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
                   color: computedPriority === 'Alta'
                     ? 'error.dark'
                     : computedPriority === 'Media'
-                      ? '#7c5a00'
+                      ? leadPriorityColors.mediumText
                       : 'grey.700',
                   bgcolor: computedPriority === 'Alta'
                     ? 'error.light + 14'

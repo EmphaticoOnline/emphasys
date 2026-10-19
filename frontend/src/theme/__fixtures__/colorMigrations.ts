@@ -44,7 +44,7 @@ export const ELEVATION_ORDER = ['elevation.e1.baseline.json', 'elevation.e2.base
 /** Bloques de tintes alfa (ver docs/white-label-tintes-alfa-audit.md), en orden. */
 export const TINT_ORDER = ['tints.t1.baseline.json', 'tints.t2.baseline.json', 'tints.t3.baseline.json', 'tints.t4.baseline.json'] as const;
 /** Restos R1 (ver docs/white-label-restos-r1-audit.md), en orden. */
-export const LEFTOVER_ORDER = ['restos.r1-1.baseline.json', 'restos.r1-2.baseline.json'] as const;
+export const LEFTOVER_ORDER = ['restos.r1-1.baseline.json', 'restos.r1-2.baseline.json', 'restos.r1-4.baseline.json'] as const;
 const LATER_CHAIN = [...NEUTRAL_ORDER, MINOR_FIXTURE, REST_FIXTURE, ...DOCUMENTOS_FORM_ORDER, ...SIGN_ORDER, ...ELEVATION_ORDER, ...TINT_ORDER, ...LEFTOVER_ORDER] as const;
 /** Todos los fixtures de la cadena, en orden: las pruebas cargan esta lista, no una copia. */
 export const LATER_FIXTURES: readonly string[] = LATER_CHAIN;

@@ -85,3 +85,24 @@ Pruebas (`restosColors.test.ts`, 7):
 | `OportunidadesPage:1626` | `#dbe2f0` | `neutralColors.steel.opportunityFiltersBorder` | Estructural: borde del panel de filtros de oportunidades. Mismo rol que el anterior pero otro valor: no se unifican |
 | `ComprobantesSatSection:449` | `#e5e9f2` | `neutralColors.steel.tabsDivider` | Estructural: divisor bajo pestañas |
 | `EstadoCuentaPage:287` | `#c0c9d6` | `neutralColors.steel.treeConnector` | Estructural: conector `↳` de fila hija |
+
+## 4. R1.3 — `DocumentosFormPage` (no aplica)
+
+A la página solo le quedan los 10 blancos (`#fff` ×8, `#ffffff` ×2), que van al bloque de blancos. Ningún literal de R1 está en ese archivo.
+
+## 5. R1.4 — restos con clasificación clara (completado)
+
+| Archivo | Literal | Token | Clase |
+|---|---|---|---|
+| `LeadsPage:3012` | `'#7c5a00'` | `leadPriorityColors.mediumText` (nuevo) | Funcional: texto del chip de prioridad "Media". Alta y Baja usan `palette`. No es dato de BD: estaba oculto porque el archivo se excluía completo por sus `#25D366` |
+
+## 6. Cierre de R1
+
+- **47 literales en 20 archivos**: 30 (R1.1) + 16 (R1.2) + 1 (R1.4). Commits `dce67f6`, `bb760d2` y el de R1.4.
+- Ningún valor visual cambió, y no se reutilizó ningún token solo por coincidir el hex. Las reutilizaciones son por mismo rol: `fiscalStatusColors` en el resumen flotante y `steel.wash` en la barra fija.
+- Una prueba de cierre global (`restosColors.test.ts`) fija que, fuera de `theme/`, Compass, mockups y el legado, solo quedan:
+  - blancos `#ffffff`, que son el bloque siguiente;
+  - las **32 exclusiones documentadas**, cada una fijada por archivo:
+    - 21 datos de usuario o BD: `#25D366` ×9, color de etapa `#1D4ED8` ×5, defaults de formato ×4, color de concepto ×2 y `COLOR_POR_DEFECTO` ×1;
+    - 8 fallbacks de BD: `etapa_color || '#e5e7eb'` ×7 y avatar de lead ×1;
+    - 3 de KPI o serie de gráfica.
