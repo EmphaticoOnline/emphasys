@@ -60,7 +60,7 @@ import { useSeguimientoActividades } from '../hooks/useSeguimientoActividades';
 import ActividadSeguimientoDrawer from '../components/crm/ActividadSeguimientoDrawer';
 import { SeguimientoActividadCell } from '../components/crm/SeguimientoActividadCell';
 import { alertColors, crmAccents, opportunityBucketColors } from '../theme/functional';
-import { neutralColors, overlayColors, whiteSurfaces } from '../theme/structural';
+import { neutralColors, onPrimaryColors, overlayColors, whiteSurfaces } from '../theme/structural';
 import { activeBrand } from '../theme/brand/active';
 import { brandElevation, elevation, surfaceGradients } from '../theme/elevation';
 import { brandTints } from '../theme/tints';
@@ -1888,27 +1888,27 @@ export default function OportunidadesPage() {
                     '& .MuiDataGrid-columnHeaders': {
                       fontSize: 12.5,
                       minHeight: 34,
-                      color: '#ffffff',
+                      color: onPrimaryColors.textLong,
                     },
                     '& .MuiDataGrid-columnHeader': {
                       backgroundColor: activeBrand.colors.blue.base,
-                      color: '#ffffff',
+                      color: onPrimaryColors.textLong,
                     },
                     '& .MuiDataGrid-columnHeaderTitle': {
                       fontWeight: 600,
-                      color: '#ffffff',
+                      color: onPrimaryColors.textLong,
                     },
                     '& .MuiDataGrid-sortIcon': {
-                      color: '#ffffff',
+                      color: onPrimaryColors.textLong,
                     },
                     '& .MuiDataGrid-menuIcon': {
-                      color: '#ffffff',
+                      color: onPrimaryColors.textLong,
                     },
                     '& .MuiDataGrid-iconButtonContainer .MuiSvgIcon-root': {
-                      color: '#ffffff',
+                      color: onPrimaryColors.textLong,
                     },
                     '& .MuiDataGrid-columnHeader .MuiSvgIcon-root': {
-                      color: '#ffffff',
+                      color: onPrimaryColors.textLong,
                     },
                     '& .MuiDataGrid-columnSeparator': {
                       color: overlayColors.onDark.gridHeaderSeparator,

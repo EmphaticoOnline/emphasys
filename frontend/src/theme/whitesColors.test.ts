@@ -36,6 +36,18 @@ const allLines = () =>
     Object.entries(fixture.files).flatMap(([file, entry]) => Object.entries(entry.lines).map(([n, line]) => ({ name, file, n, ...line }))),
   );
 
+/**
+ * Contexto de una línea migrada por su posición real (no por contenido: hay líneas idénticas).
+ * Se lee el archivo tal como lo dejó su bloque; la línea `n` está desplazada por los imports que agregó.
+ */
+const contextOf = (name: string, file: string, n: string, before: number, after: number) => {
+  const entry = blocks.find((block) => block.name === name)!.fixture.files[file]!;
+  const lines = asOfBlock(name, file).split('\n');
+  const index = Number(n) - 1 + entry.addedImports.length;
+  assert.equal(lines[index], entry.lines[n]!.migrated, `${name} ${file}:${n} fuera de posición`);
+  return lines.slice(Math.max(0, index - before), index + after + 1).join('\n');
+};
+
 /** Familias de blancos (ver docs/white-label-blancos-audit.md). Ninguna depende de la marca. */
 const ROOTS = {
   onPrimaryColors: structural.onPrimaryColors,
@@ -75,6 +87,8 @@ const BLOCK_SCOPE: Record<string, { files: number; formats: Record<string, numbe
   'whites.w3b.baseline.json': { files: 1, formats: { "'white'": 2 } },
   // W4 = foreground blanco sobre colores que vienen de BD (D-B3).
   'whites.w4.baseline.json': { files: 4, formats: { "'#fff'": 2, "'#ffffff'": 3 } },
+  // W5 = encabezado del grid de Oportunidades, cuyo fondo es el azul de marca: mismo rol que W1.
+  'whites.w5.baseline.json': { files: 1, formats: { "'#ffffff'": 7 } },
 };
 
 test('cada subbloque tiene alcance declarado, por formato', () => {
@@ -129,11 +143,8 @@ test('W1: cada reemplazo es contraste sobre azul de marca o primario', () => {
   const background = /activeBrand\.colors\.blue\.base|'primary\.main'|theme\.emphasys\.action\.primary|variant="contained"/;
   for (const { name, file, n, migrated, importMerge } of allLines()) {
     if (importMerge || name !== 'whites.w1.baseline.json') continue;
-    // Fondo primario en el mismo bloque `sx`: la línea, las 10 anteriores o las 2 siguientes (o el botón contenedor).
-    const lines = readText(`../${file}`).split('\n');
-    const index = lines.indexOf(migrated);
-    assert.ok(index >= 0, `${file}:${n}`);
-    const context = lines.slice(Math.max(0, index - 10), index + 3).join('\n');
+    // Fondo primario en el mismo bloque `sx` o el contiguo: la línea, las 10 anteriores o las 4 siguientes (o el botón contenedor).
+    const context = contextOf(name, file, n, 10, 4);
     assert.match(context, background, `${file}:${n} no está sobre azul o primario`);
   }
 });
@@ -143,10 +154,7 @@ test('W2: cada reemplazo es un fondo (superficie o fila) y cada subrol conserva 
     if (importMerge || name !== 'whites.w2.baseline.json') continue;
     // La propiedad puede estar en la línea o en las dos anteriores (`bgcolor:` partido en ternarios).
     // `filaBase` (DocumentosFormPage) es el fondo de la fila de partidas: se aplica como `bgcolor` más abajo.
-    const lines = readText(`../${file}`).split('\n');
-    const index = lines.indexOf(migrated);
-    assert.ok(index >= 0, `${file}:${n}`);
-    const context = lines.slice(Math.max(0, index - 2), index + 1).join('\n');
+    const context = contextOf(name, file, n, 2, 0);
     assert.match(context, /backgroundColor|bgcolor|background:|return index % 2|const filaBase =/, `${file}:${n} no es un fondo`);
     for (const { to } of replacements) assert.match(to, /^whiteSurfaces\.\w+$/, `${file}:${n}`);
   }
@@ -183,10 +191,7 @@ test('W3: cada reemplazo es contraste sobre su color funcional, de tercero o de 
   };
   for (const { name, file, n, migrated, replacements, importMerge } of allLines()) {
     if (importMerge || !['whites.w3.baseline.json', 'whites.w3b.baseline.json'].includes(name)) continue;
-    const lines = readText(`../${file}`).split('\n');
-    const index = lines.indexOf(migrated);
-    assert.ok(index >= 0, `${file}:${n}`);
-    const context = lines.slice(Math.max(0, index - 6), index + 4).join('\n');
+    const context = contextOf(name, file, n, 6, 3);
     for (const { to } of replacements) {
       for (const token of to.match(TOKEN) ?? []) assert.match(context, background[token]!, `${file}:${n}: ${token} sin su fondo`);
     }
@@ -219,6 +224,26 @@ test('W4: solo se extrae el foreground; los colores de BD y sus fallbacks siguen
       assert.doesNotMatch(from, /tag\.color|etapa_color|#e5e7eb/i, from);
       assert.match(to, /^.*dataColorContrast\.(tagChipForeground|stageLight).*$/);
     }
+  }
+});
+
+test('W5: el encabezado del grid de Oportunidades tiene fondo azul de marca y todo su texto usa onPrimaryColors.textLong', () => {
+  const source = readText('../pages/OportunidadesPage.tsx');
+  assert.match(source, /'& \.MuiDataGrid-columnHeader': \{\n\s+backgroundColor: activeBrand\.colors\.blue\.base,\n\s+color: onPrimaryColors\.textLong,/);
+  assert.equal(source.split('onPrimaryColors.textLong').length - 1, 7);
+  assert.equal(source.split("'#ffffff'").length - 1, 0);
+  // Las 7 líneas están dentro de los selectores del encabezado, entre `columnHeaders` y `columnSeparator`.
+  const w5 = blocks.find((block) => block.name === 'whites.w5.baseline.json')!;
+  const entry = w5.fixture.files['pages/OportunidadesPage.tsx']!;
+  const lines = asOfBlock(w5.name, 'pages/OportunidadesPage.tsx').split('\n');
+  const start = lines.findIndex((line) => line.includes("'& .MuiDataGrid-columnHeaders': {"));
+  const end = lines.findIndex((line, i) => i > start && line.includes("'& .MuiDataGrid-columnSeparator': {"));
+  assert.ok(start >= 0 && end > start);
+  for (const [n, line] of Object.entries(entry.lines)) {
+    if (line.importMerge) continue;
+    const index = Number(n) - 1 + entry.addedImports.length;
+    assert.equal(lines[index], line.migrated, n);
+    assert.ok(index > start && index < end, `línea ${n} fuera del encabezado`);
   }
 });
 

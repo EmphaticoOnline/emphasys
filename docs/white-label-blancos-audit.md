@@ -25,7 +25,7 @@
 - **Formato:** cada rol se queda con la escritura que usa hoy. Donde un mismo rol mezcla `'#fff'` y `'#ffffff'`, o `'white'`, se proponen tokens separados, con el mismo criterio que en elevación y tintes.
 - **Inconsistencias del tema** (se documentan y no se tocan):
   - `configPrimaryButtonSx` pinta `#fff` sobre `theme.emphasys.action.primary`, pero en el tema experimental `action.primaryForeground` es beige;
-  - en `OportunidadesPage`, el encabezado del grid fuerza `#ffffff` aunque el tema experimental defina `grid.headerForeground` en beige.
+  - ~~en `OportunidadesPage`, el encabezado del grid fuerza `#ffffff` aunque el tema experimental defina `grid.headerForeground` en beige~~. **Corrección (W5):** la página pinta el encabezado con `activeBrand.colors.blue.base`, así que es contraste sobre azul de marca (rol C) y no una inconsistencia del tema.
   - Usar el rol del tema en cualquiera de los dos casos cambiaría la apariencia (**D-B4**).
 
 ## 1. Inventario por rol
@@ -62,7 +62,7 @@
 
 ### D. Sobre encabezado oscuro de grid (7)
 
-`OportunidadesPage:1891, 1895, 1899, 1902, 1905, 1908, 1911`: `'#ffffff'`. Son el texto y los iconos del encabezado, el ícono de ordenar, el menú y el separador.
+`OportunidadesPage:1891, 1895, 1899, 1902, 1905, 1908, 1911`: `'#ffffff'`. Son el texto y los iconos del encabezado, el ícono de ordenar y el menú. **Corrección (W5):** el fondo del encabezado es `activeBrand.colors.blue.base`, no un cromado oscuro, así que pertenecen al rol C.
 
 ### E. Sobre color funcional, de tercero o dato (15)
 
@@ -162,7 +162,7 @@ Al final, una prueba de cierre global: fuera de `theme/` y del legado no queda n
 - **D-B1.** Blancos sobre azul o primario: ¿estructural fija (A) o rol de marca (B)?
 - **D-B2.** ¿Apruebas la granularidad por subrol de `whiteSurfaces` (12 roles), o prefieres menos roles, sin unificar formatos?
 - **D-B3.** El texto sobre el color de etiqueta de BD y el contraste calculado contra el color de etapa: ¿tokens funcionales, como propone §3.2, o exclusión documentada como "derivado de dato"?
-- **D-B4.** Las dos inconsistencias del tema (`configPrimaryButtonSx` y el encabezado de Oportunidades): ¿se quedan como pendientes de diseño, junto a D1–D9?
+- **D-B4.** La inconsistencia del tema en `configPrimaryButtonSx` (blanco fijo sobre `action.primary`, que en el tema experimental define foreground beige): ¿se queda como pendiente de diseño, junto a D1–D9? El encabezado de Oportunidades resultó no ser una inconsistencia (ver W5).
 
 ## 7. Decisiones y estado
 
@@ -260,6 +260,14 @@ Cambios en pruebas:
   - el conteo de fallbacks `|| '#e5e7eb'` sin cambios (2, 2 y 1);
   - que ningún reemplazo toca un color de fondo.
   - Su equivalencia SHA-256 contra `6ccb623` es 4/4.
-- Pendientes (9):
-  - encabezado oscuro de grid de Oportunidades (D, 7);
-  - los 2 excluidos de W1: deshabilitado sobre gris y spinner en un botón de advertencia.
+
+### 7.5 W5 — encabezado del grid de Oportunidades (completado)
+
+- Al verificar el fondo antes de migrar, resultó que el encabezado (`'& .MuiDataGrid-columnHeader'`) se pinta con `activeBrand.colors.blue.base`. No es un cromado oscuro.
+- Los 7 `'#ffffff'` son contraste sobre el azul de marca: el mismo rol y el mismo formato que W1. Por eso reutilizan **`onPrimaryColors.textLong`** (D-B1, opción A: estructural y fijo) en lugar de crear un token nuevo. La reutilización es por rol, no por hex.
+- **7 literales en `OportunidadesPage:1891, 1895, 1899, 1902, 1905, 1908, 1911`.** El separador (`overlayColors.onDark.gridHeaderSeparator`, de T3) no se tocó.
+- Cambios en `whitesColors.test.ts`:
+  - El alcance de W5 es 1 archivo y `'#ffffff'` ×7.
+  - Una prueba propia de W5 verifica que el encabezado tiene fondo de marca, que las 7 líneas están entre `columnHeaders` y `columnSeparator` y que no queda ningún `'#ffffff'` en la página.
+  - Las verificaciones de contexto de W1, W2 y W3 buscaban la línea con `indexOf`, que siempre devolvía la primera coincidencia cuando había líneas idénticas. Ahora usan la posición real de la línea en el estado de su bloque.
+- Pendientes (2): los excluidos de W1, que son el deshabilitado sobre gris de `FacturaResumenFlotante:343` y el spinner dentro del botón `warning` de `ConciliacionBancariaPage:878`. Falta clasificarlos.
