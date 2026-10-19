@@ -38,6 +38,7 @@ import type {
   FinanzasMetodoPago,
   ProgramacionMasivaInput,
 } from '../../types/finanzas';
+import { dueDateColors } from '../../theme/functional';
 
 type ContactoOpcion = { id: number; nombre: string; rfc?: string | null };
 
@@ -311,7 +312,7 @@ export default function ProgramacionMasivaDrawer({ open, onClose, onSaved }: Pro
         if (!p.value) return <Typography sx={{ fontSize: 13 }} color="text.disabled">—</Typography>;
         const vencida = p.value < hoy;
         return (
-          <Typography sx={{ fontSize: 13 }} color={vencida ? 'error.main' : 'text.secondary'}>
+          <Typography sx={{ fontSize: 13 }} color={vencida ? dueDateColors.overdue : 'text.secondary'}>
             {formatFecha(p.value)}
           </Typography>
         );

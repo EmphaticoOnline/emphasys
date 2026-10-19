@@ -34,7 +34,7 @@ import {
   type VencimientosClientesParams,
   type VencimientosClientesResult,
 } from '../../../services/reportesService';
-import { alertColors } from '../../../theme/functional';
+import { alertColors, dueDateColors } from '../../../theme/functional';
 
 type ContactoOpcion = { id: number; nombre: string; rfc?: string | null };
 
@@ -68,7 +68,7 @@ function buildColumns(): GridColDef<VencimientoCliente>[] {
       headerAlign: 'right',
       renderCell: (p: GridRenderCellParams<VencimientoCliente, number>) => {
         const v = p.value ?? 0;
-        const color = v < 0 ? 'error.main' : v === 0 ? 'warning.main' : 'text.primary';
+        const color = v < 0 ? dueDateColors.overdue : v === 0 ? dueDateColors.dueToday : 'text.primary';
         return (
           <Typography variant="body2" fontWeight={v <= 0 ? 700 : 400} color={color}>
             {v}
@@ -95,7 +95,7 @@ function buildColumns(): GridColDef<VencimientoCliente>[] {
       renderCell: (p: GridRenderCellParams<VencimientoCliente, number>) => {
         const row = p.row as VencimientoCliente;
         return (
-          <Typography variant="body2" fontWeight={700} color={row.dias < 0 ? 'error.main' : 'text.primary'}>
+          <Typography variant="body2" fontWeight={700} color={row.dias < 0 ? dueDateColors.overdue : 'text.primary'}>
             {formatMXN(p.value ?? 0)}
           </Typography>
         );
@@ -211,8 +211,8 @@ export default function VencimientosClientesPage() {
   const totalProx30    = rows.filter((v) => v.dias >= 8 && v.dias <= 30).reduce((s, v) => s + v.saldo, 0);
 
   const kpis = [
-    { label: 'Vencido',         valor: totalVencido,   color: 'error.main'   },
-    { label: 'Vence hoy',       valor: totalHoy,       color: 'warning.main' },
+    { label: 'Vencido',         valor: totalVencido,   color: dueDateColors.overdue   },
+    { label: 'Vence hoy',       valor: totalHoy,       color: dueDateColors.dueToday },
     { label: 'Próx. 7 días',    valor: totalProx7,     color: 'text.primary' },
     { label: 'Próx. 30 días',   valor: totalProx30,    color: 'text.primary' },
     { label: 'Total pendiente', valor: totalPendiente, color: 'text.primary' },

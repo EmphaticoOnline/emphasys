@@ -344,3 +344,20 @@ export const balanceColors = {
   /** Pendiente de recibir (OC). Ver D5 en la auditoría de fuentes de signo. */
   outstanding: feedbackTokens.error.main,
 } as const;
+
+/**
+ * Flujo de efectivo e inventario en informes sin tema: depósito/entrada y
+ * retiro/salida. Mismos valores de `palette` de MUI que antes. Distinto de
+ * `inventoryFlowColors` (Kardex) y de `inflowColor`/`outflowColor` (tema):
+ * ver D2 en la auditoría de fuentes de signo.
+ */
+export const cashFlowColors = {
+  inflow: feedbackTokens.success.main,
+  outflow: feedbackTokens.error.main,
+} as const;
+
+/** Vencimiento de documentos y pagos: vencido y vence hoy. Mismos valores de `palette` de MUI. */
+export const dueDateColors = {
+  overdue: feedbackTokens.error.main,
+  dueToday: feedbackTokens.warning.main,
+} as const;

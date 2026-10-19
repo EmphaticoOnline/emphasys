@@ -33,6 +33,7 @@ import {
   type MovimientoNoConciliado,
   type MovimientosNoConciliadosParams,
 } from '../../../services/reportesService';
+import { cashFlowColors } from '../../../theme/functional';
 
 type CuentaOpcion   = { id: number; identificador: string; moneda?: string };
 type ContactoOpcion = { id: number; nombre: string; rfc?: string | null };
@@ -81,7 +82,7 @@ const COLUMNAS: GridColDef<MovimientoNoConciliado>[] = [
     width: 90,
     renderCell: (p: GridRenderCellParams<MovimientoNoConciliado, string>) => {
       const v = p.value ?? '';
-      const color = v === 'Deposito' ? 'success.main' : 'error.main';
+      const color = v === 'Deposito' ? cashFlowColors.inflow : cashFlowColors.outflow;
       return <Typography variant="body2" color={color}>{v}</Typography>;
     },
   },

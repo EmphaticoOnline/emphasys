@@ -38,7 +38,7 @@ export const REST_FIXTURE = 'restColors.baseline.json';
 /** Subbloques de `DocumentosFormPage`, en orden (ver docs/white-label-documentosformpage-audit.md). */
 export const DOCUMENTOS_FORM_ORDER = ['documentosForm.s1.baseline.json', 'documentosForm.s2.baseline.json', 'documentosForm.s3.baseline.json', 'documentosForm.s4.baseline.json', 'documentosForm.s5.baseline.json', 'documentosForm.s6.baseline.json', 'documentosForm.s7.baseline.json', 'documentosForm.s8.baseline.json'] as const;
 /** Bloques de fuentes de signo (ver docs/white-label-fuentes-de-signo-audit.md), en orden. */
-export const SIGN_ORDER = ['signColors.b1.baseline.json', 'signColors.b2.baseline.json'] as const;
+export const SIGN_ORDER = ['signColors.b1.baseline.json', 'signColors.b2.baseline.json', 'signColors.b3.baseline.json'] as const;
 const LATER_CHAIN = [...NEUTRAL_ORDER, MINOR_FIXTURE, REST_FIXTURE, ...DOCUMENTOS_FORM_ORDER, ...SIGN_ORDER] as const;
 /** Todos los fixtures de la cadena, en orden: las pruebas cargan esta lista, no una copia. */
 export const LATER_FIXTURES: readonly string[] = LATER_CHAIN;

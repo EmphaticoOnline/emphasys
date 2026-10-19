@@ -42,6 +42,7 @@ import type { ProgramacionPago } from '../../types/finanzas';
 import ProgramacionPagoDialog from '../../modules/finanzas/ProgramacionPagoDialog';
 import ProgramacionMasivaDrawer from '../../modules/finanzas/ProgramacionMasivaDrawer';
 import { overdueColor } from '../../theme/sign';
+import { dueDateColors } from '../../theme/functional';
 
 type ContactoOpcion = { id: number; nombre: string; rfc?: string | null };
 
@@ -120,7 +121,7 @@ function buildColumns(
         const fv = p.value;
         if (!fv) return <Typography variant="caption" color="text.disabled">—</Typography>;
         const dias = Math.round((new Date(fv).getTime() - new Date(hoy()).getTime()) / 86400000);
-        const color = dias < 0 ? 'error.main' : dias === 0 ? 'warning.main' : 'text.secondary';
+        const color = dias < 0 ? dueDateColors.overdue : dias === 0 ? dueDateColors.dueToday : 'text.secondary';
         return (
           <Typography variant="body2" color={color}>
             {formatFecha(fv)}

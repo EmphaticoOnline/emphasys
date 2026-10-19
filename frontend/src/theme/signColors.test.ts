@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import test from 'node:test';
-import { balanceColors } from './functional.ts';
+import { balanceColors, cashFlowColors, dueDateColors } from './functional.ts';
 import { amountSignColor, inflowColor, outflowColor, overdueColor } from './sign.ts';
 import { classicTheme, experimentalTheme } from './themes.ts';
 import { classicTokens, experimentalTokens } from './tokens.ts';
@@ -151,4 +151,32 @@ test('bloque 2: los textos neutrales del mismo ternario siguen en palette de tex
       assert.ok(!/'(error|success|warning)\.main'/.test(migrated), `${file}: quedó un palette de signo`);
     }
   }
+});
+
+test('bloque 3: cashFlowColors y dueDateColors son exactamente los palette.*.main que reemplazaron', () => {
+  const b3 = blocks.find(({ name }) => name === 'signColors.b3.baseline.json')!.fixture;
+  const replacements = Object.values(b3.files).flatMap((f) => Object.values(f.lines).flatMap((l) => l.replacements));
+  assert.equal(replacements.reduce((a, r) => a + r.times, 0), 19);
+  const families: Record<string, Record<string, string>> = { cashFlowColors, dueDateColors };
+  for (const { from, to } of replacements) {
+    const palette = /^'(error|success|warning)\.main'$/.exec(from);
+    const role = /^(cashFlowColors|dueDateColors)\.([a-zA-Z]+)$/.exec(to);
+    assert.ok(palette && role, `${from} → ${to}`);
+    for (const theme of [classicTheme, experimentalTheme]) {
+      assert.equal(families[role[1]!]![role[2]!], theme.palette[palette[1] as 'error' | 'success' | 'warning'].main, to);
+    }
+  }
+  const used = new Set(replacements.map((r) => r.to));
+  for (const token of ['cashFlowColors.inflow', 'cashFlowColors.outflow', 'dueDateColors.overdue', 'dueDateColors.dueToday']) {
+    assert.ok(used.has(token), `${token} no se usa`);
+  }
+  // Flujo: tres familias con valores distintos que no se fusionan (auditoría D2).
+  assert.notEqual(cashFlowColors.outflow, '#dc2626');
+});
+
+test('bloque 3: los días sin conciliar (antigüedad) quedan fuera y en palette', () => {
+  assert.ok(readText('../pages/finanzas/ConciliacionBancariaPage.tsx').includes("const color = n > 30 ? 'error.main' : n > 7 ? 'warning.main' : 'text.secondary';"));
+  const noConciliados = readText('../pages/informes/finanzas/MovimientosNoConciliadosPage.tsx');
+  assert.ok(noConciliados.includes("const color = d > 30 ? 'error.main' : d > 7 ? 'warning.main' : 'text.secondary';"));
+  assert.ok(noConciliados.includes("color={k.maxDias > 30 ? 'error.main' : k.maxDias > 7 ? 'warning.main' : 'text.primary'}"));
 });

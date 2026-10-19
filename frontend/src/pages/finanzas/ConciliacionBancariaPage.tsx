@@ -49,6 +49,7 @@ import {
 import { HistorialConciliacionesDialog } from '../../modules/finanzas/HistorialConciliacionesDialog';
 import { ImportarEstadoCuentaDialog } from '../../modules/finanzas/ImportarEstadoCuentaDialog';
 import { useSession } from '../../session/useSession';
+import { cashFlowColors } from '../../theme/functional';
 
 const fmt = (n: number, moneda = 'MXN') =>
   new Intl.NumberFormat('es-MX', { style: 'currency', currency: moneda }).format(n);
@@ -394,7 +395,7 @@ export default function ConciliacionBancariaPage() {
         renderCell: ({ row }) => (
           <Typography
             sx={{ fontSize: 13 }}
-            color={row.tipo_movimiento === 'Deposito' ? 'success.main' : 'error.main'}
+            color={row.tipo_movimiento === 'Deposito' ? cashFlowColors.inflow : cashFlowColors.outflow}
             fontWeight={600}
           >
             {row.tipo_movimiento === 'Deposito' ? '+' : '−'}

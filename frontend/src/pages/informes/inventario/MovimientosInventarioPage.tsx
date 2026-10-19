@@ -36,7 +36,7 @@ import {
   type MovimientosPeriodoInvResult,
   type MovimientoInventario,
 } from '../../../services/reportesService';
-import { inventoryFlowColors, moduleAccents } from '../../../theme/functional';
+import { cashFlowColors, inventoryFlowColors, moduleAccents } from '../../../theme/functional';
 
 const COLOR = moduleAccents.inventoryReports;
 const fmt = (v: number) => v.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -94,7 +94,7 @@ function buildColumns(): GridColDef<MovimientoInventario>[] {
       renderCell: (p: GridRenderCellParams<MovimientoInventario, string>) => {
         const esEntrada = (p.row as MovimientoInventario).signo === 1;
         return (
-          <Typography variant="body2" fontWeight={700} color={esEntrada ? 'success.main' : 'error.main'}>
+          <Typography variant="body2" fontWeight={700} color={esEntrada ? cashFlowColors.inflow : cashFlowColors.outflow}>
             {p.value}
           </Typography>
         );
