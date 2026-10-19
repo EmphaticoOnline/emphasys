@@ -50,7 +50,7 @@ import { getDocumentoTypeConfig } from '../modules/documentos/documentoTypeConfi
 import type { TipoDocumento } from '../types/documentos.types';
 import { formatearFolioDocumento } from '../utils/documentos.utils';
 import { amountSignColor } from '../theme/sign';
-import { elevation } from '../theme/elevation';
+import { brandElevation, elevation } from '../theme/elevation';
 
 const MESES = [
   { value: '01', label: 'Enero' },
@@ -645,7 +645,7 @@ export default function InventarioMovimientosPage() {
                 bgcolor: tokens.content.card,
                 color: tokens.content.foreground,
                 border: `1px solid ${tokens.content.border}`,
-                boxShadow: '0 16px 40px rgba(44, 49, 56, 0.18)',
+                boxShadow: brandElevation.floating,
               },
             },
           }}

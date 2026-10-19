@@ -43,7 +43,7 @@ import type { TipoDocumento } from '../../../types/documentos.types';
 import { formatearFolioDocumento } from '../../../utils/documentos.utils';
 import { estadoVisualDocumento } from '../estadoVisualDocumento';
 import { getStatusToneColor } from '../../status/status.semantics';
-import { elevation } from '../../../theme/elevation';
+import { brandElevation, elevation } from '../../../theme/elevation';
 
 type Props = {
   rows: CotizacionListado[];
@@ -1107,7 +1107,7 @@ function PopoverFiltroNotas({
             color: tokens.content.foreground,
             border: `1px solid ${tokens.content.border}`,
             borderRadius: 2,
-            boxShadow: '0 16px 40px rgba(44, 49, 56, 0.18)',
+            boxShadow: brandElevation.floating,
           },
         },
       }}

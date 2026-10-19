@@ -16,6 +16,7 @@ import DocumentoStatusIndicators from './indicadores/DocumentoStatusIndicators';
 import { neutralColors, selectionColors } from '../../theme/structural';
 import { activeBrand } from '../../theme/brand/active';
 import { balanceColors } from '../../theme/functional';
+import { brandElevation } from '../../theme/elevation';
 
 function hasValue(value?: string | number | null) {
   return value != null && String(value).trim() !== '';
@@ -273,7 +274,7 @@ export default function DocumentosMobileView({
             bottom: 20,
             backgroundColor: theme.emphasys.action.primary,
             color: theme.emphasys.action.primaryForeground,
-            boxShadow: '0 8px 18px rgba(44, 49, 56, 0.22)',
+            boxShadow: brandElevation.floatingStrong,
             '&:hover': { backgroundColor: theme.emphasys.action.primaryHover },
           } : {
             position: 'fixed',

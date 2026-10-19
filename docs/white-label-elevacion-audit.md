@@ -175,4 +175,5 @@ Comprobado: `rgbaFromHex('#2c3138', 0.18)` = `rgba(44, 49, 56, 0.18)`, y `rgbaFr
 - **D-E2:** pendiente. Los degradados quedan fuera por ahora.
 - `theme/elevation.ts` define 15 tokens estructurales y 7 de marca (`buildBrandElevation(brand)`). Cada uno reproduce un literal que existía en HEAD `9c50054`, como fija `__fixtures__/elevation.baseline.json`.
 - **E1, completado:** 23 reemplazos en 13 archivos. `0 1px 2px rgba(0,0,0,0.35)` pasa a `elevation.railControl` y `…0.18` a `elevation.railSelection`.
-- Pendientes: E2 (sombras de marca), E3 (estructurales restantes) y E4 (resplandores azules y degradados).
+- **E2, completado:** 17 reemplazos en 16 archivos. Pasan a `brandElevation.floating` (×10), `floatingStrong` (×1), `dialog` (×3), `panel` (×2) y `dropdown` (×1). Con Emphasys producen el mismo string; con otro grafito o tinta beige, cambian solo esas sombras.
+- Pendientes: E3 (estructurales restantes) y E4 (resplandores azules y degradados).

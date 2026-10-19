@@ -1,5 +1,6 @@
 import { Box, Button, Dialog, Stack, Typography, useTheme } from '@mui/material';
 import type { CartaPorteIssue, CartaPorteIssueSection } from '../../../services/transporte.api';
+import { brandElevation } from '../../../theme/elevation';
 
 const ETIQUETA_CARTA_PORTE: Record<CartaPorteIssueSection, string> = {
   ruta: 'Ruta',
@@ -36,7 +37,7 @@ export default function CartaPorteIssuesDialog({ issues, onClose }: Props) {
           color: tokens.content.foreground,
           border: `1px solid ${tokens.content.border}`,
           borderRadius: 2,
-          boxShadow: '0 18px 48px rgba(62, 52, 40, 0.16)',
+          boxShadow: brandElevation.dialog,
         },
       }}
     >

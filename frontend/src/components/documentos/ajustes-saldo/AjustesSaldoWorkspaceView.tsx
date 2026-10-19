@@ -37,7 +37,7 @@ import type { AplicacionOperacion } from '../../../types/finanzas';
 import type { Contacto } from '../../../types/contactos.types';
 import type { CotizacionDocumento, CotizacionListado } from '../../../types/cotizacion';
 import type { TipoDocumento } from '../../../types/documentos.types';
-import { elevation } from '../../../theme/elevation';
+import { brandElevation, elevation } from '../../../theme/elevation';
 
 type FiltroAjustes = {
   fechaDesde: string;
@@ -639,7 +639,7 @@ function PopoverFiltroAjustes({
     },
   };
   return (
-    <Popover open={Boolean(ancla)} anchorEl={ancla} onClose={onClose} anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }} transformOrigin={{ vertical: 'top', horizontal: 'right' }} slotProps={{ paper: { sx: { mt: 0.75, p: 1.5, width: 320, borderRadius: 2, bgcolor: tokens.content.card, color: tokens.content.foreground, border: `1px solid ${tokens.content.border}`, boxShadow: '0 16px 40px rgba(44, 49, 56, 0.18)', maxHeight: 'min(70vh, 560px)', overflow: 'auto' } } }}>
+    <Popover open={Boolean(ancla)} anchorEl={ancla} onClose={onClose} anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }} transformOrigin={{ vertical: 'top', horizontal: 'right' }} slotProps={{ paper: { sx: { mt: 0.75, p: 1.5, width: 320, borderRadius: 2, bgcolor: tokens.content.card, color: tokens.content.foreground, border: `1px solid ${tokens.content.border}`, boxShadow: brandElevation.floating, maxHeight: 'min(70vh, 560px)', overflow: 'auto' } } }}>
       <Typography sx={{ fontSize: 12, fontWeight: 800, letterSpacing: '0.08em', color: tokens.content.muted }}>FILTROS</Typography>
       <Box sx={{ display: 'grid', gap: 1.1, mt: 1.2 }}>
         <Box component="label" sx={{ display: 'flex', alignItems: 'center', gap: 0.4, cursor: 'pointer', color: tokens.content.foreground }}>

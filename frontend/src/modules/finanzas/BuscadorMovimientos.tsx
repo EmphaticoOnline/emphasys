@@ -13,6 +13,7 @@ import {
   type FiltroMovimiento,
   type SugerenciaMovimiento,
 } from './buscadorMovimientosLogica';
+import { brandElevation } from '../../theme/elevation';
 
 type Props = {
   operaciones: FinanzasOperacion[];
@@ -185,7 +186,7 @@ export function BuscadorMovimientos({ operaciones, query, setQuery, filtros, set
             color: tokens.content.foreground,
             border: `1px solid ${tokens.content.border}`,
             borderRadius: 1.5,
-            boxShadow: '0 8px 24px rgba(62, 52, 40, 0.12)',
+            boxShadow: brandElevation.dropdown,
           }}
         >
           {sugerencias.map((sugerencia, index) => {

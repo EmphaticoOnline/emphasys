@@ -8,6 +8,7 @@ import SearchIcon from '@mui/icons-material/Search';
 import ClearIcon from '@mui/icons-material/Clear';
 import type { ProductosMobileViewProps } from './ProductosView.types';
 import { neutralColors } from '../../theme/structural';
+import { brandElevation } from '../../theme/elevation';
 
 function hasValue(value?: string | number | boolean | null) {
   return value != null && String(value).trim() !== '';
@@ -188,7 +189,7 @@ export default function ProductosMobileView({
             bottom: 20,
             backgroundColor: (theme) => theme.emphasys.action.primary,
             color: (theme) => theme.emphasys.action.primaryForeground,
-            boxShadow: '0 16px 40px rgba(44, 49, 56, 0.18)',
+            boxShadow: brandElevation.floating,
             '&:hover': { backgroundColor: (theme) => theme.emphasys.action.primaryHover },
           }}
         >

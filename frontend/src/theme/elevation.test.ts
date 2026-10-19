@@ -25,7 +25,7 @@ const baseline = JSON.parse(readText('./__fixtures__/elevation.baseline.json')) 
 
 type Replacement = { from: string; to: string; times: number };
 type ElevationFileFixture = MinorFileFixture & {
-  lines: Record<string, MinorFileFixture['lines'][string] & { replacements: Replacement[] }>;
+  lines: Record<string, MinorFileFixture['lines'][string] & { replacements: Replacement[]; importMerge?: boolean }>;
 };
 type ElevationFixture = { source: string; files: Record<string, ElevationFileFixture> };
 
@@ -42,14 +42,35 @@ const allLines = () =>
     Object.entries(fixture.files).flatMap(([file, entry]) => Object.entries(entry.lines).map(([n, line]) => ({ name, file, n, ...line }))),
   );
 
-/** `elevation.railControl` → literal entre comillas, con los valores dados. */
-const tokenLiteral = (token: string, values: Record<string, string>) => {
-  const match = /^elevation\.(\w+)$/.exec(token);
-  if (!match || !(match[1]! in values)) throw new Error(`Token de elevación desconocido: ${token}`);
-  return `'${values[match[1]!]}'`;
+/** Token completo (`elevation.railControl`, `brandElevation.floating`) → valor. */
+type TokenValues = Record<string, string>;
+const tokenValues = (structural: Record<string, string> = elevation, brand: Record<string, string> = brandElevation): TokenValues => ({
+  ...Object.fromEntries(Object.entries(structural).map(([key, value]) => [`elevation.${key}`, value])),
+  ...Object.fromEntries(Object.entries(brand).map(([key, value]) => [`brandElevation.${key}`, value])),
+});
+const restoreLine = (migrated: string, replacements: Replacement[], values: TokenValues) =>
+  replacements.reduce((line, { to }) => {
+    if (!(to in values)) throw new Error(`Token de elevación desconocido: ${to}`);
+    return line.split(to).join(`'${values[to]}'`);
+  }, migrated);
+
+/** Tokens y reemplazos de cada bloque (ver docs/white-label-elevacion-audit.md §5). */
+const BLOCK_SCOPE: Record<string, { tokens: string[]; total: number }> = {
+  'elevation.e1.baseline.json': { tokens: ['elevation.railControl', 'elevation.railSelection'], total: 23 },
+  'elevation.e2.baseline.json': {
+    tokens: ['brandElevation.floating', 'brandElevation.floatingStrong', 'brandElevation.dialog', 'brandElevation.panel', 'brandElevation.dropdown'],
+    total: 17,
+  },
 };
-const restoreLine = (migrated: string, replacements: Replacement[], values: Record<string, string>) =>
-  replacements.reduce((line, { to }) => line.split(to).join(tokenLiteral(to, values)), migrated);
+const migratedTokens = () => blocks.flatMap(({ name }) => BLOCK_SCOPE[name]!.tokens);
+
+/** Restaura un archivo con valores alternativos de los tokens y devuelve su SHA-256. */
+const restoredSha = (name: string, file: string, entry: ElevationFileFixture, values: TokenValues) => {
+  const lines = Object.fromEntries(
+    Object.entries(entry.lines).map(([n, line]) => [n, line.importMerge ? line : { ...line, original: restoreLine(line.migrated, line.replacements, values) }]),
+  );
+  return sha256(revertMinor(asOfBlock(name, file), { ...entry, lines }));
+};
 
 /** Marca alternativa: cambia solo grafito, tinta y azul respecto de Emphasys. */
 const alternateBrand = (overrides: Partial<{ graphite: string; ink: string; blue: string }>): BrandDefinition => {
@@ -111,7 +132,11 @@ test('marca alternativa: cambian solo las sombras de identidad, con la misma geo
   assert.deepEqual(changed(alternateBrand({ blue: '#708090' })), ['activeGlow', 'primaryGlow']);
 });
 
-test('E1 equivalencia contra HEAD: restaurar cada archivo reproduce el previo byte a byte', () => {
+test('todos los bloques del registro tienen alcance declarado', () => {
+  assert.deepEqual(Object.keys(BLOCK_SCOPE), [...ELEVATION_ORDER]);
+});
+
+test('equivalencia contra HEAD: restaurar cada archivo de cada bloque reproduce el previo byte a byte', () => {
   for (const { name, fixture } of blocks) {
     for (const [file, entry] of Object.entries(fixture.files)) {
       assert.equal(sha256(revertMinor(asOfBlock(name, file), entry)), entry.headSha256, `${name} ${file}`);
@@ -119,41 +144,64 @@ test('E1 equivalencia contra HEAD: restaurar cada archivo reproduce el previo by
   }
 });
 
-test('E1 transformación: cada línea es su original con los reemplazos declarados, y vuelve con los valores actuales', () => {
-  let total = 0;
-  for (const { name, file, n, original, migrated, replacements } of allLines()) {
+test('transformación: cada línea es su original con los reemplazos declarados, y vuelve con los valores actuales', () => {
+  const totals: Record<string, number> = {};
+  for (const { name, file, n, original, migrated, replacements, importMerge } of allLines()) {
+    if (importMerge) {
+      // Import fusionado: mismo módulo, conserva todos los nombres previos y agrega los del bloque.
+      const names = (line: string) => /^import \{ ([^}]+) \} from '([^']+)';$/.exec(line)!;
+      const [, before, mod] = names(original);
+      const [, after, modAfter] = names(migrated);
+      assert.equal(modAfter, mod, `${name} ${file}:${n}`);
+      assert.match(mod!, /theme\/elevation$/);
+      for (const x of before!.split(', ')) assert.ok(after!.split(', ').includes(x), `${name} ${file}:${n} perdió ${x}`);
+      continue;
+    }
     let out = original;
     for (const { from, to, times } of replacements) {
       assert.equal(out.split(from).length - 1, times, `${name} ${file}:${n} "${from}"`);
-      assert.match(to, /^elevation\.rail(Control|Selection)$/, `${name} ${file}:${n}: E1 solo usa las sombras del rail`);
+      assert.ok(BLOCK_SCOPE[name]!.tokens.includes(to), `${name} ${file}:${n}: ${to} no pertenece al bloque`);
       out = out.split(from).join(to);
-      total += times;
+      totals[name] = (totals[name] ?? 0) + times;
     }
     assert.equal(out, migrated, `${name} ${file}:${n}`);
-    assert.equal(restoreLine(migrated, replacements, elevation), original, `${name} ${file}:${n}`);
+    assert.equal(restoreLine(migrated, replacements, tokenValues()), original, `${name} ${file}:${n}`);
   }
-  assert.equal(total, 23);
+  for (const { name } of blocks) assert.equal(totals[name], BLOCK_SCOPE[name]!.total, name);
 });
 
-test('E1 mutación: alterar una sombra del rail rompe la equivalencia de cada archivo que la usa', () => {
-  for (const key of ['railControl', 'railSelection'] as const) {
-    const mutated = { ...elevation, [key]: elevation[key].replace('0.', '0.9') };
-    for (const { name, fixture } of blocks) {
+test('mutación: alterar cualquier sombra migrada rompe la equivalencia de cada archivo que la usa', () => {
+  const current = tokenValues();
+  for (const { name, fixture } of blocks) {
+    for (const token of BLOCK_SCOPE[name]!.tokens) {
+      const mutated = { ...current, [token]: current[token]!.replace(/0\.(\d+)\)$/, '0.9$1)') };
+      assert.notEqual(mutated[token], current[token]);
+      let checked = 0;
       for (const [file, entry] of Object.entries(fixture.files)) {
-        const uses = Object.values(entry.lines).some((line) => line.replacements.some(({ to }) => to === `elevation.${key}`));
-        if (!uses) continue;
-        const lines = { ...entry.lines };
-        for (const [n, line] of Object.entries(lines)) {
-          lines[n] = { ...line, original: restoreLine(line.migrated, line.replacements, mutated) };
-        }
-        const restored = revertMinor(asOfBlock(name, file), { ...entry, lines });
-        assert.notEqual(sha256(restored), entry.headSha256, `${file} debe detectar la mutación de ${key}`);
+        if (!Object.values(entry.lines).some((line) => line.replacements.some(({ to }) => to === token))) continue;
+        assert.notEqual(restoredSha(name, file, entry, mutated), entry.headSha256, `${file} debe detectar la mutación de ${token}`);
+        checked++;
       }
+      assert.ok(checked > 0, `${token} se usa en ${name}`);
     }
   }
 });
 
-test('E1 cierre: no quedan sombras del rail escritas a mano y E2–E4 siguen intactos', () => {
+test('E2 sigue a la marca: con otro grafito o tinta, los archivos de E2 ya no reproducen HEAD', () => {
+  const e2 = blocks.find(({ name }) => name === 'elevation.e2.baseline.json')!;
+  for (const overrides of [{ graphite: '#102030' }, { ink: '#405060' }]) {
+    const values = tokenValues(elevation, buildBrandElevation(alternateBrand(overrides)));
+    for (const [file, entry] of Object.entries(e2.fixture.files)) {
+      const tokens = Object.values(entry.lines).flatMap((line) => line.replacements.map(({ to }) => to));
+      const moves = tokens.some((token) => values[token] !== tokenValues()[token]);
+      const sha = restoredSha(e2.name, file, entry, values);
+      if (moves) assert.notEqual(sha, entry.headSha256, `${file} debe seguir a ${JSON.stringify(overrides)}`);
+      else assert.equal(sha, entry.headSha256, `${file} no depende de ${JSON.stringify(overrides)}`);
+    }
+  }
+});
+
+test('cierre: no quedan escritas a mano las sombras migradas y el resto conserva sus usos de HEAD', () => {
   const root = new URL('../', import.meta.url);
   const files: string[] = [];
   const walk = (dir: URL, rel: string) => {
@@ -167,13 +215,11 @@ test('E1 cierre: no quedan sombras del rail escritas a mano y E2–E4 siguen int
   };
   walk(root, '');
   const count = (literal: string) => files.reduce((sum, file) => sum + (readText(`../${file}`).split(literal).length - 1), 0);
-  assert.equal(count(elevation.railControl), 0);
-  assert.equal(count(elevation.railSelection), 0);
-  // Fuera de este bloque: el resto de sombras sigue literal, con sus usos de HEAD.
-  for (const layer of [baseline.structural, baseline.brand]) {
+  const migrated = migratedTokens();
+  for (const [prefix, layer] of [['elevation', baseline.structural], ['brandElevation', baseline.brand]] as const) {
     for (const [key, { value, headOccurrences }] of Object.entries(layer)) {
-      if (key === 'railControl' || key === 'railSelection') continue;
-      assert.equal(count(value), headOccurrences, `${key} no se migra en E1`);
+      const token = `${prefix}.${key}`;
+      assert.equal(count(value), migrated.includes(token) ? 0 : headOccurrences, token);
     }
   }
 });

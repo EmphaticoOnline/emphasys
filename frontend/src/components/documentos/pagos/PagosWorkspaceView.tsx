@@ -42,7 +42,7 @@ import type { AplicacionOperacion, FinanzasCuenta } from '../../../types/finanza
 import type { Contacto } from '../../../types/contactos.types';
 import type { CotizacionDocumento, CotizacionListado } from '../../../types/cotizacion';
 import type { TipoDocumento } from '../../../types/documentos.types';
-import { elevation } from '../../../theme/elevation';
+import { brandElevation, elevation } from '../../../theme/elevation';
 
 export type FiltroPagos = {
   fechaDesde: string;
@@ -1088,7 +1088,7 @@ function PopoverFiltroPagos({
             bgcolor: tokens.content.card,
             color: tokens.content.foreground,
             border: `1px solid ${tokens.content.border}`,
-            boxShadow: '0 16px 40px rgba(44, 49, 56, 0.18)',
+            boxShadow: brandElevation.floating,
             maxHeight: 'min(70vh, 560px)',
             overflow: 'auto',
           },

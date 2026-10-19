@@ -31,6 +31,7 @@ import {
 import type { Producto } from '../../../types/producto';
 import { neutralColors } from '../../../theme/structural';
 import { activeBrand } from '../../../theme/brand/active';
+import { brandElevation } from '../../../theme/elevation';
 
 type Props = {
   open: boolean;
@@ -196,7 +197,7 @@ const adornosLista = (tokens: { content: { card: string; border: string } }) => 
     sx: {
       bgcolor: tokens.content.card,
       border: `1px solid ${tokens.content.border}`,
-      boxShadow: '0 10px 28px rgba(62, 52, 40, 0.08)',
+      boxShadow: brandElevation.panel,
     },
   },
   listbox: {
@@ -678,7 +679,7 @@ function CampoUbicacion({
           sx: {
             bgcolor: tokens.content.card,
             border: `1px solid ${tokens.content.border}`,
-            boxShadow: '0 10px 28px rgba(62, 52, 40, 0.08)',
+            boxShadow: brandElevation.panel,
           },
         },
         listbox: {

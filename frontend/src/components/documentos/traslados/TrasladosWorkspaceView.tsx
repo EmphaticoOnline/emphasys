@@ -24,7 +24,7 @@ import { prevalidarCancelacionDocumento, timbrarDocumentoCfdi } from '../../../s
 import { fetchProductos } from '../../../services/productosService';
 import { obtenerViajePorDocumento, obtenerViajeAggregate, validarCartaPorte, type CartaPorteIssue, type ViajeMercancia } from '../../../services/transporte.api';
 import CartaPorteIssuesDialog from '../facturas/CartaPorteIssuesDialog';
-import { elevation } from '../../../theme/elevation';
+import { brandElevation, elevation } from '../../../theme/elevation';
 
 type Props = {
   rows: CotizacionListado[];
@@ -646,7 +646,7 @@ export default function TrasladosWorkspaceView({
             color: tokens.content.foreground,
             border: `1px solid ${tokens.content.border}`,
             borderRadius: 2,
-            boxShadow: '0 18px 48px rgba(62, 52, 40, 0.16)',
+            boxShadow: brandElevation.dialog,
           },
         }}
       >

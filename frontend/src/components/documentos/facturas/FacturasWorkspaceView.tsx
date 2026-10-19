@@ -73,7 +73,7 @@ import {
   RelacionadosTab,
   InventarioTab,
 } from '../DocumentoDetalleContent';
-import { elevation } from '../../../theme/elevation';
+import { brandElevation, elevation } from '../../../theme/elevation';
 
 type StatusOption = { value: string; label: string; color?: string; textColor?: string };
 type FiltroFacturas = {
@@ -1236,7 +1236,7 @@ export function PopoverFiltroFacturas({
             bgcolor: tokens.content.card,
             color: tokens.content.foreground,
             border: `1px solid ${tokens.content.border}`,
-            boxShadow: '0 16px 40px rgba(44, 49, 56, 0.18)',
+            boxShadow: brandElevation.floating,
             maxHeight: 'min(70vh, 560px)',
             overflow: 'auto',
           },
