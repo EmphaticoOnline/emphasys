@@ -4,6 +4,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import test from 'node:test';
 import { stalenessColors } from './functional.ts';
 import { classicTheme, experimentalTheme } from './themes.ts';
+import { classicTokens } from './tokens.ts';
 import {
   DECISION_ORDER,
   LATER_FIXTURES,
@@ -71,4 +72,24 @@ test('D8 (sin cambio visual): la antigüedad usa stalenessColors con los mismos 
   for (const file of ['../pages/finanzas/ConciliacionBancariaPage.tsx', '../pages/informes/finanzas/MovimientosNoConciliadosPage.tsx']) {
     assert.doesNotMatch(readText(file), /> 30 \? 'error\.main'/, file);
   }
+});
+
+test('D-T3 (sin cambio visual): la franja de Oportunidades lee grid.stripe, que en el tema de su ruta vale lo mismo', () => {
+  const [replacement] = replacementsOf('dt3');
+  assert.deepEqual(replacement, {
+    from: "backgroundColor: 'rgba(0, 120, 70, 0.05)',",
+    to: 'backgroundColor: (theme) => theme.emphasys.grid.stripe,',
+    times: 1,
+  });
+  // La ruta usa el tema clásico, cuya franja de grid es exactamente el literal anterior.
+  // `resolveActiveTheme.ts` no carga en Node (importa './themes' sin extensión): se leen sus listas.
+  const policy = readText('./resolveActiveTheme.ts');
+  const list = (name: string) => [...(new RegExp(`const ${name} = \\[([\\s\\S]*?)\\] as const;`).exec(policy)?.[1] ?? '').matchAll(/'([^']+)'/g)].map(([, path]) => path);
+  const exact = list('EXPERIMENTAL_EXACT_PATHS');
+  const prefixes = list('EXPERIMENTAL_PATH_PREFIXES');
+  assert.ok(exact.length > 0 && prefixes.length > 0);
+  const route = '/crm/oportunidades';
+  assert.ok(!exact.includes(route) && !prefixes.some((prefix) => route === prefix || route.startsWith(`${prefix}/`)), `${route} debe usar el tema clásico`);
+  assert.equal(classicTokens.grid.stripe, 'rgba(0, 120, 70, 0.05)');
+  assert.equal(classicTheme.emphasys.grid.stripe, 'rgba(0, 120, 70, 0.05)');
 });

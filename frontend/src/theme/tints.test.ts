@@ -347,5 +347,6 @@ test('cierre: no quedan tintes de T1–T4 escritos a mano fuera del legado', () 
     assert.deepEqual(left, [], token);
   }
   // D-T3: la franja verde `#007846` de Oportunidades queda literal, como pendiente de diseño.
-  assert.deepEqual(occurrences('rgba(0, 120, 70, 0.05)'), ['pages/OportunidadesPage.tsx']);
+  // D-T3 resuelta (decisión B): la franja ya lee `theme.emphasys.grid.stripe`, mismo valor en el tema clásico.
+  assert.deepEqual(occurrences('rgba(0, 120, 70, 0.05)'), []);
 });

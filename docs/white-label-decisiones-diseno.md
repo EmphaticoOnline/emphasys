@@ -215,3 +215,4 @@ Respuesta del 2026-10-19: `D1 B, D2 B, D3 A, D4 B, D5 A, D6 B, D7 A, D8 B, D9 A,
 |---|---|---|
 | D3, D5, D7, D9 | A (mantener) | Sin cambios. Las pruebas siguen fijando los valores actuales |
 | D8 | B | ✅ `stalenessColors` (`stale` / `aging`), mismos valores que `palette.error/warning.main`. 3 líneas en conciliación y movimientos no conciliados |
+| D-T3 | B | ✅ La franja de filas pares de Oportunidades lee `theme.emphasys.grid.stripe`. En el tema clásico de `/crm/oportunidades` vale exactamente `rgba(0, 120, 70, 0.05)`. Ya no queda en las exclusiones del cierre global (quedan 32) |

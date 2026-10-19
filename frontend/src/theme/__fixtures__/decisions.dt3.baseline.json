@@ -1,0 +1,24 @@
+{
+  "source": "HEAD f62abdd, decisions bloque dt3",
+  "files": {
+    "pages/OportunidadesPage.tsx": {
+      "headSha256": "913e371f0bcd8d74bfcaa3bb8cc71249997ea0d063d7bb4875afa04a11b1a4e9",
+      "addedImports": [],
+      "lines": {
+        "1929": {
+          "original": "                      backgroundColor: 'rgba(0, 120, 70, 0.05)',",
+          "migrated": "                      backgroundColor: (theme) => theme.emphasys.grid.stripe,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "backgroundColor: 'rgba(0, 120, 70, 0.05)',",
+              "to": "backgroundColor: (theme) => theme.emphasys.grid.stripe,",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    }
+  }
+}

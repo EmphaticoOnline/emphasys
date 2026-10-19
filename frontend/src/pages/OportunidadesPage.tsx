@@ -1926,7 +1926,7 @@ export default function OportunidadesPage() {
                       transition: 'all 0.2s ease',
                     },
                     '& .MuiDataGrid-row:nth-of-type(even)': {
-                      backgroundColor: 'rgba(0, 120, 70, 0.05)',
+                      backgroundColor: (theme) => theme.emphasys.grid.stripe,
                     },
                     '& .MuiDataGrid-row:hover': {
                       backgroundColor: overlayColors.hover.gridRow,

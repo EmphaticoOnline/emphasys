@@ -19,7 +19,6 @@ const COLOR = /#[0-9a-fA-F]{3,8}\b|\brgba?\(\s*\d[^)]*\)|\bhsla?\([^)]*\)|(['"`]
  * Exclusiones documentadas, por archivo:
  * - datos de usuario o BD y sus fallbacks (docs/white-label-restos-r1-audit.md §0);
  * - KPI y serie de gráfica (bloques 1 y 7);
- * - D-T3: franja verde de Oportunidades, pendiente de diseño (docs/white-label-tintes-alfa-audit.md).
  */
 const DOCUMENTED: Record<string, Record<string, number>> = {
   'components/DynamicFieldControl.tsx': { '#000000': 1 },
@@ -28,7 +27,6 @@ const DOCUMENTED: Record<string, Record<string, number>> = {
   'pages/ConfiguracionEtapasProduccionPage.tsx': { '#1D4ED8': 5, '#E5E7EB': 2 },
   'pages/DocumentosPage.tsx': { '#e5e7eb': 2 },
   'pages/LeadsPage.tsx': { '#25D366': 8 },
-  'pages/OportunidadesPage.tsx': { 'rgba(0, 120, 70, 0.05)': 1 },
   'pages/ProduccionPage.tsx': { '#e5e7eb': 1 },
   'pages/configuracion/FormatosImpresionPage.tsx': { '#1d2f68': 4 },
   'pages/configuracion/WhatsappEtiquetasPage.tsx': { '#25D366': 1 },
