@@ -35,7 +35,7 @@ import {
   type ExistenciasPorAlmacenResult,
   type ExistenciaPorAlmacen,
 } from '../../../services/reportesService';
-import { moduleAccents } from '../../../theme/functional';
+import { balanceColors, moduleAccents } from '../../../theme/functional';
 
 const COLOR = moduleAccents.inventoryReports;
 
@@ -99,7 +99,7 @@ function buildColumns(): GridColDef<ExistenciaPorAlmacen>[] {
       renderCell: (p: GridRenderCellParams<ExistenciaPorAlmacen, number>) => {
         const v = p.value ?? 0;
         return (
-          <Typography variant="body2" color={v < 0 ? 'error.main' : 'success.main'}>
+          <Typography variant="body2" color={v < 0 ? balanceColors.negative : balanceColors.positive}>
             {fmtCant(v)}
           </Typography>
         );

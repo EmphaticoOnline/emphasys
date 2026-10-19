@@ -132,7 +132,7 @@ import type { CampoValorPayload, CampoValorGuardado } from '../types/camposDinam
 import type { Concepto, DocumentoAnticipoResumen, EstadoCuentaItem, FinanzasCuenta } from '../types/finanzas';
 import { NumericFormat } from 'react-number-format';
 import { neutralColors, selectionColors } from '../theme/structural';
-import { advanceBoxColors, alertColors, attachmentIndicatorColors, documentSummaryTones, fiscalStatusColors, moduleAccents } from '../theme/functional';
+import { advanceBoxColors, alertColors, attachmentIndicatorColors, balanceColors, documentSummaryTones, fiscalStatusColors, moduleAccents } from '../theme/functional';
 import { brandBlueAlpha } from '../theme/brand/derived';
 
 const toCivilDate = (date = new Date()) => {
@@ -6047,7 +6047,7 @@ export default function DocumentosFormPage({
             Disponible: {anticiposFormatter.format(Number(anticiposResumen?.disponible_por_aplicar ?? 0))}
           </Typography>
           <Typography variant="body2" color="text.secondary">·</Typography>
-          <Typography variant="body2" color={Number(form.total || 0) < totalAnticipadoRegistrado ? 'error.main' : 'text.primary'}>
+          <Typography variant="body2" color={Number(form.total || 0) < totalAnticipadoRegistrado ? balanceColors.negative : 'text.primary'}>
             Pendiente: {anticiposFormatter.format(Number(anticiposResumen?.pendiente_estimado ?? Math.max(Number(form.total || 0), 0)))}
           </Typography>
         </Paper>

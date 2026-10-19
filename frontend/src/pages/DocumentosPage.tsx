@@ -166,7 +166,7 @@ import {
   buildFacturaIndicatorModel,
   type DocumentoIndicatorModel,
 } from '../components/documentos/indicadores';
-import { alertColors } from '../theme/functional';
+import { alertColors, balanceColors } from '../theme/functional';
 import { neutralColors, selectionColors } from '../theme/structural';
 
 const formatCivilDate = (value: unknown) => {
@@ -2324,7 +2324,7 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
                 const content = (
                   <Box
                     sx={{
-                      color: suspended ? 'warning.main' : Number(params.value ?? 0) === 0 ? 'success.main' : 'error.main',
+                      color: suspended ? balanceColors.onHold : Number(params.value ?? 0) === 0 ? balanceColors.settled : balanceColors.due,
                       fontWeight: 600,
                       textDecoration: suspended ? 'underline dotted' : undefined,
                     }}

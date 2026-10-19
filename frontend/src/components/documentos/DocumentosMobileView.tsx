@@ -15,6 +15,7 @@ import type { DocumentosMobileViewProps } from './DocumentosView.types';
 import DocumentoStatusIndicators from './indicadores/DocumentoStatusIndicators';
 import { neutralColors, selectionColors } from '../../theme/structural';
 import { activeBrand } from '../../theme/brand/active';
+import { balanceColors } from '../../theme/functional';
 
 function hasValue(value?: string | number | null) {
   return value != null && String(value).trim() !== '';
@@ -159,7 +160,7 @@ export default function DocumentosMobileView({
                   ? [{
                       label: 'Saldo',
                       value: currency.format(saldo),
-                      color: saldo === 0 ? 'success.main' : 'error.main',
+                      color: saldo === 0 ? balanceColors.settled : balanceColors.due,
                     }]
                   : []),
                 { label: 'Producto', value: row.producto_resumen },

@@ -34,7 +34,7 @@ import type {
   EstadoCuentaResult,
   MovimientoEstadoCuenta,
 } from '../../services/reportesService';
-import { accountingColors } from '../../theme/functional';
+import { accountingColors, balanceColors } from '../../theme/functional';
 import { neutralColors } from '../../theme/structural';
 
 export type EstadoCuentaPageConfig = {
@@ -638,7 +638,7 @@ export default function EstadoCuentaPage({ config }: { config: EstadoCuentaPageC
               <Typography
                 variant="subtitle1"
                 fontWeight={700}
-                color={saldoFinal > 0 ? 'error.main' : saldoFinal < 0 ? 'success.main' : 'text.primary'}
+                color={saldoFinal > 0 ? balanceColors.due : saldoFinal < 0 ? balanceColors.inFavor : 'text.primary'}
                 sx={{ lineHeight: 1.2 }}
               >
                 {formatMXN(saldoFinal)}

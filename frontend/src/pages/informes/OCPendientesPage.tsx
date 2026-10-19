@@ -36,6 +36,7 @@ import type {
 } from '../../services/reportesService';
 import { activeBrand } from '../../theme/brand/active';
 import { selectionColors } from '../../theme/structural';
+import { balanceColors } from '../../theme/functional';
 
 export type OCPendientesPageConfig = {
   titulo: string;
@@ -129,7 +130,7 @@ function buildColumnsResumen(): GridColDef<OCPendienteOC>[] {
       renderCell: (p: GridRenderCellParams<OCPendienteOC, number>) => {
         const v = p.value ?? 0;
         return (
-          <Typography variant="body2" fontWeight={700} color={v > 0 ? 'error.main' : 'text.primary'}>
+          <Typography variant="body2" fontWeight={700} color={v > 0 ? balanceColors.outstanding : 'text.primary'}>
             {formatCant(v)}
           </Typography>
         );
@@ -245,7 +246,7 @@ function buildColumnsDetalle(): GridColDef<FilaDetalle>[] {
         const v = 'cantidad_pendiente' in row ? row.cantidad_pendiente : 0;
         const bold = row._tipo === 'oc';
         return (
-          <Typography variant="body2" fontWeight={bold ? 700 : 400} color={v > 0 ? 'error.main' : 'text.primary'}>
+          <Typography variant="body2" fontWeight={bold ? 700 : 400} color={v > 0 ? balanceColors.outstanding : 'text.primary'}>
             {formatCant(v)}
           </Typography>
         );

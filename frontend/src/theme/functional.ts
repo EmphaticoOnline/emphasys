@@ -321,3 +321,26 @@ export const documentSummaryTones = {
   /** Retención en el panel de impuestos y en partidas. */
   withholdingInline: '#9a5b00',
 } as const;
+
+/**
+ * Saldos e importes con signo en pantallas que no dependen del tema. Usan los
+ * mismos valores de `palette` de MUI que antes (`error/success/warning.main`)
+ * pero nombran el significado, para que el signo no siga a una futura
+ * personalización de `palette.error`. Varios roles comparten valor a propósito.
+ */
+export const balanceColors = {
+  /** Saldo a cargo / por pagar. */
+  due: feedbackTokens.error.main,
+  /** Saldo a favor. */
+  inFavor: feedbackTokens.success.main,
+  /** Saldo liquidado (cero). */
+  settled: feedbackTokens.success.main,
+  /** Cobro suspendido. */
+  onHold: feedbackTokens.warning.main,
+  /** Importe o saldo negativo (déficit). */
+  negative: feedbackTokens.error.main,
+  /** Importe o existencia positiva. */
+  positive: feedbackTokens.success.main,
+  /** Pendiente de recibir (OC). Ver D5 en la auditoría de fuentes de signo. */
+  outstanding: feedbackTokens.error.main,
+} as const;

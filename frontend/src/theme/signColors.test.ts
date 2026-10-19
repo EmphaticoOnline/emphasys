@@ -2,7 +2,9 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import test from 'node:test';
+import { balanceColors } from './functional.ts';
 import { amountSignColor, inflowColor, outflowColor, overdueColor } from './sign.ts';
+import { classicTheme, experimentalTheme } from './themes.ts';
 import { classicTokens, experimentalTokens } from './tokens.ts';
 import {
   LATER_FIXTURES,
@@ -17,7 +19,9 @@ const readText = (path: string) => readFileSync(new URL(path, import.meta.url), 
 const sha256 = (text: string) => createHash('sha256').update(text).digest('hex');
 
 type Replacement = { from: string; to: string; times: number };
-type SignFileFixture = MinorFileFixture & { lines: Record<string, MinorFileFixture['lines'][string] & { replacements: Replacement[] }> };
+type SignFileFixture = MinorFileFixture & {
+  lines: Record<string, MinorFileFixture['lines'][string] & { replacements: Replacement[]; importMerge?: boolean }>;
+};
 type SignFixture = { source: string; files: Record<string, SignFileFixture> };
 
 /** Un fixture por bloque de fuentes de signo (ver docs/white-label-fuentes-de-signo-audit.md). */
@@ -58,7 +62,16 @@ test('equivalencia contra HEAD: restaurar cada archivo del bloque reproduce el p
 });
 
 test('cada línea migrada es exactamente su original con los reemplazos declarados', () => {
-  for (const { name, file, n, original, migrated, replacements } of allLines()) {
+  for (const { name, file, n, original, migrated, replacements, importMerge } of allLines()) {
+    if (importMerge) {
+      // Import fusionado: mismo módulo, conserva todos los nombres previos y agrega los nuevos.
+      const names = (line: string) => /^import \{ ([^}]+) \} from '([^']+)';$/.exec(line)!;
+      const [, before, mod] = names(original);
+      const [, after, modAfter] = names(migrated);
+      assert.equal(modAfter, mod, `${name} ${file}:${n}`);
+      for (const x of before!.split(', ')) assert.ok(after!.split(', ').includes(x), `${name} ${file}:${n} perdió ${x}`);
+      continue;
+    }
     let out = original;
     for (const { from, to, times } of replacements) {
       assert.equal(out.split(from).length - 1, times, `${name} ${file}:${n} "${from}"`);
@@ -68,12 +81,12 @@ test('cada línea migrada es exactamente su original con los reemplazos declarad
   }
 });
 
-test('cada reemplazo cambia un rol del tema por el helper que lo lee', () => {
+test('bloque 1: cada reemplazo cambia un rol del tema por el helper que lo lee', () => {
   const allowed: Record<string, string[]> = {
     'action.destructive': ['amountSignColor', 'outflowColor', 'overdueColor'],
     'applied.foreground': ['amountSignColor', 'inflowColor'],
   };
-  for (const { name, file, n, replacements } of allLines()) {
+  for (const { name, file, n, replacements } of allLines().filter((l) => l.name === 'signColors.b1.baseline.json')) {
     for (const { from, to } of replacements) {
       const role = Object.keys(allowed).find((r) => from.endsWith(r));
       assert.ok(role, `${name} ${file}:${n}: "${from}" no es un rol de signo`);
@@ -105,4 +118,37 @@ test('el bloque 1 cubre los 14 usos de signo de action.destructive y sus contrap
   assert.equal(total('outflowColor('), 3);
   assert.equal(total('inflowColor('), 3);
   assert.equal(total('overdueColor('), 1);
+});
+
+test('bloque 2: cada rol de balanceColors es exactamente el palette.*.main que reemplazó, en los dos temas', () => {
+  const b2 = blocks.find(({ name }) => name === 'signColors.b2.baseline.json')!.fixture;
+  const replacements = Object.values(b2.files).flatMap((f) => Object.values(f.lines).flatMap((l) => l.replacements));
+  assert.equal(replacements.reduce((a, r) => a + r.times, 0), 15);
+  for (const { from, to } of replacements) {
+    const palette = /^'(error|success|warning)\.main'$/.exec(from);
+    const role = /^balanceColors\.([a-zA-Z]+)$/.exec(to);
+    assert.ok(palette && role, `${from} → ${to}`);
+    const value = balanceColors[role[1] as keyof typeof balanceColors];
+    for (const theme of [classicTheme, experimentalTheme]) {
+      assert.equal(value, theme.palette[palette[1] as 'error' | 'success' | 'warning'].main, `${to} en ${theme.palette.primary.main}`);
+    }
+  }
+  // Varios significados comparten valor sin fusionarse (auditoría §2 y §8).
+  assert.deepStrictEqual(Object.keys(balanceColors), ['due', 'inFavor', 'settled', 'onHold', 'negative', 'positive', 'outstanding']);
+  const used = new Set(replacements.map((r) => r.to));
+  for (const key of Object.keys(balanceColors)) assert.ok(used.has(`balanceColors.${key}`), `balanceColors.${key} no se usa`);
+});
+
+test('bloque 2: los textos neutrales del mismo ternario siguen en palette de texto', () => {
+  // Solo se migra el signo: 'text.primary' e 'inherit' quedan como estaban.
+  const b2 = blocks.find(({ name }) => name === 'signColors.b2.baseline.json')!.fixture;
+  for (const [file, entry] of Object.entries(b2.files)) {
+    for (const { original, migrated, importMerge } of Object.values(entry.lines)) {
+      if (importMerge) continue;
+      for (const keep of ["'text.primary'", "'inherit'"]) {
+        assert.equal(migrated.split(keep).length, original.split(keep).length, `${file}: ${keep}`);
+      }
+      assert.ok(!/'(error|success|warning)\.main'/.test(migrated), `${file}: quedó un palette de signo`);
+    }
+  }
 });
