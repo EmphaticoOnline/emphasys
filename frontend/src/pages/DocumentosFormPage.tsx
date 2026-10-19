@@ -4770,8 +4770,8 @@ export default function DocumentosFormPage({
                                 </Box>
                                 {impuestosPartida.retenciones > 0 && (
                                   <Box sx={detalleRowSx}>
-                                    <Typography sx={{ fontSize: 11.5, color: documentSummaryTones.withholdingInline }}>Retención</Typography>
-                                    <Typography sx={{ fontSize: 11.5, fontFamily: 'monospace', color: documentSummaryTones.withholdingInline }}>
+                                    <Typography sx={{ fontSize: 11.5, color: documentSummaryTones.withholding }}>Retención</Typography>
+                                    <Typography sx={{ fontSize: 11.5, fontFamily: 'monospace', color: documentSummaryTones.withholding }}>
                                       -{formatter.format(impuestosPartida.retenciones)}
                                     </Typography>
                                   </Box>
@@ -5491,7 +5491,7 @@ export default function DocumentosFormPage({
                                   {formatter.format(impuestosPartida.traslados)}
                                 </Typography>
                                 {impuestosPartida.retenciones > 0 && (
-                                  <Typography sx={{ fontSize: 10.5, color: documentSummaryTones.withholdingInline, textAlign: 'right' }}>
+                                  <Typography sx={{ fontSize: 10.5, color: documentSummaryTones.withholding, textAlign: 'right' }}>
                                     ret -{formatter.format(impuestosPartida.retenciones)}
                                   </Typography>
                                 )}

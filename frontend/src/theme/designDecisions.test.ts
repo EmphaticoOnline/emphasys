@@ -2,7 +2,15 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import test from 'node:test';
-import { accountingColors, balanceColors, cashFlowColors, dueDateColors, inventoryFlowColors, stalenessColors } from './functional.ts';
+import {
+  accountingColors,
+  balanceColors,
+  cashFlowColors,
+  documentSummaryTones,
+  dueDateColors,
+  inventoryFlowColors,
+  stalenessColors,
+} from './functional.ts';
 import { overdueColor } from './sign.ts';
 import { classicTheme, experimentalTheme } from './themes.ts';
 import { classicTokens, experimentalTokens } from './tokens.ts';
@@ -155,4 +163,16 @@ test('D4 (cambio visual aprobado): los días vencidos de programación de pagos 
   assert.equal(dueDateColors.overdue, '#d32f2f');
   assert.equal(overdueColor(experimentalTokens), '#8a4d45');
   assert.equal(dueDateColors.dueToday, '#ed6c02');
+});
+
+test('D6 (cambio visual aprobado): la retención usa un solo tono en el formulario de documentos', () => {
+  assert.equal(replacementsOf('d6').length, 3);
+  // Cambio exacto, solo en los 3 textos del desglose fiscal: #9a5b00 → #b45309 (ΔE 9.1).
+  assert.deepEqual([documentSummaryTones.withholdingInline, documentSummaryTones.withholding], ['#9a5b00', '#b45309']);
+  const source = readText('../pages/DocumentosFormPage.tsx');
+  // 3 renglones del resumen financiero + 3 textos del desglose fiscal.
+  assert.equal((source.match(/documentSummaryTones\.withholding\b/g) ?? []).length, 6);
+  assert.doesNotMatch(source, /documentSummaryTones\.withholdingInline/);
+  // Descuentos y negativos siguen separados de la retención.
+  assert.notEqual(documentSummaryTones.discount, documentSummaryTones.withholding);
 });

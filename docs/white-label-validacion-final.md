@@ -10,7 +10,7 @@
 | Paridad de tokens y temas MUI (clásico y experimental) contra los fixtures congelados | ✅ byte-idénticos (`brandParity.test.ts`) |
 | Paridad de `index.html` y manifest | ✅ |
 | Equivalencia SHA-256 contra HEAD de cada bloque migrado (neutrales, menores, restos, `DocumentosFormPage` s1–s8, signo b1–b4, elevación E1–E4, tintes T1–T4, restos R1, blancos W1–W6) | ✅ |
-| **Cierre global de colores:** fuera de `theme/`, Compass, mockups y legado solo quedan las 33 exclusiones documentadas | ✅ (`whiteLabelClosure.test.ts`, nuevo) |
+| **Cierre global de colores:** fuera de `theme/`, Compass, mockups y legado solo quedan las exclusiones documentadas (33 al validar; 32 tras resolver D-T3) | ✅ (`whiteLabelClosure.test.ts`, nuevo) |
 | **Marca alternativa (pruebas):** tokens, temas, sombras, degradados, tintes, `index.html` y manifest siguen a `acmeBrand`, salvo 7 coincidencias funcionales documentadas | ✅ (`whiteLabelBrand.test.ts`, nuevo) |
 | **Marca alternativa (build real):** `vite build` con `acmeBrand` activa, en una copia temporal | ✅ Solo quedan 23 apariciones documentadas (H3 corregido) |
 | `node --test` | ✅ 162/162 |
@@ -97,7 +97,7 @@ En los temas clásico y experimental, con Emphasys activa, comparar contra `main
 
 ## 5. Pendiente para cerrar el proyecto
 
-- **Decisiones de diseño**, que cambiarían la apariencia y requieren aprobación una por una: D1–D9 (signo), D-T3 (franja verde de Oportunidades) y D-B4 (`configPrimaryButtonSx`).
+- ~~Decisiones de diseño D1–D9, D-T3 y D-B4~~: resueltas el 2026-10-19 (`docs/white-label-decisiones-diseno.md`). Cuatro cambian la apariencia a propósito (D1, D2, D4 y D6), y la revisión visual debe tenerlas en cuenta.
 - **Revisión visual manual** (§4.2).
 - **PE-108:** marca en el backend (PDFs, correos, plantillas de WhatsApp).
 - **Integración:** estrategia para los 58 commits sobre `main`, contando el de esta validación (merge o squash, PR y revisión). `main` no tiene commits nuevos desde el merge-base.

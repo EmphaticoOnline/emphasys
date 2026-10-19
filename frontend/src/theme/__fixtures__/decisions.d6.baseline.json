@@ -1,0 +1,48 @@
+{
+  "source": "HEAD 981fa96, decisions bloque d6",
+  "files": {
+    "pages/DocumentosFormPage.tsx": {
+      "headSha256": "f5b2ecf004e3e9e23602d32dd08791c95641b05837bb1e14e3769085326e053b",
+      "addedImports": [],
+      "lines": {
+        "4773": {
+          "original": "                                    <Typography sx={{ fontSize: 11.5, color: documentSummaryTones.withholdingInline }}>Retención</Typography>",
+          "migrated": "                                    <Typography sx={{ fontSize: 11.5, color: documentSummaryTones.withholding }}>Retención</Typography>",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "documentSummaryTones.withholdingInline",
+              "to": "documentSummaryTones.withholding",
+              "times": 1
+            }
+          ]
+        },
+        "4774": {
+          "original": "                                    <Typography sx={{ fontSize: 11.5, fontFamily: 'monospace', color: documentSummaryTones.withholdingInline }}>",
+          "migrated": "                                    <Typography sx={{ fontSize: 11.5, fontFamily: 'monospace', color: documentSummaryTones.withholding }}>",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "documentSummaryTones.withholdingInline",
+              "to": "documentSummaryTones.withholding",
+              "times": 1
+            }
+          ]
+        },
+        "5494": {
+          "original": "                                  <Typography sx={{ fontSize: 10.5, color: documentSummaryTones.withholdingInline, textAlign: 'right' }}>",
+          "migrated": "                                  <Typography sx={{ fontSize: 10.5, color: documentSummaryTones.withholding, textAlign: 'right' }}>",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "documentSummaryTones.withholdingInline",
+              "to": "documentSummaryTones.withholding",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    }
+  }
+}
