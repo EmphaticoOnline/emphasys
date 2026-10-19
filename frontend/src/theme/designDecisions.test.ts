@@ -2,7 +2,8 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import test from 'node:test';
-import { accountingColors, balanceColors, cashFlowColors, inventoryFlowColors, stalenessColors } from './functional.ts';
+import { accountingColors, balanceColors, cashFlowColors, dueDateColors, inventoryFlowColors, stalenessColors } from './functional.ts';
+import { overdueColor } from './sign.ts';
 import { classicTheme, experimentalTheme } from './themes.ts';
 import { classicTokens, experimentalTokens } from './tokens.ts';
 import {
@@ -142,4 +143,16 @@ test('D2 (cambio visual aprobado): las filas de movimientos de inventario usan e
   assert.doesNotMatch(source, /cashFlowColors/);
   // El formulario de movimientos (tema experimental) sigue leyendo el tema.
   assert.match(readText('../pages/InventarioMovimientoFormPage.tsx'), /outflowColor\(theme\.emphasys\)/);
+});
+
+test('D4 (cambio visual aprobado): los días vencidos de programación de pagos siguen al tema, como el total vencido', () => {
+  assert.equal(replacementsOf('d4').length, 3);
+  const source = readText('../pages/finanzas/ProgramacionPagosPage.tsx');
+  assert.match(source, /dias < 0 \? \(theme: Theme\) => overdueColor\(theme\.emphasys\) : dias === 0 \? dueDateColors\.dueToday : 'text\.secondary'/);
+  // El total vencido ya leía el mismo rol.
+  assert.match(source, /color: overdueColor\(tokens\)/);
+  // Cambio exacto en /finanzas (tema experimental): #d32f2f → #8a4d45. "Vence hoy" sigue en ámbar.
+  assert.equal(dueDateColors.overdue, '#d32f2f');
+  assert.equal(overdueColor(experimentalTokens), '#8a4d45');
+  assert.equal(dueDateColors.dueToday, '#ed6c02');
 });

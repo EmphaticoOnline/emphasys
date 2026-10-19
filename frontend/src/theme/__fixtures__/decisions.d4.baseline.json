@@ -1,0 +1,48 @@
+{
+  "source": "HEAD dfd259d, decisions bloque d4",
+  "files": {
+    "pages/finanzas/ProgramacionPagosPage.tsx": {
+      "headSha256": "7ad8d331e03a69a9a5d9e61cfc5da7b1b71bfabf1eb5add59fa36bfb804b7cd9",
+      "addedImports": [],
+      "lines": {
+        "26": {
+          "original": "import { useTheme } from '@mui/material/styles';",
+          "migrated": "import { useTheme, type Theme } from '@mui/material/styles';",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "import { useTheme } from '@mui/material/styles';",
+              "to": "import { useTheme, type Theme } from '@mui/material/styles';",
+              "times": 1
+            }
+          ]
+        },
+        "124": {
+          "original": "        const color = dias < 0 ? dueDateColors.overdue : dias === 0 ? dueDateColors.dueToday : 'text.secondary';",
+          "migrated": "        const color = dias < 0 ? (theme: Theme) => overdueColor(theme.emphasys) : dias === 0 ? dueDateColors.dueToday : 'text.secondary';",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "dias < 0 ? dueDateColors.overdue :",
+              "to": "dias < 0 ? (theme: Theme) => overdueColor(theme.emphasys) :",
+              "times": 1
+            }
+          ]
+        },
+        "126": {
+          "original": "          <Typography variant=\"body2\" color={color}>",
+          "migrated": "          <Typography variant=\"body2\" sx={{ color }}>",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "<Typography variant=\"body2\" color={color}>",
+              "to": "<Typography variant=\"body2\" sx={{ color }}>",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    }
+  }
+}

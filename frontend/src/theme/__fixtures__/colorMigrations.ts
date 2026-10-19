@@ -48,7 +48,7 @@ export const LEFTOVER_ORDER = ['restos.r1-1.baseline.json', 'restos.r1-2.baselin
 /** Bloques de blancos (ver docs/white-label-blancos-audit.md), en orden. */
 export const WHITE_ORDER = ['whites.w1.baseline.json', 'whites.w2.baseline.json', 'whites.w3.baseline.json', 'whites.w3b.baseline.json', 'whites.w4.baseline.json', 'whites.w5.baseline.json', 'whites.w6.baseline.json'] as const;
 /** Decisiones de diseño aplicadas (ver docs/white-label-decisiones-diseno.md), en orden. */
-export const DECISION_ORDER = ['decisions.d8.baseline.json', 'decisions.dt3.baseline.json', 'decisions.db4.baseline.json', 'decisions.d1.baseline.json', 'decisions.d2.baseline.json'] as const;
+export const DECISION_ORDER = ['decisions.d8.baseline.json', 'decisions.dt3.baseline.json', 'decisions.db4.baseline.json', 'decisions.d1.baseline.json', 'decisions.d2.baseline.json', 'decisions.d4.baseline.json'] as const;
 const LATER_CHAIN = [...NEUTRAL_ORDER, MINOR_FIXTURE, REST_FIXTURE, ...DOCUMENTOS_FORM_ORDER, ...SIGN_ORDER, ...ELEVATION_ORDER, ...TINT_ORDER, ...LEFTOVER_ORDER, ...WHITE_ORDER, ...DECISION_ORDER] as const;
 /** Todos los fixtures de la cadena, en orden: las pruebas cargan esta lista, no una copia. */
 export const LATER_FIXTURES: readonly string[] = LATER_CHAIN;
