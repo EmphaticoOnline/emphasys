@@ -168,6 +168,7 @@ import {
 } from '../components/documentos/indicadores';
 import { alertColors, balanceColors } from '../theme/functional';
 import { neutralColors, selectionColors } from '../theme/structural';
+import { elevation } from '../theme/elevation';
 
 const formatCivilDate = (value: unknown) => {
   const raw = String(value ?? '').trim();
@@ -3880,7 +3881,7 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
             px: 1,
             py: 0.8,
             borderRadius: 1.5,
-            boxShadow: '0 1px 2px rgba(15, 23, 42, 0.04)',
+            boxShadow: elevation.hairline,
           }}
         >
           <Typography sx={usaSuperficieCatalogo ? { fontSize: 10, fontWeight: 700, color: theme.emphasys.metric.caption, textTransform: 'uppercase', letterSpacing: '0.06em', lineHeight: 1.15 } : { color: neutralColors.gray[500], fontWeight: 700, mb: 0.2, fontSize: 12.5, lineHeight: 1.2 }}>

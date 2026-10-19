@@ -134,6 +134,7 @@ import { NumericFormat } from 'react-number-format';
 import { neutralColors, selectionColors } from '../theme/structural';
 import { advanceBoxColors, alertColors, attachmentIndicatorColors, balanceColors, documentSummaryTones, fiscalStatusColors, moduleAccents } from '../theme/functional';
 import { brandBlueAlpha } from '../theme/brand/derived';
+import { elevation } from '../theme/elevation';
 
 const toCivilDate = (date = new Date()) => {
   const year = date.getFullYear();
@@ -8593,7 +8594,7 @@ export default function DocumentosFormPage({
             borderColor: 'rgba(148, 163, 184, 0.35)',
             bgcolor: 'rgba(255, 255, 255, 0.96)',
             backdropFilter: 'blur(10px)',
-            boxShadow: '0 12px 30px rgba(15, 23, 42, 0.12)',
+            boxShadow: elevation.floatingSummary,
             px: 1.5,
             py: 1,
           }}

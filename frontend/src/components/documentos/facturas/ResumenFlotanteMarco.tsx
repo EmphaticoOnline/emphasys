@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Box, Typography } from '@mui/material';
 import { neutralColors } from '../../../theme/structural';
 import { activeBrand } from '../../../theme/brand/active';
+import { elevation } from '../../../theme/elevation';
 
 export type ResumenFlotantePosicion = { x: number; y: number };
 
@@ -166,7 +167,7 @@ export default function ResumenFlotanteMarco({
         bgcolor: apariencia === 'tema' ? theme.emphasys.content.elevated : '#fff',
         border: `1px solid ${apariencia === 'tema' ? theme.emphasys.content.border : neutralColors.steel.panelBorder}`,
         borderRadius: 2.5,
-        boxShadow: dragging ? '0 20px 46px rgba(15,22,38,0.30)' : '0 12px 32px rgba(15,22,38,0.18)',
+        boxShadow: dragging ? elevation.dragging : elevation.draggable,
         overflow: 'hidden',
         userSelect: 'none',
         zIndex: 5,

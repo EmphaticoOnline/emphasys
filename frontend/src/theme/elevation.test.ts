@@ -48,10 +48,13 @@ const tokenValues = (structural: Record<string, string> = elevation, brand: Reco
   ...Object.fromEntries(Object.entries(structural).map(([key, value]) => [`elevation.${key}`, value])),
   ...Object.fromEntries(Object.entries(brand).map(([key, value]) => [`brandElevation.${key}`, value])),
 });
+/** Reemplazo → token: `elevation.card` (string entre comillas) o `${elevation.statusCard}` (dentro de una plantilla). */
+const tokenOf = (to: string) => /^\$\{(.+)\}$/.exec(to)?.[1] ?? to;
 const restoreLine = (migrated: string, replacements: Replacement[], values: TokenValues) =>
   replacements.reduce((line, { to }) => {
-    if (!(to in values)) throw new Error(`Token de elevación desconocido: ${to}`);
-    return line.split(to).join(`'${values[to]}'`);
+    const token = tokenOf(to);
+    if (!(token in values)) throw new Error(`Token de elevación desconocido: ${token}`);
+    return line.split(to).join(to === token ? `'${values[token]}'` : values[token]!);
   }, migrated);
 
 /** Tokens y reemplazos de cada bloque (ver docs/white-label-elevacion-audit.md §5). */
@@ -59,6 +62,24 @@ const BLOCK_SCOPE: Record<string, { tokens: string[]; total: number }> = {
   'elevation.e1.baseline.json': { tokens: ['elevation.railControl', 'elevation.railSelection'], total: 23 },
   'elevation.e2.baseline.json': {
     tokens: ['brandElevation.floating', 'brandElevation.floatingStrong', 'brandElevation.dialog', 'brandElevation.panel', 'brandElevation.dropdown'],
+    total: 17,
+  },
+  'elevation.e3.baseline.json': {
+    tokens: [
+      'elevation.hairline',
+      'elevation.hairlineBlack',
+      'elevation.card',
+      'elevation.floatingButton',
+      'elevation.gridMenu',
+      'elevation.floatingSummary',
+      'elevation.draggable',
+      'elevation.dragging',
+      'elevation.drawer',
+      'elevation.drawerButton',
+      'elevation.statusCard',
+      'elevation.statusCardRest',
+      'elevation.underline',
+    ],
     total: 17,
   },
 };
@@ -160,7 +181,7 @@ test('transformación: cada línea es su original con los reemplazos declarados,
     let out = original;
     for (const { from, to, times } of replacements) {
       assert.equal(out.split(from).length - 1, times, `${name} ${file}:${n} "${from}"`);
-      assert.ok(BLOCK_SCOPE[name]!.tokens.includes(to), `${name} ${file}:${n}: ${to} no pertenece al bloque`);
+      assert.ok(BLOCK_SCOPE[name]!.tokens.includes(tokenOf(to)), `${name} ${file}:${n}: ${to} no pertenece al bloque`);
       out = out.split(from).join(to);
       totals[name] = (totals[name] ?? 0) + times;
     }
@@ -178,7 +199,7 @@ test('mutación: alterar cualquier sombra migrada rompe la equivalencia de cada 
       assert.notEqual(mutated[token], current[token]);
       let checked = 0;
       for (const [file, entry] of Object.entries(fixture.files)) {
-        if (!Object.values(entry.lines).some((line) => line.replacements.some(({ to }) => to === token))) continue;
+        if (!Object.values(entry.lines).some((line) => line.replacements.some(({ to }) => tokenOf(to) === token))) continue;
         assert.notEqual(restoredSha(name, file, entry, mutated), entry.headSha256, `${file} debe detectar la mutación de ${token}`);
         checked++;
       }

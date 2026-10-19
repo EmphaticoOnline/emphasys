@@ -3,6 +3,7 @@ import { Box, Divider, ListItemIcon, Menu, MenuItem, Typography } from '@mui/mat
 import type { GridContextMenuPosition } from '../../hooks/useGridContextMenu';
 import { alertColors } from '../../theme/functional';
 import { neutralColors } from '../../theme/structural';
+import { elevation } from '../../theme/elevation';
 
 type GridContextMenuActionBase = {
   id: string;
@@ -76,7 +77,7 @@ export function GridContextMenu({ actions, anchorPosition, open, onClose }: Grid
             minWidth: 220,
             borderRadius: 2,
             border: `1px solid ${neutralColors.gray[200]}`,
-            boxShadow: '0 14px 34px rgba(15, 23, 42, 0.14)',
+            boxShadow: elevation.gridMenu,
             py: 0.75,
             '& .MuiMenuItem-root': {
               minHeight: 34,

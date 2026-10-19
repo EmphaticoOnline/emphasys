@@ -16,7 +16,7 @@ import DocumentoStatusIndicators from './indicadores/DocumentoStatusIndicators';
 import { neutralColors, selectionColors } from '../../theme/structural';
 import { activeBrand } from '../../theme/brand/active';
 import { balanceColors } from '../../theme/functional';
-import { brandElevation } from '../../theme/elevation';
+import { brandElevation, elevation } from '../../theme/elevation';
 
 function hasValue(value?: string | number | null) {
   return value != null && String(value).trim() !== '';
@@ -177,7 +177,7 @@ export default function DocumentosMobileView({
                       : (catalog ? theme.emphasys.content.border : neutralColors.gray[200]),
                     borderRadius: 2.5,
                     backgroundColor: catalog ? theme.emphasys.content.card : '#ffffff',
-                    boxShadow: catalog ? 'none' : '0 8px 20px rgba(15, 23, 42, 0.05)',
+                    boxShadow: catalog ? 'none' : elevation.card,
                   }}
                 >
                   <CardContent sx={{ display: 'flex', flexDirection: 'column', gap: 1, p: 1.5, '&:last-child': { pb: 1.5 } }}>

@@ -62,6 +62,7 @@ import { SeguimientoActividadCell } from '../components/crm/SeguimientoActividad
 import { alertColors, opportunityBucketColors } from '../theme/functional';
 import { neutralColors } from '../theme/structural';
 import { activeBrand } from '../theme/brand/active';
+import { elevation } from '../theme/elevation';
 
 dayjs.locale('es');
 
@@ -1466,7 +1467,7 @@ export default function OportunidadesPage() {
                         px: 0.75,
                         py: 0.3,
                         background: item.backgroundColor,
-                        boxShadow: filtroEstatus === item.value ? `0 0 0 1px ${item.labelColor} inset, 0 8px 18px rgba(15, 23, 42, 0.08)` : 'none',
+                        boxShadow: filtroEstatus === item.value ? `0 0 0 1px ${item.labelColor} inset, ${elevation.statusCard}` : 'none',
                         transform: filtroEstatus === item.value ? 'translateY(-1px)' : 'none',
                         textAlign: 'left',
                         cursor: 'pointer',
@@ -1476,7 +1477,7 @@ export default function OportunidadesPage() {
                         minWidth: 0,
                         '&:hover': {
                           borderColor: item.labelColor,
-                          boxShadow: `0 0 0 1px ${item.labelColor} inset, 0 8px 18px rgba(15, 23, 42, 0.06)`,
+                          boxShadow: `0 0 0 1px ${item.labelColor} inset, ${elevation.statusCardRest}`,
                         },
                       }}
                     >
@@ -2138,7 +2139,7 @@ function PaperCard({ children }: { children: ReactNode }) {
         borderRadius: 2,
         p: 1.5,
         backgroundColor: '#fff',
-        boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+        boxShadow: elevation.hairlineBlack,
       }}
     >
       {children}

@@ -40,7 +40,7 @@ export const DOCUMENTOS_FORM_ORDER = ['documentosForm.s1.baseline.json', 'docume
 /** Bloques de fuentes de signo (ver docs/white-label-fuentes-de-signo-audit.md), en orden. */
 export const SIGN_ORDER = ['signColors.b1.baseline.json', 'signColors.b2.baseline.json', 'signColors.b3.baseline.json', 'signColors.b4.baseline.json'] as const;
 /** Bloques de elevación (ver docs/white-label-elevacion-audit.md), en orden. */
-export const ELEVATION_ORDER = ['elevation.e1.baseline.json', 'elevation.e2.baseline.json'] as const;
+export const ELEVATION_ORDER = ['elevation.e1.baseline.json', 'elevation.e2.baseline.json', 'elevation.e3.baseline.json'] as const;
 const LATER_CHAIN = [...NEUTRAL_ORDER, MINOR_FIXTURE, REST_FIXTURE, ...DOCUMENTOS_FORM_ORDER, ...SIGN_ORDER, ...ELEVATION_ORDER] as const;
 /** Todos los fixtures de la cadena, en orden: las pruebas cargan esta lista, no una copia. */
 export const LATER_FIXTURES: readonly string[] = LATER_CHAIN;

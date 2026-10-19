@@ -8,6 +8,7 @@ import Typography from '@mui/material/Typography';
 import CloseIcon from '@mui/icons-material/Close';
 import UpdateIcon from '@mui/icons-material/SystemUpdateAlt';
 import { activeBrand } from '../theme/brand/active';
+import { elevation } from '../theme/elevation';
 type VersionUpdateDrawerProps = {
   open: boolean;
   version: string | null;
@@ -49,7 +50,7 @@ export default function VersionUpdateDrawer({ open, version, onClose, onUpdateNo
             overflow: 'hidden',
             border: '1px solid rgba(29, 47, 104, 0.16)',
             backgroundColor: 'rgba(255, 255, 255, 0.98)',
-            boxShadow: '0 18px 48px rgba(15, 23, 42, 0.18)',
+            boxShadow: elevation.drawer,
             backdropFilter: 'blur(12px)',
           }}
         >
@@ -65,7 +66,7 @@ export default function VersionUpdateDrawer({ open, version, onClose, onUpdateNo
               color: 'text.secondary',
               backgroundColor: 'rgba(255,255,255,0.92)',
               border: '1px solid rgba(15, 23, 42, 0.08)',
-              boxShadow: '0 2px 8px rgba(15, 23, 42, 0.08)',
+              boxShadow: elevation.drawerButton,
               '&:hover': { backgroundColor: 'rgba(255,255,255,1)' },
             }}
           >

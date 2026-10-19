@@ -5,6 +5,7 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import CheckIcon from '@mui/icons-material/Check';
 import { neutralColors } from '../../../theme/structural';
 import { activeBrand } from '../../../theme/brand/active';
+import { elevation } from '../../../theme/elevation';
 
 export type FacturaResumenFlotantePosicion = { x: number; y: number };
 
@@ -193,7 +194,7 @@ export default function FacturaResumenFlotante({
         bgcolor: '#fff',
         border: `1px solid ${neutralColors.steel.panelBorder}`,
         borderRadius: 2.5,
-        boxShadow: dragging ? '0 20px 46px rgba(15,22,38,0.30)' : '0 12px 32px rgba(15,22,38,0.18)',
+        boxShadow: dragging ? elevation.dragging : elevation.draggable,
         overflow: 'hidden',
         userSelect: 'none',
         zIndex: 5,

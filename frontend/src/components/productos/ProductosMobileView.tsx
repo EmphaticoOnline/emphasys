@@ -8,7 +8,7 @@ import SearchIcon from '@mui/icons-material/Search';
 import ClearIcon from '@mui/icons-material/Clear';
 import type { ProductosMobileViewProps } from './ProductosView.types';
 import { neutralColors } from '../../theme/structural';
-import { brandElevation } from '../../theme/elevation';
+import { brandElevation, elevation } from '../../theme/elevation';
 
 function hasValue(value?: string | number | boolean | null) {
   return value != null && String(value).trim() !== '';
@@ -125,7 +125,7 @@ export default function ProductosMobileView({
                     borderColor: neutralColors.gray[200],
                     borderRadius: 2.5,
                     backgroundColor: '#ffffff',
-                    boxShadow: '0 8px 20px rgba(15, 23, 42, 0.05)',
+                    boxShadow: elevation.card,
                   }}
                 >
                   <CardContent sx={{ display: 'flex', flexDirection: 'column', gap: 1, p: 1.5, '&:last-child': { pb: 1.5 } }}>

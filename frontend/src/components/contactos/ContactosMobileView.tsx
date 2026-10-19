@@ -11,7 +11,7 @@ import type { ContactosMobileViewProps } from './ContactosView.types';
 import ContactosAdvancedFilters from './ContactosAdvancedFilters';
 import { formatearTelefonoParaMostrar } from '../../utils/telefono';
 import { neutralColors } from '../../theme/structural';
-import { brandElevation } from '../../theme/elevation';
+import { brandElevation, elevation } from '../../theme/elevation';
 
 function hasValue(value?: string | number | null) {
   return value != null && String(value).trim() !== '';
@@ -171,7 +171,7 @@ export default function ContactosMobileView({
                     borderColor: neutralColors.gray[200],
                     borderRadius: 2.5,
                     backgroundColor: '#ffffff',
-                    boxShadow: '0 8px 20px rgba(15, 23, 42, 0.05)',
+                    boxShadow: elevation.card,
                   }}
                 >
                   <CardContent sx={{ display: 'flex', flexDirection: 'column', gap: 1, p: 1.5, '&:last-child': { pb: 1.5 } }}>

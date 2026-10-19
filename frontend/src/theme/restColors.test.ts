@@ -1,14 +1,18 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import test from 'node:test';
 import { emphasysBrand } from './brand/emphasys.ts';
 import { feedbackTokens, opportunityBucketColors, temperatureColors } from './functional.ts';
 import {
   convertLine,
   currentRestPalettes,
+  LATER_FIXTURES,
+  REST_FIXTURE,
   restTokenMap,
+  revertLater,
   revertMinor,
+  type LaterFixtures,
   type RestFixture,
   type RestPalettes,
 } from './__fixtures__/colorMigrations.ts';
@@ -19,6 +23,12 @@ const sha256 = (text: string) => createHash('sha256').update(text).digest('hex')
 /** HEAD d70d93a: grupo de cada archivo, texto original y migrado de cada línea, imports. */
 const baseline: RestFixture = JSON.parse(readText('./__fixtures__/restColors.baseline.json'));
 const files = () => Object.entries(baseline.files);
+const laterFixtures: LaterFixtures = Object.fromEntries(
+  LATER_FIXTURES.filter((name) => existsSync(new URL(`./__fixtures__/${name}`, import.meta.url))).map((name) => [
+    name,
+    JSON.parse(readText(`./__fixtures__/${name}`)),
+  ]),
+);
 const colorLines = () =>
   files().flatMap(([file, entry]) =>
     Object.entries(entry.lines)
@@ -27,9 +37,10 @@ const colorLines = () =>
   );
 
 test('equivalencia contra HEAD: restaurar líneas e imports reproduce cada archivo', () => {
-  // Último bloque de la cadena: no hay bloques posteriores que revertir.
+  // Primero se revierten los bloques posteriores que tocaron el mismo archivo (p. ej. elevación E3).
   for (const [file, entry] of files()) {
-    assert.equal(sha256(revertMinor(readText(`../${file}`), entry)), entry.headSha256, file);
+    const asOfBlock = revertLater(REST_FIXTURE, file, readText(`../${file}`), laterFixtures);
+    assert.equal(sha256(revertMinor(asOfBlock, entry)), entry.headSha256, file);
   }
 });
 

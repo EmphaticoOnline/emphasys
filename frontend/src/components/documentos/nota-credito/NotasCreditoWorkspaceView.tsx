@@ -1003,7 +1003,7 @@ function ColumnasEnfrentadas({
 
 function TarjetaDocumento({ folio, meta, monto, detalle, borde, fondo, tinta, secundaria, muted }: { folio: string; meta: string; monto: string; detalle?: string | undefined; borde: string; fondo: string; tinta: string; secundaria: string; muted: string }) {
   return (
-    <Box sx={{ flex: 1, alignSelf: 'stretch', border: `1px solid ${borde}`, borderRadius: 1.5, bgcolor: fondo, px: 1.4, py: 1.1, boxShadow: '0 1px 0 rgba(20,28,46,0.03)', width: '100%', boxSizing: 'border-box' }}>
+    <Box sx={{ flex: 1, alignSelf: 'stretch', border: `1px solid ${borde}`, borderRadius: 1.5, bgcolor: fondo, px: 1.4, py: 1.1, boxShadow: elevation.underline, width: '100%', boxSizing: 'border-box' }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 1 }}>
         <Typography sx={{ fontSize: 14.5, fontWeight: 800, color: tinta }}>{folio}</Typography>
         {monto ? <Typography variant="figure" sx={{ fontSize: 18, color: tinta }}>{monto}</Typography> : null}
