@@ -1,0 +1,74 @@
+import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
+import { existsSync, readFileSync } from 'node:fs';
+import test from 'node:test';
+import { stalenessColors } from './functional.ts';
+import { classicTheme, experimentalTheme } from './themes.ts';
+import {
+  DECISION_ORDER,
+  LATER_FIXTURES,
+  revertLater,
+  revertMinor,
+  type LaterFixtures,
+  type MinorFileFixture,
+} from './__fixtures__/colorMigrations.ts';
+
+/**
+ * Decisiones de diseño aplicadas (docs/white-label-decisiones-diseno.md).
+ * - Sin cambio visual (D8, D-T3, D-B4): el valor nuevo es igual al anterior.
+ * - Con cambio visual aprobado (D1, D2, D4, D6): el cambio es exactamente el declarado.
+ * En todas, revertir el fixture reproduce el HEAD previo byte a byte.
+ */
+const readText = (path: string) => readFileSync(new URL(path, import.meta.url), 'utf8');
+const sha256 = (text: string) => createHash('sha256').update(text).digest('hex');
+
+type Replacement = { from: string; to: string; times: number };
+type DecisionFileFixture = MinorFileFixture & {
+  lines: Record<string, MinorFileFixture['lines'][string] & { replacements: Replacement[]; importMerge?: boolean }>;
+};
+type DecisionFixture = { source: string; files: Record<string, DecisionFileFixture> };
+
+const blocks = DECISION_ORDER.map((name) => ({ name, fixture: JSON.parse(readText(`./__fixtures__/${name}`)) as DecisionFixture }));
+const laterFixtures: LaterFixtures = Object.fromEntries(
+  LATER_FIXTURES.filter((name) => existsSync(new URL(`./__fixtures__/${name}`, import.meta.url))).map((name) => [
+    name,
+    JSON.parse(readText(`./__fixtures__/${name}`)),
+  ]),
+);
+const asOfBlock = (name: string, file: string) => revertLater(name, file, readText(`../${file}`), laterFixtures);
+const block = (id: string) => blocks.find(({ name }) => name === `decisions.${id}.baseline.json`)!.fixture;
+const replacementsOf = (id: string) =>
+  Object.values(block(id).files).flatMap((entry) => Object.values(entry.lines).flatMap((line) => (line.importMerge ? [] : line.replacements)));
+
+test('cada decisión aplicada está registrada y revertirla reproduce el HEAD previo byte a byte', () => {
+  assert.ok(blocks.length > 0);
+  for (const { name, fixture } of blocks) {
+    for (const [file, entry] of Object.entries(fixture.files)) {
+      assert.equal(sha256(revertMinor(asOfBlock(name, file), entry)), entry.headSha256, `${name} ${file}`);
+      for (const [n, line] of Object.entries(entry.lines)) {
+        let out = line.original;
+        for (const { from, to, times } of line.replacements) {
+          assert.equal(out.split(from).length - 1, times, `${name} ${file}:${n}`);
+          out = out.split(from).join(to);
+        }
+        if (!line.importMerge) assert.equal(out, line.migrated, `${name} ${file}:${n}`);
+      }
+    }
+  }
+});
+
+test('D8 (sin cambio visual): la antigüedad usa stalenessColors con los mismos valores de palette', () => {
+  for (const theme of [classicTheme, experimentalTheme]) {
+    assert.equal(stalenessColors.stale, theme.palette.error.main);
+    assert.equal(stalenessColors.aging, theme.palette.warning.main);
+  }
+  const replacements = replacementsOf('d8');
+  assert.equal(replacements.length, 3);
+  for (const { from, to } of replacements) {
+    // Mismo umbral y mismo orden: error → stale, warning → aging.
+    assert.equal(to, from.replace("'error.main'", 'stalenessColors.stale').replace("'warning.main'", 'stalenessColors.aging'));
+  }
+  for (const file of ['../pages/finanzas/ConciliacionBancariaPage.tsx', '../pages/informes/finanzas/MovimientosNoConciliadosPage.tsx']) {
+    assert.doesNotMatch(readText(file), /> 30 \? 'error\.main'/, file);
+  }
+});

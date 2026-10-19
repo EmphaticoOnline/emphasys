@@ -49,7 +49,7 @@ import {
 import { HistorialConciliacionesDialog } from '../../modules/finanzas/HistorialConciliacionesDialog';
 import { ImportarEstadoCuentaDialog } from '../../modules/finanzas/ImportarEstadoCuentaDialog';
 import { useSession } from '../../session/useSession';
-import { cashFlowColors, onStatusColors } from '../../theme/functional';
+import { cashFlowColors, onStatusColors, stalenessColors } from '../../theme/functional';
 import { onPrimaryColors } from '../../theme/structural';
 
 const fmt = (n: number, moneda = 'MXN') =>
@@ -438,7 +438,7 @@ export default function ConciliacionBancariaPage() {
         headerAlign: 'right',
         renderCell: ({ value }) => {
           const n = Number(value);
-          const color = n > 30 ? 'error.main' : n > 7 ? 'warning.main' : 'text.secondary';
+          const color = n > 30 ? stalenessColors.stale : n > 7 ? stalenessColors.aging : 'text.secondary';
           return (
             <Typography sx={{ fontSize: 13 }} color={color} fontWeight={n > 30 ? 700 : 400}>
               {n}

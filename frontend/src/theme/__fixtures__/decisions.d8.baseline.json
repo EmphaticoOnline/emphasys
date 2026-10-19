@@ -1,0 +1,69 @@
+{
+  "source": "HEAD f6e0b8c, decisions bloque d8",
+  "files": {
+    "pages/finanzas/ConciliacionBancariaPage.tsx": {
+      "headSha256": "41fc75c34533d342d40c3a4fec8e880f4e7106bfc059b72a488d49066078b07f",
+      "addedImports": [],
+      "lines": {
+        "52": {
+          "original": "import { cashFlowColors, onStatusColors } from '../../theme/functional';",
+          "migrated": "import { cashFlowColors, onStatusColors, stalenessColors } from '../../theme/functional';",
+          "entries": [],
+          "replacements": [],
+          "importMerge": true
+        },
+        "441": {
+          "original": "          const color = n > 30 ? 'error.main' : n > 7 ? 'warning.main' : 'text.secondary';",
+          "migrated": "          const color = n > 30 ? stalenessColors.stale : n > 7 ? stalenessColors.aging : 'text.secondary';",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "n > 30 ? 'error.main' : n > 7 ? 'warning.main'",
+              "to": "n > 30 ? stalenessColors.stale : n > 7 ? stalenessColors.aging",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "pages/informes/finanzas/MovimientosNoConciliadosPage.tsx": {
+      "headSha256": "d8b142bb5c9ae23a49b4786b6e27087f39d9843ba92e6553c43a411ebed1d199",
+      "addedImports": [],
+      "lines": {
+        "36": {
+          "original": "import { cashFlowColors } from '../../../theme/functional';",
+          "migrated": "import { cashFlowColors, stalenessColors } from '../../../theme/functional';",
+          "entries": [],
+          "replacements": [],
+          "importMerge": true
+        },
+        "166": {
+          "original": "      const color = d > 30 ? 'error.main' : d > 7 ? 'warning.main' : 'text.secondary';",
+          "migrated": "      const color = d > 30 ? stalenessColors.stale : d > 7 ? stalenessColors.aging : 'text.secondary';",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "d > 30 ? 'error.main' : d > 7 ? 'warning.main'",
+              "to": "d > 30 ? stalenessColors.stale : d > 7 ? stalenessColors.aging",
+              "times": 1
+            }
+          ]
+        },
+        "505": {
+          "original": "                    color={k.maxDias > 30 ? 'error.main' : k.maxDias > 7 ? 'warning.main' : 'text.primary'}",
+          "migrated": "                    color={k.maxDias > 30 ? stalenessColors.stale : k.maxDias > 7 ? stalenessColors.aging : 'text.primary'}",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "k.maxDias > 30 ? 'error.main' : k.maxDias > 7 ? 'warning.main'",
+              "to": "k.maxDias > 30 ? stalenessColors.stale : k.maxDias > 7 ? stalenessColors.aging",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    }
+  }
+}

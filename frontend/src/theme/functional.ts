@@ -381,6 +381,17 @@ export const dueDateColors = {
 } as const;
 
 /**
+ * Antigüedad de partidas sin conciliar (decisión D8): no es vencimiento ni flujo.
+ * Mismos valores que `palette.error.main` / `palette.warning.main` que reemplaza.
+ */
+export const stalenessColors = {
+  /** Más de 30 días sin conciliar. */
+  stale: feedbackTokens.error.main,
+  /** Más de 7 días sin conciliar. */
+  aging: feedbackTokens.warning.main,
+} as const;
+
+/**
  * Variación de precio o costo en el historial: sube, baja, máximo y mínimo del
  * periodo. Mismos valores de `palette` de MUI. Ventas usa la misma lectura que
  * compras (subir en rojo); ver D9 en la auditoría de fuentes de signo.

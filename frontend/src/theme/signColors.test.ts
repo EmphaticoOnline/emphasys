@@ -175,8 +175,9 @@ test('bloque 3: cashFlowColors y dueDateColors son exactamente los palette.*.mai
 });
 
 test('bloque 3: los días sin conciliar (antigüedad) quedan fuera y en palette', () => {
-  assert.ok(readText('../pages/finanzas/ConciliacionBancariaPage.tsx').includes("const color = n > 30 ? 'error.main' : n > 7 ? 'warning.main' : 'text.secondary';"));
-  const noConciliados = readText('../pages/informes/finanzas/MovimientosNoConciliadosPage.tsx');
+  // Estado que dejó el bloque 3; la antigüedad se tokenizó después (decisión D8, `stalenessColors`).
+  assert.ok(asOfBlock('signColors.b3.baseline.json', 'pages/finanzas/ConciliacionBancariaPage.tsx').includes("const color = n > 30 ? 'error.main' : n > 7 ? 'warning.main' : 'text.secondary';"));
+  const noConciliados = asOfBlock('signColors.b3.baseline.json', 'pages/informes/finanzas/MovimientosNoConciliadosPage.tsx');
   assert.ok(noConciliados.includes("const color = d > 30 ? 'error.main' : d > 7 ? 'warning.main' : 'text.secondary';"));
   assert.ok(noConciliados.includes("color={k.maxDias > 30 ? 'error.main' : k.maxDias > 7 ? 'warning.main' : 'text.primary'}"));
 });
@@ -219,8 +220,9 @@ test('cierre de la fuente A: en los archivos migrados solo quedan palette que no
     'pages/finanzas/ConciliacionBancariaPage.tsx': 2,
     'pages/informes/finanzas/MovimientosNoConciliadosPage.tsx': 4,
   };
+  // Estado que dejaron los bloques de signo (las decisiones de diseño posteriores cambian algunos).
   for (const file of files) {
-    const count = readText(`../${file}`).match(/'(error|success|warning)\.main'/g)?.length ?? 0;
+    const count = asOfBlock('signColors.b4.baseline.json', file).match(/'(error|success|warning)\.main'/g)?.length ?? 0;
     assert.equal(count, expected[file] ?? 0, file);
   }
 });
