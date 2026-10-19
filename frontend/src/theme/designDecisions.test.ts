@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import test from 'node:test';
-import { stalenessColors } from './functional.ts';
+import { accountingColors, balanceColors, stalenessColors } from './functional.ts';
 import { classicTheme, experimentalTheme } from './themes.ts';
 import { classicTokens, experimentalTokens } from './tokens.ts';
 import {
@@ -113,4 +113,18 @@ test('D-B4 (sin cambio visual): configPrimaryButtonSx lee primaryForeground y no
   // Si se usa en el futuro, el texto será el foreground primario de cada tema (blanco en clásico, beige en experimental).
   assert.equal(classicTokens.action.primaryForeground, '#ffffff');
   assert.equal(experimentalTokens.action.primaryForeground, '#f4f0e8');
+});
+
+test('D1 (cambio visual aprobado): el saldo al corte del estado de cuenta usa el color de sus filas', () => {
+  const replacements = replacementsOf('d1');
+  assert.equal(replacements.length, 2);
+  // Cambio exacto, solo en el número del saldo al corte: rojo #d32f2f → #dc2626 y verde #2e7d32 → #16a34a.
+  assert.deepEqual([balanceColors.due, balanceColors.inFavor], ['#d32f2f', '#2e7d32']);
+  assert.deepEqual([accountingColors.debit, accountingColors.credit], ['#dc2626', '#16a34a']);
+  const source = readText('../pages/informes/EstadoCuentaPage.tsx');
+  assert.match(source, /color=\{saldoFinal > 0 \? accountingColors\.debit : saldoFinal < 0 \? accountingColors\.credit : 'text\.primary'\}/);
+  // Las filas no cambian: siguen en debit / credit.
+  assert.equal(source.split('accountingColors.debit').length - 1, 4);
+  assert.equal(source.split('accountingColors.credit').length - 1, 4);
+  assert.doesNotMatch(source, /balanceColors/);
 });

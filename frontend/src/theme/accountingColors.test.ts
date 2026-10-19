@@ -43,7 +43,8 @@ test('cada token contable resuelve exactamente al literal que reemplazó', () =>
 
 test('cada archivo usa los tokens contables tantas veces como literales tenía', () => {
   for (const [file, { lines }] of Object.entries(baseline.files)) {
-    const source = readText(`../${file}`);
+    // Estado que dejó el bloque contable: la decisión D1 agregó después debit/credit al saldo al corte.
+    const source = withoutNeutral(file);
     const expected = count(Object.values(lines).flat().map((entry) => entry.token));
     const actual = count([...source.matchAll(/accountingColors\.[a-zA-Z]+(?:\.[a-zA-Z]+)?/g)].map((m) => m[0]));
     assert.deepStrictEqual(actual, expected, file);
