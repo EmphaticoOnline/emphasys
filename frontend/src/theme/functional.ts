@@ -1,4 +1,5 @@
 import type { EmphasysTokens } from './tokens.ts';
+import { neutralColors } from './structural.ts';
 
 /**
  * Capa funcional: colores con significado operativo, contable o de terceros.
@@ -297,4 +298,24 @@ export const advanceBoxColors = {
   registeredBorder: '#9db4ff',
   idleBorder: '#d7deed',
   surface: '#f7faff',
+} as const;
+
+/**
+ * Tonos de los conceptos del resumen financiero del formulario de documentos.
+ * Los importes negativos conservan sus tres tonos actuales: ámbar para descuento
+ * de partidas y retenciones, naranja para descuento global y ámbar propio para la
+ * retención en el panel de impuestos. Unificarlos es una decisión pendiente.
+ */
+export const documentSummaryTones = {
+  gross: neutralColors.slate[700],
+  itemDiscount: alertColors.warning[700],
+  globalDiscount: alertColors.caution[800],
+  /** Descuento combinado (partidas + global) del resumen flotante. */
+  discount: alertColors.caution[800],
+  net: alertColors.info[700],
+  tax: '#0f766e',
+  withholding: alertColors.warning[700],
+  total: neutralColors.gray[900],
+  /** Retención en el panel de impuestos y en partidas. */
+  withholdingInline: '#9a5b00',
 } as const;

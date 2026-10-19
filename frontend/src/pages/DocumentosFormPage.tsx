@@ -132,7 +132,7 @@ import type { CampoValorPayload, CampoValorGuardado } from '../types/camposDinam
 import type { Concepto, DocumentoAnticipoResumen, EstadoCuentaItem, FinanzasCuenta } from '../types/finanzas';
 import { NumericFormat } from 'react-number-format';
 import { neutralColors } from '../theme/structural';
-import { advanceBoxColors, alertColors, attachmentIndicatorColors, fiscalStatusColors } from '../theme/functional';
+import { advanceBoxColors, alertColors, attachmentIndicatorColors, documentSummaryTones, fiscalStatusColors } from '../theme/functional';
 
 const toCivilDate = (date = new Date()) => {
   const year = date.getFullYear();
@@ -4768,8 +4768,8 @@ export default function DocumentosFormPage({
                                 </Box>
                                 {impuestosPartida.retenciones > 0 && (
                                   <Box sx={detalleRowSx}>
-                                    <Typography sx={{ fontSize: 11.5, color: '#9a5b00' }}>Retención</Typography>
-                                    <Typography sx={{ fontSize: 11.5, fontFamily: 'monospace', color: '#9a5b00' }}>
+                                    <Typography sx={{ fontSize: 11.5, color: documentSummaryTones.withholdingInline }}>Retención</Typography>
+                                    <Typography sx={{ fontSize: 11.5, fontFamily: 'monospace', color: documentSummaryTones.withholdingInline }}>
                                       -{formatter.format(impuestosPartida.retenciones)}
                                     </Typography>
                                   </Box>
@@ -5489,7 +5489,7 @@ export default function DocumentosFormPage({
                                   {formatter.format(impuestosPartida.traslados)}
                                 </Typography>
                                 {impuestosPartida.retenciones > 0 && (
-                                  <Typography sx={{ fontSize: 10.5, color: '#9a5b00', textAlign: 'right' }}>
+                                  <Typography sx={{ fontSize: 10.5, color: documentSummaryTones.withholdingInline, textAlign: 'right' }}>
                                     ret -{formatter.format(impuestosPartida.retenciones)}
                                   </Typography>
                                 )}
@@ -8346,15 +8346,15 @@ export default function DocumentosFormPage({
                         }}
                       >
                         {[
-                          { label: 'Subtotal bruto', value: resumenFinanciero.subtotalBruto, tone: '#334155' },
-                          { label: 'Desc. partidas', value: -resumenFinanciero.descuentoPartidas, tone: '#b45309' },
-                          { label: 'Desc. global', value: -resumenFinanciero.descuentoGlobal, tone: '#9a3412' },
-                          { label: 'Subtotal neto', value: resumenFinanciero.subtotalNeto, tone: '#1d4ed8' },
+                          { label: 'Subtotal bruto', value: resumenFinanciero.subtotalBruto, tone: documentSummaryTones.gross },
+                          { label: 'Desc. partidas', value: -resumenFinanciero.descuentoPartidas, tone: documentSummaryTones.itemDiscount },
+                          { label: 'Desc. global', value: -resumenFinanciero.descuentoGlobal, tone: documentSummaryTones.globalDiscount },
+                          { label: 'Subtotal neto', value: resumenFinanciero.subtotalNeto, tone: documentSummaryTones.net },
                           ...(ocultarIvaPorTratamiento ? [] : [
-                            { label: 'IVA trasladado', value: resumenFinanciero.iva, tone: '#0f766e' },
-                            { label: 'Retenciones', value: -resumenFinanciero.retenciones, tone: '#b45309' },
+                            { label: 'IVA trasladado', value: resumenFinanciero.iva, tone: documentSummaryTones.tax },
+                            { label: 'Retenciones', value: -resumenFinanciero.retenciones, tone: documentSummaryTones.withholding },
                           ]),
-                          { label: 'Total', value: resumenFinanciero.total, tone: '#111827' },
+                          { label: 'Total', value: resumenFinanciero.total, tone: documentSummaryTones.total },
                         ].map((item) => (
                           <Paper
                             key={item.label}
@@ -8416,15 +8416,15 @@ export default function DocumentosFormPage({
                 }}
               >
                 {[
-                  { label: 'Subtotal bruto', value: resumenFinanciero.subtotalBruto, tone: '#334155' },
-                  { label: 'Desc. partidas', value: -resumenFinanciero.descuentoPartidas, tone: '#b45309' },
-                  { label: 'Desc. global', value: -resumenFinanciero.descuentoGlobal, tone: '#9a3412' },
-                  { label: 'Subtotal neto', value: resumenFinanciero.subtotalNeto, tone: '#1d4ed8' },
+                  { label: 'Subtotal bruto', value: resumenFinanciero.subtotalBruto, tone: documentSummaryTones.gross },
+                  { label: 'Desc. partidas', value: -resumenFinanciero.descuentoPartidas, tone: documentSummaryTones.itemDiscount },
+                  { label: 'Desc. global', value: -resumenFinanciero.descuentoGlobal, tone: documentSummaryTones.globalDiscount },
+                  { label: 'Subtotal neto', value: resumenFinanciero.subtotalNeto, tone: documentSummaryTones.net },
                   ...(ocultarIvaPorTratamiento ? [] : [
-                    { label: 'IVA trasladado', value: resumenFinanciero.iva, tone: '#0f766e' },
-                    { label: 'Retenciones', value: -resumenFinanciero.retenciones, tone: '#b45309' },
+                    { label: 'IVA trasladado', value: resumenFinanciero.iva, tone: documentSummaryTones.tax },
+                    { label: 'Retenciones', value: -resumenFinanciero.retenciones, tone: documentSummaryTones.withholding },
                   ]),
-                  { label: 'Total', value: resumenFinanciero.total, tone: '#111827' },
+                  { label: 'Total', value: resumenFinanciero.total, tone: documentSummaryTones.total },
                 ].map((item) => (
                   <Paper
                     key={item.label}
@@ -8599,16 +8599,16 @@ export default function DocumentosFormPage({
         >
           <Stack direction="row" spacing={1.5} alignItems="center" justifyContent="center" sx={{ flexWrap: 'wrap' }}>
             {[
-              { label: 'Bruto', value: resumenFinanciero.subtotalBruto, tone: '#334155' },
+              { label: 'Bruto', value: resumenFinanciero.subtotalBruto, tone: documentSummaryTones.gross },
               ...(resumenFinanciero.descuentoPartidas + resumenFinanciero.descuentoGlobal > 0
-                ? [{ label: 'Desc', value: -(resumenFinanciero.descuentoPartidas + resumenFinanciero.descuentoGlobal), tone: '#9a3412' }]
+                ? [{ label: 'Desc', value: -(resumenFinanciero.descuentoPartidas + resumenFinanciero.descuentoGlobal), tone: documentSummaryTones.discount }]
                 : []),
-              { label: 'Neto', value: resumenFinanciero.subtotalNeto, tone: '#1d4ed8' },
+              { label: 'Neto', value: resumenFinanciero.subtotalNeto, tone: documentSummaryTones.net },
               ...(ocultarIvaPorTratamiento ? [] : [
-                { label: 'IVA trasladado', value: resumenFinanciero.iva, tone: '#0f766e' },
-                { label: 'Retenciones', value: -resumenFinanciero.retenciones, tone: '#b45309' },
+                { label: 'IVA trasladado', value: resumenFinanciero.iva, tone: documentSummaryTones.tax },
+                { label: 'Retenciones', value: -resumenFinanciero.retenciones, tone: documentSummaryTones.withholding },
               ]),
-              { label: 'Total', value: resumenFinanciero.total, tone: '#111827', strong: true },
+              { label: 'Total', value: resumenFinanciero.total, tone: documentSummaryTones.total, strong: true },
             ].map((item) => (
               <Box
                 key={item.label}

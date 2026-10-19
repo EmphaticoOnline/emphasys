@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import test from 'node:test';
-import { attachmentIndicatorColors, feedbackTokens, fiscalStatusColors } from './functional.ts';
+import { alertColors, attachmentIndicatorColors, documentSummaryTones, feedbackTokens, fiscalStatusColors } from './functional.ts';
 import { neutralColors } from './structural.ts';
 import {
   colorTokenPath,
@@ -169,4 +169,27 @@ test('subbloque 6: estados con token propio; mismo hex con otro significado qued
   // Estado de recepción y cantidades: solo tokens existentes de alertas y neutrales.
   const recepcion = Object.entries(s6.lines).filter(([n]) => Number(n) > 8500).flatMap(([, l]) => l.entries.map((e) => e.token));
   assert.ok(recepcion.length === 13 && recepcion.every((t) => t.startsWith('alertColors.') || t.startsWith('neutralColors.')));
+});
+
+test('subbloque 7: el resumen financiero conserva los tres tonos de importes negativos', () => {
+  const s7 = subblocks.find(({ name }) => name === 'documentosForm.s7.baseline.json')!.fixture.files[FILE]!;
+  assert.deepStrictEqual(s7.keptLiteral, {});
+  // Sin unificar: ámbar (descuento de partidas, retenciones), naranja (descuento global) y ámbar propio (retención en línea).
+  assert.equal(documentSummaryTones.itemDiscount, '#b45309');
+  assert.equal(documentSummaryTones.withholding, '#b45309');
+  assert.equal(documentSummaryTones.globalDiscount, '#9a3412');
+  assert.equal(documentSummaryTones.discount, '#9a3412');
+  assert.equal(documentSummaryTones.withholdingInline, '#9a5b00');
+  assert.equal(documentSummaryTones.itemDiscount, alertColors.warning[700]);
+  assert.equal(documentSummaryTones.net, alertColors.info[700]);
+  assert.equal(documentSummaryTones.gross, neutralColors.slate[700]);
+  assert.equal(documentSummaryTones.total, neutralColors.gray[900]);
+  // Los dos resúmenes completos usan la misma secuencia; el flotante junta los descuentos.
+  const byLine = Object.entries(s7.lines).filter(([, l]) => l.entries.length).map(([n, l]) => [Number(n), l.entries[0]!.token] as const);
+  const sequence = (from: number, to: number) => byLine.filter(([n]) => n >= from && n <= to).map(([, t]) => t);
+  const full = ['gross', 'itemDiscount', 'globalDiscount', 'net', 'tax', 'withholding', 'total'].map((k) => `documentSummaryTones.${k}`);
+  assert.deepStrictEqual(sequence(8340, 8360), full);
+  assert.deepStrictEqual(sequence(8410, 8430), full);
+  assert.deepStrictEqual(sequence(8600, 8615), ['gross', 'discount', 'net', 'tax', 'withholding', 'total'].map((k) => `documentSummaryTones.${k}`));
+  assert.equal(byLine.filter(([, t]) => t === 'documentSummaryTones.withholdingInline').length, 3);
 });
