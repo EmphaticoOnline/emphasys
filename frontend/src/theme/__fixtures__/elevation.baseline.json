@@ -1,0 +1,95 @@
+{
+  "source": "HEAD 9c50054, literales de sombra antes de los tokens de elevación (docs/white-label-elevacion-audit.md)",
+  "structural": {
+    "railControl": {
+      "value": "0 1px 2px rgba(0,0,0,0.35)",
+      "headOccurrences": 11
+    },
+    "railSelection": {
+      "value": "0 1px 2px rgba(0,0,0,0.18)",
+      "headOccurrences": 12
+    },
+    "hairline": {
+      "value": "0 1px 2px rgba(15, 23, 42, 0.04)",
+      "headOccurrences": 1
+    },
+    "hairlineBlack": {
+      "value": "0 1px 2px rgba(0,0,0,0.04)",
+      "headOccurrences": 1
+    },
+    "card": {
+      "value": "0 8px 20px rgba(15, 23, 42, 0.05)",
+      "headOccurrences": 3
+    },
+    "floatingButton": {
+      "value": "0 6px 18px rgba(15, 23, 42, 0.08)",
+      "headOccurrences": 1
+    },
+    "gridMenu": {
+      "value": "0 14px 34px rgba(15, 23, 42, 0.14)",
+      "headOccurrences": 1
+    },
+    "floatingSummary": {
+      "value": "0 12px 30px rgba(15, 23, 42, 0.12)",
+      "headOccurrences": 1
+    },
+    "draggable": {
+      "value": "0 12px 32px rgba(15,22,38,0.18)",
+      "headOccurrences": 2
+    },
+    "dragging": {
+      "value": "0 20px 46px rgba(15,22,38,0.30)",
+      "headOccurrences": 2
+    },
+    "drawer": {
+      "value": "0 18px 48px rgba(15, 23, 42, 0.18)",
+      "headOccurrences": 1
+    },
+    "drawerButton": {
+      "value": "0 2px 8px rgba(15, 23, 42, 0.08)",
+      "headOccurrences": 1
+    },
+    "statusCard": {
+      "value": "0 8px 18px rgba(15, 23, 42, 0.08)",
+      "headOccurrences": 1
+    },
+    "statusCardRest": {
+      "value": "0 8px 18px rgba(15, 23, 42, 0.06)",
+      "headOccurrences": 1
+    },
+    "underline": {
+      "value": "0 1px 0 rgba(20,28,46,0.03)",
+      "headOccurrences": 1
+    }
+  },
+  "brand": {
+    "floating": {
+      "value": "0 16px 40px rgba(44, 49, 56, 0.18)",
+      "headOccurrences": 10
+    },
+    "floatingStrong": {
+      "value": "0 8px 18px rgba(44, 49, 56, 0.22)",
+      "headOccurrences": 1
+    },
+    "dialog": {
+      "value": "0 18px 48px rgba(62, 52, 40, 0.16)",
+      "headOccurrences": 3
+    },
+    "panel": {
+      "value": "0 10px 28px rgba(62, 52, 40, 0.08)",
+      "headOccurrences": 2
+    },
+    "dropdown": {
+      "value": "0 8px 24px rgba(62, 52, 40, 0.12)",
+      "headOccurrences": 1
+    },
+    "primaryGlow": {
+      "value": "0 10px 24px rgba(29, 47, 104, 0.28)",
+      "headOccurrences": 1
+    },
+    "activeGlow": {
+      "value": "0 6px 16px rgba(29, 47, 104, 0.16)",
+      "headOccurrences": 1
+    }
+  }
+}

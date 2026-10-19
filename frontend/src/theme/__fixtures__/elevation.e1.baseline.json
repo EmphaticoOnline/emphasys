@@ -1,0 +1,398 @@
+{
+  "source": "HEAD 9c50054, elevación bloque e1",
+  "files": {
+    "components/contactos/ContactosListaCompacta.tsx": {
+      "headSha256": "3af8e80e7270902ed689fc1cb7ee58b7507294fd6e0cee33aa3e381b82ab59fe",
+      "addedImports": [
+        "import { elevation } from '../../theme/elevation';"
+      ],
+      "lines": {
+        "156": {
+          "original": "                boxShadow: '0 1px 2px rgba(0,0,0,0.35)',",
+          "migrated": "                boxShadow: elevation.railControl,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'0 1px 2px rgba(0,0,0,0.35)'",
+              "to": "elevation.railControl",
+              "times": 1
+            }
+          ]
+        },
+        "242": {
+          "original": "                  boxShadow: isSelected ? '0 1px 2px rgba(0,0,0,0.18)' : 'none',",
+          "migrated": "                  boxShadow: isSelected ? elevation.railSelection : 'none',",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'0 1px 2px rgba(0,0,0,0.18)'",
+              "to": "elevation.railSelection",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "components/crm/ActividadesWorkspaceView.tsx": {
+      "headSha256": "421e5c8128d9b5e4fd2ba7ece121536a307581a79eb9e293607b90e773a51d79",
+      "addedImports": [
+        "import { elevation } from '../../theme/elevation';"
+      ],
+      "lines": {
+        "229": {
+          "original": "                    boxShadow: '0 1px 2px rgba(0,0,0,0.35)',",
+          "migrated": "                    boxShadow: elevation.railControl,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'0 1px 2px rgba(0,0,0,0.35)'",
+              "to": "elevation.railControl",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "components/documentos/OrdenCompraWorkspaceRail.tsx": {
+      "headSha256": "f6c261eb3807d93bcdd5b4757094f2e8f4754d46a217eeeecd1a14c2175c918b",
+      "addedImports": [
+        "import { elevation } from '../../theme/elevation';"
+      ],
+      "lines": {
+        "232": {
+          "original": "                  boxShadow: '0 1px 2px rgba(0,0,0,0.35)',",
+          "migrated": "                  boxShadow: elevation.railControl,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'0 1px 2px rgba(0,0,0,0.35)'",
+              "to": "elevation.railControl",
+              "times": 1
+            }
+          ]
+        },
+        "401": {
+          "original": "                boxShadow: selected ? '0 1px 2px rgba(0,0,0,0.18)' : 'none',",
+          "migrated": "                boxShadow: selected ? elevation.railSelection : 'none',",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'0 1px 2px rgba(0,0,0,0.18)'",
+              "to": "elevation.railSelection",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "components/documentos/ajustes-saldo/AjustesSaldoWorkspaceView.tsx": {
+      "headSha256": "09a2ba1166e8ad7aca00ab64e611f2387471d4a5562a59e435fd7ba9512abc70",
+      "addedImports": [
+        "import { elevation } from '../../../theme/elevation';"
+      ],
+      "lines": {
+        "304": {
+          "original": "              <IconButton aria-label=\"Nuevo ajuste\" onClick={onCreate} sx={{ width: 34, height: 34, bgcolor: tokens.navigation.control, color: tokens.navigation.controlForeground, boxShadow: '0 1px 2px rgba(0,0,0,0.35)', '&:hover': { bgcolor: tokens.content.elevated } }}>",
+          "migrated": "              <IconButton aria-label=\"Nuevo ajuste\" onClick={onCreate} sx={{ width: 34, height: 34, bgcolor: tokens.navigation.control, color: tokens.navigation.controlForeground, boxShadow: elevation.railControl, '&:hover': { bgcolor: tokens.content.elevated } }}>",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'0 1px 2px rgba(0,0,0,0.35)'",
+              "to": "elevation.railControl",
+              "times": 1
+            }
+          ]
+        },
+        "365": {
+          "original": "            <Box key={row.id} onClick={() => { onSelect(row); setDetalleMovil(true); }} onContextMenu={(event) => { event.preventDefault(); event.stopPropagation(); onSelect(row); setMenuFila({ top: event.clientY, left: event.clientX, rowId: row.id }); }} sx={{ px: 1, py: 1.05, mb: 0.45, borderRadius: 2, cursor: 'pointer', display: 'flex', gap: 0.4, bgcolor: activa ? tokens.navigation.selection : 'transparent', color: activa ? tokens.navigation.selectionForeground : tokens.navigation.foreground, boxShadow: row.id === highlightedId ? `inset 0 0 0 1px ${tokens.navigation.accent}` : activa ? '0 1px 2px rgba(0,0,0,0.18)' : 'none', '&:hover': { bgcolor: activa ? tokens.navigation.selection : tokens.navigation.hover } }}>",
+          "migrated": "            <Box key={row.id} onClick={() => { onSelect(row); setDetalleMovil(true); }} onContextMenu={(event) => { event.preventDefault(); event.stopPropagation(); onSelect(row); setMenuFila({ top: event.clientY, left: event.clientX, rowId: row.id }); }} sx={{ px: 1, py: 1.05, mb: 0.45, borderRadius: 2, cursor: 'pointer', display: 'flex', gap: 0.4, bgcolor: activa ? tokens.navigation.selection : 'transparent', color: activa ? tokens.navigation.selectionForeground : tokens.navigation.foreground, boxShadow: row.id === highlightedId ? `inset 0 0 0 1px ${tokens.navigation.accent}` : activa ? elevation.railSelection : 'none', '&:hover': { bgcolor: activa ? tokens.navigation.selection : tokens.navigation.hover } }}>",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'0 1px 2px rgba(0,0,0,0.18)'",
+              "to": "elevation.railSelection",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "components/documentos/cotizaciones/CotizacionesWorkspaceView.tsx": {
+      "headSha256": "9d6ba9ae9be2b68d74b1161f1233d445a05c6a0e4d1bac9b1d17176ed4f20d58",
+      "addedImports": [
+        "import { elevation } from '../../../theme/elevation';"
+      ],
+      "lines": {
+        "357": {
+          "original": "                    boxShadow: '0 1px 2px rgba(0,0,0,0.35)',",
+          "migrated": "                    boxShadow: elevation.railControl,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'0 1px 2px rgba(0,0,0,0.35)'",
+              "to": "elevation.railControl",
+              "times": 1
+            }
+          ]
+        },
+        "519": {
+          "original": "                    boxShadow: selected ? '0 1px 2px rgba(0,0,0,0.18)' : 'none',",
+          "migrated": "                    boxShadow: selected ? elevation.railSelection : 'none',",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'0 1px 2px rgba(0,0,0,0.18)'",
+              "to": "elevation.railSelection",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "components/documentos/facturas/FacturasWorkspaceView.tsx": {
+      "headSha256": "556f1090d48d60850f7d68d2c35dc14ce1dc20b717c0a979a3c72fe4a975b167",
+      "addedImports": [
+        "import { elevation } from '../../../theme/elevation';"
+      ],
+      "lines": {
+        "485": {
+          "original": "                    boxShadow: '0 1px 2px rgba(0,0,0,0.35)',",
+          "migrated": "                    boxShadow: elevation.railControl,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'0 1px 2px rgba(0,0,0,0.35)'",
+              "to": "elevation.railControl",
+              "times": 1
+            }
+          ]
+        },
+        "657": {
+          "original": "                    boxShadow: selected ? '0 1px 2px rgba(0,0,0,0.18)' : 'none',",
+          "migrated": "                    boxShadow: selected ? elevation.railSelection : 'none',",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'0 1px 2px rgba(0,0,0,0.18)'",
+              "to": "elevation.railSelection",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "components/documentos/nota-credito/NotasCreditoWorkspaceView.tsx": {
+      "headSha256": "374dcf81d6238f82acdcc1ee4c814f0c67ed20c99a4fdc2688a27bd0b4aad675",
+      "addedImports": [
+        "import { elevation } from '../../../theme/elevation';"
+      ],
+      "lines": {
+        "418": {
+          "original": "                boxShadow: '0 1px 2px rgba(0,0,0,0.35)',",
+          "migrated": "                boxShadow: elevation.railControl,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'0 1px 2px rgba(0,0,0,0.35)'",
+              "to": "elevation.railControl",
+              "times": 1
+            }
+          ]
+        },
+        "580": {
+          "original": "                boxShadow: activa ? '0 1px 2px rgba(0,0,0,0.18)' : 'none',",
+          "migrated": "                boxShadow: activa ? elevation.railSelection : 'none',",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'0 1px 2px rgba(0,0,0,0.18)'",
+              "to": "elevation.railSelection",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "components/documentos/pagos/PagosWorkspaceView.tsx": {
+      "headSha256": "c348102ea35c5aed669c40db84a22c242fce07d7e867f1fba66d927358bd50c1",
+      "addedImports": [
+        "import { elevation } from '../../../theme/elevation';"
+      ],
+      "lines": {
+        "470": {
+          "original": "                  boxShadow: '0 1px 2px rgba(0,0,0,0.35)',",
+          "migrated": "                  boxShadow: elevation.railControl,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'0 1px 2px rgba(0,0,0,0.35)'",
+              "to": "elevation.railControl",
+              "times": 1
+            }
+          ]
+        },
+        "618": {
+          "original": "                boxShadow: row.id === highlightedId ? `inset 0 0 0 1px ${tokens.navigation.accent}` : activa ? '0 1px 2px rgba(0,0,0,0.18)' : 'none',",
+          "migrated": "                boxShadow: row.id === highlightedId ? `inset 0 0 0 1px ${tokens.navigation.accent}` : activa ? elevation.railSelection : 'none',",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'0 1px 2px rgba(0,0,0,0.18)'",
+              "to": "elevation.railSelection",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "components/documentos/recepcion/RecepcionWorkspaceRail.tsx": {
+      "headSha256": "babcf144d1abb3a5d9539803069f588b2f71043a81bbcef68118c67d9f632a15",
+      "addedImports": [
+        "import { elevation } from '../../../theme/elevation';"
+      ],
+      "lines": {
+        "384": {
+          "original": "                boxShadow: selected ? '0 1px 2px rgba(0,0,0,0.18)' : 'none',",
+          "migrated": "                boxShadow: selected ? elevation.railSelection : 'none',",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'0 1px 2px rgba(0,0,0,0.18)'",
+              "to": "elevation.railSelection",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "components/documentos/traslados/TrasladosWorkspaceView.tsx": {
+      "headSha256": "2aa8b169d67f885e6263f7946360001b645b734c2ae006c3b67b4f2a71a15759",
+      "addedImports": [
+        "import { elevation } from '../../../theme/elevation';"
+      ],
+      "lines": {
+        "303": {
+          "original": "                  boxShadow: '0 1px 2px rgba(0,0,0,0.35)',",
+          "migrated": "                  boxShadow: elevation.railControl,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'0 1px 2px rgba(0,0,0,0.35)'",
+              "to": "elevation.railControl",
+              "times": 1
+            }
+          ]
+        },
+        "379": {
+          "original": "                  boxShadow: active ? '0 1px 2px rgba(0,0,0,0.18)' : 'none',",
+          "migrated": "                  boxShadow: active ? elevation.railSelection : 'none',",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'0 1px 2px rgba(0,0,0,0.18)'",
+              "to": "elevation.railSelection",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "components/productos/ProductosListaCompacta.tsx": {
+      "headSha256": "b79db6f29eaef4ecc38fea778ebe266a7de5ff3f8bb269b245202c7ff0b31051",
+      "addedImports": [
+        "import { elevation } from '../../theme/elevation';"
+      ],
+      "lines": {
+        "174": {
+          "original": "                boxShadow: '0 1px 2px rgba(0,0,0,0.35)',",
+          "migrated": "                boxShadow: elevation.railControl,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'0 1px 2px rgba(0,0,0,0.35)'",
+              "to": "elevation.railControl",
+              "times": 1
+            }
+          ]
+        },
+        "256": {
+          "original": "                  boxShadow: isSelected ? '0 1px 2px rgba(0,0,0,0.18)' : 'none',",
+          "migrated": "                  boxShadow: isSelected ? elevation.railSelection : 'none',",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'0 1px 2px rgba(0,0,0,0.18)'",
+              "to": "elevation.railSelection",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "modules/finanzas/HistorialConciliacionesDialog.tsx": {
+      "headSha256": "e18318cd51eb95b6ca405712b7e302753308355dd1882845d7c8f73e2f02c2b8",
+      "addedImports": [
+        "import { elevation } from '../../theme/elevation';"
+      ],
+      "lines": {
+        "181": {
+          "original": "                      boxShadow: activa ? '0 1px 2px rgba(0,0,0,0.18)' : 'none',",
+          "migrated": "                      boxShadow: activa ? elevation.railSelection : 'none',",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'0 1px 2px rgba(0,0,0,0.18)'",
+              "to": "elevation.railSelection",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "pages/InventarioMovimientosPage.tsx": {
+      "headSha256": "a2cb761ce15a9055108c351323a50c5dee0a59d695d5640ab5f7ac04dfd7e8a9",
+      "addedImports": [
+        "import { elevation } from '../theme/elevation';"
+      ],
+      "lines": {
+        "562": {
+          "original": "                    boxShadow: '0 1px 2px rgba(0,0,0,0.35)',",
+          "migrated": "                    boxShadow: elevation.railControl,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'0 1px 2px rgba(0,0,0,0.35)'",
+              "to": "elevation.railControl",
+              "times": 1
+            }
+          ]
+        },
+        "733": {
+          "original": "                    boxShadow: selected ? '0 1px 2px rgba(0,0,0,0.18)' : 'none',",
+          "migrated": "                    boxShadow: selected ? elevation.railSelection : 'none',",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'0 1px 2px rgba(0,0,0,0.18)'",
+              "to": "elevation.railSelection",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    }
+  }
+}

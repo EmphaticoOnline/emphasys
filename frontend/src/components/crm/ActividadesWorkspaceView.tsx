@@ -27,6 +27,7 @@ import { WorkspaceRowContextMenu, type WorkspaceContextItem } from '../documento
 import { catalogoOutlinedButtonSx, catalogoPrimaryButtonSx } from '../catalogo/catalogoSurfaces';
 import ActividadFormPage from '../../pages/ActividadFormPage';
 import type { Usuario } from '../../types/usuario';
+import { elevation } from '../../theme/elevation';
 
 export type GrupoWorkspace = {
   key: string;
@@ -226,7 +227,7 @@ export default function ActividadesWorkspaceView({
                     height: 34,
                     bgcolor: tokens.navigation.control,
                     color: tokens.navigation.controlForeground,
-                    boxShadow: '0 1px 2px rgba(0,0,0,0.35)',
+                    boxShadow: elevation.railControl,
                     '&:hover': { bgcolor: tokens.content.elevated, color: tokens.content.foreground },
                   }}
                 >

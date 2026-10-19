@@ -13,6 +13,7 @@ import { WorkspaceRowContextMenu, type WorkspaceContextItem } from '../documento
 import type { GridPaginationModel } from '@mui/x-data-grid';
 import type { Producto } from '../../types/producto';
 import { catalogoRailIconButtonSx, catalogoRailSearchSx } from '../catalogo/catalogoSurfaces';
+import { elevation } from '../../theme/elevation';
 
 type ProductosListaCompactaProps = {
   productos: Producto[];
@@ -171,7 +172,7 @@ export default function ProductosListaCompacta({
                 borderRadius: '10px',
                 bgcolor: theme.emphasys.navigation.control,
                 color: theme.emphasys.navigation.controlForeground,
-                boxShadow: '0 1px 2px rgba(0,0,0,0.35)',
+                boxShadow: elevation.railControl,
                 '&:hover': { bgcolor: theme.emphasys.content.elevated },
               })}
             >
@@ -253,7 +254,7 @@ export default function ProductosListaCompacta({
                   cursor: 'pointer',
                   backgroundColor: (theme) => (isSelected ? theme.emphasys.navigation.selection : 'transparent'),
                   color: (theme) => (isSelected ? theme.emphasys.navigation.selectionForeground : theme.emphasys.navigation.foreground),
-                  boxShadow: isSelected ? '0 1px 2px rgba(0,0,0,0.18)' : 'none',
+                  boxShadow: isSelected ? elevation.railSelection : 'none',
                   '&:hover': { backgroundColor: (theme) => (isSelected ? theme.emphasys.navigation.selection : theme.emphasys.navigation.hover) },
                 }}
               >

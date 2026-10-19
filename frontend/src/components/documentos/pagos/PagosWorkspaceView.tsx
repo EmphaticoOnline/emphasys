@@ -42,6 +42,7 @@ import type { AplicacionOperacion, FinanzasCuenta } from '../../../types/finanza
 import type { Contacto } from '../../../types/contactos.types';
 import type { CotizacionDocumento, CotizacionListado } from '../../../types/cotizacion';
 import type { TipoDocumento } from '../../../types/documentos.types';
+import { elevation } from '../../../theme/elevation';
 
 export type FiltroPagos = {
   fechaDesde: string;
@@ -467,7 +468,7 @@ export default function PagosWorkspaceView({
                   height: 34,
                   bgcolor: tokens.navigation.control,
                   color: tokens.navigation.controlForeground,
-                  boxShadow: '0 1px 2px rgba(0,0,0,0.35)',
+                  boxShadow: elevation.railControl,
                   '&:hover': { bgcolor: tokens.content.elevated },
                 }}
               >
@@ -615,7 +616,7 @@ export default function PagosWorkspaceView({
                 gap: 0.4,
                 bgcolor: activa ? tokens.navigation.selection : 'transparent',
                 color: activa ? tokens.navigation.selectionForeground : tokens.navigation.foreground,
-                boxShadow: row.id === highlightedId ? `inset 0 0 0 1px ${tokens.navigation.accent}` : activa ? '0 1px 2px rgba(0,0,0,0.18)' : 'none',
+                boxShadow: row.id === highlightedId ? `inset 0 0 0 1px ${tokens.navigation.accent}` : activa ? elevation.railSelection : 'none',
                 '&:hover': { bgcolor: activa ? tokens.navigation.selection : tokens.navigation.hover },
               }}
             >

@@ -15,6 +15,7 @@ import { useTheme } from '@mui/material/styles';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import type { HistorialConciliacion, MovimientoConciliacion } from '../../types/finanzas';
 import { resolverFolioVisual } from '../../utils/documentos.utils';
+import { elevation } from '../../theme/elevation';
 
 const fmt = (n: number, moneda = 'MXN') =>
   new Intl.NumberFormat('es-MX', { style: 'currency', currency: moneda }).format(n);
@@ -178,7 +179,7 @@ export function HistorialConciliacionesDialog({
                       cursor: 'pointer',
                       bgcolor: activa ? tokens.navigation.selection : 'transparent',
                       color: activa ? tokens.navigation.selectionForeground : tokens.navigation.foreground,
-                      boxShadow: activa ? '0 1px 2px rgba(0,0,0,0.18)' : 'none',
+                      boxShadow: activa ? elevation.railSelection : 'none',
                       opacity: anulada ? 0.72 : 1,
                       '&:hover': {
                         bgcolor: activa ? tokens.navigation.selection : tokens.navigation.hover,

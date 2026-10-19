@@ -43,6 +43,7 @@ import type { TipoDocumento } from '../../../types/documentos.types';
 import { formatearFolioDocumento } from '../../../utils/documentos.utils';
 import { estadoVisualDocumento } from '../estadoVisualDocumento';
 import { getStatusToneColor } from '../../status/status.semantics';
+import { elevation } from '../../../theme/elevation';
 
 type Props = {
   rows: CotizacionListado[];
@@ -415,7 +416,7 @@ export default function NotasCreditoWorkspaceView({
                 height: 34,
                 bgcolor: tokens.navigation.control,
                 color: tokens.navigation.controlForeground,
-                boxShadow: '0 1px 2px rgba(0,0,0,0.35)',
+                boxShadow: elevation.railControl,
                 '&:hover': { bgcolor: tokens.content.elevated },
               }}
             >
@@ -577,7 +578,7 @@ export default function NotasCreditoWorkspaceView({
                 cursor: 'pointer',
                 bgcolor: activa ? tokens.navigation.selection : 'transparent',
                 color: activa ? tokens.navigation.selectionForeground : tokens.navigation.foreground,
-                boxShadow: activa ? '0 1px 2px rgba(0,0,0,0.18)' : 'none',
+                boxShadow: activa ? elevation.railSelection : 'none',
                 '&:hover': { bgcolor: activa ? tokens.navigation.selection : tokens.navigation.hover },
               }}
             >
