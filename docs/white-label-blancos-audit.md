@@ -244,4 +244,8 @@ Cambios en pruebas:
   - la verificación de que cada token está junto a su fondo funcional o de imagen;
   - los valores exactos de las dos familias.
   - Su equivalencia SHA-256 contra `2e0c312` es 7/7.
-- Los dos iconos sobre adjuntos de `LeadsDesktopView:1860, 1861` (`'white'`) van en W3b, porque importan desde otro módulo.
+- **W3b (completado):** los dos iconos sobre adjuntos de `LeadsDesktopView:1860, 1861` (`'white'`) pasan a `onMediaColors.icon` (`'white'`), en un commit aparte porque importan desde `structural`. La línea 1861 también tiene `overlayColors.media.imageButton` (tintes T3); la cadena de fixtures revierte W3b primero.
+- Pendientes (14):
+  - encabezado oscuro de grid de Oportunidades (D, 7);
+  - casos D-B3 (5);
+  - los 2 excluidos de W1: deshabilitado sobre gris y spinner en un botón de advertencia.

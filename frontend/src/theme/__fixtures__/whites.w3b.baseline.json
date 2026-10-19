@@ -1,0 +1,43 @@
+{
+  "source": "HEAD c27661b, whites bloque w3b",
+  "files": {
+    "components/leads/LeadsDesktopView.tsx": {
+      "headSha256": "70e67c700c95dc7378621fb4ade772ca42d42c7f21360cfd25e571f97cb66583",
+      "addedImports": [],
+      "lines": {
+        "96": {
+          "original": "import { neutralColors, overlayColors } from '../../theme/structural';",
+          "migrated": "import { neutralColors, onMediaColors, overlayColors } from '../../theme/structural';",
+          "entries": [],
+          "replacements": [],
+          "importMerge": true
+        },
+        "1860": {
+          "original": "                            {message.tipoContenido === 'video' && <VideoLibraryIcon sx={{ position: 'absolute', right: 4, bottom: 4, color: 'white', filter: 'drop-shadow(0 1px 2px black)' }} />}",
+          "migrated": "                            {message.tipoContenido === 'video' && <VideoLibraryIcon sx={{ position: 'absolute', right: 4, bottom: 4, color: onMediaColors.icon, filter: 'drop-shadow(0 1px 2px black)' }} />}",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "bottom: 4, color: 'white'",
+              "to": "bottom: 4, color: onMediaColors.icon",
+              "times": 1
+            }
+          ]
+        },
+        "1861": {
+          "original": "                            <IconButton size=\"small\" onClick={(event) => { event.preventDefault(); event.stopPropagation(); setAttachmentMenu({ anchor: event.currentTarget, message: { id: message.id, tipoContenido: message.tipoContenido!, text: message.text || '', caption: message.caption, mediaUrl: message.mediaUrl } }); }} sx={{ position: 'absolute', top: 2, right: 2, color: 'white', bgcolor: overlayColors.media.imageButton, '&:hover': { bgcolor: overlayColors.media.imageButtonHover } }} aria-label=\"Acciones del archivo\"><MoreVertIcon fontSize=\"small\" /></IconButton>",
+          "migrated": "                            <IconButton size=\"small\" onClick={(event) => { event.preventDefault(); event.stopPropagation(); setAttachmentMenu({ anchor: event.currentTarget, message: { id: message.id, tipoContenido: message.tipoContenido!, text: message.text || '', caption: message.caption, mediaUrl: message.mediaUrl } }); }} sx={{ position: 'absolute', top: 2, right: 2, color: onMediaColors.icon, bgcolor: overlayColors.media.imageButton, '&:hover': { bgcolor: overlayColors.media.imageButtonHover } }} aria-label=\"Acciones del archivo\"><MoreVertIcon fontSize=\"small\" /></IconButton>",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "right: 2, color: 'white'",
+              "to": "right: 2, color: onMediaColors.icon",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    }
+  }
+}

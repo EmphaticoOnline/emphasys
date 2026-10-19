@@ -70,6 +70,8 @@ const BLOCK_SCOPE: Record<string, { files: number; formats: Record<string, numbe
   'whites.w2.baseline.json': { files: 19, formats: { "'#fff'": 32, "'#ffffff'": 18 } },
   // W3 = contraste sobre colores de estado y de terceros (rol E) y el icono sobre la insignia de imagen (F).
   'whites.w3.baseline.json': { files: 7, formats: { "'#fff'": 4, "'#ffffff'": 4, "'white'": 3 } },
+  // W3b = iconos sobre adjuntos de imagen o video (rol F), en otro módulo que W3.
+  'whites.w3b.baseline.json': { files: 1, formats: { "'white'": 2 } },
 };
 
 test('cada subbloque tiene alcance declarado, por formato', () => {
@@ -177,7 +179,7 @@ test('W3: cada reemplazo es contraste sobre su color funcional, de tercero o de 
     'onMediaColors.icon': /position: 'absolute'/,
   };
   for (const { name, file, n, migrated, replacements, importMerge } of allLines()) {
-    if (importMerge || name !== 'whites.w3.baseline.json') continue;
+    if (importMerge || !['whites.w3.baseline.json', 'whites.w3b.baseline.json'].includes(name)) continue;
     const lines = readText(`../${file}`).split('\n');
     const index = lines.indexOf(migrated);
     assert.ok(index >= 0, `${file}:${n}`);
@@ -190,7 +192,7 @@ test('W3: cada reemplazo es contraste sobre su color funcional, de tercero o de 
     { ...functional.onStatusColors },
     { environmentProduction: '#fff', whatsapp: 'white', leadFilterChip: '#ffffff', leadViewToggle: '#ffffff', temperature: '#fff' },
   );
-  assert.deepEqual({ ...structural.onMediaColors }, { badgeIcon: '#fff' });
+  assert.deepEqual({ ...structural.onMediaColors }, { icon: 'white', badgeIcon: '#fff' });
   assert.ok(!/from '\.\/brand\//.test(readText('./functional.ts')));
 });
 

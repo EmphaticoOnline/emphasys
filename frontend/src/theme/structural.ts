@@ -272,6 +272,8 @@ export const whiteSurfaces = {
 
 /** Iconos blancos sobre imágenes o insignias de imagen (rol F). Conservan su escritura. */
 export const onMediaColors = {
+  /** Icono o botón sobre un adjunto de imagen o video. */
+  icon: 'white',
   /** Icono sobre la insignia `overlayColors.media.imageBadge`. */
   badgeIcon: '#fff',
 } as const;
