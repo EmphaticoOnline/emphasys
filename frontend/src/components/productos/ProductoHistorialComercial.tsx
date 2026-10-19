@@ -10,6 +10,7 @@ import {
   type ProductoHistorialFila,
   type ProductoHistorialResultado,
 } from '../../services/productosService';
+import { amountSignColor } from '../../theme/sign';
 
 const LIMITE = 25;
 const COLUMNAS = '96px minmax(160px, 1.55fr) minmax(132px, 1.15fr) minmax(104px, 0.72fr) minmax(96px, 0.68fr) 84px minmax(112px, 0.78fr) minmax(140px, 1.2fr)';
@@ -305,7 +306,7 @@ function CifraPeriodo({
           lineHeight: 1.15,
           letterSpacing: '-0.02em',
           fontVariantNumeric: 'tabular-nums',
-          color: tono === 'negativo' ? theme.emphasys.action.destructive : theme.emphasys.action.primary,
+          color: tono === 'negativo' ? amountSignColor(theme.emphasys, 'negative') : theme.emphasys.action.primary,
         })}
       >
         {valor}
@@ -404,7 +405,7 @@ function PartidaEscritorio({ fila, index }: { fila: ProductoHistorialFila; index
           lineHeight: 1.1,
           letterSpacing: '-0.02em',
           fontVariantNumeric: 'tabular-nums',
-          color: datos.esNota ? theme.emphasys.action.destructive : theme.emphasys.action.primary,
+          color: datos.esNota ? amountSignColor(theme.emphasys, 'negative') : theme.emphasys.action.primary,
           borderLeft: `1px solid ${theme.emphasys.content.border}`,
           pl: 1.1,
         })}
@@ -471,7 +472,7 @@ function Documento({ fila }: { fila: ReturnType<typeof datosPartida> }) {
 
 function Cantidad({ datos }: { datos: ReturnType<typeof datosPartida> }) {
   return (
-    <Typography noWrap sx={(theme) => ({ textAlign: 'right', fontSize: 14, lineHeight: 1.15, fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: datos.esNota ? theme.emphasys.action.destructive : theme.emphasys.content.foreground })}>
+    <Typography noWrap sx={(theme) => ({ textAlign: 'right', fontSize: 14, lineHeight: 1.15, fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: datos.esNota ? amountSignColor(theme.emphasys, 'negative') : theme.emphasys.content.foreground })}>
       <Box component="span" sx={(theme) => ({ fontFamily: theme.typography.figure?.fontFamily })}>
         {datos.cantidadComercial == null ? '—' : formatCantidad(datos.cantidadComercial)}
       </Box>
@@ -511,7 +512,7 @@ function Dato({ etiqueta, valor, tono = 'normal' }: { etiqueta: string; valor: s
           fontWeight: tono === 'normal' ? 500 : 700,
           lineHeight: 1.2,
           fontVariantNumeric: 'tabular-nums',
-          color: tono === 'negativo' ? theme.emphasys.action.destructive : tono === 'fuerte' ? theme.emphasys.action.primary : theme.emphasys.content.foreground,
+          color: tono === 'negativo' ? amountSignColor(theme.emphasys, 'negative') : tono === 'fuerte' ? theme.emphasys.action.primary : theme.emphasys.content.foreground,
         })}
       >
         {valor}

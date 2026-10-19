@@ -1,5 +1,6 @@
 import type { Theme } from '@mui/material/styles';
 import type { SystemStyleObject } from '@mui/system';
+import { amountSignColor } from '../../theme/sign';
 
 /**
  * Lenguaje visual de Contabilidad.
@@ -294,7 +295,7 @@ export function codigoCuentaSx(theme: Theme, afectable: boolean): SystemStyleObj
 
 export function importeSx(theme: Theme, negativo: boolean): SystemStyleObject<Theme> {
   return {
-    color: negativo ? theme.emphasys.action.destructive : 'inherit',
+    color: negativo ? amountSignColor(theme.emphasys, 'negative') : 'inherit',
     fontVariantNumeric: 'tabular-nums',
   };
 }

@@ -52,6 +52,7 @@ import {
   recalcularSaldos,
 } from '../../services/finanzasService';
 import { validarOperacionGeneral } from './capturaMovimientoLogica';
+import { amountSignColor } from '../../theme/sign';
 
 export function FinanzasPage() {
   const navigate = useNavigate();
@@ -139,9 +140,9 @@ export function FinanzasPage() {
   }, []);
   const netoSeleccionado = useMemo(() => netoSeleccion(seleccionadas), [seleccionadas]);
   const colorSeleccionado = netoSeleccionado > 0
-    ? tokens.metric.applied.foreground
+    ? amountSignColor(tokens, 'positive')
     : netoSeleccionado < 0
-      ? tokens.action.destructive
+      ? amountSignColor(tokens, 'negative')
       : tokens.action.primary;
   const cuentasDestino = useMemo(
     () => cuentas.filter((cuenta) => cuenta.id !== selectedCuentaId && !cuenta.cuenta_cerrada && cuenta.moneda === monedaCuenta),

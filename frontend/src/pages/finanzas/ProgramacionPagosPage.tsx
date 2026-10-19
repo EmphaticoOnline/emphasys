@@ -41,6 +41,7 @@ import {
 import type { ProgramacionPago } from '../../types/finanzas';
 import ProgramacionPagoDialog from '../../modules/finanzas/ProgramacionPagoDialog';
 import ProgramacionMasivaDrawer from '../../modules/finanzas/ProgramacionMasivaDrawer';
+import { overdueColor } from '../../theme/sign';
 
 type ContactoOpcion = { id: number; nombre: string; rfc?: string | null };
 
@@ -512,7 +513,7 @@ export default function ProgramacionPagosPage() {
                 </Typography>
                 <Box>
                   <Typography variant="caption" color="text.secondary">Vencido</Typography>
-                  <Typography variant="body2" fontWeight={700} sx={{ color: tokens.action.destructive }}>
+                  <Typography variant="body2" fontWeight={700} sx={{ color: overdueColor(tokens) }}>
                     {formatMXN(k.totalVencido, k.moneda)}
                   </Typography>
                 </Box>

@@ -1,0 +1,315 @@
+{
+  "source": "HEAD 09cbc52, fuentes de signo bloque b1",
+  "files": {
+    "modules/contabilidad/contabilidadVisual.ts": {
+      "headSha256": "cba9b025e3b12665f0f76f249bde1946d5155800473ad3b9acdeebd2b9b2b35d",
+      "addedImports": [
+        "import { amountSignColor } from '../../theme/sign';"
+      ],
+      "lines": {
+        "297": {
+          "original": "    color: negativo ? theme.emphasys.action.destructive : 'inherit',",
+          "migrated": "    color: negativo ? amountSignColor(theme.emphasys, 'negative') : 'inherit',",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "theme.emphasys.action.destructive",
+              "to": "amountSignColor(theme.emphasys, 'negative')",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "pages/InventarioMovimientosPage.tsx": {
+      "headSha256": "978930005ac68e8ac42066d4114204d0aa5438826ec9648ab216ad6764253e40",
+      "addedImports": [
+        "import { amountSignColor } from '../theme/sign';"
+      ],
+      "lines": {
+        "500": {
+          "original": "    ...(salida ? { '&&': { color: tokens.action.destructive } } : {}),",
+          "migrated": "    ...(salida ? { '&&': { color: amountSignColor(tokens, 'negative') } } : {}),",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "tokens.action.destructive",
+              "to": "amountSignColor(tokens, 'negative')",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "components/productos/ProductoHistorialComercial.tsx": {
+      "headSha256": "9a5a1b11c92a174961ac9bed44d20e4cb37364ff319e8b7b97ad7adb35575bd2",
+      "addedImports": [
+        "import { amountSignColor } from '../../theme/sign';"
+      ],
+      "lines": {
+        "308": {
+          "original": "          color: tono === 'negativo' ? theme.emphasys.action.destructive : theme.emphasys.action.primary,",
+          "migrated": "          color: tono === 'negativo' ? amountSignColor(theme.emphasys, 'negative') : theme.emphasys.action.primary,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "theme.emphasys.action.destructive",
+              "to": "amountSignColor(theme.emphasys, 'negative')",
+              "times": 1
+            }
+          ]
+        },
+        "407": {
+          "original": "          color: datos.esNota ? theme.emphasys.action.destructive : theme.emphasys.action.primary,",
+          "migrated": "          color: datos.esNota ? amountSignColor(theme.emphasys, 'negative') : theme.emphasys.action.primary,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "theme.emphasys.action.destructive",
+              "to": "amountSignColor(theme.emphasys, 'negative')",
+              "times": 1
+            }
+          ]
+        },
+        "474": {
+          "original": "    <Typography noWrap sx={(theme) => ({ textAlign: 'right', fontSize: 14, lineHeight: 1.15, fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: datos.esNota ? theme.emphasys.action.destructive : theme.emphasys.content.foreground })}>",
+          "migrated": "    <Typography noWrap sx={(theme) => ({ textAlign: 'right', fontSize: 14, lineHeight: 1.15, fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: datos.esNota ? amountSignColor(theme.emphasys, 'negative') : theme.emphasys.content.foreground })}>",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "theme.emphasys.action.destructive",
+              "to": "amountSignColor(theme.emphasys, 'negative')",
+              "times": 1
+            }
+          ]
+        },
+        "514": {
+          "original": "          color: tono === 'negativo' ? theme.emphasys.action.destructive : tono === 'fuerte' ? theme.emphasys.action.primary : theme.emphasys.content.foreground,",
+          "migrated": "          color: tono === 'negativo' ? amountSignColor(theme.emphasys, 'negative') : tono === 'fuerte' ? theme.emphasys.action.primary : theme.emphasys.content.foreground,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "theme.emphasys.action.destructive",
+              "to": "amountSignColor(theme.emphasys, 'negative')",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "components/productos/ProductoWorkspace.tsx": {
+      "headSha256": "19ec6db90a87a279fccfa0917cef1b8c22ff23de3531bc4037bb98c166530b0e",
+      "addedImports": [
+        "import { amountSignColor } from '../../theme/sign';"
+      ],
+      "lines": {
+        "767": {
+          "original": "                          ? (cantidad == null || cantidad === 0 ? theme.emphasys.table.muted : cantidad > 0 ? theme.emphasys.metric.applied.foreground : theme.emphasys.action.destructive)",
+          "migrated": "                          ? (cantidad == null || cantidad === 0 ? theme.emphasys.table.muted : cantidad > 0 ? amountSignColor(theme.emphasys, 'positive') : amountSignColor(theme.emphasys, 'negative'))",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "theme.emphasys.metric.applied.foreground",
+              "to": "amountSignColor(theme.emphasys, 'positive')",
+              "times": 1
+            },
+            {
+              "from": "theme.emphasys.action.destructive",
+              "to": "amountSignColor(theme.emphasys, 'negative')",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "pages/InventarioMovimientoFormPage.tsx": {
+      "headSha256": "45e834f4498abc5159cd444c7b52c0713bc31182ba89820af3402cbce10e8246",
+      "addedImports": [
+        "import { amountSignColor, inflowColor, outflowColor } from '../theme/sign';"
+      ],
+      "lines": {
+        "879": {
+          "original": "  if (tipo === 'entrada') return { bg: m.applied.background, fg: m.applied.foreground };",
+          "migrated": "  if (tipo === 'entrada') return { bg: m.applied.background, fg: inflowColor(theme.emphasys) };",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "fg: m.applied.foreground",
+              "to": "fg: inflowColor(theme.emphasys)",
+              "times": 1
+            }
+          ]
+        },
+        "880": {
+          "original": "  if (tipo === 'salida') return { bg: m.blocked.background, fg: theme.emphasys.action.destructive };",
+          "migrated": "  if (tipo === 'salida') return { bg: m.blocked.background, fg: outflowColor(theme.emphasys) };",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "theme.emphasys.action.destructive",
+              "to": "outflowColor(theme.emphasys)",
+              "times": 1
+            }
+          ]
+        },
+        "885": {
+          "original": "  if (tipo === 'entrada') return theme.emphasys.metric.applied.foreground;",
+          "migrated": "  if (tipo === 'entrada') return inflowColor(theme.emphasys);",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "theme.emphasys.metric.applied.foreground",
+              "to": "inflowColor(theme.emphasys)",
+              "times": 1
+            }
+          ]
+        },
+        "886": {
+          "original": "  if (tipo === 'salida') return theme.emphasys.action.destructive;",
+          "migrated": "  if (tipo === 'salida') return outflowColor(theme.emphasys);",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "theme.emphasys.action.destructive",
+              "to": "outflowColor(theme.emphasys)",
+              "times": 1
+            }
+          ]
+        },
+        "1497": {
+          "original": "                <Typography sx={(theme) => ({ fontSize: 13, fontWeight: 600, textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: a.unidades >= 0 ? theme.emphasys.metric.applied.foreground : theme.emphasys.action.destructive })}>",
+          "migrated": "                <Typography sx={(theme) => ({ fontSize: 13, fontWeight: 600, textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: a.unidades >= 0 ? amountSignColor(theme.emphasys, 'positive') : amountSignColor(theme.emphasys, 'negative') })}>",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "theme.emphasys.metric.applied.foreground",
+              "to": "amountSignColor(theme.emphasys, 'positive')",
+              "times": 1
+            },
+            {
+              "from": "theme.emphasys.action.destructive",
+              "to": "amountSignColor(theme.emphasys, 'negative')",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "modules/finanzas/MovimientosTable.tsx": {
+      "headSha256": "c112232de53ce32c90120d32cc73c5cb9d13b39ce12c9ab42d97d4282ef4a7ad",
+      "addedImports": [
+        "import { amountSignColor, inflowColor, outflowColor } from '../../theme/sign';"
+      ],
+      "lines": {
+        "705": {
+          "original": "            <Typography noWrap sx={{ width: '100%', textAlign: 'right', fontSize: 12.5, fontWeight: 700, color: tokens.action.destructive }}>",
+          "migrated": "            <Typography noWrap sx={{ width: '100%', textAlign: 'right', fontSize: 12.5, fontWeight: 700, color: outflowColor(tokens) }}>",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "tokens.action.destructive",
+              "to": "outflowColor(tokens)",
+              "times": 1
+            }
+          ]
+        },
+        "729": {
+          "original": "            <Typography noWrap sx={{ width: '100%', textAlign: 'right', fontSize: 12.5, fontWeight: 700, color: tokens.metric.applied.foreground }}>",
+          "migrated": "            <Typography noWrap sx={{ width: '100%', textAlign: 'right', fontSize: 12.5, fontWeight: 700, color: inflowColor(tokens) }}>",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "tokens.metric.applied.foreground",
+              "to": "inflowColor(tokens)",
+              "times": 1
+            }
+          ]
+        },
+        "859": {
+          "original": "              ? tokens.metric.applied.foreground",
+          "migrated": "              ? amountSignColor(tokens, 'positive')",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "tokens.metric.applied.foreground",
+              "to": "amountSignColor(tokens, 'positive')",
+              "times": 1
+            }
+          ]
+        },
+        "861": {
+          "original": "                ? tokens.action.destructive",
+          "migrated": "                ? amountSignColor(tokens, 'negative')",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "tokens.action.destructive",
+              "to": "amountSignColor(tokens, 'negative')",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "modules/finanzas/FinanzasPage.tsx": {
+      "headSha256": "8e71c3e836758453a5112f4f050a7000ed7190e72a368cdb74c0ee79cadec0a5",
+      "addedImports": [
+        "import { amountSignColor } from '../../theme/sign';"
+      ],
+      "lines": {
+        "142": {
+          "original": "    ? tokens.metric.applied.foreground",
+          "migrated": "    ? amountSignColor(tokens, 'positive')",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "tokens.metric.applied.foreground",
+              "to": "amountSignColor(tokens, 'positive')",
+              "times": 1
+            }
+          ]
+        },
+        "144": {
+          "original": "      ? tokens.action.destructive",
+          "migrated": "      ? amountSignColor(tokens, 'negative')",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "tokens.action.destructive",
+              "to": "amountSignColor(tokens, 'negative')",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "pages/finanzas/ProgramacionPagosPage.tsx": {
+      "headSha256": "3a75e9776114d9911aa98a6e699ac375428bafca093d42931b7c605e2f30b4db",
+      "addedImports": [
+        "import { overdueColor } from '../../theme/sign';"
+      ],
+      "lines": {
+        "515": {
+          "original": "                  <Typography variant=\"body2\" fontWeight={700} sx={{ color: tokens.action.destructive }}>",
+          "migrated": "                  <Typography variant=\"body2\" fontWeight={700} sx={{ color: overdueColor(tokens) }}>",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "tokens.action.destructive",
+              "to": "overdueColor(tokens)",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    }
+  }
+}

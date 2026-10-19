@@ -49,6 +49,7 @@ import { fetchParametrosSistema } from '../services/parametrosService';
 import { getDocumentoTypeConfig } from '../modules/documentos/documentoTypeConfig';
 import type { TipoDocumento } from '../types/documentos.types';
 import { formatearFolioDocumento } from '../utils/documentos.utils';
+import { amountSignColor } from '../theme/sign';
 
 const MESES = [
   { value: '01', label: 'Enero' },
@@ -497,7 +498,7 @@ export default function InventarioMovimientosPage() {
     fontWeight: valor != null && valor !== 0 ? 700 : 500,
     fontVariantNumeric: 'tabular-nums' as const,
     whiteSpace: 'nowrap' as const,
-    ...(salida ? { '&&': { color: tokens.action.destructive } } : {}),
+    ...(salida ? { '&&': { color: amountSignColor(tokens, 'negative') } } : {}),
   });
 
   const tonoTipo = (tipo: string) => {
