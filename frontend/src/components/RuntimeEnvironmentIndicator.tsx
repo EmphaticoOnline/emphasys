@@ -54,8 +54,8 @@ export default function RuntimeEnvironmentIndicator({ email }: { email?: string 
         fontWeight: 800,
         letterSpacing: 0.35,
         color: production ? '#fff' : warning ? environmentColors.warningText : environmentColors.defaultText,
-        backgroundColor: production ? environmentColors.productionBackground : warning ? environmentColors.warningBackground : 'rgba(255,255,255,0.16)',
-        border: production ? `1px solid ${environmentColors.productionBorder}` : warning ? `1px solid ${environmentColors.warningBorder}` : '1px solid rgba(255,255,255,0.28)',
+        backgroundColor: production ? environmentColors.productionBackground : warning ? environmentColors.warningBackground : environmentColors.defaultBackground,
+        border: production ? `1px solid ${environmentColors.productionBorder}` : warning ? `1px solid ${environmentColors.warningBorder}` : `1px solid ${environmentColors.defaultBorder}`,
         '& .MuiChip-label': { px: 1.1 },
       }}
     />

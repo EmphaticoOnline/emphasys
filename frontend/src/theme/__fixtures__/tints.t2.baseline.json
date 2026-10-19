@@ -1,0 +1,88 @@
+{
+  "source": "HEAD d256de3, tintes alfa bloque t2",
+  "files": {
+    "components/documentos/nota-credito/NotaCreditoCaptura.tsx": {
+      "headSha256": "05e7ba9474232eec85b8c90369a9333c36befd64a1e4e323a58884c6092ee1fd",
+      "addedImports": [],
+      "lines": {
+        "38": {
+          "original": "import { alertColors } from '../../../theme/functional';",
+          "migrated": "import { alertColors, alertTints } from '../../../theme/functional';",
+          "entries": [],
+          "replacements": [],
+          "importMerge": true
+        },
+        "256": {
+          "original": "                '&:hover': { color: alertColors.error[700], bgcolor: 'rgba(220, 38, 38, 0.08)' },",
+          "migrated": "                '&:hover': { color: alertColors.error[700], bgcolor: alertTints.errorHover },",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'rgba(220, 38, 38, 0.08)'",
+              "to": "alertTints.errorHover",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "modules/finanzas/AplicarSaldoNotaCreditoDialog.tsx": {
+      "headSha256": "486d7cc41f43de994a67c58e0bc1c36701020249b688697449907b5b907da13e",
+      "addedImports": [],
+      "lines": {
+        "50": {
+          "original": "import { alertColors } from '../../theme/functional';",
+          "migrated": "import { alertColors, alertTints } from '../../theme/functional';",
+          "entries": [],
+          "replacements": [],
+          "importMerge": true
+        },
+        "519": {
+          "original": "                                  '&:hover': { color: marcada ? 'primary.main' : alertColors.error[700], bgcolor: marcada ? (theme: Theme) => theme.emphasys.action.hoverTint : 'rgba(220, 38, 38, 0.08)' },",
+          "migrated": "                                  '&:hover': { color: marcada ? 'primary.main' : alertColors.error[700], bgcolor: marcada ? (theme: Theme) => theme.emphasys.action.hoverTint : alertTints.errorHover },",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'rgba(220, 38, 38, 0.08)'",
+              "to": "alertTints.errorHover",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "components/RuntimeEnvironmentIndicator.tsx": {
+      "headSha256": "e82ca16de6559467a47ac4692b6d4101a7f9890cdca2bacbcde7af97372fea04",
+      "addedImports": [],
+      "lines": {
+        "57": {
+          "original": "        backgroundColor: production ? environmentColors.productionBackground : warning ? environmentColors.warningBackground : 'rgba(255,255,255,0.16)',",
+          "migrated": "        backgroundColor: production ? environmentColors.productionBackground : warning ? environmentColors.warningBackground : environmentColors.defaultBackground,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'rgba(255,255,255,0.16)'",
+              "to": "environmentColors.defaultBackground",
+              "times": 1
+            }
+          ]
+        },
+        "58": {
+          "original": "        border: production ? `1px solid ${environmentColors.productionBorder}` : warning ? `1px solid ${environmentColors.warningBorder}` : '1px solid rgba(255,255,255,0.28)',",
+          "migrated": "        border: production ? `1px solid ${environmentColors.productionBorder}` : warning ? `1px solid ${environmentColors.warningBorder}` : `1px solid ${environmentColors.defaultBorder}`,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'1px solid rgba(255,255,255,0.28)'",
+              "to": "`1px solid ${environmentColors.defaultBorder}`",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    }
+  }
+}

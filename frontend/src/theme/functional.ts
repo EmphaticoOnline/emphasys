@@ -1,4 +1,5 @@
 import type { EmphasysTokens } from './tokens.ts';
+import { rgbaFromHex } from './color.ts';
 import { neutralColors } from './structural.ts';
 
 /**
@@ -153,6 +154,15 @@ export const alertColors = {
 } as const;
 
 /**
+ * Tintes funcionales: colores de `alertColors` con transparencia. Se derivan de
+ * su tono para seguirlo y reproducen el string que escribía el código.
+ */
+export const alertTints = {
+  /** Hover de botón destructivo (texto `alertColors.error[600]` / `[700]`). */
+  errorHover: rgbaFromHex(alertColors.error[600], '0.08'),
+} as const;
+
+/**
  * Colores contables: expresan signo o resultado, no error ni éxito. Aunque
  * algunos valores coinciden con `alertColors`, su significado es otro y se
  * mantienen separados.
@@ -247,6 +257,9 @@ export const environmentColors = {
   warningText: '#4a2b00',
   warningBorder: '#ffe08a',
   defaultText: '#e8edf7',
+  /** Fondo y borde del indicador por defecto (velo blanco sobre el cromado). */
+  defaultBackground: 'rgba(255,255,255,0.16)',
+  defaultBorder: 'rgba(255,255,255,0.28)',
 } as const;
 
 /**

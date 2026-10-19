@@ -47,7 +47,7 @@ import {
   roundMoney,
   sugerirAplicacion,
 } from './aplicarSaldoNotaCredito.logic';
-import { alertColors } from '../../theme/functional';
+import { alertColors, alertTints } from '../../theme/functional';
 import { neutralColors } from '../../theme/structural';
 
 const headSx = {
@@ -516,7 +516,7 @@ export function AplicarSaldoNotaCreditoDialog({
                                   width: 28,
                                   height: 28,
                                   color: marcada ? neutralColors.slate[600] : alertColors.error[600],
-                                  '&:hover': { color: marcada ? 'primary.main' : alertColors.error[700], bgcolor: marcada ? (theme: Theme) => theme.emphasys.action.hoverTint : 'rgba(220, 38, 38, 0.08)' },
+                                  '&:hover': { color: marcada ? 'primary.main' : alertColors.error[700], bgcolor: marcada ? (theme: Theme) => theme.emphasys.action.hoverTint : alertTints.errorHover },
                                 }}
                               >
                                 {marcada

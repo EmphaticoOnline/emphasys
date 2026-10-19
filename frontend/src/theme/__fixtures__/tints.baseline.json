@@ -65,5 +65,19 @@
       "value": "rgba(0,98,97,0.1)",
       "headOccurrences": 1
     }
+  },
+  "functional": {
+    "alertTints.errorHover": {
+      "value": "rgba(220, 38, 38, 0.08)",
+      "headOccurrences": 2
+    },
+    "environmentColors.defaultBackground": {
+      "value": "rgba(255,255,255,0.16)",
+      "headOccurrences": 2
+    },
+    "environmentColors.defaultBorder": {
+      "value": "rgba(255,255,255,0.28)",
+      "headOccurrences": 1
+    }
   }
 }

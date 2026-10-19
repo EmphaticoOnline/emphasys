@@ -35,7 +35,7 @@ import type { TratamientoImpuestos } from '../../../types/cotizacion';
 import type { Contacto } from '../../../types/contactos.types';
 import type { Concepto } from '../../../types/finanzas';
 import type { PrepararGeneracionResponse } from '../../../services/documentGenerationService';
-import { alertColors } from '../../../theme/functional';
+import { alertColors, alertTints } from '../../../theme/functional';
 import { neutralColors } from '../../../theme/structural';
 
 const MENSAJE_PARTIDAS_INCOMPATIBLES = 'Solo pueden combinarse partidas compatibles en la misma nota.';
@@ -253,7 +253,7 @@ function CeldaProducto({
                 width: 28,
                 height: 28,
                 color: alertColors.error[600],
-                '&:hover': { color: alertColors.error[700], bgcolor: 'rgba(220, 38, 38, 0.08)' },
+                '&:hover': { color: alertColors.error[700], bgcolor: alertTints.errorHover },
               }}
             >
               <RemoveCircleOutlineIcon sx={{ fontSize: 18 }} />

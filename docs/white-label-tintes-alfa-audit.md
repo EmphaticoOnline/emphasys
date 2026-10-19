@@ -272,7 +272,22 @@ Además: `tsc` (213 preexistentes), build y `git diff --check`.
 | `BuscadorMovimientos:133` | `'rgba(244,240,232,0.72)'` | `brandTints.onChromeMutedIcon` (compacto; el blanco de la misma línea queda para T3) |
 | `SeccionImagenesArchivos:37` | `'rgba(0,98,97,0.1)'` | `brandTints.accentWash` (compacto) |
 
+### 7.2 T2 — literales migrados (completado)
+
+4 reemplazos en 3 archivos, en la capa funcional:
+
+| Archivo:línea (HEAD `d256de3`) | Literal | Token |
+|---|---|---|
+| `NotaCreditoCaptura:256` | `'rgba(220, 38, 38, 0.08)'` | `alertTints.errorHover` |
+| `AplicarSaldoNotaCreditoDialog:519` | `'rgba(220, 38, 38, 0.08)'` | `alertTints.errorHover` |
+| `RuntimeEnvironmentIndicator:57` | `'rgba(255,255,255,0.16)'` | `environmentColors.defaultBackground` |
+| `RuntimeEnvironmentIndicator:58` | `'1px solid rgba(255,255,255,0.28)'` | `` `1px solid ${environmentColors.defaultBorder}` `` |
+
+- `alertTints.errorHover` = `rgbaFromHex(alertColors.error[600], '0.08')`: sigue al tono de error que acompaña, no a la marca.
+- `environmentColors.defaultBackground` / `defaultBorder` son literales con formato compacto y completan la familia del bloque 9.
+- `rgbaFromHex` pasa a `theme/color.ts`, un módulo sin marca. `brand/derived.ts` lo reexporta, así que sus importadores no cambian, y `functional.ts` lo usa sin importar la marca.
+- `rgba(255,255,255,0.16)` también aparece en `moduleTabBar:98`, con otro rol (brillo de pestaña). No se unifica: queda para T3.
+
 Pendientes:
-- T2: funcionales (4).
 - T3: estructurales (27).
 - T4: `DocumentosFormPage` (6). El verde `#007846` y el pulso sky-400 dependen de D-T3 y D-T4.
