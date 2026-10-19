@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { IconButton } from '@mui/material';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
-import { neutralColors } from '../../theme/structural';
+import { neutralColors, overlayColors } from '../../theme/structural';
 
 type GridContextMenuTriggerProps = {
   onOpen: (event: React.MouseEvent<HTMLElement>) => void;
@@ -21,7 +21,7 @@ export function GridContextMenuTrigger({ onOpen, ariaLabel = 'Abrir menú contex
         borderRadius: 1.5,
         color: neutralColors.slate[600],
         '&:hover': {
-          backgroundColor: 'rgba(15, 23, 42, 0.06)',
+          backgroundColor: overlayColors.hover.gridMenuItem,
         },
       }}
     >

@@ -1,0 +1,508 @@
+{
+  "source": "HEAD bc74ba8, tintes alfa bloque t3",
+  "files": {
+    "components/grids/standardDataGridSx.ts": {
+      "headSha256": "c02e181618ca7a8d1fe7b1e805df487c1597d0766dd29cedfaed4d36f7223e91",
+      "addedImports": [
+        "import { overlayColors } from '../../theme/structural';"
+      ],
+      "lines": {
+        "74": {
+          "original": "    color: 'rgba(255,255,255,0.25)',",
+          "migrated": "    color: overlayColors.onDark.gridHeaderSeparator,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'rgba(255,255,255,0.25)'",
+              "to": "overlayColors.onDark.gridHeaderSeparator",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "pages/OportunidadesPage.tsx": {
+      "headSha256": "4c52eac988fbe7462b11864a3949f6e9067f8e21f7acaa3246826d514f1331e0",
+      "addedImports": [],
+      "lines": {
+        "63": {
+          "original": "import { neutralColors } from '../theme/structural';",
+          "migrated": "import { neutralColors, overlayColors } from '../theme/structural';",
+          "entries": [],
+          "replacements": [],
+          "importMerge": true
+        },
+        "1914": {
+          "original": "                      color: 'rgba(255,255,255,0.25)',",
+          "migrated": "                      color: overlayColors.onDark.gridHeaderSeparator,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'rgba(255,255,255,0.25)'",
+              "to": "overlayColors.onDark.gridHeaderSeparator",
+              "times": 1
+            }
+          ]
+        },
+        "1932": {
+          "original": "                      backgroundColor: 'rgba(15, 23, 42, 0.04)',",
+          "migrated": "                      backgroundColor: overlayColors.hover.gridRow,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'rgba(15, 23, 42, 0.04)'",
+              "to": "overlayColors.hover.gridRow",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "components/documentos/OrdenCompraWorkspaceRail.tsx": {
+      "headSha256": "a662a5fe220dc0ba7fffae79e31f092ccf367c22c21c9381d2cb5bf2a3afbf31",
+      "addedImports": [
+        "import { overlayColors } from '../../theme/structural';"
+      ],
+      "lines": {
+        "440": {
+          "original": "                          '&:hover': { bgcolor: selected ? 'rgba(255,255,255,0.14)' : tokens.navigation.hover },",
+          "migrated": "                          '&:hover': { bgcolor: selected ? overlayColors.onDark.railSelectedHover : tokens.navigation.hover },",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'rgba(255,255,255,0.14)'",
+              "to": "overlayColors.onDark.railSelectedHover",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "components/documentos/recepcion/RecepcionWorkspaceRail.tsx": {
+      "headSha256": "eef0d5770eefd78bfd9e0c6f8c6cf541a5bb1b4e426b6a8e5a83c09d026777ce",
+      "addedImports": [
+        "import { overlayColors } from '../../../theme/structural';"
+      ],
+      "lines": {
+        "423": {
+          "original": "                          '&:hover': { bgcolor: selected ? 'rgba(255,255,255,0.14)' : tokens.navigation.hover },",
+          "migrated": "                          '&:hover': { bgcolor: selected ? overlayColors.onDark.railSelectedHover : tokens.navigation.hover },",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'rgba(255,255,255,0.14)'",
+              "to": "overlayColors.onDark.railSelectedHover",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "components/leads/LeadsDesktopView.tsx": {
+      "headSha256": "b7dd3bb7e5ca81c502aec419104bbbaf8f668265479e2ece7aa2dc9fbb39e5c6",
+      "addedImports": [],
+      "lines": {
+        "96": {
+          "original": "import { neutralColors } from '../../theme/structural';",
+          "migrated": "import { neutralColors, overlayColors } from '../../theme/structural';",
+          "entries": [],
+          "replacements": [],
+          "importMerge": true
+        },
+        "1861": {
+          "original": "                            <IconButton size=\"small\" onClick={(event) => { event.preventDefault(); event.stopPropagation(); setAttachmentMenu({ anchor: event.currentTarget, message: { id: message.id, tipoContenido: message.tipoContenido!, text: message.text || '', caption: message.caption, mediaUrl: message.mediaUrl } }); }} sx={{ position: 'absolute', top: 2, right: 2, color: 'white', bgcolor: 'rgba(0,0,0,.45)', '&:hover': { bgcolor: 'rgba(0,0,0,.7)' } }} aria-label=\"Acciones del archivo\"><MoreVertIcon fontSize=\"small\" /></IconButton>",
+          "migrated": "                            <IconButton size=\"small\" onClick={(event) => { event.preventDefault(); event.stopPropagation(); setAttachmentMenu({ anchor: event.currentTarget, message: { id: message.id, tipoContenido: message.tipoContenido!, text: message.text || '', caption: message.caption, mediaUrl: message.mediaUrl } }); }} sx={{ position: 'absolute', top: 2, right: 2, color: 'white', bgcolor: overlayColors.media.imageButton, '&:hover': { bgcolor: overlayColors.media.imageButtonHover } }} aria-label=\"Acciones del archivo\"><MoreVertIcon fontSize=\"small\" /></IconButton>",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'rgba(0,0,0,.45)'",
+              "to": "overlayColors.media.imageButton",
+              "times": 1
+            },
+            {
+              "from": "'rgba(0,0,0,.7)'",
+              "to": "overlayColors.media.imageButtonHover",
+              "times": 1
+            }
+          ]
+        },
+        "2012": {
+          "original": "                              borderColor: (theme) => msg.from === 'me' ? 'rgba(255,255,255,0.6)' : theme.emphasys.action.info,",
+          "migrated": "                              borderColor: (theme) => msg.from === 'me' ? overlayColors.chat.ownBubbleBorder : theme.emphasys.action.info,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'rgba(255,255,255,0.6)'",
+              "to": "overlayColors.chat.ownBubbleBorder",
+              "times": 1
+            }
+          ]
+        },
+        "2013": {
+          "original": "                              bgcolor: (theme) => msg.from === 'me' ? 'rgba(255,255,255,0.15)' : theme.emphasys.chat.reply,",
+          "migrated": "                              bgcolor: (theme) => msg.from === 'me' ? overlayColors.chat.ownBubbleSurface : theme.emphasys.chat.reply,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'rgba(255,255,255,0.15)'",
+              "to": "overlayColors.chat.ownBubbleSurface",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "components/leads/LeadsMobileView.tsx": {
+      "headSha256": "3dd1111d82ca44aa9c76ec5f36898ce186d99d82d229e6846370434cdc7d8503",
+      "addedImports": [
+        "import { overlayColors } from '../../theme/structural';"
+      ],
+      "lines": {
+        "717": {
+          "original": "              borderColor: (theme) => isMine ? 'rgba(255,255,255,0.6)' : theme.emphasys.action.info,",
+          "migrated": "              borderColor: (theme) => isMine ? overlayColors.chat.ownBubbleBorder : theme.emphasys.action.info,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'rgba(255,255,255,0.6)'",
+              "to": "overlayColors.chat.ownBubbleBorder",
+              "times": 1
+            }
+          ]
+        },
+        "718": {
+          "original": "              bgcolor: isMine ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.04)',",
+          "migrated": "              bgcolor: isMine ? overlayColors.chat.ownBubbleSurface : overlayColors.chat.otherBubbleSurface,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'rgba(255,255,255,0.15)'",
+              "to": "overlayColors.chat.ownBubbleSurface",
+              "times": 1
+            },
+            {
+              "from": "'rgba(0,0,0,0.04)'",
+              "to": "overlayColors.chat.otherBubbleSurface",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "modules/contabilidad/PolizasTab.tsx": {
+      "headSha256": "2b7691584c7aca2a9f938dcb358fe3a8ac507a44d8d6a76de5f908d23b0a9de4",
+      "addedImports": [
+        "import { overlayColors } from '../../theme/structural';"
+      ],
+      "lines": {
+        "966": {
+          "original": "          <Divider orientation=\"vertical\" flexItem sx={{ borderColor: 'rgba(255,255,255,0.2)', my: 0.5 }} />",
+          "migrated": "          <Divider orientation=\"vertical\" flexItem sx={{ borderColor: overlayColors.onDark.selectionBarDivider, my: 0.5 }} />",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'rgba(255,255,255,0.2)'",
+              "to": "overlayColors.onDark.selectionBarDivider",
+              "times": 1
+            }
+          ]
+        },
+        "987": {
+          "original": "          <Divider orientation=\"vertical\" flexItem sx={{ borderColor: 'rgba(255,255,255,0.2)', my: 0.5 }} />",
+          "migrated": "          <Divider orientation=\"vertical\" flexItem sx={{ borderColor: overlayColors.onDark.selectionBarDivider, my: 0.5 }} />",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'rgba(255,255,255,0.2)'",
+              "to": "overlayColors.onDark.selectionBarDivider",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "modules/finanzas/ProgramacionMasivaDrawer.tsx": {
+      "headSha256": "c6d00af1e35808450f39d72ed8a4860821ef9feb13df6a663f010110406941a6",
+      "addedImports": [
+        "import { overlayColors } from '../../theme/structural';"
+      ],
+      "lines": {
+        "449": {
+          "original": "            <Box sx={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'rgba(255,255,255,0.6)', zIndex: 1 }}>",
+          "migrated": "            <Box sx={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: overlayColors.veils.loading, zIndex: 1 }}>",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'rgba(255,255,255,0.6)'",
+              "to": "overlayColors.veils.loading",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "components/documentos/facturas/FacturaResumenFlotante.tsx": {
+      "headSha256": "ea5cd1aba671f9ed8023e454237df9f625f522aade7e19d973509281497742f4",
+      "addedImports": [],
+      "lines": {
+        "6": {
+          "original": "import { neutralColors } from '../../../theme/structural';",
+          "migrated": "import { neutralColors, overlayColors } from '../../../theme/structural';",
+          "entries": [],
+          "replacements": [],
+          "importMerge": true
+        },
+        "293": {
+          "original": "        <Typography sx={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', letterSpacing: '0.06em', textTransform: 'uppercase', fontWeight: 600 }}>",
+          "migrated": "        <Typography sx={{ fontSize: 11, color: overlayColors.onDark.mutedLabel, letterSpacing: '0.06em', textTransform: 'uppercase', fontWeight: 600 }}>",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'rgba(255,255,255,0.7)'",
+              "to": "overlayColors.onDark.mutedLabel",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "modules/finanzas/BuscadorMovimientos.tsx": {
+      "headSha256": "eb310ef53015bdcc6a1ff5f7295c31587d9c7df4070b94d0b8f71b82a65cd436",
+      "addedImports": [
+        "import { overlayColors } from '../../theme/structural';"
+      ],
+      "lines": {
+        "134": {
+          "original": "                sx={{ p: '1px', ml: 0.25, color: brandTints.onChromeMutedIcon, '&:hover': { color: tokens.action.primaryForeground, bgcolor: 'rgba(255,255,255,0.12)' } }}",
+          "migrated": "                sx={{ p: '1px', ml: 0.25, color: brandTints.onChromeMutedIcon, '&:hover': { color: tokens.action.primaryForeground, bgcolor: overlayColors.onDark.iconHover } }}",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'rgba(255,255,255,0.12)'",
+              "to": "overlayColors.onDark.iconHover",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "components/VersionUpdateDrawer.tsx": {
+      "headSha256": "e2de22da855bdc80aa2d2b36d6d0d09ade52f5c2154daf3c9b2288d4ed4e55b2",
+      "addedImports": [
+        "import { overlayColors } from '../theme/structural';"
+      ],
+      "lines": {
+        "53": {
+          "original": "            backgroundColor: 'rgba(255, 255, 255, 0.98)',",
+          "migrated": "            backgroundColor: overlayColors.drawer.surface,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'rgba(255, 255, 255, 0.98)'",
+              "to": "overlayColors.drawer.surface",
+              "times": 1
+            }
+          ]
+        },
+        "68": {
+          "original": "              backgroundColor: 'rgba(255,255,255,0.92)',",
+          "migrated": "              backgroundColor: overlayColors.drawer.closeButton,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'rgba(255,255,255,0.92)'",
+              "to": "overlayColors.drawer.closeButton",
+              "times": 1
+            }
+          ]
+        },
+        "69": {
+          "original": "              border: '1px solid rgba(15, 23, 42, 0.08)',",
+          "migrated": "              border: `1px solid ${overlayColors.drawer.closeButtonBorder}`,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'1px solid rgba(15, 23, 42, 0.08)'",
+              "to": "`1px solid ${overlayColors.drawer.closeButtonBorder}`",
+              "times": 1
+            }
+          ]
+        },
+        "71": {
+          "original": "              '&:hover': { backgroundColor: 'rgba(255,255,255,1)' },",
+          "migrated": "              '&:hover': { backgroundColor: overlayColors.drawer.closeButtonHover },",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'rgba(255,255,255,1)'",
+              "to": "overlayColors.drawer.closeButtonHover",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "components/layout/moduleTabBar.ts": {
+      "headSha256": "d2a4b36a37aee4ca6ee16f6716b60fb8075ab5b676b43b569850fc219cde91cf",
+      "addedImports": [
+        "import { overlayColors } from '../../theme/structural';"
+      ],
+      "lines": {
+        "98": {
+          "original": "      boxShadow: `inset 0 1px 0 rgba(255,255,255,0.16), 0 1px 2px color-mix(in srgb, ${chrome.activeSurface} 55%, transparent), 0 4px 10px color-mix(in srgb, ${chrome.activeSurface} 28%, transparent)`,",
+          "migrated": "      boxShadow: `inset 0 1px 0 ${overlayColors.onDark.tabHighlight}, 0 1px 2px color-mix(in srgb, ${chrome.activeSurface} 55%, transparent), 0 4px 10px color-mix(in srgb, ${chrome.activeSurface} 28%, transparent)`,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "rgba(255,255,255,0.16)",
+              "to": "${overlayColors.onDark.tabHighlight}",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "components/produccion/ProduccionDetalleDrawer.tsx": {
+      "headSha256": "8375fc5c030dbcb0e63f0998da7a24f64e0ea0848050df9ac3dfd8feb657743b",
+      "addedImports": [],
+      "lines": {
+        "26": {
+          "original": "import { neutralColors } from '../../theme/structural';",
+          "migrated": "import { neutralColors, overlayColors } from '../../theme/structural';",
+          "entries": [],
+          "replacements": [],
+          "importMerge": true
+        },
+        "159": {
+          "original": "                backgroundColor: 'rgba(0,0,0,0.55)',",
+          "migrated": "                backgroundColor: overlayColors.media.imageBadge,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'rgba(0,0,0,0.55)'",
+              "to": "overlayColors.media.imageBadge",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "components/documentos/TratamientoFiscalControl.tsx": {
+      "headSha256": "ac3622ff4178e5cfc48cae2445ef9ddf7922758a66653fe05cd10c8f1994bcb0",
+      "addedImports": [],
+      "lines": {
+        "5": {
+          "original": "import { neutralColors } from '../../theme/structural';",
+          "migrated": "import { neutralColors, overlayColors } from '../../theme/structural';",
+          "entries": [],
+          "replacements": [],
+          "importMerge": true
+        },
+        "36": {
+          "original": "      {mostrarEtiqueta && <Typography sx={{ fontSize: 9.5, color: 'rgba(0,0,0,0.6)', pl: 0.25, lineHeight: 1 }}>Tratamiento</Typography>}",
+          "migrated": "      {mostrarEtiqueta && <Typography sx={{ fontSize: 9.5, color: overlayColors.text.fieldCaption, pl: 0.25, lineHeight: 1 }}>Tratamiento</Typography>}",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'rgba(0,0,0,0.6)'",
+              "to": "overlayColors.text.fieldCaption",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "components/grids/GridContextMenu.tsx": {
+      "headSha256": "b57025cea14b8a042c99ef963043618fa3c03288c1d5ffed81c261e63f40ef17",
+      "addedImports": [],
+      "lines": {
+        "5": {
+          "original": "import { neutralColors } from '../../theme/structural';",
+          "migrated": "import { neutralColors, overlayColors } from '../../theme/structural';",
+          "entries": [],
+          "replacements": [],
+          "importMerge": true
+        },
+        "91": {
+          "original": "                backgroundColor: 'rgba(15, 23, 42, 0.06)',",
+          "migrated": "                backgroundColor: overlayColors.hover.gridMenuItem,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'rgba(15, 23, 42, 0.06)'",
+              "to": "overlayColors.hover.gridMenuItem",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "components/grids/GridContextMenuTrigger.tsx": {
+      "headSha256": "148bace9269d5a699426573d6ee8772b7d3bedcd9d9a38c723e4220398a420aa",
+      "addedImports": [],
+      "lines": {
+        "4": {
+          "original": "import { neutralColors } from '../../theme/structural';",
+          "migrated": "import { neutralColors, overlayColors } from '../../theme/structural';",
+          "entries": [],
+          "replacements": [],
+          "importMerge": true
+        },
+        "24": {
+          "original": "          backgroundColor: 'rgba(15, 23, 42, 0.06)',",
+          "migrated": "          backgroundColor: overlayColors.hover.gridMenuItem,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'rgba(15, 23, 42, 0.06)'",
+              "to": "overlayColors.hover.gridMenuItem",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "components/documentos/DocumentosDesktopView.tsx": {
+      "headSha256": "3c50ab11a3ef8c805fb066814af6b2b9cfb14904ca8c3e6af5cc23cc7c6aa15e",
+      "addedImports": [],
+      "lines": {
+        "17": {
+          "original": "import { neutralColors } from '../../theme/structural';",
+          "migrated": "import { neutralColors, overlayColors } from '../../theme/structural';",
+          "entries": [],
+          "replacements": [],
+          "importMerge": true
+        },
+        "328": {
+          "original": "                      '0%': { backgroundColor: 'rgba(56, 189, 248, 0.24)' },",
+          "migrated": "                      '0%': { backgroundColor: overlayColors.pulse.recentStart },",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'rgba(56, 189, 248, 0.24)'",
+              "to": "overlayColors.pulse.recentStart",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    }
+  }
+}

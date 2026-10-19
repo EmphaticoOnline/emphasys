@@ -2,7 +2,7 @@ import * as React from 'react';
 import { Box, Divider, ListItemIcon, Menu, MenuItem, Typography } from '@mui/material';
 import type { GridContextMenuPosition } from '../../hooks/useGridContextMenu';
 import { alertColors } from '../../theme/functional';
-import { neutralColors } from '../../theme/structural';
+import { neutralColors, overlayColors } from '../../theme/structural';
 import { elevation } from '../../theme/elevation';
 
 type GridContextMenuActionBase = {
@@ -88,7 +88,7 @@ export function GridContextMenu({ actions, anchorPosition, open, onClose }: Grid
               fontWeight: 500,
               color: neutralColors.gray[900],
               '&:hover': {
-                backgroundColor: 'rgba(15, 23, 42, 0.06)',
+                backgroundColor: overlayColors.hover.gridMenuItem,
               },
             },
           },

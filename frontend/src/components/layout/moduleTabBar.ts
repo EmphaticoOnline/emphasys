@@ -1,5 +1,6 @@
 import type { SxProps, Theme } from '@mui/material/styles';
 import { experimentalTokens, MAIN_NAV_TYPE } from '../../theme/tokens';
+import { overlayColors } from '../../theme/structural';
 
 /**
  * Cromado aprobado en Ventas. Compras y CRM leen estas mismas piezas
@@ -95,7 +96,7 @@ export function moduleTabBarSx(): SxProps<Theme> {
       opacity: 1,
       backgroundColor: chrome.activeSurface,
       borderColor: chrome.activeSurface,
-      boxShadow: `inset 0 1px 0 rgba(255,255,255,0.16), 0 1px 2px color-mix(in srgb, ${chrome.activeSurface} 55%, transparent), 0 4px 10px color-mix(in srgb, ${chrome.activeSurface} 28%, transparent)`,
+      boxShadow: `inset 0 1px 0 ${overlayColors.onDark.tabHighlight}, 0 1px 2px color-mix(in srgb, ${chrome.activeSurface} 55%, transparent), 0 4px 10px color-mix(in srgb, ${chrome.activeSurface} 28%, transparent)`,
     },
     '&& .MuiTab-root.Mui-selected:hover': {
       color: chrome.activeInk,

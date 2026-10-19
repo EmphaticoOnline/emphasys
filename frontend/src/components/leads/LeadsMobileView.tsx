@@ -86,6 +86,7 @@ import type {
 } from '../../pages/LeadsPage';
 import type { NavigateFunction } from 'react-router-dom';
 import { thirdPartyColors } from '../../theme/functional';
+import { overlayColors } from '../../theme/structural';
 
 // SidebarLayout (mobile) envuelve el <Outlet/> en un Box con mt del AppBar
 // pero SIN height propio, así que un simple height: '100%' aquí no tiene
@@ -714,8 +715,8 @@ function MessageBubble({
             }}
             sx={{
               borderLeft: '3px solid',
-              borderColor: (theme) => isMine ? 'rgba(255,255,255,0.6)' : theme.emphasys.action.info,
-              bgcolor: isMine ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.04)',
+              borderColor: (theme) => isMine ? overlayColors.chat.ownBubbleBorder : theme.emphasys.action.info,
+              bgcolor: isMine ? overlayColors.chat.ownBubbleSurface : overlayColors.chat.otherBubbleSurface,
               borderRadius: 1,
               px: 1,
               py: 0.5,

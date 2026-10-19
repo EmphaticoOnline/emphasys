@@ -15,6 +15,7 @@ import {
 } from './buscadorMovimientosLogica';
 import { brandElevation } from '../../theme/elevation';
 import { brandTints } from '../../theme/tints';
+import { overlayColors } from '../../theme/structural';
 
 type Props = {
   operaciones: FinanzasOperacion[];
@@ -131,7 +132,7 @@ export function BuscadorMovimientos({ operaciones, query, setQuery, filtros, set
                 size="small"
                 aria-label={`Quitar filtro ${texto}`}
                 onClick={() => setFiltros(filtros.filter((_, i) => i !== index))}
-                sx={{ p: '1px', ml: 0.25, color: brandTints.onChromeMutedIcon, '&:hover': { color: tokens.action.primaryForeground, bgcolor: 'rgba(255,255,255,0.12)' } }}
+                sx={{ p: '1px', ml: 0.25, color: brandTints.onChromeMutedIcon, '&:hover': { color: tokens.action.primaryForeground, bgcolor: overlayColors.onDark.iconHover } }}
               >
                 <CloseIcon sx={{ fontSize: 11 }} />
               </IconButton>

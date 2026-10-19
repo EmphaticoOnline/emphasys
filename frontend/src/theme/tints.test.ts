@@ -7,6 +7,7 @@ import { rgbaFromHex as neutralRgbaFromHex } from './color.ts';
 import { emphasysBrand } from './brand/emphasys.ts';
 import type { BrandDefinition } from './brand/types.ts';
 import { alertColors, alertTints, environmentColors } from './functional.ts';
+import { overlayColors } from './structural.ts';
 import { brandTints, buildBrandTints, type BrandTints } from './tints.ts';
 import {
   LATER_FIXTURES,
@@ -25,6 +26,8 @@ const baseline = JSON.parse(readText('./__fixtures__/tints.baseline.json')) as {
   brand: Record<string, { value: string; headOccurrences: number }>;
   /** Tintes funcionales (T2), por token completo. */
   functional: Record<string, { value: string; headOccurrences: number }>;
+  /** Velos y tintes estructurales (T3), por token completo. */
+  structural: Record<string, { value: string; headOccurrences: number }>;
 };
 
 type Replacement = { from: string; to: string; times: number };
@@ -53,6 +56,7 @@ const BLOCK_SCOPE: Record<string, { tokens: (token: string) => boolean; total: n
     tokens: (token) => ['alertTints.errorHover', 'environmentColors.defaultBackground', 'environmentColors.defaultBorder'].includes(token),
     total: 4,
   },
+  'tints.t3.baseline.json': { tokens: (token) => token.startsWith('overlayColors.'), total: 27 },
 };
 
 /** Familia de marca de la que deriva cada tinte. */
@@ -82,21 +86,31 @@ const tokenValues = (brand: BrandTints = brandTints): TokenValues => ({
   'alertTints.errorHover': alertTints.errorHover,
   'environmentColors.defaultBackground': environmentColors.defaultBackground,
   'environmentColors.defaultBorder': environmentColors.defaultBorder,
+  ...Object.fromEntries(
+    Object.entries(overlayColors).flatMap(([group, values]) =>
+      Object.entries(values).map(([key, value]) => [`overlayColors.${group}.${key}`, value]),
+    ),
+  ),
 });
 const brandKey = (token: string) => (token.startsWith('brandTints.') ? (token.slice('brandTints.'.length) as keyof BrandTints) : null);
 
 /**
- * Reemplazo → texto original, con los valores dados: `brandTints.x` vuelve a
- * `'<valor>'` y `` `1px solid ${brandTints.x}` `` vuelve a `'1px solid <valor>'`.
+ * Reemplazo → texto original, con los valores dados:
+ * - `brandTints.x` vuelve a `'<valor>'`;
+ * - `` `1px solid ${brandTints.x}` `` vuelve a `'1px solid <valor>'`;
+ * - `${overlayColors.g.x}` (dentro de una plantilla que ya existía) vuelve a `<valor>`.
  */
-const tokenOf = (to: string) => /(?:brandTints|alertTints|environmentColors)\.\w+/.exec(to)![0];
+const tokenOf = (to: string) => /overlayColors\.\w+\.\w+|(?:brandTints|alertTints|environmentColors)\.\w+/.exec(to)![0];
 const sourceOf = (to: string, values: TokenValues) => {
   const token = tokenOf(to);
   if (!(token in values)) throw new Error(`Token de tinte desconocido: ${token}`);
+  if (to === `\${${token}}`) return values[token]!;
   return to.startsWith('`') ? `'${to.slice(1, -1).replace(`\${${token}}`, values[token]!)}'` : `'${values[token]}'`;
 };
+/** Reemplaza `to` solo como identificador completo: `media.imageButton` no toca `media.imageButtonHover`. */
+const escapeRegExp = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const restoreLine = (migrated: string, replacements: Replacement[], values: TokenValues) =>
-  replacements.reduce((line, { to }) => line.split(to).join(sourceOf(to, values)), migrated);
+  replacements.reduce((line, { to }) => line.replace(new RegExp(`${escapeRegExp(to)}(?!\\w)`, 'g'), () => sourceOf(to, values)), migrated);
 const restoredSha = (name: string, file: string, entry: TintFileFixture, values: TokenValues) => {
   const lines = Object.fromEntries(
     Object.entries(entry.lines).map(([n, line]) => [n, line.importMerge ? line : { ...line, original: restoreLine(line.migrated, line.replacements, values) }]),
@@ -144,6 +158,20 @@ test('paridad T2: los tintes funcionales reproducen el literal de HEAD y no depe
   assert.equal(neutralRgbaFromHex, rgbaFromHex);
   assert.ok(!/from '\.\/brand\//.test(readText('./functional.ts')));
   assert.ok(!/from '\.\/brand\//.test(readText('./color.ts')) && !/from '\.\/brand|from '\.\.\/brand/.test(readText('./color.ts')));
+});
+
+test('paridad T3: los velos estructurales reproducen el literal de HEAD con su formato y no dependen de la marca', () => {
+  const values = tokenValues();
+  const structuralTokens = Object.keys(values).filter((token) => token.startsWith('overlayColors.'));
+  assert.deepEqual(structuralTokens.sort(), Object.keys(baseline.structural).sort());
+  for (const [token, { value, headOccurrences }] of Object.entries(baseline.structural)) {
+    assert.equal(values[token], value, token);
+    assert.ok(headOccurrences > 0, `${token} debe venir de un literal real`);
+  }
+  assert.ok(!/from '\.\/brand\//.test(readText('./structural.ts')), 'structural.ts no debe importar la marca');
+  // Mismo valor, roles distintos: tokens separados.
+  assert.equal(overlayColors.chat.ownBubbleBorder, overlayColors.veils.loading);
+  assert.equal(overlayColors.onDark.tabHighlight, environmentColors.defaultBackground);
 });
 
 test('sin unificación: los valores repetidos son roles distintos declarados', () => {
@@ -202,7 +230,7 @@ test('transformación: cada línea es su original con los reemplazos declarados,
       const [, before, mod] = names(original);
       const [, after, modAfter] = names(migrated);
       assert.equal(modAfter, mod, `${name} ${file}:${n}`);
-      assert.match(mod!, /theme\/functional$/);
+      assert.match(mod!, /theme\/(functional|structural)$/);
       for (const x of before!.split(', ')) assert.ok(after!.split(', ').includes(x), `${name} ${file}:${n} perdió ${x}`);
       continue;
     }
@@ -300,6 +328,13 @@ test('cierre: no quedan tintes de marca ni funcionales de T1–T2 escritos a man
   // T2: el hover destructivo y el borde del entorno ya no aparecen escritos a mano.
   assert.deepEqual(occurrences(alertTints.errorHover), []);
   assert.deepEqual(occurrences(environmentColors.defaultBorder), []);
-  // Mismo valor que el fondo del entorno, otro rol (brillo de pestaña): queda para T3.
-  assert.deepEqual(occurrences(environmentColors.defaultBackground), ['components/layout/moduleTabBar.ts']);
+  // Mismo valor que el fondo del entorno, otro rol (brillo de pestaña): migrado en T3.
+  assert.deepEqual(occurrences(environmentColors.defaultBackground), []);
+  // T3: ningún velo estructural queda escrito a mano, salvo en `DocumentosFormPage` (T4).
+  for (const [token, value] of Object.entries(tokenValues()).filter(([token]) => token.startsWith('overlayColors.'))) {
+    const left = occurrences(value).filter((file) => file !== 'pages/DocumentosFormPage.tsx' && !legacy.includes(file));
+    assert.deepEqual(left, [], token);
+  }
+  // D-T3: la franja verde `#007846` de Oportunidades queda literal, como pendiente de diseño.
+  assert.deepEqual(occurrences('rgba(0, 120, 70, 0.05)'), ['pages/OportunidadesPage.tsx']);
 });

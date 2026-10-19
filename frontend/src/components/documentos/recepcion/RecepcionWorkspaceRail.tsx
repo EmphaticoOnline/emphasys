@@ -31,6 +31,7 @@ import type { StatusTone } from '../../status/status.types';
 import { WorkspaceRowContextMenu } from '../WorkspaceRowContextMenu';
 import { PopoverFiltroFacturas } from '../facturas/FacturasWorkspaceView';
 import { elevation } from '../../../theme/elevation';
+import { overlayColors } from '../../../theme/structural';
 
 type StatusOption = { value: string; label: string; color?: string; textColor?: string };
 type FiltroLista = {
@@ -420,7 +421,7 @@ export default function RecepcionWorkspaceRail({
                           height: 28,
                           p: 0.25,
                           color: 'inherit',
-                          '&:hover': { bgcolor: selected ? 'rgba(255,255,255,0.14)' : tokens.navigation.hover },
+                          '&:hover': { bgcolor: selected ? overlayColors.onDark.railSelectedHover : tokens.navigation.hover },
                         }}
                       >
                         <MoreVertIcon sx={{ fontSize: 18 }} />

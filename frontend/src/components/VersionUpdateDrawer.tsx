@@ -10,6 +10,7 @@ import UpdateIcon from '@mui/icons-material/SystemUpdateAlt';
 import { activeBrand } from '../theme/brand/active';
 import { brandGradients, elevation } from '../theme/elevation';
 import { brandTints } from '../theme/tints';
+import { overlayColors } from '../theme/structural';
 type VersionUpdateDrawerProps = {
   open: boolean;
   version: string | null;
@@ -50,7 +51,7 @@ export default function VersionUpdateDrawer({ open, version, onClose, onUpdateNo
             borderRadius: 4,
             overflow: 'hidden',
             border: `1px solid ${brandTints.drawerBorder}`,
-            backgroundColor: 'rgba(255, 255, 255, 0.98)',
+            backgroundColor: overlayColors.drawer.surface,
             boxShadow: elevation.drawer,
             backdropFilter: 'blur(12px)',
           }}
@@ -65,10 +66,10 @@ export default function VersionUpdateDrawer({ open, version, onClose, onUpdateNo
               right: 10,
               zIndex: 1,
               color: 'text.secondary',
-              backgroundColor: 'rgba(255,255,255,0.92)',
-              border: '1px solid rgba(15, 23, 42, 0.08)',
+              backgroundColor: overlayColors.drawer.closeButton,
+              border: `1px solid ${overlayColors.drawer.closeButtonBorder}`,
               boxShadow: elevation.drawerButton,
-              '&:hover': { backgroundColor: 'rgba(255,255,255,1)' },
+              '&:hover': { backgroundColor: overlayColors.drawer.closeButtonHover },
             }}
           >
             <CloseIcon fontSize="small" />

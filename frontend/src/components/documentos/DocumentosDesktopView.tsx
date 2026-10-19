@@ -14,7 +14,7 @@ import {
 } from '../grids/standardDataGridSx';
 import { catalogoOutlinedButtonSx, catalogoPrimaryButtonSx, catalogoSearchSx } from '../catalogo/catalogoSurfaces';
 import type { DocumentosDesktopViewProps } from './DocumentosView.types';
-import { neutralColors } from '../../theme/structural';
+import { neutralColors, overlayColors } from '../../theme/structural';
 import { activeBrand } from '../../theme/brand/active';
 import { brandTints } from '../../theme/tints';
 
@@ -325,7 +325,7 @@ export default function DocumentosDesktopView({
                       animation: 'documentoFocusPulse 2.4s ease-out 1',
                     },
                     '@keyframes documentoFocusPulse': {
-                      '0%': { backgroundColor: 'rgba(56, 189, 248, 0.24)' },
+                      '0%': { backgroundColor: overlayColors.pulse.recentStart },
                       '100%': { backgroundColor: brandTints.focusPulseEnd },
                     },
                   },

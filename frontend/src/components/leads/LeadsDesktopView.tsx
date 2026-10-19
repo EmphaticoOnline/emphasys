@@ -93,7 +93,7 @@ import type {
 } from '../../pages/LeadsPage';
 import TemperaturaScoreButton from './TemperaturaScoreButton';
 import { thirdPartyColors } from '../../theme/functional';
-import { neutralColors } from '../../theme/structural';
+import { neutralColors, overlayColors } from '../../theme/structural';
 
 // Vista de escritorio del módulo de Leads/conversaciones de WhatsApp.
 // LeadsPage.tsx sigue siendo dueño de todo el estado y la lógica de negocio
@@ -1858,7 +1858,7 @@ export default function LeadsDesktopView(props: LeadsDesktopViewProps) {
                           <Box key={message.id} component="a" href={message.mediaUrl ?? undefined} target="_blank" rel="noopener noreferrer" sx={{ position: 'relative', width: 120, height: 100, bgcolor: 'action.hover', borderRadius: 1, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', textDecoration: 'none' }}>
                             {message.tipoContenido === 'image' && message.mediaUrl ? <Box component="img" src={message.mediaUrl} alt={filename} sx={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : message.tipoContenido === 'video' && message.mediaUrl ? <Box component="video" src={message.mediaUrl} muted sx={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <Typography variant="caption">{filename}</Typography>}
                             {message.tipoContenido === 'video' && <VideoLibraryIcon sx={{ position: 'absolute', right: 4, bottom: 4, color: 'white', filter: 'drop-shadow(0 1px 2px black)' }} />}
-                            <IconButton size="small" onClick={(event) => { event.preventDefault(); event.stopPropagation(); setAttachmentMenu({ anchor: event.currentTarget, message: { id: message.id, tipoContenido: message.tipoContenido!, text: message.text || '', caption: message.caption, mediaUrl: message.mediaUrl } }); }} sx={{ position: 'absolute', top: 2, right: 2, color: 'white', bgcolor: 'rgba(0,0,0,.45)', '&:hover': { bgcolor: 'rgba(0,0,0,.7)' } }} aria-label="Acciones del archivo"><MoreVertIcon fontSize="small" /></IconButton>
+                            <IconButton size="small" onClick={(event) => { event.preventDefault(); event.stopPropagation(); setAttachmentMenu({ anchor: event.currentTarget, message: { id: message.id, tipoContenido: message.tipoContenido!, text: message.text || '', caption: message.caption, mediaUrl: message.mediaUrl } }); }} sx={{ position: 'absolute', top: 2, right: 2, color: 'white', bgcolor: overlayColors.media.imageButton, '&:hover': { bgcolor: overlayColors.media.imageButtonHover } }} aria-label="Acciones del archivo"><MoreVertIcon fontSize="small" /></IconButton>
                           </Box>
                         ))}
                       </Stack>
@@ -2009,8 +2009,8 @@ export default function LeadsDesktopView(props: LeadsDesktopViewProps) {
                             }}
                             sx={{
                               borderLeft: '3px solid',
-                              borderColor: (theme) => msg.from === 'me' ? 'rgba(255,255,255,0.6)' : theme.emphasys.action.info,
-                              bgcolor: (theme) => msg.from === 'me' ? 'rgba(255,255,255,0.15)' : theme.emphasys.chat.reply,
+                              borderColor: (theme) => msg.from === 'me' ? overlayColors.chat.ownBubbleBorder : theme.emphasys.action.info,
+                              bgcolor: (theme) => msg.from === 'me' ? overlayColors.chat.ownBubbleSurface : theme.emphasys.chat.reply,
                               borderRadius: 0.75,
                               px: 1,
                               py: 0.5,

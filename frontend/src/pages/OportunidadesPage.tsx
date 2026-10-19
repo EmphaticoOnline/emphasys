@@ -60,7 +60,7 @@ import { useSeguimientoActividades } from '../hooks/useSeguimientoActividades';
 import ActividadSeguimientoDrawer from '../components/crm/ActividadSeguimientoDrawer';
 import { SeguimientoActividadCell } from '../components/crm/SeguimientoActividadCell';
 import { alertColors, opportunityBucketColors } from '../theme/functional';
-import { neutralColors } from '../theme/structural';
+import { neutralColors, overlayColors } from '../theme/structural';
 import { activeBrand } from '../theme/brand/active';
 import { brandElevation, elevation, surfaceGradients } from '../theme/elevation';
 import { brandTints } from '../theme/tints';
@@ -1911,7 +1911,7 @@ export default function OportunidadesPage() {
                       color: '#ffffff',
                     },
                     '& .MuiDataGrid-columnSeparator': {
-                      color: 'rgba(255,255,255,0.25)',
+                      color: overlayColors.onDark.gridHeaderSeparator,
                     },
                     '& .MuiDataGrid-cell': {
                       fontSize: 14.5,
@@ -1929,7 +1929,7 @@ export default function OportunidadesPage() {
                       backgroundColor: 'rgba(0, 120, 70, 0.05)',
                     },
                     '& .MuiDataGrid-row:hover': {
-                      backgroundColor: 'rgba(15, 23, 42, 0.04)',
+                      backgroundColor: overlayColors.hover.gridRow,
                     },
                     '& .MuiDataGrid-row.Mui-selected': {
                       backgroundColor: brandTints.gridRowSelected,

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Box, ButtonBase, Menu, MenuItem, Tooltip, Typography } from '@mui/material';
 import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown';
 import type { TratamientoImpuestos } from '../../types/cotizacion';
-import { neutralColors } from '../../theme/structural';
+import { neutralColors, overlayColors } from '../../theme/structural';
 import { activeBrand } from '../../theme/brand/active';
 
 export const TRATAMIENTO_OPCIONES: { label: string; value: TratamientoImpuestos }[] = [
@@ -33,7 +33,7 @@ export default function TratamientoFiscalControl({ value, onChange, disabled = f
 
   return (
     <Box sx={{ flex: '0 0 auto', display: 'flex', flexDirection: 'column', gap: mostrarEtiqueta ? 0.3 : 0 }}>
-      {mostrarEtiqueta && <Typography sx={{ fontSize: 9.5, color: 'rgba(0,0,0,0.6)', pl: 0.25, lineHeight: 1 }}>Tratamiento</Typography>}
+      {mostrarEtiqueta && <Typography sx={{ fontSize: 9.5, color: overlayColors.text.fieldCaption, pl: 0.25, lineHeight: 1 }}>Tratamiento</Typography>}
       <Box sx={{ height: 34, display: 'flex', alignItems: 'center' }}>
         <Tooltip title={etiqueta}>
           <span>

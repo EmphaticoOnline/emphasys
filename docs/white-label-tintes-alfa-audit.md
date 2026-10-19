@@ -288,6 +288,33 @@ Además: `tsc` (213 preexistentes), build y `git diff --check`.
 - `rgbaFromHex` pasa a `theme/color.ts`, un módulo sin marca. `brand/derived.ts` lo reexporta, así que sus importadores no cambian, y `functional.ts` lo usa sin importar la marca.
 - `rgba(255,255,255,0.16)` también aparece en `moduleTabBar:98`, con otro rol (brillo de pestaña). No se unifica: queda para T3.
 
-Pendientes:
-- T3: estructurales (27).
-- T4: `DocumentosFormPage` (6). El verde `#007846` y el pulso sky-400 dependen de D-T3 y D-T4.
+### 7.3 T3 — literales migrados (completado)
+
+- **D-T4:** el inicio del pulso (sky-400) queda estructural y fijo.
+- **D-T3:** la franja verde `rgba(0, 120, 70, 0.05)` de `OportunidadesPage` queda literal, como pendiente de diseño. Una prueba la fija.
+
+`overlayColors` en `structural.ts`: 21 tokens con valores fijos, sin marca. 27 reemplazos en 17 archivos:
+
+| Token | Literal | Usos |
+|---|---|---|
+| `onDark.gridHeaderSeparator` | `rgba(255,255,255,0.25)` | `standardDataGridSx`, `OportunidadesPage` |
+| `onDark.railSelectedHover` | `rgba(255,255,255,0.14)` | `OrdenCompraWorkspaceRail`, `RecepcionWorkspaceRail` |
+| `onDark.selectionBarDivider` | `rgba(255,255,255,0.2)` | `PolizasTab` ×2 |
+| `onDark.mutedLabel` | `rgba(255,255,255,0.7)` | `FacturaResumenFlotante` (el de `DocumentosFormPage` va en T4) |
+| `onDark.iconHover` | `rgba(255,255,255,0.12)` | `BuscadorMovimientos` |
+| `onDark.tabHighlight` | `rgba(255,255,255,0.16)` | `moduleTabBar`, dentro de la plantilla existente (`${…}`); el `color-mix` no cambia |
+| `chat.ownBubbleBorder` | `rgba(255,255,255,0.6)` | `LeadsDesktopView`, `LeadsMobileView` |
+| `chat.ownBubbleSurface` | `rgba(255,255,255,0.15)` | `LeadsDesktopView`, `LeadsMobileView` |
+| `chat.otherBubbleSurface` | `rgba(0,0,0,0.04)` | `LeadsMobileView` |
+| `media.imageButton` / `imageButtonHover` | `rgba(0,0,0,.45)` / `rgba(0,0,0,.7)` (alfa abreviada) | `LeadsDesktopView` |
+| `media.imageBadge` | `rgba(0,0,0,0.55)` | `ProduccionDetalleDrawer` |
+| `veils.loading` | `rgba(255,255,255,0.6)` | `ProgramacionMasivaDrawer` (mismo valor que el borde de chat, otro rol) |
+| `drawer.surface`, `closeButton`, `closeButtonHover` | `rgba(255, 255, 255, 0.98)`, `rgba(255,255,255,0.92)`, `rgba(255,255,255,1)` | `VersionUpdateDrawer` |
+| `drawer.closeButtonBorder` | `1px solid rgba(15, 23, 42, 0.08)` → `` `1px solid ${…}` `` | `VersionUpdateDrawer` |
+| `hover.gridMenuItem` | `rgba(15, 23, 42, 0.06)` | `GridContextMenu`, `GridContextMenuTrigger` |
+| `hover.gridRow` | `rgba(15, 23, 42, 0.04)` | `OportunidadesPage` |
+| `text.fieldCaption` | `rgba(0,0,0,0.6)` | `TratamientoFiscalControl` (no se lee de `palette.text.secondary`) |
+| `pulse.recentStart` | `rgba(56, 189, 248, 0.24)` | `DocumentosDesktopView` |
+
+Pendiente:
+- T4: `DocumentosFormPage` (6).

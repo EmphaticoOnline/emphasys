@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Box, CircularProgress, IconButton, Stack, Tooltip, Typography } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import CheckIcon from '@mui/icons-material/Check';
-import { neutralColors } from '../../../theme/structural';
+import { neutralColors, overlayColors } from '../../../theme/structural';
 import { activeBrand } from '../../../theme/brand/active';
 import { elevation } from '../../../theme/elevation';
 import { brandTints } from '../../../theme/tints';
@@ -290,7 +290,7 @@ export default function FacturaResumenFlotante({
       </Stack>
 
       <Box sx={{ bgcolor: activeBrand.colors.blue.base, px: 1.5, py: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-        <Typography sx={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', letterSpacing: '0.06em', textTransform: 'uppercase', fontWeight: 600 }}>
+        <Typography sx={{ fontSize: 11, color: overlayColors.onDark.mutedLabel, letterSpacing: '0.06em', textTransform: 'uppercase', fontWeight: 600 }}>
           Total
         </Typography>
         <Typography sx={{ fontSize: 17, color: '#fff', fontWeight: 700, fontFamily: 'monospace', fontVariantNumeric: 'tabular-nums' }}>

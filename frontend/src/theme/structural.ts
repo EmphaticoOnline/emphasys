@@ -115,3 +115,70 @@ export const selectionColors = {
   /** Foco y selección de la zona de adjuntos del formulario de documentos (azul 800 de MUI). */
   attachmentFocus: '#1565c0',
 } as const;
+
+/**
+ * Velos y tintes estructurales: blanco, negro, slate-900 y sky-400 con
+ * transparencia. No representan identidad y no cambian con la marca. Ver
+ * docs/white-label-tintes-alfa-audit.md (bloque T3).
+ *
+ * Cada token es el literal exacto que reemplaza, con su formato (con o sin
+ * espacios, alfa abreviada `.45`, alfa `1`). Solo comparten token los usos
+ * con el mismo valor y el mismo rol; valores iguales con roles distintos son
+ * tokens separados (por ejemplo `chat.ownBubbleBorder` y `veils.loading`).
+ */
+export const overlayColors = {
+  /** Sobre superficies oscuras (encabezados de grid, rail, barras, cromado). */
+  onDark: {
+    /** Separador de columna en encabezado oscuro de grid. */
+    gridHeaderSeparator: 'rgba(255,255,255,0.25)',
+    /** Hover de ítem seleccionado en el rail. */
+    railSelectedHover: 'rgba(255,255,255,0.14)',
+    /** Divisor de la barra de selección múltiple. */
+    selectionBarDivider: 'rgba(255,255,255,0.2)',
+    /** Etiqueta atenuada sobre encabezado azul. */
+    mutedLabel: 'rgba(255,255,255,0.7)',
+    /** Hover de icono sobre grafito. */
+    iconHover: 'rgba(255,255,255,0.12)',
+    /** Brillo interior de la pestaña activa del módulo. */
+    tabHighlight: 'rgba(255,255,255,0.16)',
+  },
+  /** Burbujas del chat de leads. */
+  chat: {
+    ownBubbleBorder: 'rgba(255,255,255,0.6)',
+    ownBubbleSurface: 'rgba(255,255,255,0.15)',
+    otherBubbleSurface: 'rgba(0,0,0,0.04)',
+  },
+  /** Controles sobre imágenes. */
+  media: {
+    /** Botón sobre adjunto de imagen, y su hover (alfa abreviada). */
+    imageButton: 'rgba(0,0,0,.45)',
+    imageButtonHover: 'rgba(0,0,0,.7)',
+    /** Insignia sobre imagen. */
+    imageBadge: 'rgba(0,0,0,0.55)',
+  },
+  veils: {
+    /** Velo de carga sobre una tabla. */
+    loading: 'rgba(255,255,255,0.6)',
+  },
+  /** Drawer de actualización de versión. */
+  drawer: {
+    surface: 'rgba(255, 255, 255, 0.98)',
+    closeButton: 'rgba(255,255,255,0.92)',
+    closeButtonHover: 'rgba(255,255,255,1)',
+    closeButtonBorder: 'rgba(15, 23, 42, 0.08)',
+  },
+  hover: {
+    /** Ítem del menú contextual de grids. */
+    gridMenuItem: 'rgba(15, 23, 42, 0.06)',
+    /** Fila de grid. */
+    gridRow: 'rgba(15, 23, 42, 0.04)',
+  },
+  text: {
+    /** Etiqueta pequeña de campo (coincide con `text.secondary` de MUI; no se lee de `palette`). */
+    fieldCaption: 'rgba(0,0,0,0.6)',
+  },
+  pulse: {
+    /** Inicio del pulso de "reciente" (sky-400), fijo (D-T4). */
+    recentStart: 'rgba(56, 189, 248, 0.24)',
+  },
+} as const;

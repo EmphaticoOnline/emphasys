@@ -39,6 +39,7 @@ import type {
   ProgramacionMasivaInput,
 } from '../../types/finanzas';
 import { dueDateColors } from '../../theme/functional';
+import { overlayColors } from '../../theme/structural';
 
 type ContactoOpcion = { id: number; nombre: string; rfc?: string | null };
 
@@ -446,7 +447,7 @@ export default function ProgramacionMasivaDrawer({ open, onClose, onSaved }: Pro
         {/* ── Grid de facturas ─────────────────────────────────────────── */}
         <Box sx={{ height: 380, position: 'relative' }}>
           {cargandoFacturas && (
-            <Box sx={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'rgba(255,255,255,0.6)', zIndex: 1 }}>
+            <Box sx={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: overlayColors.veils.loading, zIndex: 1 }}>
               <CircularProgress size={24} />
             </Box>
           )}

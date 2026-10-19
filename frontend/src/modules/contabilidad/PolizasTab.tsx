@@ -66,6 +66,7 @@ import {
   grillaCompactaSx,
   importeSx,
 } from './contabilidadVisual';
+import { overlayColors } from '../../theme/structural';
 
 type Vista = 'lista' | 'formulario';
 
@@ -963,7 +964,7 @@ export default function PolizasTab() {
             {idsSeleccionMultiple.length === 1 ? '' : 's'}
           </Typography>
 
-          <Divider orientation="vertical" flexItem sx={{ borderColor: 'rgba(255,255,255,0.2)', my: 0.5 }} />
+          <Divider orientation="vertical" flexItem sx={{ borderColor: overlayColors.onDark.selectionBarDivider, my: 0.5 }} />
 
           <Button
             size="small"
@@ -984,7 +985,7 @@ export default function PolizasTab() {
             Desaplicar
           </Button>
 
-          <Divider orientation="vertical" flexItem sx={{ borderColor: 'rgba(255,255,255,0.2)', my: 0.5 }} />
+          <Divider orientation="vertical" flexItem sx={{ borderColor: overlayColors.onDark.selectionBarDivider, my: 0.5 }} />
 
           <Button
             size="small"
