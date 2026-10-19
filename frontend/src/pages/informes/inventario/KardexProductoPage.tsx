@@ -31,6 +31,7 @@ import {
   type KardexLinea,
 } from '../../../services/reportesService';
 import { inventoryFlowColors, moduleAccents } from '../../../theme/functional';
+import { rowStripeColors } from '../../../theme/structural';
 
 const COLOR = moduleAccents.inventoryReports;
 const fmt = (v: number) => v.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -262,7 +263,7 @@ export default function KardexProductoPage() {
                   </TableHead>
                   <TableBody>
                     {lineas.map((l: KardexLinea, i) => (
-                      <TableRow key={i} sx={{ '&:nth-of-type(even)': { bgcolor: '#f8f8ff' } }}>
+                      <TableRow key={i} sx={{ '&:nth-of-type(even)': { bgcolor: rowStripeColors.kardex } }}>
                         <TableCell>{fmtFecha(l.fecha)}</TableCell>
                         <TableCell>{l.tipo_movimiento}</TableCell>
                         <TableCell>

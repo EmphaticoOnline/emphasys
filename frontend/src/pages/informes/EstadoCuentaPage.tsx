@@ -284,7 +284,7 @@ function buildColumnsDetalle(): GridColDef<FilaPlana>[] {
           const desc = `${p.row.tipo_etiqueta} ${p.row.folio} por ${formatMXN(p.row.aplicado)}`;
           return (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, pl: 1 }}>
-              <Typography component="span" sx={{ color: '#c0c9d6', fontSize: '0.72rem', lineHeight: 1, flexShrink: 0 }}>
+              <Typography component="span" sx={{ color: neutralColors.steel.treeConnector, fontSize: '0.72rem', lineHeight: 1, flexShrink: 0 }}>
                 ↳
               </Typography>
               <span style={APL_TEXT}>{desc}</span>

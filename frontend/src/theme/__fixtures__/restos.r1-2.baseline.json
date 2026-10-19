@@ -1,0 +1,278 @@
+{
+  "source": "HEAD dce67f6, restos R1 bloque r1-2",
+  "files": {
+    "components/documentos/facturas/CartaPorteViajeEditor.tsx": {
+      "headSha256": "55e2b139101c0b18d371e7c08edc7cbb7281307ae5c35c089ee52162cd3ad027",
+      "addedImports": [
+        "import { cartaPorteSectionColors } from '../../../theme/functional';"
+      ],
+      "lines": {
+        "82": {
+          "original": "  ruta: '#e4eef6',",
+          "migrated": "  ruta: cartaPorteSectionColors.ruta,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "ruta: '#e4eef6',",
+              "to": "ruta: cartaPorteSectionColors.ruta,",
+              "times": 1
+            }
+          ]
+        },
+        "83": {
+          "original": "  unidad: '#e5f0e8',",
+          "migrated": "  unidad: cartaPorteSectionColors.unidad,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "unidad: '#e5f0e8',",
+              "to": "unidad: cartaPorteSectionColors.unidad,",
+              "times": 1
+            }
+          ]
+        },
+        "84": {
+          "original": "  operador: '#f8efe4',",
+          "migrated": "  operador: cartaPorteSectionColors.operador,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "operador: '#f8efe4',",
+              "to": "operador: cartaPorteSectionColors.operador,",
+              "times": 1
+            }
+          ]
+        },
+        "85": {
+          "original": "  generales: '#f3ecf6',",
+          "migrated": "  generales: cartaPorteSectionColors.generales,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "generales: '#f3ecf6',",
+              "to": "generales: cartaPorteSectionColors.generales,",
+              "times": 1
+            }
+          ]
+        },
+        "86": {
+          "original": "  mercancias: '#e8f2f0',",
+          "migrated": "  mercancias: cartaPorteSectionColors.mercancias,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "mercancias: '#e8f2f0',",
+              "to": "mercancias: cartaPorteSectionColors.mercancias,",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "modules/finanzas/FacturaPagosDrawer.tsx": {
+      "headSha256": "90a4448bf6d39c10e2ca52afc9a593706835cf902ddf69b3ad4734ddb6dc0fcd",
+      "addedImports": [],
+      "lines": {
+        "49": {
+          "original": "import { neutralColors, selectionColors } from '../../theme/structural';",
+          "migrated": "import { neutralColors, rowStripeColors, selectionColors } from '../../theme/structural';",
+          "entries": [],
+          "replacements": [],
+          "importMerge": true
+        },
+        "606": {
+          "original": "                        const backgroundColor = idx % 2 === 0 ? '#f4faf4' : 'common.white';",
+          "migrated": "                        const backgroundColor = idx % 2 === 0 ? rowStripeColors.treasuryDocuments : 'common.white';",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'#f4faf4'",
+              "to": "rowStripeColors.treasuryDocuments",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "modules/finanzas/OperacionDetalleDrawer.tsx": {
+      "headSha256": "e79d5ecacf5de2b5ca800c652b28fbc2ceac3aa1e3452628f09321f0c7317d77",
+      "addedImports": [],
+      "lines": {
+        "42": {
+          "original": "import { neutralColors } from '../../theme/structural';",
+          "migrated": "import { neutralColors, rowStripeColors } from '../../theme/structural';",
+          "entries": [],
+          "replacements": [],
+          "importMerge": true
+        },
+        "421": {
+          "original": "                  const backgroundColor = idx % 2 === 0 ? '#f4faf4' : '#ffffff';",
+          "migrated": "                  const backgroundColor = idx % 2 === 0 ? rowStripeColors.treasuryDocuments : '#ffffff';",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'#f4faf4'",
+              "to": "rowStripeColors.treasuryDocuments",
+              "times": 1
+            }
+          ]
+        },
+        "519": {
+          "original": "                    const backgroundColor = idx % 2 === 0 ? '#f4faf4' : '#ffffff';",
+          "migrated": "                    const backgroundColor = idx % 2 === 0 ? rowStripeColors.treasuryDocuments : '#ffffff';",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'#f4faf4'",
+              "to": "rowStripeColors.treasuryDocuments",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "pages/informes/inventario/KardexProductoPage.tsx": {
+      "headSha256": "ad0fe50d2270ce32ba602958da589196e1931234a48b4969e78519ed0ac4a62d",
+      "addedImports": [
+        "import { rowStripeColors } from '../../../theme/structural';"
+      ],
+      "lines": {
+        "265": {
+          "original": "                      <TableRow key={i} sx={{ '&:nth-of-type(even)': { bgcolor: '#f8f8ff' } }}>",
+          "migrated": "                      <TableRow key={i} sx={{ '&:nth-of-type(even)': { bgcolor: rowStripeColors.kardex } }}>",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'#f8f8ff'",
+              "to": "rowStripeColors.kardex",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "components/documentos/DocumentosMobileView.tsx": {
+      "headSha256": "a7c9ef1a044aa6fbc20356c23e72338314a4d34763599a01e553f56e7f3ff26f",
+      "addedImports": [],
+      "lines": {
+        "88": {
+          "original": "        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25, position: 'sticky', top: 72, zIndex: 2, py: 1, backgroundColor: catalog ? theme.emphasys.canvas.page : '#eef1f4' }}>",
+          "migrated": "        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25, position: 'sticky', top: 72, zIndex: 2, py: 1, backgroundColor: catalog ? theme.emphasys.canvas.page : neutralColors.steel.wash }}>",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'#eef1f4'",
+              "to": "neutralColors.steel.wash",
+              "times": 1
+            }
+          ]
+        },
+        "125": {
+          "original": "                borderColor: '#c7d2e5',",
+          "migrated": "                borderColor: neutralColors.steel.outlineButtonBorder,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'#c7d2e5'",
+              "to": "neutralColors.steel.outlineButtonBorder",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "pages/DocumentosPage.tsx": {
+      "headSha256": "31736761c942b3a5db0daf989313f1e90df82735afead50137cf9285dbf9d5ed",
+      "addedImports": [],
+      "lines": {
+        "3569": {
+          "original": "                  backgroundColor: selected ? '#e8eefc' : '#fff',",
+          "migrated": "                  backgroundColor: selected ? selectionColors.chipSurface : '#fff',",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'#e8eefc'",
+              "to": "selectionColors.chipSurface",
+              "times": 1
+            }
+          ]
+        },
+        "3626": {
+          "original": "            borderColor: '#dbe3f4',",
+          "migrated": "            borderColor: neutralColors.steel.documentFiltersBorder,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'#dbe3f4'",
+              "to": "neutralColors.steel.documentFiltersBorder",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "pages/OportunidadesPage.tsx": {
+      "headSha256": "a51597e662923abb48711bc2fa94bc179de54959546ff3cbc1e60bda85f35d5a",
+      "addedImports": [],
+      "lines": {
+        "1626": {
+          "original": "                      border: '1px solid #dbe2f0',",
+          "migrated": "                      border: `1px solid ${neutralColors.steel.opportunityFiltersBorder}`,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'1px solid #dbe2f0'",
+              "to": "`1px solid ${neutralColors.steel.opportunityFiltersBorder}`",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "components/cfdi-sat/ComprobantesSatSection.tsx": {
+      "headSha256": "111641bd7933ebe62b36d0cb28ab52ff9e453c42b50210b412f91b367dd931a8",
+      "addedImports": [],
+      "lines": {
+        "449": {
+          "original": "                sx={{ minHeight: 36, borderBottom: '1px solid #e5e9f2', '& .MuiTab-root': { minHeight: 36, textTransform: 'none' } }}",
+          "migrated": "                sx={{ minHeight: 36, borderBottom: `1px solid ${neutralColors.steel.tabsDivider}`, '& .MuiTab-root': { minHeight: 36, textTransform: 'none' } }}",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'1px solid #e5e9f2'",
+              "to": "`1px solid ${neutralColors.steel.tabsDivider}`",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "pages/informes/EstadoCuentaPage.tsx": {
+      "headSha256": "f04ec37c47edf6fa62096237c10f47f17c6680185088eb508c1dd85b7f19c0bf",
+      "addedImports": [],
+      "lines": {
+        "287": {
+          "original": "              <Typography component=\"span\" sx={{ color: '#c0c9d6', fontSize: '0.72rem', lineHeight: 1, flexShrink: 0 }}>",
+          "migrated": "              <Typography component=\"span\" sx={{ color: neutralColors.steel.treeConnector, fontSize: '0.72rem', lineHeight: 1, flexShrink: 0 }}>",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'#c0c9d6'",
+              "to": "neutralColors.steel.treeConnector",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    }
+  }
+}

@@ -32,6 +32,7 @@ import type { Producto } from '../../../types/producto';
 import { neutralColors } from '../../../theme/structural';
 import { activeBrand } from '../../../theme/brand/active';
 import { brandElevation } from '../../../theme/elevation';
+import { cartaPorteSectionColors } from '../../../theme/functional';
 
 type Props = {
   open: boolean;
@@ -79,11 +80,11 @@ const partirFechaHora = (value: string): { fecha: string; hora: string; minuto: 
   return { fecha, hora, minuto: minutoRaw.slice(0, 2) };
 };
 const FONDO_SECCION_MODAL: Partial<Record<CartaPorteIssueSection, string>> = {
-  ruta: '#e4eef6',
-  unidad: '#e5f0e8',
-  operador: '#f8efe4',
-  generales: '#f3ecf6',
-  mercancias: '#e8f2f0',
+  ruta: cartaPorteSectionColors.ruta,
+  unidad: cartaPorteSectionColors.unidad,
+  operador: cartaPorteSectionColors.operador,
+  generales: cartaPorteSectionColors.generales,
+  mercancias: cartaPorteSectionColors.mercancias,
 };
 const numStr = (v: unknown): string => (v === null || v === undefined || v === '' ? '' : String(v));
 const aDosDecimales = (v: unknown): string => {

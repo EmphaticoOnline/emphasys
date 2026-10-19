@@ -13,7 +13,7 @@ import {
   type NeutralFixture,
   type NeutralSources,
 } from './__fixtures__/neutralRevert.ts';
-import { DOCUMENTOS_FORM_ORDER, LATER_FIXTURES, NEUTRAL_ORDER, revertLater, type LaterFixtures } from './__fixtures__/colorMigrations.ts';
+import { DOCUMENTOS_FORM_ORDER, LATER_FIXTURES, LEFTOVER_ORDER, NEUTRAL_ORDER, revertLater, type LaterFixtures } from './__fixtures__/colorMigrations.ts';
 
 const readText = (path: string) => readFileSync(new URL(path, import.meta.url), 'utf8');
 const sha256 = (text: string) => createHash('sha256').update(text).digest('hex');
@@ -121,6 +121,13 @@ test('cada valor de neutralColors se usa en al menos un bloque', () => {
   for (const name of DOCUMENTOS_FORM_ORDER) {
     const fixture = JSON.parse(readText(`./__fixtures__/${name}`)) as { files: Record<string, { lines: Record<string, { entries: { token: string }[] }> }> };
     for (const entry of Object.values(fixture.files)) for (const line of Object.values(entry.lines)) for (const e of line.entries) used.add(e.token);
+  }
+  // Los restos R1 también agregan roles `steel` propios.
+  for (const name of LEFTOVER_ORDER) {
+    const fixture = JSON.parse(readText(`./__fixtures__/${name}`)) as { files: Record<string, { lines: Record<string, { replacements: { to: string }[] }> }> };
+    for (const entry of Object.values(fixture.files))
+      for (const line of Object.values(entry.lines))
+        for (const { to } of line.replacements) for (const [token] of to.matchAll(/neutralColors\.steel\.\w+|neutralColors\.\w+\[\d+\]/g)) used.add(token);
   }
   for (const [family, scale] of Object.entries(neutralColors)) {
     for (const key of Object.keys(scale)) {

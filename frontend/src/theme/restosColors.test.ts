@@ -49,6 +49,10 @@ const ROOTS = {
   authorizationModeColors: functional.authorizationModeColors,
   inventoryAffectationColors: functional.inventoryAffectationColors,
   alertRowColors: functional.alertRowColors,
+  cartaPorteSectionColors: functional.cartaPorteSectionColors,
+  neutralColors: structural.neutralColors,
+  selectionColors: structural.selectionColors,
+  rowStripeColors: structural.rowStripeColors,
 } as const;
 type Roots = Record<string, unknown>;
 const currentRoots = (): Roots => structuredClone(ROOTS) as Roots;
@@ -60,8 +64,14 @@ const resolve = (token: string, roots: Roots): string => {
   if (typeof value !== 'string') throw new Error(`${token} no resuelve a un color`);
   return value;
 };
-/** Fragmento migrado → fragmento original: cada token vuelve a `'<hex>'`. */
-const sourceOf = (to: string, roots: Roots) => to.replace(TOKEN, (token) => `'${resolve(token, roots)}'`);
+/**
+ * Fragmento migrado → fragmento original: cada token vuelve a `'<hex>'`; en una
+ * plantilla (`` `1px solid ${token}` ``) vuelve a `'1px solid <hex>'`.
+ */
+const sourceOf = (to: string, roots: Roots) =>
+  to.startsWith('`')
+    ? `'${to.slice(1, -1).replace(new RegExp(`\\$\\{(${TOKEN.source})\\}`, 'g'), (_m, token: string) => resolve(token, roots))}'`
+    : to.replace(TOKEN, (token) => `'${resolve(token, roots)}'`);
 const restoreLine = (migrated: string, replacements: Replacement[], roots: Roots) =>
   replacements.reduce((line, { to }) => line.split(to).join(sourceOf(to, roots)), migrated);
 const restoredSha = (name: string, file: string, entry: LeftoverFileFixture, roots: Roots) => {
@@ -74,6 +84,7 @@ const restoredSha = (name: string, file: string, entry: LeftoverFileFixture, roo
 /** Literales y reemplazos de cada subbloque. */
 const BLOCK_SCOPE: Record<string, { literals: number; files: number }> = {
   'restos.r1-1.baseline.json': { literals: 30, files: 11 },
+  'restos.r1-2.baseline.json': { literals: 16, files: 9 },
 };
 
 test('cada subbloque tiene alcance declarado', () => {
@@ -160,6 +171,19 @@ test('R1.1: mismos valores con otros significados quedan en tokens separados', (
     },
   );
   assert.equal(functional.alertColors.error[900], '#7f1d1d');
+});
+
+test('R1.2: superficies y categóricos con rol propio; solo se reutiliza un token cuando el rol es el mismo', () => {
+  // La barra fija `top: 72` de la vista móvil es el mismo rol que la barra fija de DocumentosFormPage.
+  assert.equal(structural.neutralColors.steel.wash, '#eef1f4');
+  // Mismo rol (borde del panel de filtros), valores distintos: no se unifican.
+  assert.notEqual(structural.neutralColors.steel.documentFiltersBorder, structural.neutralColors.steel.opportunityFiltersBorder);
+  assert.deepEqual({ ...structural.rowStripeColors }, { treasuryDocuments: '#f4faf4', kardex: '#f8f8ff' });
+  assert.deepEqual(
+    { ...functional.cartaPorteSectionColors },
+    { ruta: '#e4eef6', unidad: '#e5f0e8', operador: '#f8efe4', generales: '#f3ecf6', mercancias: '#e8f2f0' },
+  );
+  assert.equal(structural.selectionColors.chipSurface, '#e8eefc');
 });
 
 test('las capas de R1 no dependen de la marca', () => {

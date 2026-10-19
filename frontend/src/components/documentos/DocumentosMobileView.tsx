@@ -85,7 +85,7 @@ export default function DocumentosMobileView({
   return (
     <Box sx={{ width: '100%', px: 2, py: 0, display: 'flex', justifyContent: 'center' }}>
       <Box sx={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 1.5, pb: 10 }}>
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25, position: 'sticky', top: 72, zIndex: 2, py: 1, backgroundColor: catalog ? theme.emphasys.canvas.page : '#eef1f4' }}>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25, position: 'sticky', top: 72, zIndex: 2, py: 1, backgroundColor: catalog ? theme.emphasys.canvas.page : neutralColors.steel.wash }}>
           <Box>
             <Typography variant="h5" fontWeight={600} color={catalog ? theme.emphasys.content.foreground : activeBrand.colors.blue.base}>{title}</Typography>
             <Typography variant="body2" color={catalog ? theme.emphasys.content.secondary : neutralColors.gray[600]}>{description}</Typography>
@@ -122,7 +122,7 @@ export default function DocumentosMobileView({
               sx={catalog ? catalogoOutlinedButtonSx : {
                 textTransform: 'none',
                 fontWeight: 700,
-                borderColor: '#c7d2e5',
+                borderColor: neutralColors.steel.outlineButtonBorder,
                 color: activeBrand.colors.blue.base,
                 backgroundColor: '#ffffff',
                 '&:hover': { borderColor: selectionColors.border, backgroundColor: neutralColors.slate[50] },

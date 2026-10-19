@@ -446,7 +446,7 @@ export default function ComprobantesSatSection({
                 onChange={(_event, value) => setEstadoTab(value as EstadoTab)}
                 variant="scrollable"
                 scrollButtons="auto"
-                sx={{ minHeight: 36, borderBottom: '1px solid #e5e9f2', '& .MuiTab-root': { minHeight: 36, textTransform: 'none' } }}
+                sx={{ minHeight: 36, borderBottom: `1px solid ${neutralColors.steel.tabsDivider}`, '& .MuiTab-root': { minHeight: 36, textTransform: 'none' } }}
               >
                 {TABS.map((tab) => (
                   <Tab key={tab.value} value={tab.value} label={`${tab.label} (${conteosPorTab[tab.value]})`} />

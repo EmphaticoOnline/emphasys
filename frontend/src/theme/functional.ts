@@ -442,3 +442,14 @@ export const alertRowColors = {
   /** Producto bajo mínimo. */
   belowMinimum: '#fff5f5',
 } as const;
+
+// ── Restos R1.2: categóricos ──────────────────────────────────────────────────
+
+/** Fondo de cada sección en el editor y diálogo de Carta Porte: un color por sección. */
+export const cartaPorteSectionColors = {
+  ruta: '#e4eef6',
+  unidad: '#e5f0e8',
+  operador: '#f8efe4',
+  generales: '#f3ecf6',
+  mercancias: '#e8f2f0',
+} as const;

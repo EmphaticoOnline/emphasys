@@ -3566,7 +3566,7 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
                   fontWeight: selected ? 700 : 600,
                   px: 0.35,
                   color: selected ? 'primary.main' : neutralColors.gray[600],
-                  backgroundColor: selected ? '#e8eefc' : '#fff',
+                  backgroundColor: selected ? selectionColors.chipSurface : '#fff',
                   borderColor: selected ? selectionColors.border : neutralColors.gray[300],
                   '&:hover': {
                     backgroundColor: selected ? selectionColors.surface : neutralColors.slate[50],
@@ -3623,7 +3623,7 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
           } : {
             p: { xs: 1.25, sm: 1.5 },
             borderRadius: 2,
-            borderColor: '#dbe3f4',
+            borderColor: neutralColors.steel.documentFiltersBorder,
             backgroundColor: neutralColors.slate[50],
           }}
         >

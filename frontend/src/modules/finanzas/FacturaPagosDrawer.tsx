@@ -46,7 +46,7 @@ import { DesaplicarPagoDialog } from './DesaplicarPagoDialog';
 import { loadSession } from '../../session/sessionStorage';
 import { esRolAdmin } from '../../session/rolScope';
 import { alertColors } from '../../theme/functional';
-import { neutralColors, selectionColors } from '../../theme/structural';
+import { neutralColors, rowStripeColors, selectionColors } from '../../theme/structural';
 import { activeBrand } from '../../theme/brand/active';
 
 const formatDateShort = (value?: string | null) => {
@@ -603,7 +603,7 @@ export function FacturaPagosDrawer({ open, onClose, documentoId, contactoId, sal
                       {documentosDisponibles.map((item, idx) => {
                         const folio = formatearFolioDocumento(item?.serie || '', item?.numero || 0);
                         const label = `${etiquetaTipo(item.tipo || 'documento')} ${folio}`.trim();
-                        const backgroundColor = idx % 2 === 0 ? '#f4faf4' : 'common.white';
+                        const backgroundColor = idx % 2 === 0 ? rowStripeColors.treasuryDocuments : 'common.white';
                         return (
                           <TableRow key={item.id} sx={{ ...rowBaseSx, backgroundColor }}>
                             <TableCell sx={{ ...bodyCellSx, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', width: '24%' }}>

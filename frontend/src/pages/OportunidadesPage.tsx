@@ -1623,7 +1623,7 @@ export default function OportunidadesPage() {
                 <Collapse in={filtersOpen} timeout="auto" unmountOnExit={false}>
                   <Box
                     sx={{
-                      border: '1px solid #dbe2f0',
+                      border: `1px solid ${neutralColors.steel.opportunityFiltersBorder}`,
                       borderRadius: 2,
                       px: { xs: 1.25, sm: 1.5 },
                       py: 1.25,

@@ -28,9 +28,9 @@ Exclusiones de datos de usuario o BD, sin cambios:
 | Subbloque | Clase | Literales | Archivos |
 |---|---|---|---|
 | R1.1 | Funcional y CRM | 30 | 11 |
-| R1.2 | Superficies (estructural) y categóricos | 16 | 10 |
+| R1.2 | Superficies (estructural) y categóricos | 16 | 9 |
 | R1.3 | `DocumentosFormPage` | 0 | No aplica: solo le quedan blancos |
-| R1.4 | Restos adicionales | 0 | Sin otros casos con clasificación clara |
+| R1.4 | Restos adicionales | 1 | `LeadsPage`: texto de prioridad "Media" `#7c5a00` (funcional). Apareció al cerrar R1, porque el archivo estaba excluido completo por sus defaults de BD |
 
 Ningún literal de R1 es identidad de marca. Ninguno es dato de usuario o fallback de BD.
 
@@ -64,11 +64,18 @@ Pruebas (`restosColors.test.ts`, 7):
 - independencia de la marca;
 - cierre por archivo.
 
-## 3. R1.2 — superficies y categóricos (pendiente)
+## 3. R1.2 — superficies y categóricos (completado)
+
+16 literales en 9 archivos. Tokens nuevos: `cartaPorteSectionColors` (funcional, categórico), `rowStripeColors` y `selectionColors.chipSurface` (estructurales), y cinco roles `neutralColors.steel`.
+
+- `categoricalPalettes` solo admite arreglos, así que Carta Porte tiene su propia familia.
+- `DocumentosMobileView:88` reutiliza `steel.wash` porque tiene el mismo rol: barra fija `top: 72`.
+- Dentro de strings `1px solid …` solo se reemplaza el color, con plantilla.
+- La prueba neutral "cada valor se usa" también cuenta los fixtures de R1.
 
 | Archivo | Literal | Propuesta | Clase |
 |---|---|---|---|
-| `CartaPorteViajeEditor` ×5 | `#e4eef6`, `#e5f0e8`, `#f8efe4`, `#f3ecf6`, `#e8f2f0` | `categoricalPalettes.cartaPorteSections` | Categórico: un color por sección |
+| `CartaPorteViajeEditor` ×5 | `#e4eef6`, `#e5f0e8`, `#f8efe4`, `#f3ecf6`, `#e8f2f0` | `cartaPorteSectionColors.*` | Categórico: un color por sección |
 | `FacturaPagosDrawer`, `OperacionDetalleDrawer` ×2 | `#f4faf4` | `rowStripeColors.treasuryDocuments` | Estructural: franja de filas en tablas de documentos de tesorería (mismo rol) |
 | `KardexProductoPage` | `#f8f8ff` | `rowStripeColors.kardex` | Estructural: franja de filas del Kardex |
 | `DocumentosMobileView:88` | `#eef1f4` | `neutralColors.steel.wash` (existente) | Estructural: barra fija `top: 72` de la página. Es el mismo rol que la barra fija de `DocumentosFormPage`, que ya usa `steel.wash` |

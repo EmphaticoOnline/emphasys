@@ -98,6 +98,17 @@ export const neutralColors = {
     totalsBorder: '#96a7c7',
     /** Fondo de las tarjetas del resumen financiero. */
     summarySurface: '#fbfdff',
+    // Restos R1.2 (docs/white-label-restos-r1-audit.md).
+    /** Borde de botón delineado (filtros en móvil). */
+    outlineButtonBorder: '#c7d2e5',
+    /** Borde del panel de filtros de documentos. */
+    documentFiltersBorder: '#dbe3f4',
+    /** Borde del panel de filtros de oportunidades (mismo rol que el anterior, otro valor: no se unifican). */
+    opportunityFiltersBorder: '#dbe2f0',
+    /** Divisor bajo las pestañas de comprobantes SAT. */
+    tabsDivider: '#e5e9f2',
+    /** Conector `↳` de fila hija (estado de cuenta). */
+    treeConnector: '#c0c9d6',
   },
 } as const;
 
@@ -114,6 +125,16 @@ export const selectionColors = {
   principal: '#93c5fd',
   /** Foco y selección de la zona de adjuntos del formulario de documentos (azul 800 de MUI). */
   attachmentFocus: '#1565c0',
+  /** Fondo de chip seleccionado (documentos). */
+  chipSurface: '#e8eefc',
+} as const;
+
+/** Franjas de filas alternas con tinte propio. Fijas y sin marca. */
+export const rowStripeColors = {
+  /** Tablas de documentos de tesorería (pagos, aplicaciones, facturas pendientes). */
+  treasuryDocuments: '#f4faf4',
+  /** Kardex de producto. */
+  kardex: '#f8f8ff',
 } as const;
 
 /**
