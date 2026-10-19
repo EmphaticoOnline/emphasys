@@ -1,5 +1,6 @@
 import * as React from 'react';
 import { Box, Paper, Stack, Typography } from '@mui/material';
+import { surfaceGradients } from '../../../theme/elevation';
 
 type SeccionCardProps = {
   id: string;
@@ -30,7 +31,7 @@ export default function SeccionCard({ id, titulo, subtitulo, badge, accion, rese
         ...(reservado
           ? {
               backgroundImage:
-                'repeating-linear-gradient(135deg, rgba(107,114,128,0.05) 0px, rgba(107,114,128,0.05) 6px, transparent 6px, transparent 12px)',
+                surfaceGradients.disabledHatch,
               borderStyle: 'dashed',
             }
           : {}),

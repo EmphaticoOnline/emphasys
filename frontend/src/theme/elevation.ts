@@ -14,6 +14,10 @@ import type { BrandDefinition } from './brand/types.ts';
  *   tinta beige o el azul de la marca. Se derivan con `rgbaFromHex`; para
  *   Emphasys producen exactamente el string que hoy escriben los componentes.
  *
+ * - `surfaceGradients` / `brandGradients`: degradados, con la misma división
+ *   (estructurales fijos; el inicio de la barra de actualización sigue al azul
+ *   de la marca y su final queda fijo).
+ *
  * No se unifican sombras parecidas: cada token reproduce un valor actual.
  */
 export const elevation = {
@@ -82,3 +86,33 @@ export function buildBrandElevation(brand: BrandDefinition): BrandElevation {
 
 /** Sombras de identidad de la marca activa. */
 export const brandElevation: BrandElevation = buildBrandElevation(activeBrand);
+
+/**
+ * Degradados y patrones de superficie **estructurales**, de valor fijo.
+ * Los dos degradados que ya usan tokens del tema (`grid.hover` / `grid.stripe`
+ * como capa) no se tocan.
+ */
+export const surfaceGradients = {
+  /** Fondo del panel de filtros avanzados. */
+  header: 'linear-gradient(180deg, #fbfcff 0%, #f6f8fd 100%)',
+  /** Rayado de sección deshabilitada (gray-500 con alfa). */
+  disabledHatch:
+    'repeating-linear-gradient(135deg, rgba(107,114,128,0.05) 0px, rgba(107,114,128,0.05) 6px, transparent 6px, transparent 12px)',
+  /** Final de la barra de actualización: azul 500 de Tailwind, fijo (D-E2). */
+  updateBarEnd: '#3b82f6',
+} as const;
+
+export type BrandGradients = {
+  /** Barra superior del drawer de actualización: azul de marca → `updateBarEnd`. */
+  updateBar: string;
+};
+
+/** Degradados de identidad de una marca: solo el inicio sigue a la marca. */
+export function buildBrandGradients(brand: BrandDefinition): BrandGradients {
+  return {
+    updateBar: `linear-gradient(90deg, ${brand.colors.blue.base} 0%, ${surfaceGradients.updateBarEnd} 100%)`,
+  };
+}
+
+/** Degradados de identidad de la marca activa. */
+export const brandGradients: BrandGradients = buildBrandGradients(activeBrand);

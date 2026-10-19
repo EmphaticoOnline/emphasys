@@ -177,4 +177,11 @@ Comprobado: `rgbaFromHex('#2c3138', 0.18)` = `rgba(44, 49, 56, 0.18)`, y `rgbaFr
 - **E1, completado:** 23 reemplazos en 13 archivos. `0 1px 2px rgba(0,0,0,0.35)` pasa a `elevation.railControl` y `…0.18` a `elevation.railSelection`.
 - **E2, completado:** 17 reemplazos en 16 archivos. Pasan a `brandElevation.floating` (×10), `floatingStrong` (×1), `dialog` (×3), `panel` (×2) y `dropdown` (×1). Con Emphasys producen el mismo string; con otro grafito o tinta beige, cambian solo esas sombras.
 - **E3, completado:** 17 reemplazos en 16 líneas de 12 archivos, todos a `elevation` y con valores fijos. En las tarjetas de estatus de Oportunidades solo se reemplaza la parte `rgba`, dentro de la plantilla (`${elevation.statusCard}` / `statusCardRest`); el anillo `${item.labelColor}` no cambia. Cerrado eso, ya no queda ninguna sombra estructural escrita a mano.
-- Pendiente: E4 (resplandores azules y degradados; D-E2 abierta).
+- **D-E2, decidida:** el final `#3b82f6` del degradado queda fijo como estructural (`surfaceGradients.updateBarEnd`) y el inicio deriva del azul de marca.
+- **E4, completado:** 5 reemplazos en 4 archivos:
+  - `brandElevation.primaryGlow` (`DocumentosMobileView`) y `activeGlow` (`OportunidadesPage`), derivados del azul de marca;
+  - `surfaceGradients.header` (`OportunidadesPage`) y `disabledHatch` (`SeccionCard`), fijos;
+  - `brandGradients.updateBar` (`VersionUpdateDrawer`): azul de marca → `updateBarEnd`.
+  - Los dos degradados que ya usaban tokens del tema no se tocaron.
+- **Bloque de elevación cerrado (E1–E4):** las 22 sombras y los 3 degradados de la auditoría salen de `theme/elevation.ts`. Una prueba fija que ya no queda ninguno escrito a mano.
+- Fuera de alcance: los tintes alfa de §3 (bloque aparte, si se aprueba).

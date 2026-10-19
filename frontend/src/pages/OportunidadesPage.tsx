@@ -62,7 +62,7 @@ import { SeguimientoActividadCell } from '../components/crm/SeguimientoActividad
 import { alertColors, opportunityBucketColors } from '../theme/functional';
 import { neutralColors } from '../theme/structural';
 import { activeBrand } from '../theme/brand/active';
-import { elevation } from '../theme/elevation';
+import { brandElevation, elevation, surfaceGradients } from '../theme/elevation';
 
 dayjs.locale('es');
 
@@ -1612,7 +1612,7 @@ export default function OportunidadesPage() {
                       fontWeight: 700,
                       textTransform: 'none',
                       py: 0.75,
-                      boxShadow: filtersOpen || activeAdvancedFiltersCount > 0 ? '0 6px 16px rgba(29, 47, 104, 0.16)' : 'none',
+                      boxShadow: filtersOpen || activeAdvancedFiltersCount > 0 ? brandElevation.activeGlow : 'none',
                     }}
                   >
                     {activeAdvancedFiltersCount > 0 ? `Filtrar (${activeAdvancedFiltersCount})` : 'Filtrar'}
@@ -1626,7 +1626,7 @@ export default function OportunidadesPage() {
                       borderRadius: 2,
                       px: { xs: 1.25, sm: 1.5 },
                       py: 1.25,
-                      background: 'linear-gradient(180deg, #fbfcff 0%, #f6f8fd 100%)',
+                      background: surfaceGradients.header,
                     }}
                   >
                     <Stack spacing={1.25}>

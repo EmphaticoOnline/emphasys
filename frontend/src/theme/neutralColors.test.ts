@@ -82,13 +82,14 @@ test('en los archivos migrados solo quedan los literales excluidos a propósito'
   for (const { block, file, lines, keptLiteral } of files()) {
     const hexes = new Set(Object.values(lines).flat().map((e) => e.hex));
     const remaining: Record<string, number> = {};
-    for (const [hex] of readText(`../${file}`).matchAll(/#[0-9a-fA-F]{6}/g)) {
+    // Estado que dejó el bloque neutral: los bloques posteriores (p. ej. degradados E4) pueden migrar estos literales.
+    for (const [hex] of asOfBlock(block, file).matchAll(/#[0-9a-fA-F]{6}/g)) {
       const value = hex.toLowerCase();
       if (hexes.has(value)) remaining[value] = (remaining[value] ?? 0) + 1;
     }
     assert.deepStrictEqual(remaining, keptLiteral, `${block} ${file}`);
   }
-  // Degradado decorativo de VersionUpdateDrawer: pendiente con el resto de degradados.
+  // Degradado decorativo de VersionUpdateDrawer: quedó para el bloque de degradados (elevación E4, `brandGradients.updateBar`).
   assert.deepStrictEqual(fixtures['neutralColors.baseline.json']?.files['components/VersionUpdateDrawer.tsx']?.keptLiteral, {
     '#1d2f68': 1,
   });

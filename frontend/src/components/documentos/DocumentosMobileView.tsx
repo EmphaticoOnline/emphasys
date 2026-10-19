@@ -282,7 +282,7 @@ export default function DocumentosMobileView({
             bottom: 20,
             backgroundColor: activeBrand.colors.blue.base,
             color: '#ffffff',
-            boxShadow: '0 10px 24px rgba(29, 47, 104, 0.28)',
+            boxShadow: brandElevation.primaryGlow,
             '&:hover': { backgroundColor: activeBrand.colors.blue.hover },
           }}
         >

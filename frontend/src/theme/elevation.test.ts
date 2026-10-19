@@ -4,7 +4,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import test from 'node:test';
 import { emphasysBrand } from './brand/emphasys.ts';
 import type { BrandDefinition } from './brand/types.ts';
-import { brandElevation, buildBrandElevation, elevation } from './elevation.ts';
+import { brandElevation, brandGradients, buildBrandElevation, buildBrandGradients, elevation, surfaceGradients } from './elevation.ts';
 import {
   ELEVATION_ORDER,
   LATER_FIXTURES,
@@ -21,7 +21,24 @@ type TokenBaseline = Record<string, { value: string; headOccurrences: number }>;
 const baseline = JSON.parse(readText('./__fixtures__/elevation.baseline.json')) as {
   structural: TokenBaseline;
   brand: TokenBaseline;
+  surfaceGradients: TokenBaseline;
+  brandGradients: TokenBaseline;
 };
+/** Capa del módulo → sección del fixture. Estructurales: `elevation`, `surfaceGradients`; de marca: el resto. */
+const LAYERS = [
+  ['elevation', 'structural'],
+  ['brandElevation', 'brand'],
+  ['surfaceGradients', 'surfaceGradients'],
+  ['brandGradients', 'brandGradients'],
+] as const;
+type LayerName = (typeof LAYERS)[number][0];
+type Layers = Record<LayerName, Record<string, string>>;
+const currentLayers = (): Layers => ({ elevation, brandElevation, surfaceGradients, brandGradients });
+/** Capas de identidad construidas con otra marca; las estructurales no participan. */
+const brandLayers = (brand: BrandDefinition): Partial<Layers> => ({
+  brandElevation: buildBrandElevation(brand),
+  brandGradients: buildBrandGradients(brand),
+});
 
 type Replacement = { from: string; to: string; times: number };
 type ElevationFileFixture = MinorFileFixture & {
@@ -42,12 +59,14 @@ const allLines = () =>
     Object.entries(fixture.files).flatMap(([file, entry]) => Object.entries(entry.lines).map(([n, line]) => ({ name, file, n, ...line }))),
   );
 
-/** Token completo (`elevation.railControl`, `brandElevation.floating`) → valor. */
+/** Token completo (`elevation.railControl`, `brandGradients.updateBar`) → valor. */
 type TokenValues = Record<string, string>;
-const tokenValues = (structural: Record<string, string> = elevation, brand: Record<string, string> = brandElevation): TokenValues => ({
-  ...Object.fromEntries(Object.entries(structural).map(([key, value]) => [`elevation.${key}`, value])),
-  ...Object.fromEntries(Object.entries(brand).map(([key, value]) => [`brandElevation.${key}`, value])),
-});
+const tokenValues = (overrides: Partial<Layers> = {}): TokenValues =>
+  Object.fromEntries(
+    Object.entries({ ...currentLayers(), ...overrides }).flatMap(([layer, values]) =>
+      Object.entries(values).map(([key, value]) => [`${layer}.${key}`, value]),
+    ),
+  );
 /** Reemplazo → token: `elevation.card` (string entre comillas) o `${elevation.statusCard}` (dentro de una plantilla). */
 const tokenOf = (to: string) => /^\$\{(.+)\}$/.exec(to)?.[1] ?? to;
 const restoreLine = (migrated: string, replacements: Replacement[], values: TokenValues) =>
@@ -82,6 +101,16 @@ const BLOCK_SCOPE: Record<string, { tokens: string[]; total: number }> = {
     ],
     total: 17,
   },
+  'elevation.e4.baseline.json': {
+    tokens: [
+      'brandElevation.primaryGlow',
+      'brandElevation.activeGlow',
+      'surfaceGradients.header',
+      'surfaceGradients.disabledHatch',
+      'brandGradients.updateBar',
+    ],
+    total: 5,
+  },
 };
 const migratedTokens = () => blocks.flatMap(({ name }) => BLOCK_SCOPE[name]!.tokens);
 
@@ -102,20 +131,32 @@ const alternateBrand = (overrides: Partial<{ graphite: string; ink: string; blue
   return brand;
 };
 
-test('paridad: cada token de elevación reproduce byte a byte un literal que existía en HEAD', () => {
-  assert.deepEqual(Object.keys(elevation).sort(), Object.keys(baseline.structural).sort());
-  assert.deepEqual(Object.keys(brandElevation).sort(), Object.keys(baseline.brand).sort());
-  for (const [key, { value, headOccurrences }] of Object.entries(baseline.structural)) {
-    assert.equal(elevation[key as keyof typeof elevation], value, `elevation.${key}`);
-    assert.ok(headOccurrences > 0, `elevation.${key} debe venir de un literal real`);
-  }
-  for (const [key, { value, headOccurrences }] of Object.entries(baseline.brand)) {
-    assert.equal(brandElevation[key as keyof typeof brandElevation], value, `brandElevation.${key}`);
-    assert.ok(headOccurrences > 0, `brandElevation.${key} debe venir de un literal real`);
+test('paridad: cada token de elevación y degradado reproduce byte a byte un literal que existía en HEAD', () => {
+  const layers = currentLayers();
+  for (const [layer, section] of LAYERS) {
+    assert.deepEqual(Object.keys(layers[layer]).sort(), Object.keys(baseline[section]).sort(), layer);
+    for (const [key, { value, headOccurrences }] of Object.entries(baseline[section])) {
+      assert.equal(layers[layer][key], value, `${layer}.${key}`);
+      assert.ok(headOccurrences > 0, `${layer}.${key} debe venir de un literal real`);
+    }
   }
   // Sin unificación: ningún valor se repite entre tokens.
-  const values = [...Object.values(elevation), ...Object.values(brandElevation)];
+  const values = Object.values(tokenValues());
   assert.equal(new Set(values).size, values.length);
+});
+
+test('degradados: el inicio de la barra de actualización sigue al azul de marca y el final queda fijo (D-E2)', () => {
+  assert.deepEqual(buildBrandGradients(emphasysBrand), brandGradients);
+  assert.equal(surfaceGradients.updateBarEnd, '#3b82f6');
+  const alt = buildBrandGradients(alternateBrand({ blue: '#708090' }));
+  assert.equal(alt.updateBar, 'linear-gradient(90deg, #708090 0%, #3b82f6 100%)');
+  // Grafito y tinta no participan en los degradados.
+  assert.deepEqual(buildBrandGradients(alternateBrand({ graphite: '#102030', ink: '#405060' })), brandGradients);
+  // Los degradados estructurales no usan colores de marca.
+  const brandHexes = JSON.stringify(emphasysBrand.colors).match(/#[0-9a-f]{6}/g) ?? [];
+  for (const [key, value] of Object.entries(surfaceGradients)) {
+    for (const hex of brandHexes) assert.ok(!value.toLowerCase().includes(hex), `surfaceGradients.${key} no debe usar ${hex}`);
+  }
 });
 
 test('las sombras de identidad se derivan de la marca; las estructurales no usan sus colores', () => {
@@ -195,7 +236,8 @@ test('mutación: alterar cualquier sombra migrada rompe la equivalencia de cada 
   const current = tokenValues();
   for (const { name, fixture } of blocks) {
     for (const token of BLOCK_SCOPE[name]!.tokens) {
-      const mutated = { ...current, [token]: current[token]!.replace(/0\.(\d+)\)$/, '0.9$1)') };
+      // Cambia el último dígito del valor (alfa de una sombra, parada de un degradado).
+      const mutated = { ...current, [token]: current[token]!.replace(/(\d)(?!.*\d)/, (d) => (d === '9' ? '8' : String(Number(d) + 1))) };
       assert.notEqual(mutated[token], current[token]);
       let checked = 0;
       for (const [file, entry] of Object.entries(fixture.files)) {
@@ -208,17 +250,26 @@ test('mutación: alterar cualquier sombra migrada rompe la equivalencia de cada 
   }
 });
 
-test('E2 sigue a la marca: con otro grafito o tinta, los archivos de E2 ya no reproducen HEAD', () => {
-  const e2 = blocks.find(({ name }) => name === 'elevation.e2.baseline.json')!;
-  for (const overrides of [{ graphite: '#102030' }, { ink: '#405060' }]) {
-    const values = tokenValues(elevation, buildBrandElevation(alternateBrand(overrides)));
-    for (const [file, entry] of Object.entries(e2.fixture.files)) {
-      const tokens = Object.values(entry.lines).flatMap((line) => line.replacements.map(({ to }) => to));
-      const moves = tokens.some((token) => values[token] !== tokenValues()[token]);
-      const sha = restoredSha(e2.name, file, entry, values);
-      if (moves) assert.notEqual(sha, entry.headSha256, `${file} debe seguir a ${JSON.stringify(overrides)}`);
-      else assert.equal(sha, entry.headSha256, `${file} no depende de ${JSON.stringify(overrides)}`);
+test('seguimiento de marca: con otro grafito, tinta o azul, solo dejan de reproducir HEAD los archivos que usan esa familia', () => {
+  const current = tokenValues();
+  for (const overrides of [{ graphite: '#102030' }, { ink: '#405060' }, { blue: '#708090' }]) {
+    const values = tokenValues(brandLayers(alternateBrand(overrides)));
+    // Las capas estructurales no cambian con la marca.
+    for (const [token, value] of Object.entries(values)) {
+      if (token.startsWith('elevation.') || token.startsWith('surfaceGradients.')) assert.equal(value, current[token], token);
     }
+    let moved = 0;
+    for (const { name, fixture } of blocks) {
+      for (const [file, entry] of Object.entries(fixture.files)) {
+        const tokens = Object.values(entry.lines).flatMap((line) => line.replacements.map(({ to }) => tokenOf(to)));
+        const moves = tokens.some((token) => values[token] !== current[token]);
+        const sha = restoredSha(name, file, entry, values);
+        if (moves) assert.notEqual(sha, entry.headSha256, `${name} ${file} debe seguir a ${JSON.stringify(overrides)}`);
+        else assert.equal(sha, entry.headSha256, `${name} ${file} no depende de ${JSON.stringify(overrides)}`);
+        if (moves) moved++;
+      }
+    }
+    assert.ok(moved > 0, `${JSON.stringify(overrides)} mueve al menos un archivo`);
   }
 });
 
@@ -237,10 +288,19 @@ test('cierre: no quedan escritas a mano las sombras migradas y el resto conserva
   walk(root, '');
   const count = (literal: string) => files.reduce((sum, file) => sum + (readText(`../${file}`).split(literal).length - 1), 0);
   const migrated = migratedTokens();
-  for (const [prefix, layer] of [['elevation', baseline.structural], ['brandElevation', baseline.brand]] as const) {
-    for (const [key, { value, headOccurrences }] of Object.entries(layer)) {
-      const token = `${prefix}.${key}`;
+  for (const [layer, section] of LAYERS) {
+    for (const [key, { value, headOccurrences }] of Object.entries(baseline[section])) {
+      const token = `${layer}.${key}`;
+      // `updateBarEnd` es un color suelto, no un literal de sombra o degradado: lo cubre `brandGradients.updateBar`.
+      if (token === 'surfaceGradients.updateBarEnd') continue;
       assert.equal(count(value), migrated.includes(token) ? 0 : headOccurrences, token);
     }
   }
+  // Con E1–E4 no queda ninguna sombra ni degradado de la auditoría escrito a mano.
+  assert.deepEqual(
+    LAYERS.flatMap(([layer, section]) => Object.keys(baseline[section]).map((key) => `${layer}.${key}`)).filter(
+      (token) => token !== 'surfaceGradients.updateBarEnd' && !migrated.includes(token),
+    ),
+    [],
+  );
 });

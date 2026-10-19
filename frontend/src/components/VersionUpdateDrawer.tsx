@@ -8,7 +8,7 @@ import Typography from '@mui/material/Typography';
 import CloseIcon from '@mui/icons-material/Close';
 import UpdateIcon from '@mui/icons-material/SystemUpdateAlt';
 import { activeBrand } from '../theme/brand/active';
-import { elevation } from '../theme/elevation';
+import { brandGradients, elevation } from '../theme/elevation';
 type VersionUpdateDrawerProps = {
   open: boolean;
   version: string | null;
@@ -72,7 +72,7 @@ export default function VersionUpdateDrawer({ open, version, onClose, onUpdateNo
           >
             <CloseIcon fontSize="small" />
           </IconButton>
-          <Box sx={{ height: 4, background: 'linear-gradient(90deg, #1d2f68 0%, #3b82f6 100%)' }} />
+          <Box sx={{ height: 4, background: brandGradients.updateBar }} />
           <Box sx={{ p: { xs: 2, sm: 2.5 } }}>
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2.25} alignItems={{ sm: 'center' }}>
               <Box

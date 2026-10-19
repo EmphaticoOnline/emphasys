@@ -91,5 +91,25 @@
       "value": "0 6px 16px rgba(29, 47, 104, 0.16)",
       "headOccurrences": 1
     }
+  },
+  "surfaceGradients": {
+    "header": {
+      "value": "linear-gradient(180deg, #fbfcff 0%, #f6f8fd 100%)",
+      "headOccurrences": 1
+    },
+    "disabledHatch": {
+      "value": "repeating-linear-gradient(135deg, rgba(107,114,128,0.05) 0px, rgba(107,114,128,0.05) 6px, transparent 6px, transparent 12px)",
+      "headOccurrences": 1
+    },
+    "updateBarEnd": {
+      "value": "#3b82f6",
+      "headOccurrences": 1
+    }
+  },
+  "brandGradients": {
+    "updateBar": {
+      "value": "linear-gradient(90deg, #1d2f68 0%, #3b82f6 100%)",
+      "headOccurrences": 1
+    }
   }
 }
