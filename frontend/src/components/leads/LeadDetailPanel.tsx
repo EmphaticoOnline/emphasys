@@ -38,6 +38,7 @@ import type {
   WhatsappEtiqueta,
 } from '../../pages/LeadsPage';
 import ActividadSeguimientoDrawer, { type SeguimientoTarget } from '../crm/ActividadSeguimientoDrawer';
+import { dataColorContrast } from '../../theme/functional';
 
 // Menu/select props compartidos por los selects compactos del inspector
 // (mismo criterio visual que ya usaban los selects de LeadsDesktopView).
@@ -209,10 +210,10 @@ export function LeadDetailPanel(props: LeadDetailPanelProps) {
                 onDelete={() => toggleConversationTag(tag)}
                 sx={{
                   bgcolor: tag.color,
-                  color: '#fff',
+                  color: dataColorContrast.tagChipForeground,
                   fontWeight: 500,
                   height: 22,
-                  '& .MuiChip-deleteIcon': { color: '#fff' },
+                  '& .MuiChip-deleteIcon': { color: dataColorContrast.tagChipForeground },
                 }}
               />
             ))}

@@ -480,3 +480,17 @@ export const onStatusColors = {
   /** Sobre el color de temperatura del prospecto. */
   temperature: '#fff',
 } as const;
+
+// ── Blancos W4: contraste sobre colores que vienen de BD (D-B3) ───────────────
+
+/**
+ * Foreground blanco sobre un color guardado en BD. Solo se extrae el rol del
+ * blanco: el color de fondo sigue siendo dato (`tag.color`, `etapa_color`) y
+ * sus fallbacks quedan literales. Cada rol conserva su escritura.
+ */
+export const dataColorContrast = {
+  /** Texto e icono de borrar del chip sobre el color de una etiqueta de conversación. */
+  tagChipForeground: '#fff',
+  /** Opción clara del contraste calculado contra el color de etapa (la oscura es `neutralColors.gray[900]`). */
+  stageLight: '#ffffff',
+} as const;

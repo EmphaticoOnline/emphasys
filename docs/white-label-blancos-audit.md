@@ -245,7 +245,21 @@ Cambios en pruebas:
   - los valores exactos de las dos familias.
   - Su equivalencia SHA-256 contra `2e0c312` es 7/7.
 - **W3b (completado):** los dos iconos sobre adjuntos de `LeadsDesktopView:1860, 1861` (`'white'`) pasan a `onMediaColors.icon` (`'white'`), en un commit aparte porque importan desde `structural`. La línea 1861 también tiene `overlayColors.media.imageButton` (tintes T3); la cadena de fixtures revierte W3b primero.
-- Pendientes (14):
+
+### 7.4 W4 — foreground sobre colores de BD (completado)
+
+- **D-B3, aprobada:** tokens funcionales de contraste. Solo se extrae el rol del blanco. Los colores de BD (`tag.color`, `etapa_color`) y sus fallbacks `'#e5e7eb'` no cambian.
+- Nuevo `dataColorContrast` en `functional.ts`:
+  - `tagChipForeground` `'#fff'`, para el texto y el icono de borrar del chip de etiqueta;
+  - `stageLight` `'#ffffff'`, la opción clara del contraste calculado; la oscura sigue siendo `neutralColors.gray[900]`.
+- **5 literales en 4 archivos:** `LeadDetailPanel:212, 215`, `ProduccionDetalleDrawer:85`, `DocumentosPage:249` y `ProduccionPage:90`.
+- `whitesColors.test.ts` agrega:
+  - el alcance por formato;
+  - la comprobación de que el chip sigue pintando `tag.color`;
+  - la comprobación de que el contraste se sigue calculando contra el color de etapa con su par oscuro;
+  - el conteo de fallbacks `|| '#e5e7eb'` sin cambios (2, 2 y 1);
+  - que ningún reemplazo toca un color de fondo.
+  - Su equivalencia SHA-256 contra `6ccb623` es 4/4.
+- Pendientes (9):
   - encabezado oscuro de grid de Oportunidades (D, 7);
-  - casos D-B3 (5);
   - los 2 excluidos de W1: deshabilitado sobre gris y spinner en un botón de advertencia.

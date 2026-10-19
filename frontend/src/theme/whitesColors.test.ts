@@ -42,6 +42,7 @@ const ROOTS = {
   whiteSurfaces: structural.whiteSurfaces,
   onStatusColors: functional.onStatusColors,
   onMediaColors: structural.onMediaColors,
+  dataColorContrast: functional.dataColorContrast,
 } as const;
 type Roots = Record<string, Record<string, string>>;
 const currentRoots = (): Roots => structuredClone(ROOTS) as Roots;
@@ -72,6 +73,8 @@ const BLOCK_SCOPE: Record<string, { files: number; formats: Record<string, numbe
   'whites.w3.baseline.json': { files: 7, formats: { "'#fff'": 4, "'#ffffff'": 4, "'white'": 3 } },
   // W3b = iconos sobre adjuntos de imagen o video (rol F), en otro módulo que W3.
   'whites.w3b.baseline.json': { files: 1, formats: { "'white'": 2 } },
+  // W4 = foreground blanco sobre colores que vienen de BD (D-B3).
+  'whites.w4.baseline.json': { files: 4, formats: { "'#fff'": 2, "'#ffffff'": 3 } },
 };
 
 test('cada subbloque tiene alcance declarado, por formato', () => {
@@ -194,6 +197,29 @@ test('W3: cada reemplazo es contraste sobre su color funcional, de tercero o de 
   );
   assert.deepEqual({ ...structural.onMediaColors }, { icon: 'white', badgeIcon: '#fff' });
   assert.ok(!/from '\.\/brand\//.test(readText('./functional.ts')));
+});
+
+test('W4: solo se extrae el foreground; los colores de BD y sus fallbacks siguen siendo datos', () => {
+  assert.deepEqual({ ...functional.dataColorContrast }, { tagChipForeground: '#fff', stageLight: '#ffffff' });
+  // El chip sigue pintando el color guardado en la etiqueta.
+  assert.match(readText('../components/leads/LeadDetailPanel.tsx'), /bgcolor: tag\.color,\n\s+color: dataColorContrast\.tagChipForeground,/);
+  // El contraste se sigue calculando contra el color de etapa, con su par oscuro.
+  for (const file of ['../components/produccion/ProduccionDetalleDrawer.tsx', '../pages/DocumentosPage.tsx', '../pages/ProduccionPage.tsx']) {
+    assert.match(readText(file), /return contrastWithWhite >= contrastWithDark \? dataColorContrast\.stageLight : neutralColors\.gray\[900\];/, file);
+  }
+  // Los fallbacks del color de etapa siguen literales, con los mismos usos que en HEAD.
+  const fallbacks = (file: string) => readText(file).split("|| '#e5e7eb'").length - 1;
+  assert.equal(fallbacks('../components/produccion/ProduccionDetalleDrawer.tsx'), 2);
+  assert.equal(fallbacks('../pages/DocumentosPage.tsx'), 2);
+  assert.equal(fallbacks('../pages/ProduccionPage.tsx'), 1);
+  // Ningún reemplazo de W4 toca un color de fondo.
+  for (const { name, replacements } of allLines()) {
+    if (name !== 'whites.w4.baseline.json') continue;
+    for (const { from, to } of replacements) {
+      assert.doesNotMatch(from, /tag\.color|etapa_color|#e5e7eb/i, from);
+      assert.match(to, /^.*dataColorContrast\.(tagChipForeground|stageLight).*$/);
+    }
+  }
 });
 
 test('mutación: alterar el formato o el valor de un token rompe la equivalencia de cada archivo que lo usa', () => {

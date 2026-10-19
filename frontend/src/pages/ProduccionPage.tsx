@@ -46,6 +46,7 @@ import {
 } from '../services/produccionService';
 import { neutralColors } from '../theme/structural';
 import { activeBrand } from '../theme/brand/active';
+import { dataColorContrast } from '../theme/functional';
 
 const formatCivilDate = (value: string | null | undefined) => {
   const raw = String(value ?? '').trim();
@@ -87,7 +88,7 @@ function getContrastingTextColor(color: string | null | undefined) {
   const contrastWithWhite = 1.05 / (luminance + 0.05);
   const contrastWithDark = (luminance + 0.05) / 0.05;
 
-  return contrastWithWhite >= contrastWithDark ? '#ffffff' : neutralColors.gray[900];
+  return contrastWithWhite >= contrastWithDark ? dataColorContrast.stageLight : neutralColors.gray[900];
 }
 
 type AdvanceDialogState = {

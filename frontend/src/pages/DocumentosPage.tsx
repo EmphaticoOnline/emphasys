@@ -166,7 +166,7 @@ import {
   buildFacturaIndicatorModel,
   type DocumentoIndicatorModel,
 } from '../components/documentos/indicadores';
-import { alertColors, balanceColors } from '../theme/functional';
+import { alertColors, balanceColors, dataColorContrast } from '../theme/functional';
 import { neutralColors, selectionColors, whiteSurfaces } from '../theme/structural';
 import { elevation } from '../theme/elevation';
 
@@ -246,7 +246,7 @@ function getContrastingTextColor(color: string | null | undefined) {
   const contrastWithWhite = 1.05 / (luminance + 0.05);
   const contrastWithDark = (luminance + 0.05) / 0.05;
 
-  return contrastWithWhite >= contrastWithDark ? '#ffffff' : neutralColors.gray[900];
+  return contrastWithWhite >= contrastWithDark ? dataColorContrast.stageLight : neutralColors.gray[900];
 }
 import {
   ESTADOS_SEGUIMIENTO,

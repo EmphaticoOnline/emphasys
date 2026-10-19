@@ -22,7 +22,7 @@ import {
   type ProduccionPartidaOperativa,
   type SeguimientoProduccionHistorialRow,
 } from '../../services/produccionService';
-import { alertColors } from '../../theme/functional';
+import { alertColors, dataColorContrast } from '../../theme/functional';
 import { neutralColors, onMediaColors, overlayColors } from '../../theme/structural';
 import { activeBrand } from '../../theme/brand/active';
 
@@ -82,7 +82,7 @@ function getContrastingTextColor(color: string | null | undefined) {
   const contrastWithWhite = 1.05 / (luminance + 0.05);
   const contrastWithDark = (luminance + 0.05) / 0.05;
 
-  return contrastWithWhite >= contrastWithDark ? '#ffffff' : neutralColors.gray[900];
+  return contrastWithWhite >= contrastWithDark ? dataColorContrast.stageLight : neutralColors.gray[900];
 }
 
 function formatCantidad(cantidad: number) {
