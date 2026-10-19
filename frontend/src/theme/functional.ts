@@ -187,6 +187,8 @@ export const inventoryFlowColors = {
  */
 export const moduleAccents = {
   inventoryReports: '#7c3aed',
+  /** Punto separador dorado entre datos de partida en el formulario de documentos. */
+  documentSeparator: '#c8a25a',
 } as const;
 
 /** Colores de marcas de terceros. Nunca se derivan de la marca propia. */

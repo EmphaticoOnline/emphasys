@@ -112,4 +112,6 @@ export const selectionColors = {
   rowHover: '#eef5ff',
   highlight: '#f0f4ff',
   principal: '#93c5fd',
+  /** Foco y selección de la zona de adjuntos del formulario de documentos (azul 800 de MUI). */
+  attachmentFocus: '#1565c0',
 } as const;

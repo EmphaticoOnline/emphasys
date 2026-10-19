@@ -1,0 +1,105 @@
+{
+  "source": "HEAD 957644a, DocumentosFormPage subbloque s8",
+  "files": {
+    "pages/DocumentosFormPage.tsx": {
+      "headSha256": "113720cf0ce464b365ee3ce6ae0aa591884dc4bf0142d2f6b18ced32939bb9b8",
+      "addedImports": [
+        "import { brandBlueAlpha } from '../theme/brand/derived';"
+      ],
+      "lines": {
+        "134": {
+          "original": "import { neutralColors } from '../theme/structural';",
+          "migrated": "import { neutralColors, selectionColors } from '../theme/structural';",
+          "entries": []
+        },
+        "135": {
+          "original": "import { advanceBoxColors, alertColors, attachmentIndicatorColors, documentSummaryTones, fiscalStatusColors } from '../theme/functional';",
+          "migrated": "import { advanceBoxColors, alertColors, attachmentIndicatorColors, documentSummaryTones, fiscalStatusColors, moduleAccents } from '../theme/functional';",
+          "entries": []
+        },
+        "4094": {
+          "original": "                    '&:focus': { borderColor: '#1565c0', color: '#1565c0' },",
+          "migrated": "                    '&:focus': { borderColor: selectionColors.attachmentFocus, color: selectionColors.attachmentFocus },",
+          "entries": [
+            {
+              "hex": "#1565c0",
+              "token": "selectionColors.attachmentFocus"
+            },
+            {
+              "hex": "#1565c0",
+              "token": "selectionColors.attachmentFocus"
+            }
+          ]
+        },
+        "4157": {
+          "original": "                                border: selected ? '2px solid #1565c0' : `1px solid ${neutralColors.gray[200]}`,",
+          "migrated": "                                border: selected ? `2px solid ${selectionColors.attachmentFocus}` : `1px solid ${neutralColors.gray[200]}`,",
+          "entries": [
+            {
+              "hex": "#1565c0",
+              "token": "selectionColors.attachmentFocus"
+            }
+          ]
+        },
+        "5149": {
+          "original": "                                      <Typography sx={{ fontSize: 16, lineHeight: 0, textAlign: 'center', color: '#c8a25a' }}>·</Typography>",
+          "migrated": "                                      <Typography sx={{ fontSize: 16, lineHeight: 0, textAlign: 'center', color: moduleAccents.documentSeparator }}>·</Typography>",
+          "entries": [
+            {
+              "hex": "#c8a25a",
+              "token": "moduleAccents.documentSeparator"
+            }
+          ]
+        },
+        "7340": {
+          "original": "                            boxShadow: '0 1px 0 rgba(29, 47, 104, 0.06)',",
+          "migrated": "                            boxShadow: `0 1px 0 ${brandBlueAlpha(0.06)}`,",
+          "entries": [],
+          "expressions": [
+            {
+              "literal": "rgba(29, 47, 104, 0.06)",
+              "expression": "brandBlueAlpha(0.06)"
+            }
+          ]
+        },
+        "7766": {
+          "original": "                            boxShadow: '0 1px 0 rgba(29, 47, 104, 0.06)',",
+          "migrated": "                            boxShadow: `0 1px 0 ${brandBlueAlpha(0.06)}`,",
+          "entries": [],
+          "expressions": [
+            {
+              "literal": "rgba(29, 47, 104, 0.06)",
+              "expression": "brandBlueAlpha(0.06)"
+            }
+          ]
+        },
+        "8897": {
+          "original": "                  '&:focus': { borderColor: '#1565c0', color: '#1565c0' },",
+          "migrated": "                  '&:focus': { borderColor: selectionColors.attachmentFocus, color: selectionColors.attachmentFocus },",
+          "entries": [
+            {
+              "hex": "#1565c0",
+              "token": "selectionColors.attachmentFocus"
+            },
+            {
+              "hex": "#1565c0",
+              "token": "selectionColors.attachmentFocus"
+            }
+          ]
+        },
+        "8967": {
+          "original": "                              border: selected ? '2px solid #1565c0' : `1px solid ${neutralColors.gray[200]}`,",
+          "migrated": "                              border: selected ? `2px solid ${selectionColors.attachmentFocus}` : `1px solid ${neutralColors.gray[200]}`,",
+          "entries": [
+            {
+              "hex": "#1565c0",
+              "token": "selectionColors.attachmentFocus"
+            }
+          ]
+        }
+      },
+      "snippets": {},
+      "keptLiteral": {}
+    }
+  }
+}

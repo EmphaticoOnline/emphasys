@@ -4,6 +4,8 @@ import { existsSync, readFileSync } from 'node:fs';
 import test from 'node:test';
 import { alertColors, attachmentIndicatorColors, documentSummaryTones, feedbackTokens, fiscalStatusColors } from './functional.ts';
 import { neutralColors } from './structural.ts';
+import { emphasysBrand } from './brand/emphasys.ts';
+import { brandBlueAlpha, rgbaFromHex } from './brand/derived.ts';
 import {
   colorTokenPath,
   colorTokenRoots,
@@ -192,4 +194,45 @@ test('subbloque 7: el resumen financiero conserva los tres tonos de importes neg
   assert.deepStrictEqual(sequence(8410, 8430), full);
   assert.deepStrictEqual(sequence(8600, 8615), ['gross', 'discount', 'net', 'tax', 'withholding', 'total'].map((k) => `documentSummaryTones.${k}`));
   assert.equal(byLine.filter(([, t]) => t === 'documentSummaryTones.withholdingInline').length, 3);
+});
+
+test('subbloque 8: la sombra con alfa del azul sale de la marca y produce el mismo string', () => {
+  const s8 = subblocks.find(({ name }) => name === 'documentosForm.s8.baseline.json')!.fixture.files[FILE]!;
+  type ExprLine = { original: string; migrated: string; expressions?: { literal: string; expression: string }[] };
+  const exprLines = Object.values(s8.lines as Record<string, ExprLine>).filter((l) => l.expressions?.length);
+  assert.equal(exprLines.length, 2);
+  for (const { original, migrated, expressions } of exprLines) {
+    for (const { literal, expression } of expressions!) {
+      const alpha = Number(/^brandBlueAlpha\(([0-9.]+)\)$/.exec(expression)![1]);
+      // Transformación: el literal dentro del string pasa a plantilla con la expresión, sin más cambios.
+      assert.equal(brandBlueAlpha(alpha), literal);
+      assert.equal(migrated, original.replace(`'0 1px 0 ${literal}'`, `\`0 1px 0 \${${expression}}\``));
+      // Mutación: otro azul de marca produce otra sombra.
+      assert.notEqual(rgbaFromHex('#1d2f69', alpha), literal);
+      assert.equal(rgbaFromHex('#000001', alpha), `rgba(0, 0, 1, ${alpha})`);
+    }
+  }
+  assert.equal(emphasysBrand.colors.blue.base, '#1d2f68');
+  // El mismo #1565c0 es foco de adjuntos aquí y "archivo de producto" en el subbloque 6: tokens distintos.
+  const tokens = Object.values(s8.lines).flatMap((l) => l.entries.map((e) => e.token));
+  assert.equal(tokens.filter((t) => t === 'selectionColors.attachmentFocus').length, 6);
+  assert.equal(tokens.filter((t) => t === 'moduleAccents.documentSeparator').length, 1);
+});
+
+test('cierre: en DocumentosFormPage solo quedan los colores fuera de alcance documentados', () => {
+  const source = readText(`../${FILE}`);
+  const literals = [...source.matchAll(/#[0-9a-fA-F]{6}\b|'#[0-9a-fA-F]{3}'|rgba?\([^)]*\)/g)].map(([v]) => v.replace(/'/g, '').toLowerCase());
+  const count = literals.reduce<Record<string, number>>((acc, v) => ((acc[v] = (acc[v] ?? 0) + 1), acc), {});
+  // Informe §2.6: blancos y rgba que no son de marca (17).
+  assert.deepStrictEqual(count, {
+    '#fff': 8,
+    '#ffffff': 2,
+    'rgba(255,255,255,0.7)': 1,
+    'rgba(255, 255, 255, 0.96)': 1,
+    'rgba(15, 23, 42, 0.12)': 1,
+    'rgba(148,163,184,0.35)': 1,
+    'rgba(148,163,184,0.25)': 1,
+    'rgba(148,163,184,0.4)': 1,
+    'rgba(148, 163, 184, 0.35)': 1,
+  });
 });

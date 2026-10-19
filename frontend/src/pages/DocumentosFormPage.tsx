@@ -131,8 +131,9 @@ import {
 import type { CampoValorPayload, CampoValorGuardado } from '../types/camposDinamicos';
 import type { Concepto, DocumentoAnticipoResumen, EstadoCuentaItem, FinanzasCuenta } from '../types/finanzas';
 import { NumericFormat } from 'react-number-format';
-import { neutralColors } from '../theme/structural';
-import { advanceBoxColors, alertColors, attachmentIndicatorColors, documentSummaryTones, fiscalStatusColors } from '../theme/functional';
+import { neutralColors, selectionColors } from '../theme/structural';
+import { advanceBoxColors, alertColors, attachmentIndicatorColors, documentSummaryTones, fiscalStatusColors, moduleAccents } from '../theme/functional';
+import { brandBlueAlpha } from '../theme/brand/derived';
 
 const toCivilDate = (date = new Date()) => {
   const year = date.getFullYear();
@@ -4091,7 +4092,7 @@ export default function DocumentosFormPage({
                     textAlign: 'center',
                     color: neutralColors.gray[500],
                     outline: 'none',
-                    '&:focus': { borderColor: '#1565c0', color: '#1565c0' },
+                    '&:focus': { borderColor: selectionColors.attachmentFocus, color: selectionColors.attachmentFocus },
                   }}
                 >
                   {uploadingImagen[partidaImagenDialog.index ?? -1] ? (
@@ -4154,7 +4155,7 @@ export default function DocumentosFormPage({
                                 position: 'relative',
                                 borderRadius: 1.5,
                                 overflow: 'hidden',
-                                border: selected ? '2px solid #1565c0' : `1px solid ${neutralColors.gray[200]}`,
+                                border: selected ? `2px solid ${selectionColors.attachmentFocus}` : `1px solid ${neutralColors.gray[200]}`,
                                 bgcolor: neutralColors.steel.attachmentSurface,
                                 aspectRatio: '1 / 1',
                               }}
@@ -5146,7 +5147,7 @@ export default function DocumentosFormPage({
                                   </Typography>
                                   {impuestosPartida.retenciones > 0 && (
                                     <Tooltip title={`Incluye retención de ${formatter.format(impuestosPartida.retenciones)}`}>
-                                      <Typography sx={{ fontSize: 16, lineHeight: 0, textAlign: 'center', color: '#c8a25a' }}>·</Typography>
+                                      <Typography sx={{ fontSize: 16, lineHeight: 0, textAlign: 'center', color: moduleAccents.documentSeparator }}>·</Typography>
                                     </Tooltip>
                                   )}
                                 </Box>
@@ -7337,7 +7338,7 @@ export default function DocumentosFormPage({
                             border: '1.5px solid',
                             borderColor: neutralColors.steel.totalsBorder,
                             bgcolor: '#ffffff',
-                            boxShadow: '0 1px 0 rgba(29, 47, 104, 0.06)',
+                            boxShadow: `0 1px 0 ${brandBlueAlpha(0.06)}`,
                             mb: 1.5,
                           }}
                         >
@@ -7763,7 +7764,7 @@ export default function DocumentosFormPage({
                             border: '1.75px solid',
                             borderColor: neutralColors.steel.totalsBorder,
                             bgcolor: '#ffffff',
-                            boxShadow: '0 1px 0 rgba(29, 47, 104, 0.06)',
+                            boxShadow: `0 1px 0 ${brandBlueAlpha(0.06)}`,
                             display: 'flex',
                             flexDirection: 'column',
                             gap: { xs: 1, md: 1.25 },
@@ -8894,7 +8895,7 @@ export default function DocumentosFormPage({
                   textAlign: 'center',
                   color: neutralColors.gray[500],
                   outline: 'none',
-                  '&:focus': { borderColor: '#1565c0', color: '#1565c0' },
+                  '&:focus': { borderColor: selectionColors.attachmentFocus, color: selectionColors.attachmentFocus },
                 }}
               >
                 {uploadingImagen[partidaImagenDialog.index ?? -1] ? (
@@ -8964,7 +8965,7 @@ export default function DocumentosFormPage({
                               position: 'relative',
                               borderRadius: 1.5,
                               overflow: 'hidden',
-                              border: selected ? '2px solid #1565c0' : `1px solid ${neutralColors.gray[200]}`,
+                              border: selected ? `2px solid ${selectionColors.attachmentFocus}` : `1px solid ${neutralColors.gray[200]}`,
                               bgcolor: neutralColors.steel.attachmentSurface,
                               aspectRatio: '1 / 1',
                             }}
