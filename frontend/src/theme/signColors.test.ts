@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import test from 'node:test';
-import { balanceColors, cashFlowColors, dueDateColors } from './functional.ts';
+import { balanceColors, cashFlowColors, dueDateColors, priceVarianceColors } from './functional.ts';
 import { amountSignColor, inflowColor, outflowColor, overdueColor } from './sign.ts';
 import { classicTheme, experimentalTheme } from './themes.ts';
 import { classicTokens, experimentalTokens } from './tokens.ts';
@@ -179,4 +179,48 @@ test('bloque 3: los días sin conciliar (antigüedad) quedan fuera y en palette'
   const noConciliados = readText('../pages/informes/finanzas/MovimientosNoConciliadosPage.tsx');
   assert.ok(noConciliados.includes("const color = d > 30 ? 'error.main' : d > 7 ? 'warning.main' : 'text.secondary';"));
   assert.ok(noConciliados.includes("color={k.maxDias > 30 ? 'error.main' : k.maxDias > 7 ? 'warning.main' : 'text.primary'}"));
+});
+
+test('bloque 4: priceVarianceColors son exactamente los palette.*.main que reemplazaron, en ventas y compras', () => {
+  const b4 = blocks.find(({ name }) => name === 'signColors.b4.baseline.json')!.fixture;
+  assert.deepStrictEqual(Object.keys(b4.files).sort(), [
+    'pages/informes/compras/HistorialPreciosCompraPage.tsx',
+    'pages/informes/ventas/HistorialPreciosVentaPage.tsx',
+  ]);
+  const replacements = Object.values(b4.files).flatMap((f) => Object.values(f.lines).flatMap((l) => l.replacements));
+  assert.equal(replacements.reduce((a, r) => a + r.times, 0), 12);
+  for (const { from, to } of replacements) {
+    const palette = /^'(error|success)\.main'$/.exec(from);
+    const role = /^priceVarianceColors\.(up|down|max|min)$/.exec(to);
+    assert.ok(palette && role, `${from} → ${to}`);
+    for (const theme of [classicTheme, experimentalTheme]) {
+      assert.equal(priceVarianceColors[role[1] as keyof typeof priceVarianceColors], theme.palette[palette[1] as 'error' | 'success'].main, to);
+    }
+  }
+  // Ventas y compras migran igual: misma lectura (subir en rojo), pendiente de diseño D9.
+  const [compras, ventas] = Object.values(b4.files).map((f) => Object.values(f.lines).map((l) => l.replacements.map((r) => r.to).join('|')));
+  assert.deepStrictEqual(compras, ventas);
+  // El valor KPI "Último precio/costo" (#1d2f68) sigue fuera, como en el bloque de neutrales.
+  for (const file of Object.keys(b4.files)) assert.ok(readText(`../${file}`).includes("color: '#1d2f68', bold: true"), file);
+});
+
+test('cierre de la fuente A: en los archivos migrados solo quedan palette que no son de signo', () => {
+  const files = new Set(
+    blocks
+      .filter(({ name }) => ['signColors.b2.baseline.json', 'signColors.b3.baseline.json', 'signColors.b4.baseline.json'].includes(name))
+      .flatMap(({ fixture }) => Object.keys(fixture.files)),
+  );
+  assert.equal(files.size, 17);
+  // Validación, alertas, acción destructiva y antigüedad de conciliación (D8): no son signo.
+  const expected: Record<string, number> = {
+    'modules/contabilidad/SaldosInicialesView.tsx': 2,
+    'pages/DocumentosFormPage.tsx': 1,
+    'pages/informes/inventario/ExistenciasPorAlmacenPage.tsx': 1,
+    'pages/finanzas/ConciliacionBancariaPage.tsx': 2,
+    'pages/informes/finanzas/MovimientosNoConciliadosPage.tsx': 4,
+  };
+  for (const file of files) {
+    const count = readText(`../${file}`).match(/'(error|success|warning)\.main'/g)?.length ?? 0;
+    assert.equal(count, expected[file] ?? 0, file);
+  }
 });

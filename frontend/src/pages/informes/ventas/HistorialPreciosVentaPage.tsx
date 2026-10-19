@@ -35,6 +35,7 @@ import {
   type HistorialPreciosParams,
   type HistorialPreciosResult,
 } from '../../../services/reportesService';
+import { priceVarianceColors } from '../../../theme/functional';
 
 type ContactoOpcion = { id: number; nombre: string; rfc?: string | null };
 type ProductoOpcion = { id: number; clave: string; descripcion: string };
@@ -251,9 +252,9 @@ export default function HistorialPreciosVentaPage() {
 
   const varPct      = resumen?.variacion_pct ?? null;
   const varTexto    = varPct === null ? 'N/A' : `${varPct >= 0 ? '+' : ''}${varPct.toFixed(2)} %`;
-  const varColor    = varPct === null ? 'text.secondary' : varPct > 0 ? 'error.main' : varPct < 0 ? 'success.main' : 'text.primary';
+  const varColor    = varPct === null ? 'text.secondary' : varPct > 0 ? priceVarianceColors.up : varPct < 0 ? priceVarianceColors.down : 'text.primary';
   const VarIcon     = varPct !== null && varPct < 0 ? TrendingDownIcon : TrendingUpIcon;
-  const varIconColor = varPct === null ? 'text.secondary' : varPct > 0 ? 'error.main' : varPct < 0 ? 'success.main' : 'text.secondary';
+  const varIconColor = varPct === null ? 'text.secondary' : varPct > 0 ? priceVarianceColors.up : varPct < 0 ? priceVarianceColors.down : 'text.secondary';
 
   return (
     <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
@@ -373,8 +374,8 @@ export default function HistorialPreciosVentaPage() {
         <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
           {[
             { label: 'Último precio',    valor: formatMXN(resumen.ultimo_costo),   color: '#1d2f68', bold: true },
-            { label: 'Precio mínimo',    valor: formatMXN(resumen.costo_min),      color: 'success.main', bold: false },
-            { label: 'Precio máximo',    valor: formatMXN(resumen.costo_max),      color: 'error.main', bold: false },
+            { label: 'Precio mínimo',    valor: formatMXN(resumen.costo_min),      color: priceVarianceColors.min, bold: false },
+            { label: 'Precio máximo',    valor: formatMXN(resumen.costo_max),      color: priceVarianceColors.max, bold: false },
             { label: 'Promedio ponder.', valor: formatMXN(resumen.costo_promedio), color: 'text.primary', bold: false },
           ].map((k) => (
             <Paper

@@ -361,3 +361,15 @@ export const dueDateColors = {
   overdue: feedbackTokens.error.main,
   dueToday: feedbackTokens.warning.main,
 } as const;
+
+/**
+ * Variación de precio o costo en el historial: sube, baja, máximo y mínimo del
+ * periodo. Mismos valores de `palette` de MUI. Ventas usa la misma lectura que
+ * compras (subir en rojo); ver D9 en la auditoría de fuentes de signo.
+ */
+export const priceVarianceColors = {
+  up: feedbackTokens.error.main,
+  down: feedbackTokens.success.main,
+  max: feedbackTokens.error.main,
+  min: feedbackTokens.success.main,
+} as const;
