@@ -181,4 +181,16 @@ export const overlayColors = {
     /** Inicio del pulso de "reciente" (sky-400), fijo (D-T4). */
     recentStart: 'rgba(56, 189, 248, 0.24)',
   },
+  /** Panel "Recepciones" del formulario de documentos (bordes slate-400). */
+  receptionPanel: {
+    border: 'rgba(148,163,184,0.35)',
+    headerDivider: 'rgba(148,163,184,0.25)',
+    totalBorder: 'rgba(148,163,184,0.4)',
+  },
+  /** Resumen financiero flotante (cristal) del formulario de documentos. */
+  floatingSummary: {
+    /** Mismo color que `receptionPanel.border`, escrito con espacios; no se unifican. */
+    border: 'rgba(148, 163, 184, 0.35)',
+    surface: 'rgba(255, 255, 255, 0.96)',
+  },
 } as const;

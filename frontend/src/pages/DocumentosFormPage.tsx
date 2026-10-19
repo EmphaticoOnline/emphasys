@@ -131,7 +131,7 @@ import {
 import type { CampoValorPayload, CampoValorGuardado } from '../types/camposDinamicos';
 import type { Concepto, DocumentoAnticipoResumen, EstadoCuentaItem, FinanzasCuenta } from '../types/finanzas';
 import { NumericFormat } from 'react-number-format';
-import { neutralColors, selectionColors } from '../theme/structural';
+import { neutralColors, overlayColors, selectionColors } from '../theme/structural';
 import { advanceBoxColors, alertColors, attachmentIndicatorColors, balanceColors, documentSummaryTones, fiscalStatusColors, moduleAccents } from '../theme/functional';
 import { brandBlueAlpha } from '../theme/brand/derived';
 import { elevation } from '../theme/elevation';
@@ -4288,7 +4288,7 @@ export default function DocumentosFormPage({
             ))}
           </Stack>
           <Box sx={{ bgcolor: 'primary.main', px: 1.75, py: 1.25, display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-            <Typography sx={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', letterSpacing: '0.06em', textTransform: 'uppercase', fontWeight: 600 }}>
+            <Typography sx={{ fontSize: 12, color: overlayColors.onDark.mutedLabel, letterSpacing: '0.06em', textTransform: 'uppercase', fontWeight: 600 }}>
               Total {form.moneda}
             </Typography>
             <Typography sx={{ fontSize: 21, color: '#fff', fontWeight: 700, fontFamily: 'monospace', fontVariantNumeric: 'tabular-nums' }}>
@@ -8488,7 +8488,7 @@ export default function DocumentosFormPage({
           sx={{
             mt: 2,
             border: '1px solid',
-            borderColor: 'rgba(148,163,184,0.35)',
+            borderColor: overlayColors.receptionPanel.border,
             borderRadius: 2,
             overflow: 'hidden',
           }}
@@ -8497,7 +8497,7 @@ export default function DocumentosFormPage({
             direction="row"
             alignItems="center"
             spacing={1}
-            sx={{ px: 2, py: 1.25, bgcolor: neutralColors.slate[50], borderBottom: '1px solid', borderColor: 'rgba(148,163,184,0.25)' }}
+            sx={{ px: 2, py: 1.25, bgcolor: neutralColors.slate[50], borderBottom: '1px solid', borderColor: overlayColors.receptionPanel.headerDivider }}
           >
             <Typography variant="subtitle2" sx={{ fontWeight: 700, color: neutralColors.slate[800], flexGrow: 1 }}>
               Recepciones
@@ -8558,7 +8558,7 @@ export default function DocumentosFormPage({
                       </TableCell>
                     </TableRow>
                   ))}
-                  <TableRow sx={{ bgcolor: neutralColors.slate[50], '& td': { fontWeight: 700, fontSize: '0.8rem', borderTop: '2px solid', borderColor: 'rgba(148,163,184,0.4)' } }}>
+                  <TableRow sx={{ bgcolor: neutralColors.slate[50], '& td': { fontWeight: 700, fontSize: '0.8rem', borderTop: '2px solid', borderColor: overlayColors.receptionPanel.totalBorder } }}>
                     <TableCell>Total</TableCell>
                     <TableCell align="right">{Number(recepcionResumen.total_ordenado).toLocaleString('es-MX', { maximumFractionDigits: 4 })}</TableCell>
                     <TableCell align="right" sx={{ color: alertColors.success[800] }}>{Number(recepcionResumen.total_recibido).toLocaleString('es-MX', { maximumFractionDigits: 4 })}</TableCell>
@@ -8591,8 +8591,8 @@ export default function DocumentosFormPage({
             zIndex: 1200,
             borderRadius: 2,
             border: '1px solid',
-            borderColor: 'rgba(148, 163, 184, 0.35)',
-            bgcolor: 'rgba(255, 255, 255, 0.96)',
+            borderColor: overlayColors.floatingSummary.border,
+            bgcolor: overlayColors.floatingSummary.surface,
             backdropFilter: 'blur(10px)',
             boxShadow: elevation.floatingSummary,
             px: 1.5,

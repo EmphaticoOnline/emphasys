@@ -223,16 +223,11 @@ test('cierre: en DocumentosFormPage solo quedan los colores fuera de alcance doc
   const source = readText(`../${FILE}`);
   const literals = [...source.matchAll(/#[0-9a-fA-F]{6}\b|'#[0-9a-fA-F]{3}'|rgba?\([^)]*\)/g)].map(([v]) => v.replace(/'/g, '').toLowerCase());
   const count = literals.reduce<Record<string, number>>((acc, v) => ((acc[v] = (acc[v] ?? 0) + 1), acc), {});
-  // Informe §2.6: blancos y rgba que no son de marca (17). La sombra del resumen
-  // flotante `rgba(15, 23, 42, 0.12)` pasó a `elevation.floatingSummary` (elevación E3): quedan 16.
+  // Informe §2.6: blancos y rgba que no son de marca (17). La sombra del resumen flotante pasó a
+  // `elevation.floatingSummary` (elevación E3) y los 6 velos y bordes a `overlayColors` (tintes T4):
+  // quedan solo los 10 blancos.
   assert.deepStrictEqual(count, {
     '#fff': 8,
     '#ffffff': 2,
-    'rgba(255,255,255,0.7)': 1,
-    'rgba(255, 255, 255, 0.96)': 1,
-    'rgba(148,163,184,0.35)': 1,
-    'rgba(148,163,184,0.25)': 1,
-    'rgba(148,163,184,0.4)': 1,
-    'rgba(148, 163, 184, 0.35)': 1,
   });
 });

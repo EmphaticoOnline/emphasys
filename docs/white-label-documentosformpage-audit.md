@@ -254,3 +254,7 @@ Pruebas del subbloque: `frontend/src/theme/documentosFormColors.test.ts`. Compru
 - Quedan **17 literales fuera de alcance** (§2.6): blancos `#fff` ×8 y `#ffffff` ×2, `rgba(255,255,255,…)` ×2, `rgba(148,163,184,…)` ×4 y la sombra `rgba(15, 23, 42, 0.12)`. La prueba de cierre de `documentosFormColors.test.ts` exige exactamente ese conjunto.
 - **Equivalencia:** revertir los subbloques s8 → s1 reproduce cada HEAD intermedio y, al final, `90e6063`, byte a byte.
 - **Pendiente fuera de este archivo:** unificar los tres tonos de importes negativos (fuentes de signo) y decidir si los blancos y las sombras `rgba` se tokenizan en una fase de elevación y superficies.
+- **Actualización posterior (elevación y tintes alfa):** de los 17 literales fuera de alcance, 7 pasaron a tokens con el mismo string:
+  - la sombra `rgba(15, 23, 42, 0.12)` → `elevation.floatingSummary` (elevación E3, `dbdf348`);
+  - los 6 `rgba` → `overlayColors` (tintes T4): `onDark.mutedLabel`, `receptionPanel.border`, `headerDivider` y `totalBorder`, y `floatingSummary.border` y `surface`.
+  - Quedan solo los 10 blancos (`#fff` ×8, `#ffffff` ×2), y la prueba de cierre exige exactamente ese conjunto.

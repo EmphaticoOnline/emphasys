@@ -164,6 +164,26 @@
     "overlayColors.pulse.recentStart": {
       "value": "rgba(56, 189, 248, 0.24)",
       "headOccurrences": 1
+    },
+    "overlayColors.receptionPanel.border": {
+      "value": "rgba(148,163,184,0.35)",
+      "headOccurrences": 1
+    },
+    "overlayColors.receptionPanel.headerDivider": {
+      "value": "rgba(148,163,184,0.25)",
+      "headOccurrences": 1
+    },
+    "overlayColors.receptionPanel.totalBorder": {
+      "value": "rgba(148,163,184,0.4)",
+      "headOccurrences": 1
+    },
+    "overlayColors.floatingSummary.border": {
+      "value": "rgba(148, 163, 184, 0.35)",
+      "headOccurrences": 1
+    },
+    "overlayColors.floatingSummary.surface": {
+      "value": "rgba(255, 255, 255, 0.96)",
+      "headOccurrences": 1
     }
   }
 }

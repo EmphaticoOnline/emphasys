@@ -56,7 +56,15 @@ const BLOCK_SCOPE: Record<string, { tokens: (token: string) => boolean; total: n
     tokens: (token) => ['alertTints.errorHover', 'environmentColors.defaultBackground', 'environmentColors.defaultBorder'].includes(token),
     total: 4,
   },
-  'tints.t3.baseline.json': { tokens: (token) => token.startsWith('overlayColors.'), total: 27 },
+  'tints.t3.baseline.json': {
+    tokens: (token) => token.startsWith('overlayColors.') && !/^overlayColors\.(receptionPanel|floatingSummary)\./.test(token),
+    total: 27,
+  },
+  // `onDark.mutedLabel` se comparte con T3: mismo rol (etiqueta atenuada sobre encabezado azul).
+  'tints.t4.baseline.json': {
+    tokens: (token) => token === 'overlayColors.onDark.mutedLabel' || /^overlayColors\.(receptionPanel|floatingSummary)\./.test(token),
+    total: 6,
+  },
 };
 
 /** Familia de marca de la que deriva cada tinte. */
@@ -160,7 +168,7 @@ test('paridad T2: los tintes funcionales reproducen el literal de HEAD y no depe
   assert.ok(!/from '\.\/brand\//.test(readText('./color.ts')) && !/from '\.\/brand|from '\.\.\/brand/.test(readText('./color.ts')));
 });
 
-test('paridad T3: los velos estructurales reproducen el literal de HEAD con su formato y no dependen de la marca', () => {
+test('paridad T3–T4: los velos estructurales reproducen el literal de HEAD con su formato y no dependen de la marca', () => {
   const values = tokenValues();
   const structuralTokens = Object.keys(values).filter((token) => token.startsWith('overlayColors.'));
   assert.deepEqual(structuralTokens.sort(), Object.keys(baseline.structural).sort());
@@ -172,6 +180,9 @@ test('paridad T3: los velos estructurales reproducen el literal de HEAD con su f
   // Mismo valor, roles distintos: tokens separados.
   assert.equal(overlayColors.chat.ownBubbleBorder, overlayColors.veils.loading);
   assert.equal(overlayColors.onDark.tabHighlight, environmentColors.defaultBackground);
+  // T4: mismo color slate-400 con dos escrituras (compacta y con espacios), dos roles.
+  assert.equal(overlayColors.receptionPanel.border, 'rgba(148,163,184,0.35)');
+  assert.equal(overlayColors.floatingSummary.border, 'rgba(148, 163, 184, 0.35)');
 });
 
 test('sin unificación: los valores repetidos son roles distintos declarados', () => {
@@ -302,7 +313,7 @@ test('seguimiento de marca: con otro azul, beige o acento, solo dejan de reprodu
   }
 });
 
-test('cierre: no quedan tintes de marca ni funcionales de T1–T2 escritos a mano fuera del legado', () => {
+test('cierre: no quedan tintes de T1–T4 escritos a mano fuera del legado', () => {
   const root = new URL('../', import.meta.url);
   const files: string[] = [];
   const walk = (dir: URL, rel: string) => {
@@ -330,9 +341,9 @@ test('cierre: no quedan tintes de marca ni funcionales de T1–T2 escritos a man
   assert.deepEqual(occurrences(environmentColors.defaultBorder), []);
   // Mismo valor que el fondo del entorno, otro rol (brillo de pestaña): migrado en T3.
   assert.deepEqual(occurrences(environmentColors.defaultBackground), []);
-  // T3: ningún velo estructural queda escrito a mano, salvo en `DocumentosFormPage` (T4).
+  // T3–T4: ningún velo estructural queda escrito a mano fuera del legado (`DocumentosFormPage` incluida).
   for (const [token, value] of Object.entries(tokenValues()).filter(([token]) => token.startsWith('overlayColors.'))) {
-    const left = occurrences(value).filter((file) => file !== 'pages/DocumentosFormPage.tsx' && !legacy.includes(file));
+    const left = occurrences(value).filter((file) => !legacy.includes(file));
     assert.deepEqual(left, [], token);
   }
   // D-T3: la franja verde `#007846` de Oportunidades queda literal, como pendiente de diseño.

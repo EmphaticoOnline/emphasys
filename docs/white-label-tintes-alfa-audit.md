@@ -316,5 +316,20 @@ Además: `tsc` (213 preexistentes), build y `git diff --check`.
 | `text.fieldCaption` | `rgba(0,0,0,0.6)` | `TratamientoFiscalControl` (no se lee de `palette.text.secondary`) |
 | `pulse.recentStart` | `rgba(56, 189, 248, 0.24)` | `DocumentosDesktopView` |
 
-Pendiente:
-- T4: `DocumentosFormPage` (6).
+### 7.4 T4 — literales migrados en `DocumentosFormPage` (completado)
+
+6 reemplazos en 6 líneas, en `overlayColors`:
+
+| Línea (HEAD `b3218ee`) | Literal | Token |
+|---|---|---|
+| 4291 | `'rgba(255,255,255,0.7)'` | `overlayColors.onDark.mutedLabel` (mismo rol que en `FacturaResumenFlotante`) |
+| 8491 | `'rgba(148,163,184,0.35)'` | `overlayColors.receptionPanel.border` |
+| 8500 | `'rgba(148,163,184,0.25)'` | `overlayColors.receptionPanel.headerDivider` |
+| 8561 | `'rgba(148,163,184,0.4)'` | `overlayColors.receptionPanel.totalBorder` |
+| 8594 | `'rgba(148, 163, 184, 0.35)'` | `overlayColors.floatingSummary.border` (mismo color que 8491 con espacios; no se unifica) |
+| 8595 | `'rgba(255, 255, 255, 0.96)'` | `overlayColors.floatingSummary.surface` |
+
+- El cierre de `DocumentosFormPage` baja a 10 literales, todos blancos (`#fff` ×8, `#ffffff` ×2).
+- **Tintes alfa cerrados (T1–T4):**
+  - 54 reemplazos, ningún valor visual cambiado;
+  - fuera del legado no queda ningún `rgba` literal de la auditoría, salvo la franja verde `#007846` (D-T3, pendiente de diseño).
