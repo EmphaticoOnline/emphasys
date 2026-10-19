@@ -1,4 +1,5 @@
-import { emphasysBrand } from './brand/emphasys.ts';
+import { activeBrand } from './brand/active.ts';
+import { rgbaFromHex } from './color.ts';
 import type { BrandDefinition } from './brand/types.ts';
 import { classicFunctionalTokens, experimentalFunctionalTokens } from './functional.ts';
 
@@ -131,8 +132,8 @@ function buildStructuralFrame(brand: BrandDefinition) {
   return {
     background: graphite.chrome,
     foreground: ivory.surface,
-    muted: 'rgba(247,244,238,0.62)',
-    subtle: 'rgba(247,244,238,0.42)',
+    muted: rgbaFromHex(ivory.surface, '0.62', 'compact'),
+    subtle: rgbaFromHex(ivory.surface, '0.42', 'compact'),
     border: 'rgba(255,255,255,0.08)',
     selection: 'rgba(255,255,255,0.10)',
     selectionForeground: ivory.selected,
@@ -140,7 +141,7 @@ function buildStructuralFrame(brand: BrandDefinition) {
     accent: graphite.accent,
     control: 'rgba(255,255,255,0.08)',
     controlForeground: ivory.surface,
-    controlBorder: 'rgba(247,244,238,0.35)',
+    controlBorder: rgbaFromHex(ivory.surface, '0.35', 'compact'),
     logoFilter: 'none',
     itemForeground: graphite.itemForeground,
   };
@@ -148,7 +149,7 @@ function buildStructuralFrame(brand: BrandDefinition) {
 
 /** Tipografía definitiva del menú principal. El resto del ERP sigue en Roboto. */
 export const MAIN_NAV_TYPE = {
-  fontFamily: emphasysBrand.typography.navigation,
+  fontFamily: activeBrand.typography.navigation,
   fontSize: 15,
   fontWeight: 500,
   activeFontWeight: 700,
@@ -160,7 +161,7 @@ export const MAIN_NAV_TYPE = {
   iconGap: 1,
 } as const;
 
-export const EDITORIAL_FIGURE_FAMILY = emphasysBrand.typography.editorialFigure;
+export const EDITORIAL_FIGURE_FAMILY = activeBrand.typography.editorialFigure;
 
 export function buildClassicTokens(brand: BrandDefinition): EmphasysTokens {
   const { blue, graphite, accent } = brand.colors;
@@ -178,7 +179,7 @@ export function buildClassicTokens(brand: BrandDefinition): EmphasysTokens {
       muted: '#6b7280',
       subtle: '#9ca3af',
       border: '#e5e7eb',
-      selection: 'rgba(44, 51, 68, 0.08)',
+      selection: rgbaFromHex(chrome, '0.08'),
       selectionForeground: chrome,
       hover: 'rgba(15, 23, 42, 0.04)',
       accent: chrome,
@@ -225,7 +226,7 @@ export function buildClassicTokens(brand: BrandDefinition): EmphasysTokens {
       primaryHover: blue.hover,
       tint: blue.tint,
       wash: blue.wash,
-      hoverTint: 'rgba(29, 47, 104, 0.08)',
+      hoverTint: rgbaFromHex(blue.base, '0.08'),
       destructive: functional.action.destructive,
       info: functional.action.info,
       disabled: '#c9d2e8',
@@ -242,8 +243,8 @@ export function buildClassicTokens(brand: BrandDefinition): EmphasysTokens {
       headerForeground: '#ffffff',
       stripe: 'rgba(0, 120, 70, 0.05)',
       hover: 'rgba(15, 23, 42, 0.04)',
-      selected: 'rgba(44, 51, 68, 0.08)',
-      selectedHover: 'rgba(44, 51, 68, 0.12)',
+      selected: rgbaFromHex(chrome, '0.08'),
+      selectedHover: rgbaFromHex(chrome, '0.12'),
     },
     metric: functional.metric,
     status: functional.status,
@@ -254,7 +255,7 @@ export function buildClassicTokens(brand: BrandDefinition): EmphasysTokens {
       receivedForeground: '#1f2937',
       sent: blue.base,
       sentForeground: '#ffffff',
-      selection: 'rgba(29, 47, 104, 0.12)',
+      selection: rgbaFromHex(blue.base, '0.12'),
       selectionBar: blue.base,
       reply: blue.tint,
     },
@@ -269,8 +270,8 @@ export function buildExperimentalTokens(brand: BrandDefinition): EmphasysTokens 
     navigation: {
       background: graphite.chrome,
       foreground: beige.base,
-      muted: 'rgba(244,240,232,0.62)',
-      subtle: 'rgba(244,240,232,0.42)',
+      muted: rgbaFromHex(beige.base, '0.62', 'compact'),
+      subtle: rgbaFromHex(beige.base, '0.42', 'compact'),
       border: 'rgba(255,255,255,0.08)',
       selection: graphite.selection,
       selectionForeground: ivory.selected,
@@ -319,7 +320,7 @@ export function buildExperimentalTokens(brand: BrandDefinition): EmphasysTokens 
       primaryHover: graphite.deep,
       tint: beige.tint,
       wash: beige.hover,
-      hoverTint: 'rgba(62, 52, 40, 0.08)',
+      hoverTint: rgbaFromHex(ink.primary, '0.08'),
       destructive: functional.action.destructive,
       info: functional.action.info,
       disabled: '#c4bdb4',
@@ -334,10 +335,10 @@ export function buildExperimentalTokens(brand: BrandDefinition): EmphasysTokens 
     grid: {
       header: graphite.raised,
       headerForeground: beige.base,
-      stripe: 'rgba(62, 52, 40, 0.04)',
-      hover: 'rgba(62, 52, 40, 0.06)',
-      selected: 'rgba(62, 52, 40, 0.08)',
-      selectedHover: 'rgba(62, 52, 40, 0.12)',
+      stripe: rgbaFromHex(ink.primary, '0.04'),
+      hover: rgbaFromHex(ink.primary, '0.06'),
+      selected: rgbaFromHex(ink.primary, '0.08'),
+      selectedHover: rgbaFromHex(ink.primary, '0.12'),
     },
     metric: functional.metric,
     status: functional.status,
@@ -355,8 +356,8 @@ export function buildExperimentalTokens(brand: BrandDefinition): EmphasysTokens 
   };
 }
 
-export const classicTokens: EmphasysTokens = buildClassicTokens(emphasysBrand);
+export const classicTokens: EmphasysTokens = buildClassicTokens(activeBrand);
 
-export const experimentalTokens: EmphasysTokens = buildExperimentalTokens(emphasysBrand);
+export const experimentalTokens: EmphasysTokens = buildExperimentalTokens(activeBrand);
 
-export const FUNCTIONAL_FONT_FAMILY = emphasysBrand.typography.functional;
+export const FUNCTIONAL_FONT_FAMILY = activeBrand.typography.functional;
