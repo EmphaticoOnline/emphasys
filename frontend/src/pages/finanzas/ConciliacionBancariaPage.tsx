@@ -49,7 +49,7 @@ import {
 import { HistorialConciliacionesDialog } from '../../modules/finanzas/HistorialConciliacionesDialog';
 import { ImportarEstadoCuentaDialog } from '../../modules/finanzas/ImportarEstadoCuentaDialog';
 import { useSession } from '../../session/useSession';
-import { cashFlowColors } from '../../theme/functional';
+import { cashFlowColors, onStatusColors } from '../../theme/functional';
 import { onPrimaryColors } from '../../theme/structural';
 
 const fmt = (n: number, moneda = 'MXN') =>
@@ -876,7 +876,7 @@ export default function ConciliacionBancariaPage() {
             sx={{ textTransform: 'none' }}
           >
             {deshaciendo
-              ? <CircularProgress size={18} sx={{ color: 'white' }} />
+              ? <CircularProgress size={18} sx={{ color: onStatusColors.warningProgress }} />
               : 'Eliminar'}
           </Button>
         </DialogActions>

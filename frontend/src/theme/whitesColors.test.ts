@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import test from 'node:test';
 import { emphasysBrand } from './brand/emphasys.ts';
 import * as functional from './functional.ts';
@@ -55,6 +55,7 @@ const ROOTS = {
   onStatusColors: functional.onStatusColors,
   onMediaColors: structural.onMediaColors,
   dataColorContrast: functional.dataColorContrast,
+  onDisabledColors: structural.onDisabledColors,
 } as const;
 type Roots = Record<string, Record<string, string>>;
 const currentRoots = (): Roots => structuredClone(ROOTS) as Roots;
@@ -89,6 +90,8 @@ const BLOCK_SCOPE: Record<string, { files: number; formats: Record<string, numbe
   'whites.w4.baseline.json': { files: 4, formats: { "'#fff'": 2, "'#ffffff'": 3 } },
   // W5 = encabezado del grid de Oportunidades, cuyo fondo es el azul de marca: mismo rol que W1.
   'whites.w5.baseline.json': { files: 1, formats: { "'#ffffff'": 7 } },
+  // W6 = los dos excluidos de W1: deshabilitado sobre gris y spinner en un botón de advertencia.
+  'whites.w6.baseline.json': { files: 2, formats: { "'#fff'": 1, "'white'": 1 } },
 };
 
 test('cada subbloque tiene alcance declarado, por formato', () => {
@@ -198,7 +201,7 @@ test('W3: cada reemplazo es contraste sobre su color funcional, de tercero o de 
   }
   assert.deepEqual(
     { ...functional.onStatusColors },
-    { environmentProduction: '#fff', whatsapp: 'white', leadFilterChip: '#ffffff', leadViewToggle: '#ffffff', temperature: '#fff' },
+    { environmentProduction: '#fff', whatsapp: 'white', leadFilterChip: '#ffffff', leadViewToggle: '#ffffff', temperature: '#fff', warningProgress: 'white' },
   );
   assert.deepEqual({ ...structural.onMediaColors }, { icon: 'white', badgeIcon: '#fff' });
   assert.ok(!/from '\.\/brand\//.test(readText('./functional.ts')));
@@ -266,8 +269,33 @@ test('mutación: alterar el formato o el valor de un token rompe la equivalencia
   }
 });
 
-test('exclusiones de W1: los blancos que no son contraste sobre primario siguen literales', () => {
-  // Deshabilitado sobre gris y spinner dentro de un botón de advertencia.
-  assert.match(readText('../components/documentos/facturas/FacturaResumenFlotante.tsx'), /'&\.Mui-disabled': \{ bgcolor: neutralColors\.steel\.controlBorder, color: '#fff' \}/);
-  assert.match(readText('../pages/finanzas/ConciliacionBancariaPage.tsx'), /<CircularProgress size=\{18\} sx=\{\{ color: 'white' \}\} \/>/);
+test('W6: los dos excluidos de W1 tienen su propio rol, distinto del contraste sobre primario', () => {
+  // Deshabilitado sobre gris: no sigue al primario aunque comparta línea con `onPrimaryColors.text`.
+  assert.match(
+    readText('../components/documentos/facturas/FacturaResumenFlotante.tsx'),
+    /'&\.Mui-disabled': \{ bgcolor: neutralColors\.steel\.controlBorder, color: onDisabledColors\.text \}/,
+  );
+  // Spinner dentro del botón contenedor de advertencia.
+  const conciliacion = readText('../pages/finanzas/ConciliacionBancariaPage.tsx');
+  assert.match(conciliacion, /color="warning"[\s\S]{0,400}<CircularProgress size=\{18\} sx=\{\{ color: onStatusColors\.warningProgress \}\} \/>/);
+  assert.deepEqual({ ...structural.onDisabledColors }, { text: '#fff' });
+});
+
+test('cierre global de blancos: fuera de theme/ y del legado no queda ningún blanco escrito a mano', () => {
+  const files: string[] = [];
+  const walk = (dir: URL, rel: string) => {
+    for (const name of readdirSync(dir)) {
+      if (rel === '' && ['dev-mockups', 'theme', 'compass'].includes(name)) continue;
+      const path = `${rel}${name}`;
+      if (statSync(new URL(name, dir)).isDirectory()) walk(new URL(`${name}/`, dir), `${path}/`);
+      else if (/\.(tsx?|css)$/.test(name) && !/\.test\.ts$/.test(name)) files.push(path);
+    }
+  };
+  walk(new URL('../', import.meta.url), '');
+  const legacy = ['components/Layout.tsx', 'components/Menu.tsx', 'components/Sidebar.tsx', 'components/SecondaryNav.tsx'];
+  const remaining = files
+    .filter((file) => !legacy.includes(file))
+    .flatMap((file) => [...readText(`../${file}`).matchAll(/(['"`])(#fff|#ffffff|white)\1|#fff(?:fff)?\b/gi)].map(([match]) => `${file}: ${match}`));
+  assert.deepEqual(remaining, []);
+  // `common.white` (palette de MUI) sigue fuera de alcance y no se cuenta.
 });

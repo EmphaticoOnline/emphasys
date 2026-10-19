@@ -270,4 +270,27 @@ Cambios en pruebas:
   - El alcance de W5 es 1 archivo y `'#ffffff'` ×7.
   - Una prueba propia de W5 verifica que el encabezado tiene fondo de marca, que las 7 líneas están entre `columnHeaders` y `columnSeparator` y que no queda ningún `'#ffffff'` en la página.
   - Las verificaciones de contexto de W1, W2 y W3 buscaban la línea con `indexOf`, que siempre devolvía la primera coincidencia cuando había líneas idénticas. Ahora usan la posición real de la línea en el estado de su bloque.
-- Pendientes (2): los excluidos de W1, que son el deshabilitado sobre gris de `FacturaResumenFlotante:343` y el spinner dentro del botón `warning` de `ConciliacionBancariaPage:878`. Falta clasificarlos.
+
+### 7.6 W6 — los dos excluidos de W1, y cierre (completado)
+
+| Archivo:línea (HEAD `7f4821e`) | Fondo | Clase | Token |
+|---|---|---|---|
+| `FacturaResumenFlotante:343` (`'&.Mui-disabled'`) | `neutralColors.steel.controlBorder` (gris) | Estructural: contraste sobre un control deshabilitado | `onDisabledColors.text` `'#fff'` (nuevo) |
+| `ConciliacionBancariaPage:879` | botón `contained` con `color="warning"` | Funcional: contraste sobre un color de estado | `onStatusColors.warningProgress` `'white'` (nuevo) |
+
+- En la misma línea 343, el estado normal ya usa `onPrimaryColors.text` (W1). El deshabilitado tiene su propio rol y no se unifica.
+- **Cierre global de blancos:** una prueba en `whitesColors.test.ts` exige que fuera de `theme/`, Compass, mockups y el legado no quede ningún `'#fff'`, `'#ffffff'` ni `'white'` escrito a mano. `common.white` (`palette` de MUI) sigue fuera de alcance.
+
+### 7.7 Resumen del bloque de blancos
+
+| Bloque | Commit | Literales | Tokens |
+|---|---|---|---|
+| W1 | `627c28d` | 12 | `onPrimaryColors` |
+| W2 | `2e0c312` | 50 | `whiteSurfaces` |
+| W3 / W3b | `c27661b` / `6ccb623` | 11 + 2 | `onStatusColors`, `onMediaColors` |
+| W4 | `f5b3165` | 5 | `dataColorContrast` |
+| W5 | `7f4821e` | 7 | `onPrimaryColors.textLong` (mismo rol que W1) |
+| W6 | este commit | 2 | `onDisabledColors`, `onStatusColors.warningProgress` |
+| **Total** | 7 commits | **89** | Ningún valor visual cambió y no se unificó ningún formato |
+
+Queda abierta D-B4: `configPrimaryButtonSx` usa blanco fijo sobre `action.primary`, aunque en el tema experimental `primaryForeground` es beige. Es un pendiente de diseño.

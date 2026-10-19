@@ -479,6 +479,8 @@ export const onStatusColors = {
   leadViewToggle: '#ffffff',
   /** Sobre el color de temperatura del prospecto. */
   temperature: '#fff',
+  /** Spinner dentro de un botón `color="warning"` (conciliación bancaria). */
+  warningProgress: 'white',
 } as const;
 
 // ── Blancos W4: contraste sobre colores que vienen de BD (D-B3) ───────────────

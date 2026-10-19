@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Box, CircularProgress, IconButton, Stack, Tooltip, Typography } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import CheckIcon from '@mui/icons-material/Check';
-import { neutralColors, onPrimaryColors, overlayColors, whiteSurfaces } from '../../../theme/structural';
+import { neutralColors, onDisabledColors, onPrimaryColors, overlayColors, whiteSurfaces } from '../../../theme/structural';
 import { activeBrand } from '../../../theme/brand/active';
 import { elevation } from '../../../theme/elevation';
 import { brandTints } from '../../../theme/tints';
@@ -340,7 +340,7 @@ export default function FacturaResumenFlotante({
               onClick={onSave}
               disabled={saveDisabled || saving}
               aria-label="Guardar factura"
-              sx={{ width: 30, height: 30, bgcolor: activeBrand.colors.blue.base, color: onPrimaryColors.text, borderRadius: 1, '&:hover': { bgcolor: activeBrand.colors.blue.hover }, '&.Mui-disabled': { bgcolor: neutralColors.steel.controlBorder, color: '#fff' } }}
+              sx={{ width: 30, height: 30, bgcolor: activeBrand.colors.blue.base, color: onPrimaryColors.text, borderRadius: 1, '&:hover': { bgcolor: activeBrand.colors.blue.hover }, '&.Mui-disabled': { bgcolor: neutralColors.steel.controlBorder, color: onDisabledColors.text } }}
             >
               {saving ? <CircularProgress size={16} color="inherit" /> : <CheckIcon fontSize="small" />}
             </IconButton>

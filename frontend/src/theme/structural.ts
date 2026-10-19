@@ -277,3 +277,8 @@ export const onMediaColors = {
   /** Icono sobre la insignia `overlayColors.media.imageBadge`. */
   badgeIcon: '#fff',
 } as const;
+
+/** Texto o icono blanco sobre un control deshabilitado gris (`neutralColors.steel.controlBorder`). Fijo. */
+export const onDisabledColors = {
+  text: '#fff',
+} as const;
