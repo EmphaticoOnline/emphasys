@@ -1,0 +1,42 @@
+{
+  "source": "HEAD d05db54, decisión D-B4",
+  "files": {
+    "components/configuracion/configVisual.tsx": {
+      "headSha256": "ccfaefc721de1993e318d0c05f7ef17d91fd0600c138b6fc999c4489d209f5a4",
+      "addedImports": [],
+      "lines": {
+        "142": {
+          "original": "export const configPrimaryButtonSx = (theme: { emphasys: { action: { primary: string; primaryHover: string } } }) => ({",
+          "migrated": "export const configPrimaryButtonSx = (theme: { emphasys: { action: { primary: string; primaryHover: string; primaryForeground: string } } }) => ({",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "action: { primary: string; primaryHover: string }",
+              "to": "action: { primary: string; primaryHover: string; primaryForeground: string }",
+              "times": 1
+            }
+          ]
+        },
+        "144": {
+          "original": "  color: onPrimaryColors.text,",
+          "migrated": "  color: theme.emphasys.action.primaryForeground,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "color: onPrimaryColors.text,",
+              "to": "color: theme.emphasys.action.primaryForeground,",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {
+        "5": {
+          "original": "import type { SvgIconComponent } from '@mui/icons-material';\nimport { onPrimaryColors } from '../../theme/structural';",
+          "migrated": "import type { SvgIconComponent } from '@mui/icons-material';",
+          "token": "removedImport"
+        }
+      }
+    }
+  }
+}

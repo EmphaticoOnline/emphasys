@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import test from 'node:test';
 import { stalenessColors } from './functional.ts';
 import { classicTheme, experimentalTheme } from './themes.ts';
-import { classicTokens } from './tokens.ts';
+import { classicTokens, experimentalTokens } from './tokens.ts';
 import {
   DECISION_ORDER,
   LATER_FIXTURES,
@@ -92,4 +92,25 @@ test('D-T3 (sin cambio visual): la franja de Oportunidades lee grid.stripe, que 
   assert.ok(!exact.includes(route) && !prefixes.some((prefix) => route === prefix || route.startsWith(`${prefix}/`)), `${route} debe usar el tema clásico`);
   assert.equal(classicTokens.grid.stripe, 'rgba(0, 120, 70, 0.05)');
   assert.equal(classicTheme.emphasys.grid.stripe, 'rgba(0, 120, 70, 0.05)');
+});
+
+test('D-B4 (sin cambio visual): configPrimaryButtonSx lee primaryForeground y no tiene usos', () => {
+  const source = readText('../components/configuracion/configVisual.tsx');
+  assert.match(source, /color: theme\.emphasys\.action\.primaryForeground,/);
+  assert.doesNotMatch(source, /onPrimaryColors/, 'el import sin uso se eliminó');
+  // Ningún archivo lo usa: el cambio no tiene efecto visual hoy.
+  const files: string[] = [];
+  const walk = (dir: URL, rel: string) => {
+    for (const name of readdirSync(dir)) {
+      const path = `${rel}${name}`;
+      if (statSync(new URL(name, dir)).isDirectory()) walk(new URL(`${name}/`, dir), `${path}/`);
+      else if (/\.tsx?$/.test(name) && !/\.test\.ts$/.test(name)) files.push(path);
+    }
+  };
+  walk(new URL('../', import.meta.url), '');
+  const users = files.filter((file) => file !== 'components/configuracion/configVisual.tsx' && readText(`../${file}`).includes('configPrimaryButtonSx'));
+  assert.deepEqual(users, []);
+  // Si se usa en el futuro, el texto será el foreground primario de cada tema (blanco en clásico, beige en experimental).
+  assert.equal(classicTokens.action.primaryForeground, '#ffffff');
+  assert.equal(experimentalTokens.action.primaryForeground, '#f4f0e8');
 });

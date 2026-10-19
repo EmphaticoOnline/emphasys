@@ -3,7 +3,6 @@ import { Box, Button, ButtonBase, Stack, Typography } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import type { SvgIconComponent } from '@mui/icons-material';
-import { onPrimaryColors } from '../../theme/structural';
 
 export function ConfigPageFrame({ children }: { children: React.ReactNode }) {
   const tokens = useTheme().emphasys;
@@ -139,9 +138,9 @@ export function ConfigActions({ children }: { children: React.ReactNode }) {
   return <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'center' }}>{children}</Stack>;
 }
 
-export const configPrimaryButtonSx = (theme: { emphasys: { action: { primary: string; primaryHover: string } } }) => ({
+export const configPrimaryButtonSx = (theme: { emphasys: { action: { primary: string; primaryHover: string; primaryForeground: string } } }) => ({
   bgcolor: theme.emphasys.action.primary,
-  color: onPrimaryColors.text,
+  color: theme.emphasys.action.primaryForeground,
   '&:hover': { bgcolor: theme.emphasys.action.primaryHover },
 });
 
