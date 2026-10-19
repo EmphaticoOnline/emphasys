@@ -12,8 +12,8 @@
 | Equivalencia SHA-256 contra HEAD de cada bloque migrado (neutrales, menores, restos, `DocumentosFormPage` s1–s8, signo b1–b4, elevación E1–E4, tintes T1–T4, restos R1, blancos W1–W6) | ✅ |
 | **Cierre global de colores:** fuera de `theme/`, Compass, mockups y legado solo quedan las 33 exclusiones documentadas | ✅ (`whiteLabelClosure.test.ts`, nuevo) |
 | **Marca alternativa (pruebas):** tokens, temas, sombras, degradados, tintes, `index.html` y manifest siguen a `acmeBrand`, salvo 7 coincidencias funcionales documentadas | ✅ (`whiteLabelBrand.test.ts`, nuevo) |
-| **Marca alternativa (build real):** `vite build` con `acmeBrand` activa, en una copia temporal | ✅, con el hallazgo H3 |
-| `node --test` | ✅ 161/161 |
+| **Marca alternativa (build real):** `vite build` con `acmeBrand` activa, en una copia temporal | ✅ Solo quedan 23 apariciones documentadas (H3 corregido) |
+| `node --test` | ✅ 162/162 |
 | `tsc --noEmit` | ✅ 213 errores preexistentes, 0 nuevos |
 | `npm run build` | ✅ |
 | `git diff --check` | ✅ |
@@ -35,13 +35,16 @@
 
 La prueba nueva `whiteLabelBrand.test.ts` falla con el `tokens.ts` anterior (3 de 6 pruebas), así que detecta ambos hallazgos.
 
-### H3 — Los mockups se incluyen en el build de producción (pendiente, decisión)
+### H3 — Los mockups se incluían en el build de producción (corregido)
 
 `App.tsx` importa de forma estática 5 páginas de `src/dev-mockups/`, que tienen ruta. En el build con `acmeBrand`, **76 de las 99 apariciones restantes de colores de Emphasys vienen de esos mockups**. Un despliegue white label mostraría pantallas con la identidad de Emphasys si alguien navega a esas rutas.
 
-**Recomendación** (no aplicada, porque está fuera del alcance acordado):
-- montar esas rutas solo en desarrollo, con `import.meta.env.DEV` y `lazy`;
-- o retirarlas del router de producción.
+**Corrección (aprobada):** `App.tsx` carga los 6 mockups con `React.lazy`, dentro de `import.meta.env.DEV ? { … } : null`, y monta sus 6 rutas `/dev/mockups/*` solo dentro de `{devMockups && (…)}`.
+- **Producción:** Vite reemplaza `DEV` por `false`. El bundle ya no contiene rutas `/dev/mockups` ni contenido de mockups, y el JS baja unos 140 KB (4 851 420 → 4 711 605 bytes). Una URL `/dev/mockups/*` cae en el comodín existente.
+- **Desarrollo:** `transformRequest('/src/App.tsx')` conserva los 6 `import()` dinámicos y las rutas con los mismos paths.
+- **Ninguna otra ruta cambió:** los 138 `path` de `App.tsx` son idénticos y están en el mismo orden.
+- Prueba: `whiteLabelClosure.test.ts` (H3) exige que no haya imports estáticos de `dev-mockups`, que los 6 imports dinámicos y `lazy` estén solo en la rama `DEV` y que las rutas de mockups estén solo dentro del bloque de desarrollo. Falla con el `App.tsx` anterior.
+- Build con `acmeBrand` después de la corrección: los colores de Emphasys que quedan pasan de 99 a **23**, todos documentados: 13 de `functional.ts`, 7 de datos o fallbacks de BD y 3 de KPI o serie.
 
 ### Colores de Emphasys que quedan en el bundle de Acme (atribuidos con sourcemaps)
 
@@ -95,7 +98,6 @@ En los temas clásico y experimental, con Emphasys activa, comparar contra `main
 ## 5. Pendiente para cerrar el proyecto
 
 - **Decisiones de diseño**, que cambiarían la apariencia y requieren aprobación una por una: D1–D9 (signo), D-T3 (franja verde de Oportunidades) y D-B4 (`configPrimaryButtonSx`).
-- **H3:** decidir si los mockups salen del build de producción.
 - **Revisión visual manual** (§4.2).
 - **PE-108:** marca en el backend (PDFs, correos, plantillas de WhatsApp).
 - **Integración:** estrategia para los 58 commits sobre `main`, contando el de esta validación (merge o squash, PR y revisión). `main` no tiene commits nuevos desde el merge-base.

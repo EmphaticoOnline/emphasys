@@ -70,3 +70,34 @@ test('el legado sigue fuera de alcance y sin importadores', () => {
     assert.deepEqual(importers, [], `${legacy} tiene importadores`);
   }
 });
+
+test('H3: los mockups de diseño solo se montan en desarrollo y no tienen imports estáticos', () => {
+  // Ningún archivo fuera de dev-mockups los importa de forma estática (entrarían al bundle de producción).
+  const statics = sourceFiles().filter((file) => /^import\s[^;]*from\s+['"][./]*dev-mockups\//m.test(readText(`../${file}`)));
+  assert.deepEqual(statics, []);
+
+  const app = readText('../App.tsx');
+  // Los 6 imports dinámicos viven solo dentro de la rama `import.meta.env.DEV`.
+  const gate = /const devMockups = import\.meta\.env\.DEV\s*\?\s*\{([\s\S]*?)\}\s*:\s*null;/.exec(app);
+  assert.ok(gate, 'falta el bloque `import.meta.env.DEV ? { … } : null`');
+  const dynamicImports = (text: string) => [...text.matchAll(/import\(\s*'\.\/dev-mockups\/[^']+'\s*\)/g)].length;
+  assert.equal(dynamicImports(gate[1]!), 6);
+  assert.equal(dynamicImports(app), 6, 'hay imports de mockups fuera del bloque de desarrollo');
+  assert.equal((gate[1]!.match(/React\.lazy\(/g) ?? []).length, 6);
+
+  // Las rutas /dev/mockups solo se declaran dentro de `{devMockups && (…)}`, con los mismos paths de antes.
+  const start = app.indexOf('{devMockups && (');
+  const end = app.indexOf('</>', start);
+  assert.ok(start >= 0 && end > start);
+  const inside = app.slice(start, end);
+  const mockupPaths = (text: string) => [...text.matchAll(/path="(\/dev\/mockups\/[^"]+)"/g)].map(([, path]) => path);
+  assert.deepEqual(mockupPaths(inside), [
+    '/dev/mockups/liquidacion-factura-origen',
+    '/dev/mockups/nota-credito',
+    '/dev/mockups/notas-credito',
+    '/dev/mockups/notas-credito-2',
+    '/dev/mockups/identidad',
+    '/dev/mockups/almacenes',
+  ]);
+  assert.deepEqual(mockupPaths(app.slice(0, start) + app.slice(end)), [], 'hay rutas de mockups fuera del bloque de desarrollo');
+});

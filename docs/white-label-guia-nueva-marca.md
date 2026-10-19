@@ -42,5 +42,5 @@
   - tema experimental: `metric.amount.*` y `metric.track`.
   - Además las paletas categóricas `reportKpis`, `avatars` y `series`. Si una marca quiere que sigan su azul, es una decisión de diseño, no una configuración.
 - **Datos guardados en BD:** colores iniciales de etiquetas (`#25D366`), de etapas, de conceptos y de formatos de impresión, más sus fallbacks.
-- **Legado sin importadores** (`Layout`, `Menu`, `Sidebar`, `SecondaryNav`) y **mockups** (`src/dev-mockups/`). Los mockups sí se incluyen hoy en el build de producción (ver la validación final, hallazgo H3).
+- **Legado sin importadores** (`Layout`, `Menu`, `Sidebar`, `SecondaryNav`) y **mockups** (`src/dev-mockups/`). Los mockups solo se montan en desarrollo y no entran al build de producción (H3).
 - **Backend** (PDFs, correos, plantillas de WhatsApp): pendiente de PE-108.
