@@ -1,10 +1,19 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import test from 'node:test';
 import { emphasysBrand } from './brand/emphasys.ts';
 import { alertColors, feedbackTokens, inventoryFlowColors, thirdPartyColors } from './functional.ts';
+import { LATER_FIXTURES, revertLater, type LaterFixtures } from './__fixtures__/colorMigrations.ts';
 
 const readText = (path: string) => readFileSync(new URL(path, import.meta.url), 'utf8');
+const laterFixtures: LaterFixtures = Object.fromEntries(
+  LATER_FIXTURES.filter((name) => existsSync(new URL(`./__fixtures__/${name}`, import.meta.url))).map((name) => [
+    name,
+    JSON.parse(readText(`./__fixtures__/${name}`)),
+  ]),
+);
+/** El archivo sin los bloques de la cadena posteriores (p. ej. restos R1, que agrega `error[900]`). */
+const asOfBlock = (file: string) => revertLater(null, file, readText(`../${file}`), laterFixtures);
 /** Conteo de literales por archivo, extraído de HEAD (632bad8) antes de migrar. */
 const baseline: {
   files: Record<string, { migrated: Record<string, number>; keptLiteral: Record<string, number> }>;
@@ -19,7 +28,11 @@ const resolve = (family: string, step: string): string => {
 };
 
 /** Familias de este bloque; `caution` (naranja) tiene su propio bloque y prueba. */
-const allHexes = new Set([alertColors.success, alertColors.warning, alertColors.error].flatMap((scale) => Object.values(scale)));
+// `error[900]` se agregó en restos R1 (detalle de error en Oportunidades); este bloque no lo cubría.
+const LATER_TONES = new Set([alertColors.error[900]]);
+const allHexes = new Set(
+  [alertColors.success, alertColors.warning, alertColors.error].flatMap((scale) => Object.values(scale)).filter((hex) => !LATER_TONES.has(hex)),
+);
 
 function countTokens(source: string) {
   const counts: Record<string, number> = {};
@@ -41,7 +54,7 @@ function countLiterals(source: string) {
 
 test('cada archivo migrado resuelve exactamente los mismos colores que tenía en HEAD', () => {
   for (const [file, expected] of Object.entries(baseline.files)) {
-    const source = readText(`../${file}`);
+    const source = asOfBlock(file);
     assert.deepStrictEqual(countTokens(source), expected.migrated, file);
   }
 });
@@ -53,7 +66,7 @@ const accountingBaseline: { files: Record<string, { lines: Record<string, { hex:
 
 test('en los archivos migrados solo quedan los literales excluidos a propósito', () => {
   for (const [file, expected] of Object.entries(baseline.files)) {
-    const source = readText(`../${file}`);
+    const source = asOfBlock(file);
     const remaining = { ...expected.keptLiteral };
     for (const { hex } of Object.values(accountingBaseline.files[file]?.lines ?? {}).flat()) {
       if (remaining[hex]) remaining[hex] -= 1;
@@ -68,7 +81,7 @@ test('en los archivos migrados solo quedan los literales excluidos a propósito'
 
 test('cada archivo migrado importa alertColors una sola vez', () => {
   for (const file of Object.keys(baseline.files)) {
-    const source = readText(`../${file}`);
+    const source = asOfBlock(file);
     const imports = source.match(/^import \{[^}]*\balertColors\b[^}]*\} from '[^']*theme\/functional';$/gm) ?? [];
     assert.equal(imports.length, 1, file);
   }

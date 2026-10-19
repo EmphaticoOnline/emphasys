@@ -59,7 +59,7 @@ import { useGridPreferences } from '../hooks/useGridPreferences';
 import { useSeguimientoActividades } from '../hooks/useSeguimientoActividades';
 import ActividadSeguimientoDrawer from '../components/crm/ActividadSeguimientoDrawer';
 import { SeguimientoActividadCell } from '../components/crm/SeguimientoActividadCell';
-import { alertColors, opportunityBucketColors } from '../theme/functional';
+import { alertColors, crmAccents, opportunityBucketColors } from '../theme/functional';
 import { neutralColors, overlayColors } from '../theme/structural';
 import { activeBrand } from '../theme/brand/active';
 import { brandElevation, elevation, surfaceGradients } from '../theme/elevation';
@@ -1169,7 +1169,7 @@ export default function OportunidadesPage() {
       headerAlign: 'right',
       renderCell: (params: GridRenderCellParams<Oportunidad, number>) => (
         <Box sx={{ width: '100%', textAlign: 'right' }}>
-          <Typography variant="body2" fontWeight={700} sx={{ fontSize: 14.5, color: '#0f766e' }}>
+          <Typography variant="body2" fontWeight={700} sx={{ fontSize: 14.5, color: crmAccents.amount }}>
             {currencyFormatter.format(Number(params.value ?? 0))}
           </Typography>
         </Box>
@@ -1374,7 +1374,7 @@ export default function OportunidadesPage() {
         {!loading && error ? (
           <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, borderColor: alertColors.error[200], backgroundColor: alertColors.error[50] }}>
             <Typography sx={{ color: alertColors.error[700], fontWeight: 600 }}>No se pudieron cargar las oportunidades.</Typography>
-            <Typography sx={{ color: '#7f1d1d', mt: 0.5 }}>{error}</Typography>
+            <Typography sx={{ color: alertColors.error[900], mt: 0.5 }}>{error}</Typography>
           </Paper>
         ) : null}
 

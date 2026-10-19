@@ -150,6 +150,8 @@ export const alertColors = {
     600: '#dc2626',
     700: '#b91c1c',
     800: '#991b1b',
+    /** Detalle de un error bajo su mensaje principal (`error[700]`). */
+    900: '#7f1d1d',
   },
 } as const;
 
@@ -296,6 +298,9 @@ export const fiscalStatusColors = {
   completeText: '#1c6b47',
   incompleteBackground: '#fdf3e3',
   incompleteText: '#9a5b00',
+  /** Borde del chip cuando lo lleva (resumen flotante de factura). */
+  completeBorder: '#c9e3d5',
+  incompleteBorder: '#ecd9b4',
 } as const;
 
 /**
@@ -385,4 +390,55 @@ export const priceVarianceColors = {
   down: feedbackTokens.success.main,
   max: feedbackTokens.error.main,
   min: feedbackTokens.success.main,
+} as const;
+
+// ── Restos R1.1: funcionales y CRM (docs/white-label-restos-r1-audit.md) ─────
+
+/** Importe monetario en CRM (oportunidades y seguimiento de actividad): teal-700. */
+export const crmAccents = {
+  amount: '#0f766e',
+} as const;
+
+/**
+ * Chips de filtro de leads en móvil (ventana de WhatsApp, oportunidad). El texto
+ * y el fondo activo comparten valor pero son roles distintos.
+ */
+export const leadFilterChipColors = {
+  foreground: '#0f766e',
+  activeBackground: '#0f766e',
+  surface: '#f0fdfa',
+  border: '#99f6e4',
+} as const;
+
+/** Resaltado de búsqueda en la conversación: coincidencia actual y resto. */
+export const searchHighlightColors = {
+  current: '#facc15',
+  match: '#fef08a',
+} as const;
+
+/** Tono de estado de actividad sobre el rail del workspace de actividades. */
+export const activityRailTones = {
+  overdue: '#e7b2ab',
+  today: '#b7d4c4',
+  upcoming: '#c9c0dc',
+} as const;
+
+/** Chip del modo de autorización "Flujo" (violeta). */
+export const authorizationModeColors = {
+  flowBackground: '#ede9fe',
+  flowText: '#6d28d9',
+} as const;
+
+/** Punto de estado de afectación de un movimiento de inventario. */
+export const inventoryAffectationColors = {
+  applied: '#4ade80',
+  reverted: '#f87171',
+} as const;
+
+/** Fondo de fila en alerta. Mismo valor, roles distintos: no se unifican. */
+export const alertRowColors = {
+  /** Fila vencida en los informes de vencimientos. */
+  overdue: '#fff5f5',
+  /** Producto bajo mínimo. */
+  belowMinimum: '#fff5f5',
 } as const;

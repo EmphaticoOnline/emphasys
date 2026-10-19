@@ -38,7 +38,7 @@ import {
 } from '../../../services/reportesService';
 import ProgramacionPagoDialog from '../../../modules/finanzas/ProgramacionPagoDialog';
 import type { FacturaCompraPendiente } from '../../../types/finanzas';
-import { alertColors, dueDateColors } from '../../../theme/functional';
+import { alertColors, alertRowColors, dueDateColors } from '../../../theme/functional';
 
 type ContactoOpcion = { id: number; nombre: string; rfc?: string | null };
 
@@ -432,7 +432,7 @@ export default function VencimientosProveedoresPage() {
                 {
                   border: '1px solid',
                   borderColor: 'divider',
-                  '& .fila-vencida': { bgcolor: '#fff5f5' },
+                  '& .fila-vencida': { bgcolor: alertRowColors.overdue },
                   '& .fila-hoy':    { bgcolor: alertColors.warning[50] },
                 },
               ]}

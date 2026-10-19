@@ -1,0 +1,408 @@
+{
+  "source": "HEAD e410ad5, restos R1 bloque r1-1",
+  "files": {
+    "components/crm/ActividadSeguimientoDrawer.tsx": {
+      "headSha256": "a10268e3619fb0e4b71e7ee7737cc23a0db0eddbd88ef5628d2b4479fe582686",
+      "addedImports": [],
+      "lines": {
+        "41": {
+          "original": "import { activityTypeChipColors, alertColors } from '../../theme/functional';",
+          "migrated": "import { activityTypeChipColors, alertColors, crmAccents } from '../../theme/functional';",
+          "entries": [],
+          "replacements": [],
+          "importMerge": true
+        },
+        "562": {
+          "original": "                      <Typography variant=\"caption\" sx={{ display: 'block', color: '#0f766e', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.3 }}>",
+          "migrated": "                      <Typography variant=\"caption\" sx={{ display: 'block', color: crmAccents.amount, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.3 }}>",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'#0f766e'",
+              "to": "crmAccents.amount",
+              "times": 1
+            }
+          ]
+        },
+        "565": {
+          "original": "                      <Typography variant=\"body1\" sx={{ color: '#0f766e', fontWeight: 700 }}>",
+          "migrated": "                      <Typography variant=\"body1\" sx={{ color: crmAccents.amount, fontWeight: 700 }}>",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'#0f766e'",
+              "to": "crmAccents.amount",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "pages/OportunidadesPage.tsx": {
+      "headSha256": "b6a3cd1f6d2155a3a4c0ee8dc1d1e3eaa2fb068f06e6b894b445c90314516077",
+      "addedImports": [],
+      "lines": {
+        "62": {
+          "original": "import { alertColors, opportunityBucketColors } from '../theme/functional';",
+          "migrated": "import { alertColors, crmAccents, opportunityBucketColors } from '../theme/functional';",
+          "entries": [],
+          "replacements": [],
+          "importMerge": true
+        },
+        "1172": {
+          "original": "          <Typography variant=\"body2\" fontWeight={700} sx={{ fontSize: 14.5, color: '#0f766e' }}>",
+          "migrated": "          <Typography variant=\"body2\" fontWeight={700} sx={{ fontSize: 14.5, color: crmAccents.amount }}>",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'#0f766e'",
+              "to": "crmAccents.amount",
+              "times": 1
+            }
+          ]
+        },
+        "1377": {
+          "original": "            <Typography sx={{ color: '#7f1d1d', mt: 0.5 }}>{error}</Typography>",
+          "migrated": "            <Typography sx={{ color: alertColors.error[900], mt: 0.5 }}>{error}</Typography>",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'#7f1d1d'",
+              "to": "alertColors.error[900]",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "components/leads/LeadsMobileView.tsx": {
+      "headSha256": "448dce1398c5a4e9f6eb8b420a3ce1ebce8f275c9190b442021cc6d9568b7e77",
+      "addedImports": [],
+      "lines": {
+        "88": {
+          "original": "import { thirdPartyColors } from '../../theme/functional';",
+          "migrated": "import { leadFilterChipColors, thirdPartyColors } from '../../theme/functional';",
+          "entries": [],
+          "replacements": [],
+          "importMerge": true
+        },
+        "1981": {
+          "original": "                    color: whatsappWindowFilter === opt.key ? '#ffffff' : '#0f766e',",
+          "migrated": "                    color: whatsappWindowFilter === opt.key ? '#ffffff' : leadFilterChipColors.foreground,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": ": '#0f766e',",
+              "to": ": leadFilterChipColors.foreground,",
+              "times": 1
+            }
+          ]
+        },
+        "1982": {
+          "original": "                    backgroundColor: whatsappWindowFilter === opt.key ? '#0f766e' : '#f0fdfa',",
+          "migrated": "                    backgroundColor: whatsappWindowFilter === opt.key ? leadFilterChipColors.activeBackground : leadFilterChipColors.surface,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "? '#0f766e' : '#f0fdfa'",
+              "to": "? leadFilterChipColors.activeBackground : leadFilterChipColors.surface",
+              "times": 1
+            }
+          ]
+        },
+        "1983": {
+          "original": "                    borderColor: '#99f6e4',",
+          "migrated": "                    borderColor: leadFilterChipColors.border,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'#99f6e4'",
+              "to": "leadFilterChipColors.border",
+              "times": 1
+            }
+          ]
+        },
+        "2011": {
+          "original": "                    color: opportunityFilter === opt.key ? '#ffffff' : '#0f766e',",
+          "migrated": "                    color: opportunityFilter === opt.key ? '#ffffff' : leadFilterChipColors.foreground,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": ": '#0f766e',",
+              "to": ": leadFilterChipColors.foreground,",
+              "times": 1
+            }
+          ]
+        },
+        "2012": {
+          "original": "                    backgroundColor: opportunityFilter === opt.key ? '#0f766e' : '#f0fdfa',",
+          "migrated": "                    backgroundColor: opportunityFilter === opt.key ? leadFilterChipColors.activeBackground : leadFilterChipColors.surface,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "? '#0f766e' : '#f0fdfa'",
+              "to": "? leadFilterChipColors.activeBackground : leadFilterChipColors.surface",
+              "times": 1
+            }
+          ]
+        },
+        "2013": {
+          "original": "                    borderColor: '#99f6e4',",
+          "migrated": "                    borderColor: leadFilterChipColors.border,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'#99f6e4'",
+              "to": "leadFilterChipColors.border",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "components/leads/LeadsDesktopView.tsx": {
+      "headSha256": "9d70dc68f85f8679fbe855aa3b618bfb664562747b7b1950187a99da98580088",
+      "addedImports": [],
+      "lines": {
+        "95": {
+          "original": "import { thirdPartyColors } from '../../theme/functional';",
+          "migrated": "import { searchHighlightColors, thirdPartyColors } from '../../theme/functional';",
+          "entries": [],
+          "replacements": [],
+          "importMerge": true
+        },
+        "753": {
+          "original": "          sx={{ bgcolor: conversationSearchMatches[conversationSearchIndex]?.key === match.key ? '#facc15' : '#fef08a', borderRadius: 0.25 }}",
+          "migrated": "          sx={{ bgcolor: conversationSearchMatches[conversationSearchIndex]?.key === match.key ? searchHighlightColors.current : searchHighlightColors.match, borderRadius: 0.25 }}",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "? '#facc15' : '#fef08a'",
+              "to": "? searchHighlightColors.current : searchHighlightColors.match",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "components/crm/ActividadesWorkspaceView.tsx": {
+      "headSha256": "55007a9a9774cbabef7f7840caf9a59fd90418acadf937c57acc685d172b5376",
+      "addedImports": [
+        "import { activityRailTones } from '../../theme/functional';"
+      ],
+      "lines": {
+        "124": {
+          "original": "    if (tono === 'atrasada') return '#e7b2ab';",
+          "migrated": "    if (tono === 'atrasada') return activityRailTones.overdue;",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'#e7b2ab'",
+              "to": "activityRailTones.overdue",
+              "times": 1
+            }
+          ]
+        },
+        "125": {
+          "original": "    if (tono === 'hoy') return '#b7d4c4';",
+          "migrated": "    if (tono === 'hoy') return activityRailTones.today;",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'#b7d4c4'",
+              "to": "activityRailTones.today",
+              "times": 1
+            }
+          ]
+        },
+        "126": {
+          "original": "    if (tono === 'futuro') return '#c9c0dc';",
+          "migrated": "    if (tono === 'futuro') return activityRailTones.upcoming;",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'#c9c0dc'",
+              "to": "activityRailTones.upcoming",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "pages/configuracion/AutorizacionesReglasPage.tsx": {
+      "headSha256": "37b36df71d56cf7e439849a9a6c5782f2421641d8a223632808c82424e52550a",
+      "addedImports": [],
+      "lines": {
+        "20": {
+          "original": "import { alertColors } from '../../theme/functional';",
+          "migrated": "import { alertColors, authorizationModeColors } from '../../theme/functional';",
+          "entries": [],
+          "replacements": [],
+          "importMerge": true
+        },
+        "28": {
+          "original": "  flujo:   { bgcolor: '#ede9fe', color: '#6d28d9' },",
+          "migrated": "  flujo:   { bgcolor: authorizationModeColors.flowBackground, color: authorizationModeColors.flowText },",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "{ bgcolor: '#ede9fe', color: '#6d28d9' }",
+              "to": "{ bgcolor: authorizationModeColors.flowBackground, color: authorizationModeColors.flowText }",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "pages/InventarioMovimientosPage.tsx": {
+      "headSha256": "76d3a7cca9bce1af3ae828d2bc436dab2c4f16dc57f274e7b02077e900166265",
+      "addedImports": [
+        "import { inventoryAffectationColors } from '../theme/functional';"
+      ],
+      "lines": {
+        "775": {
+          "original": "                      <Box component=\"span\" aria-label={movimiento.estatus_afectacion === 1 ? 'Afectada' : 'Desafectada'} sx={{ width: 7, height: 7, borderRadius: '50%', bgcolor: movimiento.estatus_afectacion === 1 ? '#4ade80' : '#f87171', flexShrink: 0 }} />",
+          "migrated": "                      <Box component=\"span\" aria-label={movimiento.estatus_afectacion === 1 ? 'Afectada' : 'Desafectada'} sx={{ width: 7, height: 7, borderRadius: '50%', bgcolor: movimiento.estatus_afectacion === 1 ? inventoryAffectationColors.applied : inventoryAffectationColors.reverted, flexShrink: 0 }} />",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "? '#4ade80' : '#f87171'",
+              "to": "? inventoryAffectationColors.applied : inventoryAffectationColors.reverted",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "pages/informes/finanzas/VencimientosClientesPage.tsx": {
+      "headSha256": "f5df6a890cc76b17e1501f81df77d54203873174e729e07c840f43c30eaf3ab8",
+      "addedImports": [],
+      "lines": {
+        "37": {
+          "original": "import { alertColors, dueDateColors } from '../../../theme/functional';",
+          "migrated": "import { alertColors, alertRowColors, dueDateColors } from '../../../theme/functional';",
+          "entries": [],
+          "replacements": [],
+          "importMerge": true
+        },
+        "364": {
+          "original": "                  '& .fila-vencida': { bgcolor: '#fff5f5' },",
+          "migrated": "                  '& .fila-vencida': { bgcolor: alertRowColors.overdue },",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'#fff5f5'",
+              "to": "alertRowColors.overdue",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "pages/informes/finanzas/VencimientosProveedoresPage.tsx": {
+      "headSha256": "1212100012479f9457d825c914b3858a76c996158ae1075508f327b2df259035",
+      "addedImports": [],
+      "lines": {
+        "41": {
+          "original": "import { alertColors, dueDateColors } from '../../../theme/functional';",
+          "migrated": "import { alertColors, alertRowColors, dueDateColors } from '../../../theme/functional';",
+          "entries": [],
+          "replacements": [],
+          "importMerge": true
+        },
+        "435": {
+          "original": "                  '& .fila-vencida': { bgcolor: '#fff5f5' },",
+          "migrated": "                  '& .fila-vencida': { bgcolor: alertRowColors.overdue },",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'#fff5f5'",
+              "to": "alertRowColors.overdue",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "pages/informes/inventario/ProductosBajoMinimoPage.tsx": {
+      "headSha256": "a2c5dbb9fc8a653bfffb5e17d613632cdf9e89b99f0991907a383146205c4fd0",
+      "addedImports": [],
+      "lines": {
+        "36": {
+          "original": "import { alertColors, moduleAccents } from '../../../theme/functional';",
+          "migrated": "import { alertColors, alertRowColors, moduleAccents } from '../../../theme/functional';",
+          "entries": [],
+          "replacements": [],
+          "importMerge": true
+        },
+        "279": {
+          "original": "                sx={[standardDataGridSx, { border: '1px solid', borderColor: 'divider', '& .MuiDataGrid-row': { bgcolor: '#fff5f5' } }]}",
+          "migrated": "                sx={[standardDataGridSx, { border: '1px solid', borderColor: 'divider', '& .MuiDataGrid-row': { bgcolor: alertRowColors.belowMinimum } }]}",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'#fff5f5'",
+              "to": "alertRowColors.belowMinimum",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "components/documentos/facturas/FacturaResumenFlotante.tsx": {
+      "headSha256": "4e395fc2b5211d0bf25bc6d8a18ef00186ae985c856985a34859d361245b8ada",
+      "addedImports": [
+        "import { fiscalStatusColors } from '../../../theme/functional';"
+      ],
+      "lines": {
+        "312": {
+          "original": "            bgcolor: fiscalCompleto ? '#e8f4ee' : '#fdf3e3',",
+          "migrated": "            bgcolor: fiscalCompleto ? fiscalStatusColors.completeBackground : fiscalStatusColors.incompleteBackground,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "? '#e8f4ee' : '#fdf3e3'",
+              "to": "? fiscalStatusColors.completeBackground : fiscalStatusColors.incompleteBackground",
+              "times": 1
+            }
+          ]
+        },
+        "313": {
+          "original": "            color: fiscalCompleto ? '#1c6b47' : '#9a5b00',",
+          "migrated": "            color: fiscalCompleto ? fiscalStatusColors.completeText : fiscalStatusColors.incompleteText,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "? '#1c6b47' : '#9a5b00'",
+              "to": "? fiscalStatusColors.completeText : fiscalStatusColors.incompleteText",
+              "times": 1
+            }
+          ]
+        },
+        "315": {
+          "original": "            borderColor: fiscalCompleto ? '#c9e3d5' : '#ecd9b4',",
+          "migrated": "            borderColor: fiscalCompleto ? fiscalStatusColors.completeBorder : fiscalStatusColors.incompleteBorder,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "? '#c9e3d5' : '#ecd9b4'",
+              "to": "? fiscalStatusColors.completeBorder : fiscalStatusColors.incompleteBorder",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    }
+  }
+}

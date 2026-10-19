@@ -92,7 +92,7 @@ import type {
   WhatsappEtiqueta,
 } from '../../pages/LeadsPage';
 import TemperaturaScoreButton from './TemperaturaScoreButton';
-import { thirdPartyColors } from '../../theme/functional';
+import { searchHighlightColors, thirdPartyColors } from '../../theme/functional';
 import { neutralColors, overlayColors } from '../../theme/structural';
 
 // Vista de escritorio del módulo de Leads/conversaciones de WhatsApp.
@@ -750,7 +750,7 @@ export default function LeadsDesktopView(props: LeadsDesktopViewProps) {
           component="span"
           key={match.key}
           ref={(element: HTMLSpanElement | null) => { conversationMatchRefs.current[match.key] = element; }}
-          sx={{ bgcolor: conversationSearchMatches[conversationSearchIndex]?.key === match.key ? '#facc15' : '#fef08a', borderRadius: 0.25 }}
+          sx={{ bgcolor: conversationSearchMatches[conversationSearchIndex]?.key === match.key ? searchHighlightColors.current : searchHighlightColors.match, borderRadius: 0.25 }}
         >
           {value.slice(match.start, match.end)}
         </Box>,

@@ -7,6 +7,7 @@ import { neutralColors, overlayColors } from '../../../theme/structural';
 import { activeBrand } from '../../../theme/brand/active';
 import { elevation } from '../../../theme/elevation';
 import { brandTints } from '../../../theme/tints';
+import { fiscalStatusColors } from '../../../theme/functional';
 
 export type FacturaResumenFlotantePosicion = { x: number; y: number };
 
@@ -309,10 +310,10 @@ export default function FacturaResumenFlotante({
             px: 1,
             py: 0.4,
             borderRadius: 999,
-            bgcolor: fiscalCompleto ? '#e8f4ee' : '#fdf3e3',
-            color: fiscalCompleto ? '#1c6b47' : '#9a5b00',
+            bgcolor: fiscalCompleto ? fiscalStatusColors.completeBackground : fiscalStatusColors.incompleteBackground,
+            color: fiscalCompleto ? fiscalStatusColors.completeText : fiscalStatusColors.incompleteText,
             border: '1px solid',
-            borderColor: fiscalCompleto ? '#c9e3d5' : '#ecd9b4',
+            borderColor: fiscalCompleto ? fiscalStatusColors.completeBorder : fiscalStatusColors.incompleteBorder,
           }}
         >
           <Box component="span" sx={{ fontSize: 9 }}>●</Box>

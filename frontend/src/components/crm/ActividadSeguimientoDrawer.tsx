@@ -38,7 +38,7 @@ import { useNavigate } from 'react-router-dom';
 import { apiFetch } from '../../services/apiFetch';
 import { loadSession } from '../../session/sessionStorage';
 import RichTextEditor from '../RichTextEditor';
-import { activityTypeChipColors, alertColors } from '../../theme/functional';
+import { activityTypeChipColors, alertColors, crmAccents } from '../../theme/functional';
 import { neutralColors } from '../../theme/structural';
 import { activeBrand } from '../../theme/brand/active';
 
@@ -559,10 +559,10 @@ export default function ActividadSeguimientoDrawer({ open, onClose, target, init
                 <Stack direction="row" spacing={1} alignItems="center" useFlexGap flexWrap="wrap" sx={{ mt: 1 }}>
                   {target?.montoValor != null ? (
                     <Box>
-                      <Typography variant="caption" sx={{ display: 'block', color: '#0f766e', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.3 }}>
+                      <Typography variant="caption" sx={{ display: 'block', color: crmAccents.amount, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.3 }}>
                         {target.montoLabel || 'Monto'}
                       </Typography>
-                      <Typography variant="body1" sx={{ color: '#0f766e', fontWeight: 700 }}>
+                      <Typography variant="body1" sx={{ color: crmAccents.amount, fontWeight: 700 }}>
                         {new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(Number(target.montoValor ?? 0))}
                       </Typography>
                     </Box>

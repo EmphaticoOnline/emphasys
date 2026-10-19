@@ -85,7 +85,7 @@ import type {
   WhatsappEtiqueta,
 } from '../../pages/LeadsPage';
 import type { NavigateFunction } from 'react-router-dom';
-import { thirdPartyColors } from '../../theme/functional';
+import { leadFilterChipColors, thirdPartyColors } from '../../theme/functional';
 import { overlayColors } from '../../theme/structural';
 
 // SidebarLayout (mobile) envuelve el <Outlet/> en un Box con mt del AppBar
@@ -1978,9 +1978,9 @@ export default function LeadsMobileView(props: LeadsMobileViewProps) {
                   onClick={() => setWhatsappWindowFilter(opt.key)}
                   sx={{
                     fontWeight: 700,
-                    color: whatsappWindowFilter === opt.key ? '#ffffff' : '#0f766e',
-                    backgroundColor: whatsappWindowFilter === opt.key ? '#0f766e' : '#f0fdfa',
-                    borderColor: '#99f6e4',
+                    color: whatsappWindowFilter === opt.key ? '#ffffff' : leadFilterChipColors.foreground,
+                    backgroundColor: whatsappWindowFilter === opt.key ? leadFilterChipColors.activeBackground : leadFilterChipColors.surface,
+                    borderColor: leadFilterChipColors.border,
                   }}
                 />
               ))}
@@ -2008,9 +2008,9 @@ export default function LeadsMobileView(props: LeadsMobileViewProps) {
                   onClick={() => setOpportunityFilter(opt.key)}
                   sx={{
                     fontWeight: 700,
-                    color: opportunityFilter === opt.key ? '#ffffff' : '#0f766e',
-                    backgroundColor: opportunityFilter === opt.key ? '#0f766e' : '#f0fdfa',
-                    borderColor: '#99f6e4',
+                    color: opportunityFilter === opt.key ? '#ffffff' : leadFilterChipColors.foreground,
+                    backgroundColor: opportunityFilter === opt.key ? leadFilterChipColors.activeBackground : leadFilterChipColors.surface,
+                    borderColor: leadFilterChipColors.border,
                   }}
                 />
               ))}

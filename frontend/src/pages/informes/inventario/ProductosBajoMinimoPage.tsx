@@ -33,7 +33,7 @@ import {
   type ProductosBajoMinimoResult,
   type ProductoBajoMinimo,
 } from '../../../services/reportesService';
-import { alertColors, moduleAccents } from '../../../theme/functional';
+import { alertColors, alertRowColors, moduleAccents } from '../../../theme/functional';
 
 const COLOR = moduleAccents.inventoryReports;
 const fmt = (v: number) => v.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -276,7 +276,7 @@ export default function ProductosBajoMinimoPage() {
                 columnHeaderHeight={STANDARD_DATA_GRID_HEADER_HEIGHT}
                 disableRowSelectionOnClick
                 localeText={{ ...esES.components.MuiDataGrid.defaultProps.localeText, noRowsLabel: 'No hay productos bajo mínimo' }}
-                sx={[standardDataGridSx, { border: '1px solid', borderColor: 'divider', '& .MuiDataGrid-row': { bgcolor: '#fff5f5' } }]}
+                sx={[standardDataGridSx, { border: '1px solid', borderColor: 'divider', '& .MuiDataGrid-row': { bgcolor: alertRowColors.belowMinimum } }]}
               />
             </Box>
             <Box sx={{ display: 'flex', gap: 3, mt: 1.5, pt: 1.5, borderTop: '2px solid', borderColor: 'error.main', justifyContent: 'flex-end', flexWrap: 'wrap' }}>

@@ -51,6 +51,7 @@ import type { TipoDocumento } from '../types/documentos.types';
 import { formatearFolioDocumento } from '../utils/documentos.utils';
 import { amountSignColor } from '../theme/sign';
 import { brandElevation, elevation } from '../theme/elevation';
+import { inventoryAffectationColors } from '../theme/functional';
 
 const MESES = [
   { value: '01', label: 'Enero' },
@@ -772,7 +773,7 @@ export default function InventarioMovimientosPage() {
                   </Typography>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 1, mt: 0.45, minWidth: 0 }}>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6, minWidth: 0 }}>
-                      <Box component="span" aria-label={movimiento.estatus_afectacion === 1 ? 'Afectada' : 'Desafectada'} sx={{ width: 7, height: 7, borderRadius: '50%', bgcolor: movimiento.estatus_afectacion === 1 ? '#4ade80' : '#f87171', flexShrink: 0 }} />
+                      <Box component="span" aria-label={movimiento.estatus_afectacion === 1 ? 'Afectada' : 'Desafectada'} sx={{ width: 7, height: 7, borderRadius: '50%', bgcolor: movimiento.estatus_afectacion === 1 ? inventoryAffectationColors.applied : inventoryAffectationColors.reverted, flexShrink: 0 }} />
                       <Typography sx={{ fontSize: 12, color: tokens.navigation.foreground, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {movimiento.usuario_nombre?.trim() || 'Sin usuario'}
                       </Typography>
