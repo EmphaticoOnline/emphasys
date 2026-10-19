@@ -13,7 +13,7 @@ import { getEstadoSeguimientoPresentation } from '../../modules/cotizaciones/est
 import type { CotizacionListado } from '../../types/cotizacion';
 import type { DocumentosMobileViewProps } from './DocumentosView.types';
 import DocumentoStatusIndicators from './indicadores/DocumentoStatusIndicators';
-import { neutralColors, selectionColors } from '../../theme/structural';
+import { neutralColors, onPrimaryColors, selectionColors } from '../../theme/structural';
 import { activeBrand } from '../../theme/brand/active';
 import { balanceColors } from '../../theme/functional';
 import { brandElevation, elevation } from '../../theme/elevation';
@@ -281,7 +281,7 @@ export default function DocumentosMobileView({
             right: 20,
             bottom: 20,
             backgroundColor: activeBrand.colors.blue.base,
-            color: '#ffffff',
+            color: onPrimaryColors.textLong,
             boxShadow: brandElevation.primaryGlow,
             '&:hover': { backgroundColor: activeBrand.colors.blue.hover },
           }}

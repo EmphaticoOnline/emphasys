@@ -50,6 +50,7 @@ import { HistorialConciliacionesDialog } from '../../modules/finanzas/HistorialC
 import { ImportarEstadoCuentaDialog } from '../../modules/finanzas/ImportarEstadoCuentaDialog';
 import { useSession } from '../../session/useSession';
 import { cashFlowColors } from '../../theme/functional';
+import { onPrimaryColors } from '../../theme/structural';
 
 const fmt = (n: number, moneda = 'MXN') =>
   new Intl.NumberFormat('es-MX', { style: 'currency', currency: moneda }).format(n);
@@ -788,7 +789,7 @@ export default function ConciliacionBancariaPage() {
             disabled={guardando}
             sx={{ textTransform: 'none' }}
           >
-            {guardando ? <CircularProgress size={18} sx={{ color: 'white' }} /> : 'Confirmar cierre'}
+            {guardando ? <CircularProgress size={18} sx={{ color: onPrimaryColors.progress }} /> : 'Confirmar cierre'}
           </Button>
         </DialogActions>
       </Dialog>

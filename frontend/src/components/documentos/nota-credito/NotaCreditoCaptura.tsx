@@ -36,7 +36,7 @@ import type { Contacto } from '../../../types/contactos.types';
 import type { Concepto } from '../../../types/finanzas';
 import type { PrepararGeneracionResponse } from '../../../services/documentGenerationService';
 import { alertColors, alertTints } from '../../../theme/functional';
-import { neutralColors } from '../../../theme/structural';
+import { neutralColors, onPrimaryColors } from '../../../theme/structural';
 
 const MENSAJE_PARTIDAS_INCOMPATIBLES = 'Solo pueden combinarse partidas compatibles en la misma nota.';
 
@@ -572,7 +572,7 @@ export default function NotaCreditoCaptura({
           <Chip
             size="small"
             label={`Desde factura ${folioOrigen}`}
-            sx={{ height: 22, fontSize: 11, fontWeight: 700, color: '#fff', bgcolor: 'primary.main' }}
+            sx={{ height: 22, fontSize: 11, fontWeight: 700, color: onPrimaryColors.text, bgcolor: 'primary.main' }}
           />
         ) : null}
         {clienteNombre && motivo !== 'otro' ? (

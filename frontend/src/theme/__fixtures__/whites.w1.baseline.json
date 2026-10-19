@@ -1,0 +1,237 @@
+{
+  "source": "HEAD de9962a, blancos bloque w1",
+  "files": {
+    "components/documentos/DocumentosDesktopView.tsx": {
+      "headSha256": "ef280d60e3ac52b453863dc268fbb7953e14d952277ef99e92c703c56d13f63a",
+      "addedImports": [],
+      "lines": {
+        "17": {
+          "original": "import { neutralColors, overlayColors } from '../../theme/structural';",
+          "migrated": "import { neutralColors, onPrimaryColors, overlayColors } from '../../theme/structural';",
+          "entries": [],
+          "replacements": [],
+          "importMerge": true
+        },
+        "131": {
+          "original": "                color: '#ffffff',",
+          "migrated": "                color: onPrimaryColors.textLong,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'#ffffff'",
+              "to": "onPrimaryColors.textLong",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "components/documentos/DocumentosMobileView.tsx": {
+      "headSha256": "023080f1d707c1affa56fc30b0e5af2a77a03ca4a03bcd61b39fc0e2a987f0a3",
+      "addedImports": [],
+      "lines": {
+        "16": {
+          "original": "import { neutralColors, selectionColors } from '../../theme/structural';",
+          "migrated": "import { neutralColors, onPrimaryColors, selectionColors } from '../../theme/structural';",
+          "entries": [],
+          "replacements": [],
+          "importMerge": true
+        },
+        "284": {
+          "original": "            color: '#ffffff',",
+          "migrated": "            color: onPrimaryColors.textLong,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'#ffffff'",
+              "to": "onPrimaryColors.textLong",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "components/documentos/facturas/FacturaResumenFlotante.tsx": {
+      "headSha256": "384a38128bdfc88cdc9e281ff331936c420b5f6606589366454cea2bee50110a",
+      "addedImports": [],
+      "lines": {
+        "6": {
+          "original": "import { neutralColors, overlayColors } from '../../../theme/structural';",
+          "migrated": "import { neutralColors, onPrimaryColors, overlayColors } from '../../../theme/structural';",
+          "entries": [],
+          "replacements": [],
+          "importMerge": true
+        },
+        "297": {
+          "original": "        <Typography sx={{ fontSize: 17, color: '#fff', fontWeight: 700, fontFamily: 'monospace', fontVariantNumeric: 'tabular-nums' }}>",
+          "migrated": "        <Typography sx={{ fontSize: 17, color: onPrimaryColors.text, fontWeight: 700, fontFamily: 'monospace', fontVariantNumeric: 'tabular-nums' }}>",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'#fff'",
+              "to": "onPrimaryColors.text",
+              "times": 1
+            }
+          ]
+        },
+        "343": {
+          "original": "              sx={{ width: 30, height: 30, bgcolor: activeBrand.colors.blue.base, color: '#fff', borderRadius: 1, '&:hover': { bgcolor: activeBrand.colors.blue.hover }, '&.Mui-disabled': { bgcolor: neutralColors.steel.controlBorder, color: '#fff' } }}",
+          "migrated": "              sx={{ width: 30, height: 30, bgcolor: activeBrand.colors.blue.base, color: onPrimaryColors.text, borderRadius: 1, '&:hover': { bgcolor: activeBrand.colors.blue.hover }, '&.Mui-disabled': { bgcolor: neutralColors.steel.controlBorder, color: '#fff' } }}",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "bgcolor: activeBrand.colors.blue.base, color: '#fff',",
+              "to": "bgcolor: activeBrand.colors.blue.base, color: onPrimaryColors.text,",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "components/documentos/nota-credito/NotaCreditoCaptura.tsx": {
+      "headSha256": "050d6d4b759bc1765901d46dc5a6ad03e0e7eae483a0447a493b25e2ba89ace5",
+      "addedImports": [],
+      "lines": {
+        "39": {
+          "original": "import { neutralColors } from '../../../theme/structural';",
+          "migrated": "import { neutralColors, onPrimaryColors } from '../../../theme/structural';",
+          "entries": [],
+          "replacements": [],
+          "importMerge": true
+        },
+        "575": {
+          "original": "            sx={{ height: 22, fontSize: 11, fontWeight: 700, color: '#fff', bgcolor: 'primary.main' }}",
+          "migrated": "            sx={{ height: 22, fontSize: 11, fontWeight: 700, color: onPrimaryColors.text, bgcolor: 'primary.main' }}",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'#fff'",
+              "to": "onPrimaryColors.text",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "components/configuracion/configVisual.tsx": {
+      "headSha256": "4d9a11f2fdaee0c943cc36fa19af0dd93970d0a82c322a863fe47e285d2e4781",
+      "addedImports": [
+        "import { onPrimaryColors } from '../../theme/structural';"
+      ],
+      "lines": {
+        "143": {
+          "original": "  color: '#fff',",
+          "migrated": "  color: onPrimaryColors.text,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'#fff'",
+              "to": "onPrimaryColors.text",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "pages/finanzas/ConciliacionBancariaPage.tsx": {
+      "headSha256": "23dfe824fef2048550743a1204105030b949697c02e4aaacac821aa343585fce",
+      "addedImports": [
+        "import { onPrimaryColors } from '../../theme/structural';"
+      ],
+      "lines": {
+        "791": {
+          "original": "            {guardando ? <CircularProgress size={18} sx={{ color: 'white' }} /> : 'Confirmar cierre'}",
+          "migrated": "            {guardando ? <CircularProgress size={18} sx={{ color: onPrimaryColors.progress }} /> : 'Confirmar cierre'}",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'white'",
+              "to": "onPrimaryColors.progress",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "pages/DocumentosFormPage.tsx": {
+      "headSha256": "775fa36b80f8a38e4e24f4d9847c7268391ed0e5703027a50d1e098e7f92c725",
+      "addedImports": [],
+      "lines": {
+        "134": {
+          "original": "import { neutralColors, overlayColors, selectionColors } from '../theme/structural';",
+          "migrated": "import { neutralColors, onPrimaryColors, overlayColors, selectionColors } from '../theme/structural';",
+          "entries": [],
+          "replacements": [],
+          "importMerge": true
+        },
+        "3936": {
+          "original": "            color: vistaFacturaCaptura === opt.value ? '#fff' : neutralColors.steel.strong,",
+          "migrated": "            color: vistaFacturaCaptura === opt.value ? onPrimaryColors.text : neutralColors.steel.strong,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "? '#fff' : neutralColors.steel.strong",
+              "to": "? onPrimaryColors.text : neutralColors.steel.strong",
+              "times": 1
+            }
+          ]
+        },
+        "4294": {
+          "original": "            <Typography sx={{ fontSize: 21, color: '#fff', fontWeight: 700, fontFamily: 'monospace', fontVariantNumeric: 'tabular-nums' }}>",
+          "migrated": "            <Typography sx={{ fontSize: 21, color: onPrimaryColors.text, fontWeight: 700, fontFamily: 'monospace', fontVariantNumeric: 'tabular-nums' }}>",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'#fff'",
+              "to": "onPrimaryColors.text",
+              "times": 1
+            }
+          ]
+        },
+        "4655": {
+          "original": "                            color: '#fff',",
+          "migrated": "                            color: onPrimaryColors.text,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'#fff'",
+              "to": "onPrimaryColors.text",
+              "times": 1
+            }
+          ]
+        },
+        "5235": {
+          "original": "                                color: '#fff',",
+          "migrated": "                                color: onPrimaryColors.text,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'#fff'",
+              "to": "onPrimaryColors.text",
+              "times": 1
+            }
+          ]
+        },
+        "5576": {
+          "original": "                        sx={{ bgcolor: 'primary.main', color: '#fff', borderRadius: 1, '&:hover': { bgcolor: 'primary.dark' }, '&.Mui-disabled': { bgcolor: (theme) => theme.emphasys.action.disabled, color: 'primary.contrastText' } }}",
+          "migrated": "                        sx={{ bgcolor: 'primary.main', color: onPrimaryColors.text, borderRadius: 1, '&:hover': { bgcolor: 'primary.dark' }, '&.Mui-disabled': { bgcolor: (theme) => theme.emphasys.action.disabled, color: 'primary.contrastText' } }}",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "bgcolor: 'primary.main', color: '#fff',",
+              "to": "bgcolor: 'primary.main', color: onPrimaryColors.text,",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    }
+  }
+}

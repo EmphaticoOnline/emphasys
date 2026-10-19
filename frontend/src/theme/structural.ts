@@ -215,3 +215,20 @@ export const overlayColors = {
     surface: 'rgba(255, 255, 255, 0.96)',
   },
 } as const;
+
+/**
+ * Contraste sobre azul de marca o `primary.main`: texto, iconos y spinner en
+ * blanco fijo (D-B1, opción A: estructural, no sigue a la marca). Ver
+ * docs/white-label-blancos-audit.md.
+ *
+ * Mismo rol en tres escrituras que se conservan tal cual: no se unifican.
+ * Una marca futura con un azul claro debe revisar este contraste.
+ */
+export const onPrimaryColors = {
+  /** Texto o icono sobre el primario, escrito `'#fff'`. */
+  text: '#fff',
+  /** Texto sobre el azul de marca en botones de documentos, escrito `'#ffffff'`. */
+  textLong: '#ffffff',
+  /** Spinner dentro del botón primario, escrito `'white'`. */
+  progress: 'white',
+} as const;

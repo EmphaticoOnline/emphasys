@@ -14,7 +14,7 @@ import {
 } from '../grids/standardDataGridSx';
 import { catalogoOutlinedButtonSx, catalogoPrimaryButtonSx, catalogoSearchSx } from '../catalogo/catalogoSurfaces';
 import type { DocumentosDesktopViewProps } from './DocumentosView.types';
-import { neutralColors, overlayColors } from '../../theme/structural';
+import { neutralColors, onPrimaryColors, overlayColors } from '../../theme/structural';
 import { activeBrand } from '../../theme/brand/active';
 import { brandTints } from '../../theme/tints';
 
@@ -128,7 +128,7 @@ export default function DocumentosDesktopView({
                 textTransform: 'uppercase',
                 fontWeight: 700,
                 backgroundColor: activeBrand.colors.blue.base,
-                color: '#ffffff',
+                color: onPrimaryColors.textLong,
                 '&:hover': { backgroundColor: activeBrand.colors.blue.hover },
               }}
             >

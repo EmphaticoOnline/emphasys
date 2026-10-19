@@ -131,7 +131,7 @@ import {
 import type { CampoValorPayload, CampoValorGuardado } from '../types/camposDinamicos';
 import type { Concepto, DocumentoAnticipoResumen, EstadoCuentaItem, FinanzasCuenta } from '../types/finanzas';
 import { NumericFormat } from 'react-number-format';
-import { neutralColors, overlayColors, selectionColors } from '../theme/structural';
+import { neutralColors, onPrimaryColors, overlayColors, selectionColors } from '../theme/structural';
 import { advanceBoxColors, alertColors, attachmentIndicatorColors, balanceColors, documentSummaryTones, fiscalStatusColors, moduleAccents } from '../theme/functional';
 import { brandBlueAlpha } from '../theme/brand/derived';
 import { elevation } from '../theme/elevation';
@@ -3933,7 +3933,7 @@ export default function DocumentosFormPage({
             py: 0.6,
             fontSize: 12.5,
             fontWeight: vistaFacturaCaptura === opt.value ? 700 : 500,
-            color: vistaFacturaCaptura === opt.value ? '#fff' : neutralColors.steel.strong,
+            color: vistaFacturaCaptura === opt.value ? onPrimaryColors.text : neutralColors.steel.strong,
             bgcolor: vistaFacturaCaptura === opt.value ? 'primary.main' : '#fff',
           }}
         >
@@ -4291,7 +4291,7 @@ export default function DocumentosFormPage({
             <Typography sx={{ fontSize: 12, color: overlayColors.onDark.mutedLabel, letterSpacing: '0.06em', textTransform: 'uppercase', fontWeight: 600 }}>
               Total {form.moneda}
             </Typography>
-            <Typography sx={{ fontSize: 21, color: '#fff', fontWeight: 700, fontFamily: 'monospace', fontVariantNumeric: 'tabular-nums' }}>
+            <Typography sx={{ fontSize: 21, color: onPrimaryColors.text, fontWeight: 700, fontFamily: 'monospace', fontVariantNumeric: 'tabular-nums' }}>
               {formatter.format(resumenFinanciero.total)}
             </Typography>
           </Box>
@@ -4652,7 +4652,7 @@ export default function DocumentosFormPage({
                             width: 26,
                             height: 26,
                             bgcolor: 'primary.main',
-                            color: '#fff',
+                            color: onPrimaryColors.text,
                             boxShadow: (theme) => `0 1px 3px ${theme.emphasys.action.hoverTint}`,
                             '&:hover': { bgcolor: 'primary.dark' },
                             '&.Mui-disabled': { bgcolor: (theme) => theme.emphasys.action.disabled, color: 'primary.contrastText' },
@@ -5232,7 +5232,7 @@ export default function DocumentosFormPage({
                                 width: 26,
                                 height: 26,
                                 bgcolor: 'primary.main',
-                                color: '#fff',
+                                color: onPrimaryColors.text,
                                 boxShadow: (theme) => `0 1px 3px ${theme.emphasys.action.hoverTint}`,
                                 '&:hover': { bgcolor: 'primary.dark' },
                                 '&.Mui-disabled': { bgcolor: (theme) => theme.emphasys.action.disabled, color: 'primary.contrastText' },
@@ -5573,7 +5573,7 @@ export default function DocumentosFormPage({
                         onClick={handleSave}
                         disabled={saving || loading || tieneDerivadosActivos || notaVentaBloqueada}
                         aria-label={`Guardar ${textos.singular.toLowerCase()}`}
-                        sx={{ bgcolor: 'primary.main', color: '#fff', borderRadius: 1, '&:hover': { bgcolor: 'primary.dark' }, '&.Mui-disabled': { bgcolor: (theme) => theme.emphasys.action.disabled, color: 'primary.contrastText' } }}
+                        sx={{ bgcolor: 'primary.main', color: onPrimaryColors.text, borderRadius: 1, '&:hover': { bgcolor: 'primary.dark' }, '&.Mui-disabled': { bgcolor: (theme) => theme.emphasys.action.disabled, color: 'primary.contrastText' } }}
                       >
                         {saving ? <CircularProgress size={18} color="inherit" /> : <CheckIcon fontSize="small" />}
                       </IconButton>

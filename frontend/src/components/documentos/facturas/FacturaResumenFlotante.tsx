@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Box, CircularProgress, IconButton, Stack, Tooltip, Typography } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import CheckIcon from '@mui/icons-material/Check';
-import { neutralColors, overlayColors } from '../../../theme/structural';
+import { neutralColors, onPrimaryColors, overlayColors } from '../../../theme/structural';
 import { activeBrand } from '../../../theme/brand/active';
 import { elevation } from '../../../theme/elevation';
 import { brandTints } from '../../../theme/tints';
@@ -294,7 +294,7 @@ export default function FacturaResumenFlotante({
         <Typography sx={{ fontSize: 11, color: overlayColors.onDark.mutedLabel, letterSpacing: '0.06em', textTransform: 'uppercase', fontWeight: 600 }}>
           Total
         </Typography>
-        <Typography sx={{ fontSize: 17, color: '#fff', fontWeight: 700, fontFamily: 'monospace', fontVariantNumeric: 'tabular-nums' }}>
+        <Typography sx={{ fontSize: 17, color: onPrimaryColors.text, fontWeight: 700, fontFamily: 'monospace', fontVariantNumeric: 'tabular-nums' }}>
           {formatCurrency(total)}
         </Typography>
       </Box>
@@ -340,7 +340,7 @@ export default function FacturaResumenFlotante({
               onClick={onSave}
               disabled={saveDisabled || saving}
               aria-label="Guardar factura"
-              sx={{ width: 30, height: 30, bgcolor: activeBrand.colors.blue.base, color: '#fff', borderRadius: 1, '&:hover': { bgcolor: activeBrand.colors.blue.hover }, '&.Mui-disabled': { bgcolor: neutralColors.steel.controlBorder, color: '#fff' } }}
+              sx={{ width: 30, height: 30, bgcolor: activeBrand.colors.blue.base, color: onPrimaryColors.text, borderRadius: 1, '&:hover': { bgcolor: activeBrand.colors.blue.hover }, '&.Mui-disabled': { bgcolor: neutralColors.steel.controlBorder, color: '#fff' } }}
             >
               {saving ? <CircularProgress size={16} color="inherit" /> : <CheckIcon fontSize="small" />}
             </IconButton>
