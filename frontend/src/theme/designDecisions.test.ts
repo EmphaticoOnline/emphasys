@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import test from 'node:test';
-import { accountingColors, balanceColors, stalenessColors } from './functional.ts';
+import { accountingColors, balanceColors, cashFlowColors, inventoryFlowColors, stalenessColors } from './functional.ts';
 import { classicTheme, experimentalTheme } from './themes.ts';
 import { classicTokens, experimentalTokens } from './tokens.ts';
 import {
@@ -127,4 +127,19 @@ test('D1 (cambio visual aprobado): el saldo al corte del estado de cuenta usa el
   assert.equal(source.split('accountingColors.debit').length - 1, 4);
   assert.equal(source.split('accountingColors.credit').length - 1, 4);
   assert.doesNotMatch(source, /balanceColors/);
+});
+
+test('D2 (cambio visual aprobado): las filas de movimientos de inventario usan el rol de flujo de inventario', () => {
+  assert.equal(replacementsOf('d2').length, 2);
+  // Cambio exacto, solo en las filas del informe: salida #d32f2f → #dc2626 y entrada #2e7d32 → #16a34a.
+  assert.deepEqual([cashFlowColors.outflow, cashFlowColors.inflow], ['#d32f2f', '#2e7d32']);
+  assert.deepEqual([inventoryFlowColors.outbound, inventoryFlowColors.inbound], ['#dc2626', '#16a34a']);
+  const source = readText('../pages/informes/inventario/MovimientosInventarioPage.tsx');
+  assert.match(source, /color=\{esEntrada \? inventoryFlowColors\.inbound : inventoryFlowColors\.outbound\}/);
+  // Filas y tarjetas de totales comparten ahora el mismo rol; el Kardex ya lo usaba.
+  assert.equal(source.split('inventoryFlowColors.inbound').length - 1, 2);
+  assert.equal(source.split('inventoryFlowColors.outbound').length - 1, 2);
+  assert.doesNotMatch(source, /cashFlowColors/);
+  // El formulario de movimientos (tema experimental) sigue leyendo el tema.
+  assert.match(readText('../pages/InventarioMovimientoFormPage.tsx'), /outflowColor\(theme\.emphasys\)/);
 });
