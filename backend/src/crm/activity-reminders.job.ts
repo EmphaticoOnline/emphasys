@@ -52,5 +52,13 @@ async function ciclo() {
   } finally { client.release(); }
 }
 
-export function iniciarRecordatoriosActividadesJob() { if (started) return; started=true; timer=setInterval(() => { void ciclo(); }, CYCLE_MS); timer.unref(); void ciclo(); }
+export async function ejecutarCicloSeguro(run: () => Promise<void> = ciclo): Promise<void> {
+  try {
+    await run();
+  } catch (error) {
+    console.error('[activity-reminders] Error en el ciclo de recordatorios:', error);
+  }
+}
+
+export function iniciarRecordatoriosActividadesJob() { if (started) return; started=true; timer=setInterval(() => { void ejecutarCicloSeguro(); }, CYCLE_MS); timer.unref(); void ejecutarCicloSeguro(); }
 export function detenerRecordatoriosActividadesJob() { if (timer) clearInterval(timer); timer=null; started=false; }
