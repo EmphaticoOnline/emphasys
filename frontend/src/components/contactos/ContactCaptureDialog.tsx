@@ -3,6 +3,8 @@ import { Button, CircularProgress, Dialog, DialogActions, DialogContent, DialogT
 import type { ContactCaptureMode, ContactoTipoPermitido } from '../../modules/documentos/documentoTypes';
 import { apiFetch } from '../../services/apiFetch';
 
+export type ContactCaptureOriginOption = { id: number; descripcion: string };
+
 export type ContactCaptureDetailedFields = {
   telefono: string;
   email: string;
@@ -26,6 +28,10 @@ export type ContactCaptureDialogProps = {
   title?: string;
   infoMessage?: string;
   submitLabel?: string;
+  origenContactoId?: number | null;
+  origenContactoOptions?: ContactCaptureOriginOption[];
+  origenContactoLoading?: boolean;
+  onOrigenContactoChange?: (value: number | null) => void;
   onNombreChange: (value: string) => void;
   onTipoContactoChange: (value: ContactoTipoPermitido) => void;
   onDetailedFieldChange?: (field: keyof ContactCaptureDetailedFields, value: string) => void;
@@ -68,6 +74,10 @@ export default function ContactCaptureDialog({
   detailedFields,
   title = 'Crear cliente',
   submitLabel = 'Crear y asignar',
+  origenContactoId = null,
+  origenContactoOptions = [],
+  origenContactoLoading = false,
+  onOrigenContactoChange,
   onNombreChange,
   onTipoContactoChange,
   onDetailedFieldChange,
@@ -196,6 +206,21 @@ export default function ContactCaptureDialog({
           >
             {tiposPermitidos.map((tipoPermitido) => (
               <MenuItem key={tipoPermitido} value={tipoPermitido}>{tipoPermitido}</MenuItem>
+            ))}
+          </TextField>
+        ) : null}
+        {onOrigenContactoChange ? (
+          <TextField
+            select
+            label="Origen de contacto (opcional)"
+            size="small"
+            value={origenContactoId ?? ''}
+            onChange={(event) => onOrigenContactoChange(event.target.value ? Number(event.target.value) : null)}
+            disabled={loading || origenContactoLoading}
+          >
+            <MenuItem value="">Sin origen</MenuItem>
+            {origenContactoOptions.map((option) => (
+              <MenuItem key={option.id} value={option.id}>{option.descripcion}</MenuItem>
             ))}
           </TextField>
         ) : null}

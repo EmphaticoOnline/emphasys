@@ -1,0 +1,38 @@
+[dotenv@17.2.3] injecting env (33) from .env -- tip: ⚙️  load multiple .env files with { path: ['.env.local', '.env'] }
+[config] APP_ENV=development
+[config] DB_TARGET=local
+[config] PostgreSQL=127.0.0.1:5432/dev_emphasys
+CWD runtime: /Users/antoniodiaz/OpenSource/emphasys/.local-deploy
+[version] Emphasys Web build: 2026.10.01.001
+[uploads-static] uploadsDir: /Users/antoniodiaz/OpenSource/emphasys/.local-deploy/uploads exists?: false
+[static-debug] __dirname: /Users/antoniodiaz/OpenSource/emphasys/.local-deploy/dist
+[static-debug] frontendDistPath: /Users/antoniodiaz/OpenSource/emphasys/.local-deploy/frontend-dist
+[static-debug] dist exists?: true
+[static-debug] index.html exists?: true
+🚀 Emphasys API corriendo en puerto 7001
+[db] conexión OK: dev_emphasys (127.0.0.1/32:5432)
+[activity-reminders] Error en el ciclo de recordatorios: error: column a.descripcion does not exist
+    at /Users/antoniodiaz/OpenSource/emphasys/.local-deploy/node_modules/pg/lib/client.js:624:17
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async ciclo (/Users/antoniodiaz/OpenSource/emphasys/.local-deploy/dist/crm/activity-reminders.job.js:41:30)
+    at async ejecutarCicloSeguro (/Users/antoniodiaz/OpenSource/emphasys/.local-deploy/dist/crm/activity-reminders.job.js:77:9) {
+  length: 111,
+  severity: 'ERROR',
+  code: '42703',
+  detail: undefined,
+  hint: undefined,
+  position: '65',
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'parse_relation.c',
+  line: '3727',
+  routine: 'errorMissingColumn'
+}
+[shutdown] SIGTERM: dejando de aceptar conexiones nuevas...
+[shutdown] Solicitudes activas finalizadas.

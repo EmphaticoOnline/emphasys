@@ -35,6 +35,7 @@ import { getEmpresaActivaId } from '../utils/empresaUtils';
 import { formatearTelefonoParaMostrar, normalizarTelefonoMx } from '../utils/telefono';
 import { fetchCamposObligatorios } from '../services/camposObligatoriosService';
 import { CONTACTOS_CAMPOS } from '../definitions/contactos.fields';
+import { normalizarNombreCatalogoContacto, obtenerTipoOrigenContacto } from '../modules/contactos/catalogosContacto';
 import ContactoDomiciliosSection from '../components/contactos/ContactoDomiciliosSection';
 import ContactoOperadorSection from '../components/contactos/ContactoOperadorSection';
 import { useSession } from '../session/useSession';
@@ -511,16 +512,11 @@ function validarRFC(rfc: string) {
     origen: Number(import.meta.env.VITE_CONTACTO_ORIGEN_TIPO_ID) || null,
   };
 
-  const normalizarTexto = (value: string) =>
-    value
-      .toLowerCase()
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '');
-
   const obtenerCatalogoTipo = (nombre: string, id?: number | null) => {
+    if (nombre === 'origen') return obtenerTipoOrigenContacto(comercialTipos, id);
     if (id) return comercialTipos.find((tipo) => tipo.id === id);
-    const lookup = normalizarTexto(nombre);
-    return comercialTipos.find((tipo) => normalizarTexto(tipo.nombre || '').includes(lookup));
+    const lookup = normalizarNombreCatalogoContacto(nombre);
+    return comercialTipos.find((tipo) => normalizarNombreCatalogoContacto(tipo.nombre).includes(lookup));
   };
 
   const obtenerCatalogosSeleccionados = () => {

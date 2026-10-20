@@ -124,6 +124,7 @@ test('login, selección de empresa y sesión cerrada siempre usan Emphasys', () 
   assert.equal(empresaParaMarca({ ...sesion, pathname: '/login-externo' }), 3);
 });
 
+
 test('caché: guarda, lee, borra sin personalización y tolera datos o almacenamiento rotos', () => {
   const datos = new Map<string, string>();
   const store = { getItem: (k: string) => datos.get(k) ?? null, setItem: (k: string, v: string) => void datos.set(k, v), removeItem: (k: string) => void datos.delete(k) };

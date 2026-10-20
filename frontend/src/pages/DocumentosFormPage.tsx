@@ -115,7 +115,8 @@ import { FacturaPagosDrawer } from '../modules/finanzas/FacturaPagosDrawer';
 import { OperacionDialog } from '../modules/finanzas/OperacionDialog';
 import { getDocumentoOrigenFinancieroConfig } from '../modules/finanzas/documentoOrigenFinanciero';
 import { DEFAULT_ESTADO_SEGUIMIENTO } from '../modules/cotizaciones/estadoSeguimiento';
-import { crearContacto, getContacto } from '../services/contactos.api';
+import { crearContacto, getContacto, obtenerCatalogosConfigurablesContacto, type CatalogoConfigurablesRespuesta } from '../services/contactos.api';
+import { obtenerTipoOrigenContacto } from '../modules/contactos/catalogosContacto';
 import { fetchAplicacionesDocumento, fetchCuentas, fetchEstadoCuenta, fetchResumenAnticiposDocumento, fetchSaldoDocumento } from '../services/finanzasService';
 import { buildAssetUrl } from '../services/empresasAssetsService';
 import { resolvePrecioDocumento } from '../services/preciosService';
@@ -763,8 +764,28 @@ export default function DocumentosFormPage({
   const [crearClienteOpen, setCrearClienteOpen] = useState(false);
   const [crearClienteNombre, setCrearClienteNombre] = useState('');
   const [crearClienteTipo, setCrearClienteTipo] = useState(contactoDefaultTipoContacto);
+  const [crearClienteOrigenId, setCrearClienteOrigenId] = useState<number | null>(null);
+  const [origenContactoOptions, setOrigenContactoOptions] = useState<{ id: number; descripcion: string }[]>([]);
+  const [origenContactoLoading, setOrigenContactoLoading] = useState(false);
   const [crearClienteDetailedFields, setCrearClienteDetailedFields] = useState<ContactCaptureDetailedFields>(emptyContactCaptureDetailedFields);
   const [crearClienteLoading, setCrearClienteLoading] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    setCrearClienteOrigenId(null);
+    setOrigenContactoOptions([]);
+    if (!session.empresaActivaId) return () => { mounted = false; };
+    setOrigenContactoLoading(true);
+    obtenerCatalogosConfigurablesContacto()
+      .then((data: CatalogoConfigurablesRespuesta) => {
+        if (!mounted) return;
+        const tipo = obtenerTipoOrigenContacto(data.tipos || [], Number(import.meta.env.VITE_CONTACTO_ORIGEN_TIPO_ID) || null);
+        setOrigenContactoOptions((tipo?.valores || []).map((valor) => ({ id: valor.id, descripcion: valor.descripcion })));
+      })
+      .catch(() => { if (mounted) setOrigenContactoOptions([]); })
+      .finally(() => { if (mounted) setOrigenContactoLoading(false); });
+    return () => { mounted = false; };
+  }, [session.empresaActivaId]);
   const [crearProductoOpen, setCrearProductoOpen] = useState(false);
   const [crearProductoClave, setCrearProductoClave] = useState('');
   const [crearProductoDescripcion, setCrearProductoDescripcion] = useState('');
@@ -3670,6 +3691,7 @@ export default function DocumentosFormPage({
       const payload: Record<string, unknown> = {
         nombre,
         tipo_contacto: crearClienteTipo,
+        ...(crearClienteOrigenId ? { catalogoIds: [crearClienteOrigenId] } : {}),
       };
 
       if (contactoCaptureMode === 'detailed') {
@@ -3704,6 +3726,7 @@ export default function DocumentosFormPage({
       setCrearClienteOpen(false);
       setCrearClienteNombre('');
       setCrearClienteTipo(contactoDefaultTipoContacto);
+      setCrearClienteOrigenId(null);
       setCrearClienteDetailedFields(emptyContactCaptureDetailedFields());
     } catch (err: any) {
       setSnackbar({ open: true, message: err?.message || 'No se pudo crear el cliente', severity: 'error' });
@@ -3965,6 +3988,10 @@ export default function DocumentosFormPage({
           loading={crearClienteLoading}
           nombre={crearClienteNombre}
           tipoContacto={crearClienteTipo}
+          origenContactoId={crearClienteOrigenId}
+          origenContactoOptions={origenContactoOptions}
+          origenContactoLoading={origenContactoLoading}
+          onOrigenContactoChange={setCrearClienteOrigenId}
           tiposPermitidos={contactoTiposPermitidos}
           captureMode={contactoCaptureMode}
           detailedFields={crearClienteDetailedFields}
@@ -3980,6 +4007,7 @@ export default function DocumentosFormPage({
               setCrearClienteOpen(false);
               setCrearClienteNombre('');
               setCrearClienteTipo(contactoDefaultTipoContacto);
+              setCrearClienteOrigenId(null);
               setCrearClienteDetailedFields(emptyContactCaptureDetailedFields());
             }
           }}
@@ -4465,6 +4493,7 @@ export default function DocumentosFormPage({
                         setCrearClienteOpen(true);
                         setCrearClienteNombre(value.inputValue);
                         setCrearClienteTipo(contactoDefaultTipoContacto);
+                        setCrearClienteOrigenId(null);
                         setCrearClienteDetailedFields(emptyContactCaptureDetailedFields());
                         return;
                       }
@@ -6181,6 +6210,7 @@ export default function DocumentosFormPage({
                             setCrearClienteOpen(true);
                             setCrearClienteNombre(value.inputValue);
                             setCrearClienteTipo(contactoDefaultTipoContacto);
+                            setCrearClienteOrigenId(null);
                             setCrearClienteDetailedFields(emptyContactCaptureDetailedFields());
                             return;
                           }
@@ -6444,6 +6474,7 @@ export default function DocumentosFormPage({
                         setCrearClienteOpen(true);
                         setCrearClienteNombre(value.inputValue);
                         setCrearClienteTipo(contactoDefaultTipoContacto);
+                        setCrearClienteOrigenId(null);
                         setCrearClienteDetailedFields(emptyContactCaptureDetailedFields());
                         return;
                       }
@@ -8759,6 +8790,10 @@ export default function DocumentosFormPage({
         loading={crearClienteLoading}
         nombre={crearClienteNombre}
         tipoContacto={crearClienteTipo}
+        origenContactoId={crearClienteOrigenId}
+        origenContactoOptions={origenContactoOptions}
+        origenContactoLoading={origenContactoLoading}
+        onOrigenContactoChange={setCrearClienteOrigenId}
         tiposPermitidos={contactoTiposPermitidos}
         captureMode={contactoCaptureMode}
         detailedFields={crearClienteDetailedFields}
@@ -8774,6 +8809,7 @@ export default function DocumentosFormPage({
             setCrearClienteOpen(false);
             setCrearClienteNombre('');
             setCrearClienteTipo(contactoDefaultTipoContacto);
+            setCrearClienteOrigenId(null);
             setCrearClienteDetailedFields(emptyContactCaptureDetailedFields());
           }
         }}

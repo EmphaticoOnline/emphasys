@@ -75,7 +75,7 @@ function EmphasysLogin({
     >
       <Box
         sx={{
-          backgroundColor: frame.background,
+          backgroundColor: action.primary,
           color: frame.foreground,
           position: "relative",
           display: "flex",

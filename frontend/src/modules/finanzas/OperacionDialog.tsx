@@ -25,7 +25,8 @@ import type { ContactoTipoPermitido } from '../documentos/documentoTypes';
 import { abrirAdjuntoOperacion, actualizarOperacion, actualizarTransferencia, crearOperacion, crearTransferencia, descargarAdjuntoOperacion, eliminarAdjuntoOperacion, fetchAdjuntosOperacion, fetchMetodosPago, subirAdjuntoOperacion, type FinanzasAdjunto, type OperacionPayload } from '../../services/finanzasService';
 import { fetchConceptos, crearConcepto } from '../../services/conceptosService';
 import { fetchContactos } from '../../services/contactosService';
-import { crearContacto } from '../../services/contactos.api';
+import { crearContacto, obtenerCatalogosConfigurablesContacto, type CatalogoConfigurablesRespuesta } from '../../services/contactos.api';
+import { obtenerTipoOrigenContacto } from '../contactos/catalogosContacto';
 import ContactCaptureDialog from '../../components/contactos/ContactCaptureDialog';
 import { validarBorradorCaptura } from './capturaMovimientoLogica';
 import {
@@ -111,11 +112,31 @@ export function OperacionDialog({
   const [crearContactoOpen, setCrearContactoOpen] = useState(false);
   const [crearContactoNombre, setCrearContactoNombre] = useState('');
   const [crearContactoTipo, setCrearContactoTipo] = useState<ContactoTipoPermitido>('Cliente');
+  const [crearContactoOrigenId, setCrearContactoOrigenId] = useState<number | null>(null);
+  const [origenContactoOptions, setOrigenContactoOptions] = useState<{ id: number; descripcion: string }[]>([]);
+  const [origenContactoLoading, setOrigenContactoLoading] = useState(false);
   const [crearContactoLoading, setCrearContactoLoading] = useState(false);
   const [operacionIdLocal, setOperacionIdLocal] = useState<number | null>(null);
   const [adjuntos, setAdjuntos] = useState<FinanzasAdjunto[]>([]);
   const [archivosPendientes, setArchivosPendientes] = useState<File[]>([]);
   const [loadingAdjuntos, setLoadingAdjuntos] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    setCrearContactoOrigenId(null);
+    setOrigenContactoOptions([]);
+    if (!open) return () => { mounted = false; };
+    setOrigenContactoLoading(true);
+    obtenerCatalogosConfigurablesContacto()
+      .then((data: CatalogoConfigurablesRespuesta) => {
+        if (!mounted) return;
+        const tipo = obtenerTipoOrigenContacto(data.tipos || [], Number(import.meta.env.VITE_CONTACTO_ORIGEN_TIPO_ID) || null);
+        setOrigenContactoOptions((tipo?.valores || []).map((valor) => ({ id: valor.id, descripcion: valor.descripcion })));
+      })
+      .catch(() => { if (mounted) setOrigenContactoOptions([]); })
+      .finally(() => { if (mounted) setOrigenContactoLoading(false); });
+    return () => { mounted = false; };
+  }, [open]);
 
   // El selector de contacto de Finanzas no restringe por tipo (a diferencia de
   // Documentos, que sí fija cliente/proveedor por reglas de venta/compra), así
@@ -402,6 +423,7 @@ export function OperacionDialog({
     setCrearContactoOpen(false);
     setCrearContactoNombre('');
     setCrearContactoTipo(contactoDefaultTipo);
+    setCrearContactoOrigenId(null);
   };
 
   const handleCrearContactoSubmit = async () => {
@@ -413,13 +435,18 @@ export function OperacionDialog({
 
     try {
       setCrearContactoLoading(true);
-      const nuevo = await crearContacto({ nombre, tipo_contacto: crearContactoTipo });
+      const nuevo = await crearContacto({
+        nombre,
+        tipo_contacto: crearContactoTipo,
+        ...(crearContactoOrigenId ? { catalogoIds: [crearContactoOrigenId] } : {}),
+      });
       setContactos((prev) => [nuevo, ...prev.filter((c) => c.id !== nuevo.id)]);
       setDestinoId(null);
       setContactoId(String(nuevo.id));
       setCrearContactoOpen(false);
       setCrearContactoNombre('');
       setCrearContactoTipo(contactoDefaultTipo);
+      setCrearContactoOrigenId(null);
       setError(null);
     } catch (err: any) {
       setError(err?.message || 'No se pudo crear el contacto');
@@ -792,6 +819,10 @@ export function OperacionDialog({
         loading={crearContactoLoading}
         nombre={crearContactoNombre}
         tipoContacto={crearContactoTipo}
+        origenContactoId={crearContactoOrigenId}
+        origenContactoOptions={origenContactoOptions}
+        origenContactoLoading={origenContactoLoading}
+        onOrigenContactoChange={setCrearContactoOrigenId}
         tiposPermitidos={contactoTiposPermitidos}
         captureMode="simple"
         title="Crear contacto"
