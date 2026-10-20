@@ -6,7 +6,8 @@ import {
   type DetalleIdentidadActualizada,
 } from '../../services/identidadVisualService';
 import type { ColoresEmpresa } from './empresaBrand';
-import { tieneIdentidadPersonalizada } from './logoPolicy';
+import { leerColoresCache } from './identidadVisualCache.ts';
+import { resolverLogoEmpresa } from './resolverLogoEmpresa.ts';
 
 /** Logo del ERP: solo usa el asset de empresa con identidad visual guardada. */
 export function useEmpresaLogo(empresaId: number | null, fallback: string): string {
@@ -19,12 +20,15 @@ export function useEmpresaLogo(empresaId: number | null, fallback: string): stri
       const actual = ++solicitud;
       setLogo(fallback);
       try {
-        const identidad = colores ? { colores } : await fetchIdentidadVisual(id);
-        if (!tieneIdentidadPersonalizada(identidad.colores)) return;
-        const asset = await fetchEmpresaAsset(id, 'logo_default');
-        if (vigente && actual === solicitud && asset?.ruta) setLogo(buildAssetUrl(asset.ruta));
+        const ruta = await resolverLogoEmpresa(id, {
+          ...(colores !== undefined ? { colores } : {}),
+          cache: leerColoresCache(id),
+          fetchIdentidad: fetchIdentidadVisual,
+          fetchAsset: fetchEmpresaAsset,
+        });
+        if (vigente && actual === solicitud && ruta) setLogo(buildAssetUrl(ruta));
       } catch {
-        // Sin identidad aprobada, sin asset o sin acceso: permanece Emphasys.
+        // Sin asset o sin acceso: permanece Emphasys.
       }
     };
 
