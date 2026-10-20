@@ -19,7 +19,8 @@
 | ↳ de eso, fixtures `__fixtures__/` | 63 archivos, +15 189 (64 % del diff): datos de equivalencia, no lógica |
 | ↳ `docs/` | 10 archivos, +2 203 |
 | Backend, BD, `package.json` y scripts de deploy | **Sin cambios de White Label**. Los cambios de backend que trae el merge son de `main` y ya están en `main` |
-| CI | No hay workflows. El deploy es manual (`npm run deploy`, rsync), así que integrar **no despliega** |
+| CI y despliegues | No hay workflows de GitHub Actions. El deploy del ERP es manual (`npm run deploy`, rsync). **Pero el repositorio tiene integración con Vercel** (proyecto `emphasys`): publicar la rama ya generó un despliegue *Preview* ("Ready", entorno "Preview, v0") y el check "Vercel Preview Comments" del PR #3. **No está verificado si Vercel despliega producción al integrar en `main`** (ver §6, R4) |
+| Configuración de build | `frontend/vite.config.ts` agrega el plugin `brandIdentity` (rellena los placeholders `__BRAND_*__` de `index.html` y genera `manifest.webmanifest` en el build); `frontend/tsconfig.json` agrega `allowImportingTsExtensions`; `frontend/public/manifest.webmanifest` se movió a fixture (`theme/__fixtures__/manifest.baseline.webmanifest`) porque ahora lo genera el build. ERP y Compass usan la misma configuración |
 | Carpeta principal `emphasys` | En `main` (`8761927`), limpia |
 
 ### 1.1 El merge de `main` en la rama
@@ -94,7 +95,7 @@ Las pruebas comparan SHA-256 de contenido, no hashes de commit. La documentació
 5. Merge con **"Create a merge commit"**, como paso aparte, después de la revisión.
 6. Después del merge, también como pasos aparte:
    - actualizar la carpeta principal `emphasys` con `git pull --ff-only`;
-   - hacer el deploy, primero a pruebas (`npm run deploy:test`) y luego a producción.
+   - hacer el deploy manual, primero a pruebas (`npm run deploy:test`) y luego a producción; si Vercel despliega `main`, ese despliegue ocurre con el propio merge (R4).
 
 **Rollback**
 - Todo el proyecto: `git revert -m 1 <commit de merge>`.
@@ -130,6 +131,11 @@ tocar componentes (guía: `docs/white-label-guia-nueva-marca.md`).
 ## Integra main
 Incluye el merge de `main` `8761927` (`b86c3b4`). Conserva el arreglo de scroll de `ConfigPageFrame` y
 los cambios de recordatorios del backend. `2fc649c` adapta la cadena de fixtures de pruebas a ese merge.
+
+## Configuración de build
+- `frontend/vite.config.ts`: plugin `brandIdentity` que rellena los placeholders `__BRAND_*__` de `index.html` y genera `manifest.webmanifest` desde la marca activa (en dev lo sirve como middleware; en build lo emite como asset).
+- `frontend/tsconfig.json`: `allowImportingTsExtensions` (imports `.ts` dentro de `theme/`).
+- `frontend/public/manifest.webmanifest` ya no es estático: se movió a fixture de pruebas y el build lo genera. ERP y Compass usan la misma configuración; el backend sirve el `index.html` ya compilado.
 
 ## Sin cambios
 Backend, base de datos, scripts de deploy y dependencias: White Label no los toca. La marca en el backend
@@ -170,5 +176,5 @@ Ver la guía de revisión de `docs/white-label-integracion.md` (§5.2). Los fixt
   - registrar en `MERGE_ORDER` los archivos de la cadena de fixtures que toque, como hizo `2fc649c`;
   - volver a correr la verificación de §2.
   - Nunca resolver un conflicto descartando los cambios de `main`.
-- **R4 — Deploy.** No hay CI, y el deploy manual sube lo que haya en el checkout local. Hay que desplegar primero a pruebas.
+- **R4 — Deploy (Vercel y manual).** El repositorio tiene integración con Vercel: la rama ya tiene un despliegue *Preview* y el PR #3 muestra su check. **Antes del merge** hay que verificar en Vercel cuál es la rama de producción del proyecto `emphasys`; si es `main`, el merge desplegaría a producción en Vercel automáticamente y debe tratarse como un deploy (momento acordado, revisión del Preview). Además, el deploy manual del ERP (`npm run deploy`, rsync) sube lo que haya en el checkout local: desplegar primero a pruebas (`npm run deploy:test`).
 - **R5 — Referencias a hashes.** Si se elige squash o rebase pese a la recomendación, hay que actualizar las referencias en `docs/`, en los fixtures (`source`) y en Notion.
