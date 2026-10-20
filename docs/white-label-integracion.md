@@ -19,7 +19,7 @@
 | ↳ de eso, fixtures `__fixtures__/` | 63 archivos, +15 189 (64 % del diff): datos de equivalencia, no lógica |
 | ↳ `docs/` | 10 archivos, +2 203 |
 | Backend, BD, `package.json` y scripts de deploy | **Sin cambios de White Label**. Los cambios de backend que trae el merge son de `main` y ya están en `main` |
-| CI y despliegues | No hay workflows de GitHub Actions. El deploy del ERP es manual (`npm run deploy`, rsync). **Pero el repositorio tiene integración con Vercel** (proyecto `emphasys`): publicar la rama ya generó un despliegue *Preview* ("Ready", entorno "Preview, v0") y el check "Vercel Preview Comments" del PR #3. **No está verificado si Vercel despliega producción al integrar en `main`** (ver §6, R4) |
+| CI y despliegues | No hay workflows de GitHub Actions. **El flujo de despliegue es manual:** PR → merge aprobado → `npm run deploy` (rsync) como paso aparte. El repositorio conserva una **integración heredada con Vercel** (proyecto `emphasys`) que genera un despliegue *Preview* automático al publicar ramas y el check "Vercel Preview Comments" en el PR #3. Vercel **no se usa desde hace meses** y, por decisión del usuario (2026-10-19), **no se modifica ni se configura**; no forma parte del flujo de despliegue |
 | Configuración de build | `frontend/vite.config.ts` agrega el plugin `brandIdentity` (rellena los placeholders `__BRAND_*__` de `index.html` y genera `manifest.webmanifest` en el build); `frontend/tsconfig.json` agrega `allowImportingTsExtensions`; `frontend/public/manifest.webmanifest` se movió a fixture (`theme/__fixtures__/manifest.baseline.webmanifest`) porque ahora lo genera el build. ERP y Compass usan la misma configuración |
 | Carpeta principal `emphasys` | En `main` (`8761927`), limpia |
 
@@ -88,14 +88,14 @@ Las pruebas comparan SHA-256 de contenido, no hashes de commit. La documentació
 
 ## 5. Pasos pendientes (cada uno requiere tu autorización)
 
-1. **Corregir el upstream** (R1): `git branch --unset-upstream feature/white-label`.
-2. **Publicar la rama** (push): `git push -u origin feature/white-label`.
-3. **Abrir el PR en borrador** `feature/white-label` → `main` con el texto de §5.1.
-4. **Revisar el PR antes del merge**, con la guía de §5.2. Si `main` avanza mientras tanto, hay que integrarlo en la rama con merge (no rebase) y volver a correr la verificación de §2.
+1. ✅ **Corregir el upstream** (R1): `git branch --unset-upstream feature/white-label`. Hecho.
+2. ✅ **Publicar la rama**: `origin/feature/white-label`. Hecho.
+3. ✅ **Abrir el PR en borrador** `feature/white-label` → `main`: [PR #3](https://github.com/EmphaticoOnline/emphasys/pull/3), con el texto de §5.1. Hecho.
+4. **Revisar el PR antes del merge**, con la guía de §5.2. La revisión automatizada ya está hecha, sin bloqueadores; falta la revisión humana. Si `main` avanza mientras tanto, hay que integrarlo en la rama con merge (no rebase) y volver a correr la verificación de §2.
 5. Merge con **"Create a merge commit"**, como paso aparte, después de la revisión.
 6. Después del merge, también como pasos aparte:
    - actualizar la carpeta principal `emphasys` con `git pull --ff-only`;
-   - hacer el deploy manual, primero a pruebas (`npm run deploy:test`) y luego a producción; si Vercel despliega `main`, ese despliegue ocurre con el propio merge (R4).
+   - hacer el deploy manual con `npm run deploy`, como paso aparte y solo con aprobación. Si se quiere un ensayo, primero a pruebas (`npm run deploy:test`). Vercel no participa (R4).
 
 **Rollback**
 - Todo el proyecto: `git revert -m 1 <commit de merge>`.
@@ -176,5 +176,5 @@ Ver la guía de revisión de `docs/white-label-integracion.md` (§5.2). Los fixt
   - registrar en `MERGE_ORDER` los archivos de la cadena de fixtures que toque, como hizo `2fc649c`;
   - volver a correr la verificación de §2.
   - Nunca resolver un conflicto descartando los cambios de `main`.
-- **R4 — Deploy (Vercel y manual).** El repositorio tiene integración con Vercel: la rama ya tiene un despliegue *Preview* y el PR #3 muestra su check. **Antes del merge** hay que verificar en Vercel cuál es la rama de producción del proyecto `emphasys`; si es `main`, el merge desplegaría a producción en Vercel automáticamente y debe tratarse como un deploy (momento acordado, revisión del Preview). Además, el deploy manual del ERP (`npm run deploy`, rsync) sube lo que haya en el checkout local: desplegar primero a pruebas (`npm run deploy:test`).
+- **R4 — Deploy.** El despliegue es solo manual: después del merge aprobado, `npm run deploy` (rsync) como paso aparte, que sube lo que haya en el checkout local. La integración con Vercel es **heredada**: genera *Previews* automáticos, pero no se usa ni se modifica, y no forma parte del flujo. No se verifica su configuración por decisión del usuario. Si alguna vez se retoma Vercel, hay que revisar entonces su rama de producción.
 - **R5 — Referencias a hashes.** Si se elige squash o rebase pese a la recomendación, hay que actualizar las referencias en `docs/`, en los fixtures (`source`) y en Notion.
