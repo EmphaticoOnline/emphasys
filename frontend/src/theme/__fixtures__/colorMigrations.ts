@@ -49,7 +49,13 @@ export const LEFTOVER_ORDER = ['restos.r1-1.baseline.json', 'restos.r1-2.baselin
 export const WHITE_ORDER = ['whites.w1.baseline.json', 'whites.w2.baseline.json', 'whites.w3.baseline.json', 'whites.w3b.baseline.json', 'whites.w4.baseline.json', 'whites.w5.baseline.json', 'whites.w6.baseline.json'] as const;
 /** Decisiones de diseño aplicadas (ver docs/white-label-decisiones-diseno.md), en orden. */
 export const DECISION_ORDER = ['decisions.d8.baseline.json', 'decisions.dt3.baseline.json', 'decisions.db4.baseline.json', 'decisions.d1.baseline.json', 'decisions.d2.baseline.json', 'decisions.d4.baseline.json', 'decisions.d6.baseline.json'] as const;
-const LATER_CHAIN = [...NEUTRAL_ORDER, MINOR_FIXTURE, REST_FIXTURE, ...DOCUMENTOS_FORM_ORDER, ...SIGN_ORDER, ...ELEVATION_ORDER, ...TINT_ORDER, ...LEFTOVER_ORDER, ...WHITE_ORDER, ...DECISION_ORDER] as const;
+/**
+ * Merges de `main` en la rama que tocan archivos de la cadena. No son migraciones:
+ * se revierten restaurando el contenido previo completo, y solo si el archivo
+ * coincide byte a byte con el resultado registrado del merge.
+ */
+export const MERGE_ORDER = ['merges.main-8761927.baseline.json'] as const;
+const LATER_CHAIN = [...NEUTRAL_ORDER, MINOR_FIXTURE, REST_FIXTURE, ...DOCUMENTOS_FORM_ORDER, ...SIGN_ORDER, ...ELEVATION_ORDER, ...TINT_ORDER, ...LEFTOVER_ORDER, ...WHITE_ORDER, ...DECISION_ORDER, ...MERGE_ORDER] as const;
 /** Todos los fixtures de la cadena, en orden: las pruebas cargan esta lista, no una copia. */
 export const LATER_FIXTURES: readonly string[] = LATER_CHAIN;
 
@@ -237,7 +243,20 @@ export function entriesTokenMap(entries: { token: string }[], roots: Record<stri
 
 // ── Cadena de bloques posteriores ─────────────────────────────────────────────
 
-export type LaterFixtures = Partial<Record<(typeof LATER_CHAIN)[number], NeutralFixture | MinorFixture | RestFixture>>;
+/**
+ * Un archivo tocado por un merge de `main`: contenido completo antes y después del merge
+ * (y sus SHA-256, que verifica `mainMerges.test.ts`; este módulo no usa APIs de Node).
+ */
+export type MergeFileFixture = { before: string; merged: string; beforeSha256: string; mergedSha256: string };
+export type MergeFixture = { source: string; files: Record<string, MergeFileFixture> };
+
+/** Deshace un merge de `main` en un archivo: exige el contenido exacto registrado del merge. */
+export function revertMerge(source: string, file: string, entry: MergeFileFixture): string {
+  if (source !== entry.merged) throw new Error(`${file}: no coincide con el merge registrado`);
+  return entry.before;
+}
+
+export type LaterFixtures = Partial<Record<(typeof LATER_CHAIN)[number], NeutralFixture | MinorFixture | RestFixture | MergeFixture>>;
 
 /**
  * Revierte, del más nuevo al más viejo, los bloques posteriores a `after` que
@@ -251,10 +270,10 @@ export function revertLater(after: string | null, file: string, source: string, 
     const fixture = fixtures[name];
     const entry = fixture?.files[file];
     if (!entry) continue;
-    // Los neutrales revierten por familia de token; los bloques posteriores, por línea.
-    out = (NEUTRAL_ORDER as readonly string[]).includes(name)
-      ? revertNeutral(out, (entry as NeutralFixture['files'][string]).addedImports)
-      : revertMinor(out, entry as MinorFileFixture);
+    // Los neutrales revierten por familia de token; los merges de main, por contenido; el resto, por línea.
+    if ((MERGE_ORDER as readonly string[]).includes(name)) out = revertMerge(out, file, entry as MergeFileFixture);
+    else if ((NEUTRAL_ORDER as readonly string[]).includes(name)) out = revertNeutral(out, (entry as NeutralFixture['files'][string]).addedImports);
+    else out = revertMinor(out, entry as MinorFileFixture);
   }
   return out;
 }
