@@ -30,8 +30,8 @@ import {
 } from '../../../services/satCatalogos.api';
 import type { Producto } from '../../../types/producto';
 import { neutralColors } from '../../../theme/structural';
-import { activeBrand } from '../../../theme/brand/active';
-import { brandElevation } from '../../../theme/elevation';
+import { useBrand } from '../../../theme/brand/useBrand';
+import type { Theme } from '@mui/material/styles';
 import { cartaPorteSectionColors } from '../../../theme/functional';
 
 type Props = {
@@ -44,7 +44,6 @@ type Props = {
   onFirstSave?: () => void;
 };
 
-const AZUL = activeBrand.colors.blue.base;
 
 const pad = (n: number) => String(n).padStart(2, '0');
 const formatLocalDateTime = (d: Date): string =>
@@ -198,7 +197,7 @@ const adornosLista = (tokens: { content: { card: string; border: string } }) => 
     sx: {
       bgcolor: tokens.content.card,
       border: `1px solid ${tokens.content.border}`,
-      boxShadow: brandElevation.panel,
+      boxShadow: (theme: Theme) => theme.brand.brandElevation.panel,
     },
   },
   listbox: {
@@ -660,6 +659,7 @@ function CampoUbicacion({
   disabled?: boolean;
   onChange: (value: UbicacionDisponible | null) => void;
 }) {
+  const { brandElevation } = useBrand();
   const tokens = useTheme().emphasys;
   const [abierto, setAbierto] = useState(false);
   const resumen = Boolean(value) && !abierto;
@@ -733,6 +733,8 @@ function CampoUbicacion({
 }
 
 export default function CartaPorteViajeEditor({ open, documentoId, folio, tipoDocumento = 'factura', layout = 'drawer', onClose, onFirstSave }: Props) {
+  const { activeBrand } = useBrand();
+  const AZUL = activeBrand.colors.blue.base;
   const theme = useTheme();
   const pantallaCompacta = useMediaQuery(theme.breakpoints.down('sm'));
   const tokens = theme.emphasys;

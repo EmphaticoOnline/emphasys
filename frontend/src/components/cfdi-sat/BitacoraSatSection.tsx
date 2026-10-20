@@ -27,7 +27,7 @@ import {
   type CfdiSatBitacoraFiltros,
 } from '../../services/cfdiSatService';
 import { neutralColors } from '../../theme/structural';
-import { activeBrand } from '../../theme/brand/active';
+import { useBrand } from '../../theme/brand/useBrand';
 
 function formatFecha(raw?: string | null): string {
   if (!raw) return '—';
@@ -60,6 +60,7 @@ const FILTROS_VACIOS: CfdiSatBitacoraFiltros = {
 };
 
 export default function BitacoraSatSection() {
+  const { activeBrand } = useBrand();
   const [filtrosForm, setFiltrosForm] = React.useState<CfdiSatBitacoraFiltros>(FILTROS_VACIOS);
   const [filtrosAplicados, setFiltrosAplicados] = React.useState<CfdiSatBitacoraFiltros>(FILTROS_VACIOS);
   const [page, setPage] = React.useState(0);

@@ -23,7 +23,7 @@ import {
   previewFacturaGlobal,
   type FacturaGlobalPreviewResult,
 } from '../../services/facturaGlobalService';
-import { activeBrand } from '../../theme/brand/active';
+import { useBrand } from '../../theme/brand/useBrand';
 
 const PERIODICIDADES = [
   { value: '01', label: '01 – Diario' },
@@ -81,6 +81,7 @@ type Props = {
 };
 
 export default function FacturaGlobalDialog({ open, onClose, onGenerado }: Props) {
+  const { activeBrand } = useBrand();
   const [fechaDesde, setFechaDesde] = useState(firstDayOfMonth);
   const [fechaHasta, setFechaHasta] = useState(todayStr);
   const [periodicidad, setPeriodicidad] = useState('04');

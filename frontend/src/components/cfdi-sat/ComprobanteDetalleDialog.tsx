@@ -21,7 +21,7 @@ import {
 import { ESTADO_IMPORTACION_INFO, POSIBLE_DUPLICADO_LABEL } from './estadoImportacion';
 import { alertColors } from '../../theme/functional';
 import { neutralColors } from '../../theme/structural';
-import { activeBrand } from '../../theme/brand/active';
+import { useBrand } from '../../theme/brand/useBrand';
 
 function formatFecha(raw?: string | null): string {
   if (!raw) return '—';
@@ -50,6 +50,7 @@ export default function ComprobanteDetalleDialog({
   comprobanteId: number | null;
   onClose: () => void;
 }) {
+  const { activeBrand } = useBrand();
   const navigate = useNavigate();
   const [detalle, setDetalle] = React.useState<CfdiSatComprobanteDetalle | null>(null);
   const [loading, setLoading] = React.useState(false);

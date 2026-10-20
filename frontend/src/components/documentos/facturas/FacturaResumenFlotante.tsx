@@ -4,9 +4,8 @@ import { Box, CircularProgress, IconButton, Stack, Tooltip, Typography } from '@
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import CheckIcon from '@mui/icons-material/Check';
 import { neutralColors, onDisabledColors, onPrimaryColors, overlayColors, whiteSurfaces } from '../../../theme/structural';
-import { activeBrand } from '../../../theme/brand/active';
+import { useBrand } from '../../../theme/brand/useBrand';
 import { elevation } from '../../../theme/elevation';
-import { brandTints } from '../../../theme/tints';
 import { fiscalStatusColors } from '../../../theme/functional';
 
 export type FacturaResumenFlotantePosicion = { x: number; y: number };
@@ -56,6 +55,7 @@ export default function FacturaResumenFlotante({
   saving = false,
   saveDisabled = false,
 }: Props) {
+  const { activeBrand, brandTints } = useBrand();
   const panelRef = useRef<HTMLDivElement | null>(null);
   const [dragging, setDragging] = useState(false);
   const [boundaryRect, setBoundaryRect] = useState<DOMRect | null>(null);

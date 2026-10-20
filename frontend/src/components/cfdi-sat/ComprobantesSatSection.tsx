@@ -37,7 +37,7 @@ import ImportarLoteComprasDialog from './ImportarLoteComprasDialog';
 import VincularDocumentoDialog from './VincularDocumentoDialog';
 import { ESTADO_IMPORTACION_INFO, POSIBLE_DUPLICADO_LABEL } from './estadoImportacion';
 import { neutralColors } from '../../theme/structural';
-import { activeBrand } from '../../theme/brand/active';
+import { useBrand } from '../../theme/brand/useBrand';
 
 function formatFecha(raw?: string | null): string {
   if (!raw) return '—';
@@ -137,6 +137,7 @@ export default function ComprobantesSatSection({
    *  la página contenedora refresque resumen/alertas/bitácora (esos datos pueden cambiar aquí). */
   onCambio?: () => void;
 }) {
+  const { activeBrand } = useBrand();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const uuidDesdeUrl = searchParams.get('uuid');

@@ -1,8 +1,7 @@
 import { Button, CircularProgress, Paper } from '@mui/material';
 import CloseOutlinedIcon from '@mui/icons-material/CloseOutlined';
 import SaveIcon from '@mui/icons-material/Save';
-import { activeBrand } from '../theme/brand/active';
-import { brandElevation } from '../theme/elevation';
+import { useBrand } from '../theme/brand/useBrand';
 
 type FloatingFormActionsProps = {
   onBack: () => void;
@@ -31,6 +30,7 @@ export default function FloatingFormActions({
   bottomOffset = 24,
   appearance = 'default',
 }: FloatingFormActionsProps) {
+  const { activeBrand, brandElevation } = useBrand();
   const graphite = appearance === 'graphite';
   return (
     <Paper

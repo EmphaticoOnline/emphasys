@@ -27,7 +27,7 @@ import type {
   DocumentoAnticiposDisponibles,
 } from '../../types/finanzas';
 import { neutralColors } from '../../theme/structural';
-import { activeBrand } from '../../theme/brand/active';
+import { useBrand } from '../../theme/brand/useBrand';
 
 const toCivilDate = (date = new Date()) => {
   const year = date.getFullYear();
@@ -83,6 +83,7 @@ export function AnticiposAplicacionDialog({
   onApplied,
   onClose,
 }: AnticiposAplicacionDialogProps) {
+  const { activeBrand } = useBrand();
   const [data, setData] = useState<DocumentoAnticiposDisponibles | null>(initialData ?? null);
   const [saldoFactura, setSaldoFactura] = useState<number>(0);
   const [amounts, setAmounts] = useState<Record<number, string>>({});

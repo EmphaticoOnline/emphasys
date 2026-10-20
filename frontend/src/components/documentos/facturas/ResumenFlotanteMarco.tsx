@@ -2,7 +2,7 @@ import * as React from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Box, Typography } from '@mui/material';
 import { neutralColors, whiteSurfaces } from '../../../theme/structural';
-import { activeBrand } from '../../../theme/brand/active';
+import { useBrand } from '../../../theme/brand/useBrand';
 import { elevation } from '../../../theme/elevation';
 
 export type ResumenFlotantePosicion = { x: number; y: number };
@@ -34,6 +34,7 @@ export default function ResumenFlotanteMarco({
   children,
   apariencia = 'factura',
 }: Props) {
+  const { activeBrand } = useBrand();
   const panelRef = useRef<HTMLDivElement | null>(null);
   const [dragging, setDragging] = useState(false);
   const [boundaryRect, setBoundaryRect] = useState<DOMRect | null>(null);

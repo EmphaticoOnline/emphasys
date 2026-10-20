@@ -8,7 +8,7 @@ import type { Empresa } from "../session/sessionTypes";
 import { resolveRutaInicio } from "../utils/rutaInicio";
 import { isCompassHostname } from "../routing/appHostname";
 import compassColibriUrl from "../assets/emphasys-colibri-w.png";
-import { activeBrand } from "../theme/brand/active";
+import { useBrand } from '../theme/brand/useBrand';
 import { brandLogos } from "../theme/brand/logos";
 import { MAIN_NAV_TYPE } from "../theme/tokens";
 import "@fontsource/manrope/400.css";
@@ -36,6 +36,7 @@ function EmphasysLogin({
   onPasswordChange: (value: string) => void;
   onSubmit: (event: React.FormEvent) => void;
 }) {
+  const { activeBrand } = useBrand();
   const { frame, canvas, content, action } = useTheme().emphasys;
 
   const fieldSx = {

@@ -37,7 +37,7 @@ import { getDocumentoTypeConfig, resolveDocumentoTextos } from '../../modules/do
 import { summarizeDocumentTaxes } from '../../utils/documentTaxSummary';
 import { alertColors } from '../../theme/functional';
 import { neutralColors } from '../../theme/structural';
-import { activeBrand } from '../../theme/brand/active';
+import { useBrand } from '../../theme/brand/useBrand';
 
 export const formatDateShort = (value?: string | null) => {
   if (!value) return '—';
@@ -169,6 +169,7 @@ export function ResumenTab({
   reconciliationMessage: string | null;
   onReconcile: () => Promise<void>;
 }) {
+  const { activeBrand } = useBrand();
   if (!documento) return <EmptyState mensaje="Sin información del documento." />;
 
   const impuestosResumen = summarizeDocumentTaxes(partidas);

@@ -12,7 +12,7 @@ import {
 } from '../services/autorizacionesService';
 import { alertColors } from '../theme/functional';
 import { neutralColors } from '../theme/structural';
-import { activeBrand } from '../theme/brand/active';
+import { useBrand } from '../theme/brand/useBrand';
 
 const ESTADO_CHIP: Record<EstadoSolicitud, { label: string; bgcolor: string; color: string }> = {
   pendiente: { label: 'Pendiente', bgcolor: alertColors.warning[100], color: alertColors.warning[800] },
@@ -35,6 +35,7 @@ function fmtFecha(v: string) {
 }
 
 export default function AutorizacionesBandejaPage() {
+  const { activeBrand } = useBrand();
   const navigate = useNavigate();
   const [tab, setTab] = React.useState(0);
   const [bandeja, setBandeja] = React.useState<AutorizacionSolicitud[]>([]);

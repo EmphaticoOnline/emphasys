@@ -8,7 +8,8 @@ import SearchIcon from '@mui/icons-material/Search';
 import ClearIcon from '@mui/icons-material/Clear';
 import type { ProductosMobileViewProps } from './ProductosView.types';
 import { neutralColors, whiteSurfaces } from '../../theme/structural';
-import { brandElevation, elevation } from '../../theme/elevation';
+import { elevation } from '../../theme/elevation';
+import { useBrand } from '../../theme/brand/useBrand';
 
 function hasValue(value?: string | number | boolean | null) {
   return value != null && String(value).trim() !== '';
@@ -31,6 +32,7 @@ export default function ProductosMobileView({
   onCreateProducto,
   existenciasPorProducto = null,
 }: ProductosMobileViewProps) {
+  const { brandElevation } = useBrand();
   const [menuAnchorEl, setMenuAnchorEl] = React.useState<null | HTMLElement>(null);
   const [menuProductoId, setMenuProductoId] = React.useState<number | null>(null);
 

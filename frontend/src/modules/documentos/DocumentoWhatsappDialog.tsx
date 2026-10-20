@@ -18,7 +18,7 @@ import { apiFetch } from '../../services/apiFetch';
 import type { WhatsappPlantillaOption } from '../../services/whatsappPlantillasService';
 import { fetchWhatsappPlantillas } from '../../services/whatsappPlantillasService';
 import { neutralColors } from '../../theme/structural';
-import { activeBrand } from '../../theme/brand/active';
+import { useBrand } from '../../theme/brand/useBrand';
 
 type DocumentoWhatsappResumen = {
   id: number;
@@ -46,6 +46,7 @@ export function DocumentoWhatsappDialog({
   telefonoInicial,
   plantillaDefaultId,
 }: DocumentoWhatsappDialogProps) {
+  const { activeBrand } = useBrand();
   const [telefono, setTelefono] = useState('');
   const [plantillas, setPlantillas] = useState<WhatsappPlantillaOption[]>([]);
   const [plantillaId, setPlantillaId] = useState<number | null>(null);

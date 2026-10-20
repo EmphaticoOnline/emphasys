@@ -7,7 +7,7 @@ import {
   type CfdiSatResumenModulo,
 } from '../../services/cfdiSatService';
 import { neutralColors, whiteSurfaces } from '../../theme/structural';
-import { activeBrand } from '../../theme/brand/active';
+import { useBrand } from '../../theme/brand/useBrand';
 
 function formatBytes(bytes: number): string {
   if (bytes <= 0) return '0 B';
@@ -48,6 +48,7 @@ function StatTile({
 }
 
 export default function ResumenSatCards() {
+  const { activeBrand } = useBrand();
   const [resumen, setResumen] = React.useState<CfdiSatResumenModulo | null>(null);
   const [almacenamiento, setAlmacenamiento] = React.useState<CfdiSatAlmacenamiento | null>(null);
   const [loading, setLoading] = React.useState(true);

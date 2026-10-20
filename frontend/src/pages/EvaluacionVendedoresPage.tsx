@@ -16,7 +16,7 @@ import { obtenerBloques, obtenerMetricas, type BloquePendiente, type BloqueRespo
 import { STANDARD_DATA_GRID_HEADER_HEIGHT, STANDARD_DATA_GRID_ROW_HEIGHT, standardDataGridSx } from '../components/grids/standardDataGridSx';
 import { esRolAdmin } from '../session/rolScope';
 import { useSession } from '../session/useSession';
-import { activeBrand } from '../theme/brand/active';
+import { useBrand } from '../theme/brand/useBrand';
 
 const formatoTiempo = (s: number | null | undefined) => {
   if (s == null) return 'Sin datos'; if (s === 0) return '0 s';
@@ -46,6 +46,7 @@ function BloqueCard({ bloque, vendedor }: { bloque: BloqueRespondido | BloquePen
 }
 
 export default function EvaluacionVendedoresPage() {
+  const { activeBrand } = useBrand();
   const navigate = useNavigate();
   const tokens = useTheme().emphasys;
   const { session } = useSession(); const puedeAcceder = esRolAdmin(session.roles);

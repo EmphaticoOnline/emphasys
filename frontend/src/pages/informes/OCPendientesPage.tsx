@@ -34,7 +34,7 @@ import type {
   OCPendienteOC,
   OCPendientePartida,
 } from '../../services/reportesService';
-import { activeBrand } from '../../theme/brand/active';
+import { useBrand } from '../../theme/brand/useBrand';
 import { selectionColors } from '../../theme/structural';
 import { balanceColors } from '../../theme/functional';
 
@@ -268,6 +268,7 @@ function buildColumnsDetalle(): GridColDef<FilaDetalle>[] {
 }
 
 export default function OCPendientesPage({ config }: { config: OCPendientesPageConfig }) {
+  const { activeBrand } = useBrand();
   const navigate = useNavigate();
 
   const [proveedor, setProveedor] = useState<ContactoOpcion | null>(null);

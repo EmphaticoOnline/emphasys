@@ -1,7 +1,7 @@
 import { IconButton } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import { neutralColors, whiteSurfaces } from '../theme/structural';
-import { activeBrand } from '../theme/brand/active';
+import { useBrand } from '../theme/brand/useBrand';
 import { elevation } from '../theme/elevation';
 
 type MobileBackIconButtonProps = {
@@ -15,6 +15,7 @@ export default function MobileBackIconButton({
   disabled = false,
   ariaLabel = 'Regresar',
 }: MobileBackIconButtonProps) {
+  const { activeBrand } = useBrand();
   return (
     <IconButton
       aria-label={ariaLabel}

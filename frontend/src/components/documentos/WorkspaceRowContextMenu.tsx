@@ -1,7 +1,7 @@
 import type { MouseEvent, ReactNode } from 'react';
 import { ListItemIcon, Menu, MenuItem } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
-import { brandElevation } from '../../theme/elevation';
+import { useBrand } from '../../theme/brand/useBrand';
 
 export type WorkspaceContextItem = {
   id: string;
@@ -18,6 +18,7 @@ type WorkspaceRowContextMenuProps = {
 };
 
 export function WorkspaceRowContextMenu({ anchorPosition, items, onClose }: WorkspaceRowContextMenuProps) {
+  const { brandElevation } = useBrand();
   const tokens = useTheme().emphasys;
   return (
     <Menu

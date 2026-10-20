@@ -31,13 +31,14 @@ import {
 import type { BalanzaAnaliticaResultado } from '../../../types/reportesContables';
 import { NOMBRES_MESES } from '../../../types/saldosCuentas';
 import { neutralColors } from '../../../theme/structural';
-import { activeBrand } from '../../../theme/brand/active';
+import { useBrand } from '../../../theme/brand/useBrand';
 
 function formatMoneda(valor: number): string {
   return valor.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 export default function BalanzaAnaliticaPage() {
+  const { activeBrand } = useBrand();
   const navigate = useNavigate();
 
   const [ejercicios, setEjercicios] = React.useState<number[]>([]);

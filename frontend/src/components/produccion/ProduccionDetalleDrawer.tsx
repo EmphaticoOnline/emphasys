@@ -24,7 +24,7 @@ import {
 } from '../../services/produccionService';
 import { alertColors, dataColorContrast } from '../../theme/functional';
 import { neutralColors, onMediaColors, overlayColors } from '../../theme/structural';
-import { activeBrand } from '../../theme/brand/active';
+import { useBrand } from '../../theme/brand/useBrand';
 
 const formatCivilDate = (value: string | null | undefined) => {
   const raw = String(value ?? '').trim();
@@ -241,6 +241,7 @@ function PartidaOperativaCard({ partida }: { partida: ProduccionPartidaOperativa
 }
 
 function ObservacionesCotizacion({ observaciones }: { observaciones: string | null }) {
+  const { activeBrand } = useBrand();
   const [expandido, setExpandido] = React.useState(false);
   const texto = (observaciones || '').trim();
   if (!texto) return null;
@@ -400,6 +401,7 @@ type ProduccionDetalleDrawerProps = {
 };
 
 export default function ProduccionDetalleDrawer({ open, documentoId, onClose }: ProduccionDetalleDrawerProps) {
+  const { activeBrand } = useBrand();
   const [tab, setTab] = React.useState(0);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);

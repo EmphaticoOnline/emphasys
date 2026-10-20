@@ -12,7 +12,7 @@ import {
   type Theme,
 } from '@mui/material';
 import CommentIcon from '@mui/icons-material/ModeCommentOutlined';
-import { activeBrand } from '../theme/brand/active';
+import { useBrand } from '../theme/brand/useBrand';
 
 interface ObservacionesEncabezadoCampoProps {
   label: string;
@@ -29,6 +29,7 @@ export default function ObservacionesEncabezadoCampo({
   disabled,
   sx = {},
 }: ObservacionesEncabezadoCampoProps) {
+  const { activeBrand } = useBrand();
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState('');
 

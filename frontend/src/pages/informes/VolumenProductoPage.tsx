@@ -47,7 +47,7 @@ import type {
 } from '../../services/reportesService';
 import { categoricalPalettes } from '../../theme/functional';
 import { neutralColors } from '../../theme/structural';
-import { activeBrand } from '../../theme/brand/active';
+import { useBrand } from '../../theme/brand/useBrand';
 
 export type VolumenProductoPageConfig = {
   titulo: string;
@@ -233,6 +233,7 @@ function DetalleTable({
   partidas: PartidaVolumenDetalle[];
   contactoLabel: string;
 }) {
+  const { activeBrand } = useBrand();
   const tokens = useTheme().emphasys;
   const esVentas = contactoLabel === 'Cliente';
   const partidasPorGrupo = useMemo(() => {

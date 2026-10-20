@@ -7,9 +7,8 @@ import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 import CloseIcon from '@mui/icons-material/Close';
 import UpdateIcon from '@mui/icons-material/SystemUpdateAlt';
-import { activeBrand } from '../theme/brand/active';
-import { brandGradients, elevation } from '../theme/elevation';
-import { brandTints } from '../theme/tints';
+import { useBrand } from '../theme/brand/useBrand';
+import { elevation } from '../theme/elevation';
 import { overlayColors } from '../theme/structural';
 type VersionUpdateDrawerProps = {
   open: boolean;
@@ -19,6 +18,7 @@ type VersionUpdateDrawerProps = {
 };
 
 export default function VersionUpdateDrawer({ open, version, onClose, onUpdateNow }: VersionUpdateDrawerProps) {
+  const { activeBrand, brandGradients, brandTints } = useBrand();
 
   return (
     <Drawer

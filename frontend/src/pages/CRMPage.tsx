@@ -7,7 +7,7 @@ import OportunidadesPage from './OportunidadesPage';
 import { CRM_TABS } from '../components/crmNavigation';
 import { moduleTabBarSx, moduleTabStripSx } from '../components/layout/moduleTabBar';
 import { neutralColors } from '../theme/structural';
-import { activeBrand } from '../theme/brand/active';
+import { useBrand } from '../theme/brand/useBrand';
 
 type CrmTabKey = (typeof CRM_TABS)[number]['key'];
 
@@ -21,6 +21,7 @@ function getActiveTab(pathname: string): CrmTabKey {
 }
 
 export default function CRMPage() {
+  const { activeBrand } = useBrand();
   const location = useLocation();
   const navigate = useNavigate();
   const tabsVisibles = CRM_TABS;

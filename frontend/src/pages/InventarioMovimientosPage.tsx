@@ -50,8 +50,9 @@ import { getDocumentoTypeConfig } from '../modules/documentos/documentoTypeConfi
 import type { TipoDocumento } from '../types/documentos.types';
 import { formatearFolioDocumento } from '../utils/documentos.utils';
 import { amountSignColor } from '../theme/sign';
-import { brandElevation, elevation } from '../theme/elevation';
+import { elevation } from '../theme/elevation';
 import { inventoryAffectationColors } from '../theme/functional';
+import { useBrand } from '../theme/brand/useBrand';
 
 const MESES = [
   { value: '01', label: 'Enero' },
@@ -232,6 +233,7 @@ function celdaAlmacen(partida: MovimientoPartidaDetalle): string {
 }
 
 export default function InventarioMovimientosPage() {
+  const { brandElevation } = useBrand();
   const navigate = useNavigate();
   const location = useLocation();
   const theme = useTheme();

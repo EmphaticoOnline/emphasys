@@ -7,7 +7,7 @@ import type { DocumentoDetalleResponse } from '../../../types/documentoDetalle';
 import { fetchProductoArchivos, type ProductoArchivo } from '../../../services/productosService';
 import { buildAssetUrl } from '../../../services/empresasAssetsService';
 import { neutralColors, whiteSurfaces } from '../../../theme/structural';
-import { brandTints } from '../../../theme/tints';
+import { useBrand } from '../../../theme/brand/useBrand';
 
 type Partida = DocumentoDetalleResponse['partidas'][number];
 
@@ -82,6 +82,7 @@ export default function CotizacionPartidasTab({
   partidas: DocumentoDetalleResponse['partidas'];
   formatter: Intl.NumberFormat;
 }) {
+  const { brandTints } = useBrand();
   const filas = useMemo(() => partidas ?? [], [partidas]);
   const galerias = useGaleriasPartida(filas);
   const [seleccionId, setSeleccionId] = useState<number | null>(filas[0]?.id ?? null);

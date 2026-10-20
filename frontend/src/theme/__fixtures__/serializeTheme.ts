@@ -6,8 +6,10 @@ import type { Theme } from '@mui/material/styles';
  * entradas fijas, para no depender del código fuente interno de MUI.
  */
 export function serializeTheme(theme: Theme) {
+  // `brand` es la marca de origen del tema (E2), no apariencia: se verifica aparte.
+  const { brand: _brand, ...appearance } = theme;
   const data: unknown = JSON.parse(
-    JSON.stringify(theme, (_key, value: unknown) => (typeof value === 'function' ? '[Function]' : value)),
+    JSON.stringify(appearance, (_key, value: unknown) => (typeof value === 'function' ? '[Function]' : value)),
   );
   const labelDisplayedRows = theme.components?.MuiTablePagination?.defaultProps?.labelDisplayedRows;
   return {

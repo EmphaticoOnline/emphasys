@@ -14,7 +14,7 @@ import {
   InventarioTab,
 } from './DocumentoDetalleContent';
 import { neutralColors } from '../../theme/structural';
-import { activeBrand } from '../../theme/brand/active';
+import { useBrand } from '../../theme/brand/useBrand';
 
 function TabPanel({ value, index, children }: { value: number; index: number; children: React.ReactNode }) {
   if (value !== index) return null;
@@ -34,6 +34,7 @@ interface DocumentoDetalleDrawerProps {
 }
 
 export default function DocumentoDetalleDrawer({ open, documentoId, tipoDocumento, onClose, onReconciled }: DocumentoDetalleDrawerProps) {
+  const { activeBrand } = useBrand();
   const [tab, setTab] = useState(0);
 
   const { data, loading, error, reconciling, reconciliationMessage, handleReconcile } = useDocumentoDetalleData(

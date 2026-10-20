@@ -21,7 +21,7 @@ import {
   importarCfdiSatComprobantesLote,
   type CfdiSatImportacionLoteResultado,
 } from '../../services/cfdiSatService';
-import { activeBrand } from '../../theme/brand/active';
+import { useBrand } from '../../theme/brand/useBrand';
 
 export default function ImportarLoteComprasDialog({
   comprobanteIds,
@@ -32,6 +32,7 @@ export default function ImportarLoteComprasDialog({
   onClose: () => void;
   onFinalizado: () => void;
 }) {
+  const { activeBrand } = useBrand();
   const [procesando, setProcesando] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [resultado, setResultado] = React.useState<CfdiSatImportacionLoteResultado | null>(null);

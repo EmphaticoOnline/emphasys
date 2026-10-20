@@ -50,7 +50,7 @@ import { fetchVendedores } from '../../services/contactosService';
 import type { Contacto } from '../../types/contactos.types';
 import { categoricalPalettes, thirdPartyColors } from '../../theme/functional';
 import { neutralColors } from '../../theme/structural';
-import { activeBrand } from '../../theme/brand/active';
+import { useBrand } from '../../theme/brand/useBrand';
 
 // ── Configuración del reporte (inyectada desde el wrapper) ────────────────────
 
@@ -279,6 +279,7 @@ function PeriodoRow({
   mostrarCantidad: boolean;
   esVentas:        boolean;
 }) {
+  const { activeBrand } = useBrand();
   const [open, setOpen] = useState(false);
   const tokens = useTheme().emphasys;
 
@@ -403,6 +404,7 @@ type ProductoOpcion = { id: number; clave: string; descripcion: string };
 // ── Página principal ──────────────────────────────────────────────────────────
 
 export default function MovimientosPorPeriodoPage({ config }: { config: MovimientosPorPeriodoPageConfig }) {
+  const { activeBrand } = useBrand();
   const navigate = useNavigate();
 
   const [fechaInicio, setFechaInicio] = useState(primerDiaMes());

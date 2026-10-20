@@ -13,8 +13,7 @@ import {
   type FiltroMovimiento,
   type SugerenciaMovimiento,
 } from './buscadorMovimientosLogica';
-import { brandElevation } from '../../theme/elevation';
-import { brandTints } from '../../theme/tints';
+import { useBrand } from '../../theme/brand/useBrand';
 import { overlayColors } from '../../theme/structural';
 
 type Props = {
@@ -26,6 +25,7 @@ type Props = {
 };
 
 export function BuscadorMovimientos({ operaciones, query, setQuery, filtros, setFiltros }: Props) {
+  const { brandElevation, brandTints } = useBrand();
   const tokens = useTheme().emphasys;
   const [abierto, setAbierto] = useState(false);
   const [resalte, setResalte] = useState(-1);

@@ -24,7 +24,8 @@ import { prevalidarCancelacionDocumento, timbrarDocumentoCfdi } from '../../../s
 import { fetchProductos } from '../../../services/productosService';
 import { obtenerViajePorDocumento, obtenerViajeAggregate, validarCartaPorte, type CartaPorteIssue, type ViajeMercancia } from '../../../services/transporte.api';
 import CartaPorteIssuesDialog from '../facturas/CartaPorteIssuesDialog';
-import { brandElevation, elevation } from '../../../theme/elevation';
+import { elevation } from '../../../theme/elevation';
+import { useBrand } from '../../../theme/brand/useBrand';
 
 type Props = {
   rows: CotizacionListado[];
@@ -71,6 +72,7 @@ export default function TrasladosWorkspaceView({
   rows, isLoading, selectedId, onSelect, search, onSearch, onCreate, onDelete, onCartaPorte, onPdf, onCancelar, onUpdate, formatFolio, formatDate,
   viajeRevision = 0,
 }: Props) {
+  const { brandElevation } = useBrand();
   const theme = useTheme();
   const tokens = theme.emphasys;
   const compacto = useMediaQuery(theme.breakpoints.down('md'));

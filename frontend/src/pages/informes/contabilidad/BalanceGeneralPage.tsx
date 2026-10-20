@@ -31,7 +31,7 @@ import type { BalanceGeneralResultado } from '../../../types/reportesContables';
 import { NOMBRES_MESES } from '../../../types/saldosCuentas';
 import { accountingColors } from '../../../theme/functional';
 import { neutralColors } from '../../../theme/structural';
-import { activeBrand } from '../../../theme/brand/active';
+import { useBrand } from '../../../theme/brand/useBrand';
 
 function formatMoneda(valor: number): string {
   return valor.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -43,6 +43,7 @@ function SeccionBalance({ titulo, grupos, totalLabel, total }: {
   totalLabel: string;
   total: number;
 }) {
+  const { activeBrand } = useBrand();
   // Reporte de presentación financiera: no se muestra el número de cuenta;
   // la jerarquía grupo → cuenta se refleja solo con sangría en la descripción.
   return (

@@ -15,8 +15,7 @@ import {
 import { catalogoOutlinedButtonSx, catalogoPrimaryButtonSx, catalogoSearchSx } from '../catalogo/catalogoSurfaces';
 import type { DocumentosDesktopViewProps } from './DocumentosView.types';
 import { neutralColors, onPrimaryColors, overlayColors, whiteSurfaces } from '../../theme/structural';
-import { activeBrand } from '../../theme/brand/active';
-import { brandTints } from '../../theme/tints';
+import { useBrand } from '../../theme/brand/useBrand';
 
 export default function DocumentosDesktopView({
   searchTerm,
@@ -57,6 +56,7 @@ export default function DocumentosDesktopView({
   onPaginationModelChange,
   surface = 'legacy',
 }: DocumentosDesktopViewProps) {
+  const { activeBrand, brandTints } = useBrand();
   const theme = useTheme();
   const catalog = surface === 'catalog';
   const isTablet = useMediaQuery(theme.breakpoints.between('md', 'lg'));

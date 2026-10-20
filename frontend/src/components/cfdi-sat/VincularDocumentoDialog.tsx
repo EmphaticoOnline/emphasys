@@ -27,7 +27,7 @@ import {
   type CfdiSatConfianzaDuplicado,
   type CfdiSatVinculacionResultado,
 } from '../../services/cfdiSatService';
-import { activeBrand } from '../../theme/brand/active';
+import { useBrand } from '../../theme/brand/useBrand';
 
 function formatFecha(raw?: string | null): string {
   if (!raw) return '—';
@@ -56,6 +56,7 @@ export default function VincularDocumentoDialog({
   onClose: () => void;
   onVinculado: (resultado: CfdiSatVinculacionResultado) => void;
 }) {
+  const { activeBrand } = useBrand();
   const navigate = useNavigate();
   const [candidatos, setCandidatos] = React.useState<CfdiSatCandidatoVinculacion[] | null>(null);
   const [loading, setLoading] = React.useState(false);

@@ -19,7 +19,7 @@ import {
   type CfdiSatImportacionPreview,
 } from '../../services/cfdiSatService';
 import { neutralColors } from '../../theme/structural';
-import { activeBrand } from '../../theme/brand/active';
+import { useBrand } from '../../theme/brand/useBrand';
 
 function formatFecha(raw?: string | null): string {
   if (!raw) return '—';
@@ -48,6 +48,7 @@ export default function ImportarComprasDialog({
   onClose: () => void;
   onImportado: (documento: CfdiSatDocumentoImportado) => void;
 }) {
+  const { activeBrand } = useBrand();
   const navigate = useNavigate();
   const [preview, setPreview] = React.useState<CfdiSatImportacionPreview | null>(null);
   const [loading, setLoading] = React.useState(false);

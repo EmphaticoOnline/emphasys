@@ -31,7 +31,7 @@ import {
   type PushSubscriptionRecord,
   type PushUiState,
 } from '../services/pushNotificationsService';
-import { activeBrand } from '../theme/brand/active';
+import { useBrand } from '../theme/brand/useBrand';
 
 interface Props {
   open: boolean;
@@ -56,6 +56,7 @@ function formatFecha(iso: string): string {
 }
 
 export default function NotificationsSettingsDialog({ open, onClose }: Props) {
+  const { activeBrand } = useBrand();
   const [state, setState] = React.useState<PushUiState>('checking');
   const [busy, setBusy] = React.useState(false);
   const [errorMessage, setErrorMessage] = React.useState<string | null>(null);

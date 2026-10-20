@@ -1,6 +1,6 @@
 import { Box, CircularProgress, Fab } from '@mui/material';
 import SaveIcon from '@mui/icons-material/Save';
-import { brandElevation } from '../theme/elevation';
+import { useBrand } from '../theme/brand/useBrand';
 
 type MobileSaveFabProps = {
   loading: boolean;
@@ -17,6 +17,7 @@ export default function MobileSaveFab({
   onClick,
   type = 'button',
 }: MobileSaveFabProps) {
+  const { brandElevation } = useBrand();
   return (
     <Box
       sx={{

@@ -1,6 +1,6 @@
 import { Box, Button, Dialog, Stack, Typography, useTheme } from '@mui/material';
 import type { CartaPorteIssue, CartaPorteIssueSection } from '../../../services/transporte.api';
-import { brandElevation } from '../../../theme/elevation';
+import { useBrand } from '../../../theme/brand/useBrand';
 
 const ETIQUETA_CARTA_PORTE: Record<CartaPorteIssueSection, string> = {
   ruta: 'Ruta',
@@ -17,6 +17,7 @@ type Props = {
 
 /** Diálogo de issues agrupados cuando la Carta Porte impide timbrar. */
 export default function CartaPorteIssuesDialog({ issues, onClose }: Props) {
+  const { brandElevation } = useBrand();
   const tokens = useTheme().emphasys;
   const grupos = (issues ?? []).reduce<Record<string, CartaPorteIssue[]>>((acc, issue) => {
     const clave = issue.section || 'generales';

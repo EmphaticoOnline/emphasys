@@ -1,21 +1,33 @@
 import type { SxProps, Theme } from '@mui/material/styles';
-import { experimentalTokens, MAIN_NAV_TYPE } from '../../theme/tokens';
+import type { SystemStyleObject } from '@mui/system';
+import { getThemeById } from '../../theme/themes';
+import { MAIN_NAV_TYPE, type EmphasysTokens } from '../../theme/tokens';
 import { overlayColors } from '../../theme/structural';
 
 /**
  * Cromado aprobado en Ventas. Compras y CRM leen estas mismas piezas
  * para que los tres módulos compartan un solo listón.
  */
-const chrome = {
+const chromeOf = (experimentalTokens: EmphasysTokens) => ({
   idle: experimentalTokens.content.foreground,
   hoverSurface: `color-mix(in srgb, ${experimentalTokens.frame.background} 8%, transparent)`,
   hoverInk: experimentalTokens.frame.background,
   activeSurface: experimentalTokens.frame.background,
   activeInk: experimentalTokens.frame.foreground,
   activeHover: experimentalTokens.action.primary,
-} as const;
+}) as const;
+
+/**
+ * El listón usa siempre los tokens del tema experimental, con la marca del tema
+ * vigente (`theme.brand`), aunque se monte dentro del tema clásico.
+ */
+const experimentalTokensOf = (theme: Theme): EmphasysTokens => getThemeById('experimental', theme.brand?.activeBrand).emphasys;
 
 export function moduleTabStripSx(): SxProps<Theme> {
+  return (theme: Theme) => moduleTabStripStyles(experimentalTokensOf(theme));
+}
+
+function moduleTabStripStyles(experimentalTokens: EmphasysTokens): SystemStyleObject<Theme> {
   return {
     background: experimentalTokens.canvas.page,
     borderBottom: `1px solid ${experimentalTokens.documentNav.border}`,
@@ -28,6 +40,11 @@ export function moduleTabStripSx(): SxProps<Theme> {
 }
 
 export function moduleTabBarSx(): SxProps<Theme> {
+  return (theme: Theme) => moduleTabBarStyles(experimentalTokensOf(theme));
+}
+
+function moduleTabBarStyles(experimentalTokens: EmphasysTokens): SystemStyleObject<Theme> {
+  const chrome = chromeOf(experimentalTokens);
   return {
     minHeight: 30,
     '& .MuiTabs-scroller': {

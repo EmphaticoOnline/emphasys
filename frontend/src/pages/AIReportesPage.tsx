@@ -21,8 +21,7 @@ import { apiFetch } from '../api/apiClient';
 import { STANDARD_DATA_GRID_HEADER_HEIGHT, STANDARD_DATA_GRID_ROW_HEIGHT, standardDataGridSx } from '../components/grids/standardDataGridSx';
 import { useSession } from '../session/useSession';
 import { neutralColors } from '../theme/structural';
-import { activeBrand } from '../theme/brand/active';
-import { brandTints } from '../theme/tints';
+import { useBrand } from '../theme/brand/useBrand';
 
 type ResultadoFila = Record<string, unknown>;
 
@@ -65,6 +64,7 @@ const stringifyValue = (value: unknown) => {
 };
 
 export default function AIReportesPage() {
+  const { activeBrand, brandTints } = useBrand();
   const { session } = useSession();
   const empresaId = session.empresaActivaId;
 

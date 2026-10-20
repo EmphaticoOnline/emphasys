@@ -37,7 +37,8 @@ import type { AplicacionOperacion } from '../../../types/finanzas';
 import type { Contacto } from '../../../types/contactos.types';
 import type { CotizacionDocumento, CotizacionListado } from '../../../types/cotizacion';
 import type { TipoDocumento } from '../../../types/documentos.types';
-import { brandElevation, elevation } from '../../../theme/elevation';
+import { elevation } from '../../../theme/elevation';
+import { useBrand } from '../../../theme/brand/useBrand';
 
 type FiltroAjustes = {
   fechaDesde: string;
@@ -625,6 +626,7 @@ function PopoverFiltroAjustes({
   resumen: { general: number; porEstado: Record<string, number> } | null;
   currency: Intl.NumberFormat;
 }) {
+  const { brandElevation } = useBrand();
   const tokens = useTheme().emphasys;
   const contacto = contactos.find((item) => item.id === filtro.clienteId) ?? null;
   const campoSx = {

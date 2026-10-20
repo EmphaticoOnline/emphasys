@@ -3,7 +3,7 @@ import { Chip, IconButton, Stack, Tooltip, Typography } from '@mui/material';
 import type { SxProps, Theme } from '@mui/material/styles';
 import AssignmentOutlinedIcon from '@mui/icons-material/AssignmentOutlined';
 import type { SeguimientoChipPresentation } from '../../hooks/useSeguimientoActividades';
-import { activeBrand } from '../../theme/brand/active';
+import { useBrand } from '../../theme/brand/useBrand';
 
 type SeguimientoActividadCellProps = {
   hasOportunidad: boolean;
@@ -30,6 +30,7 @@ const DEFAULT_SEGUIMIENTO_CHIP_SX = {
  * OportunidadesPage como en la grilla de cotizaciones de DocumentosPage.
  */
 export function SeguimientoActividadCell({ hasOportunidad, presentation, onOpen, chipSx, chipSize = 'small' }: SeguimientoActividadCellProps) {
+  const { activeBrand } = useBrand();
   if (!hasOportunidad || !presentation || !onOpen) {
     return (
       <Stack direction="row" alignItems="center" justifyContent="center" sx={{ width: '100%' }}>

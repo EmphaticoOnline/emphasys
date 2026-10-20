@@ -55,7 +55,12 @@ export const DECISION_ORDER = ['decisions.d8.baseline.json', 'decisions.dt3.base
  * coincide byte a byte con el resultado registrado del merge.
  */
 export const MERGE_ORDER = ['merges.main-8761927.baseline.json'] as const;
-const LATER_CHAIN = [...NEUTRAL_ORDER, MINOR_FIXTURE, REST_FIXTURE, ...DOCUMENTOS_FORM_ORDER, ...SIGN_ORDER, ...ELEVATION_ORDER, ...TINT_ORDER, ...LEFTOVER_ORDER, ...WHITE_ORDER, ...DECISION_ORDER, ...MERGE_ORDER] as const;
+/**
+ * Identidad visual por empresa, E2: los imports estáticos de la marca pasan a
+ * `useBrand()`. No cambian colores; se revierten con un parche exacto de líneas.
+ */
+export const BRAND_HOOK_ORDER = ['brandHook.e2.baseline.json'] as const;
+const LATER_CHAIN = [...NEUTRAL_ORDER, MINOR_FIXTURE, REST_FIXTURE, ...DOCUMENTOS_FORM_ORDER, ...SIGN_ORDER, ...ELEVATION_ORDER, ...TINT_ORDER, ...LEFTOVER_ORDER, ...WHITE_ORDER, ...DECISION_ORDER, ...MERGE_ORDER, ...BRAND_HOOK_ORDER] as const;
 /** Todos los fixtures de la cadena, en orden: las pruebas cargan esta lista, no una copia. */
 export const LATER_FIXTURES: readonly string[] = LATER_CHAIN;
 
@@ -256,7 +261,28 @@ export function revertMerge(source: string, file: string, entry: MergeFileFixtur
   return entry.before;
 }
 
-export type LaterFixtures = Partial<Record<(typeof LATER_CHAIN)[number], NeutralFixture | MinorFixture | RestFixture | MergeFixture>>;
+/**
+ * Parche de líneas de un archivo: cada hunk reemplaza `migrated` (desde el índice
+ * `at`, base 0, del archivo migrado) por `original`. Los SHA-256 los verifica la prueba.
+ */
+export type LinePatchHunk = { at: number; migrated: string[]; original: string[] };
+export type LinePatchFileFixture = { beforeSha256: string; migratedSha256: string; hunks: LinePatchHunk[] };
+export type LinePatchFixture = { source: string; files: Record<string, LinePatchFileFixture> };
+
+/** Deshace un parche de líneas, del último hunk al primero; exige cada línea migrada exacta. */
+export function revertLinePatch(source: string, file: string, entry: LinePatchFileFixture): string {
+  const lines = source.split('\n');
+  for (const hunk of [...entry.hunks].sort((a, b) => b.at - a.at)) {
+    const current = lines.slice(hunk.at, hunk.at + hunk.migrated.length);
+    if (current.length !== hunk.migrated.length || current.some((line, i) => line !== hunk.migrated[i])) {
+      throw new Error(`${file}: línea ${hunk.at + 1}: no coincide con el parche registrado`);
+    }
+    lines.splice(hunk.at, hunk.migrated.length, ...hunk.original);
+  }
+  return lines.join('\n');
+}
+
+export type LaterFixtures = Partial<Record<(typeof LATER_CHAIN)[number], NeutralFixture | MinorFixture | RestFixture | MergeFixture | LinePatchFixture>>;
 
 /**
  * Revierte, del más nuevo al más viejo, los bloques posteriores a `after` que
@@ -270,8 +296,9 @@ export function revertLater(after: string | null, file: string, source: string, 
     const fixture = fixtures[name];
     const entry = fixture?.files[file];
     if (!entry) continue;
-    // Los neutrales revierten por familia de token; los merges de main, por contenido; el resto, por línea.
+    // Los neutrales revierten por familia de token; los merges de main, por contenido; E2, por parche; el resto, por línea.
     if ((MERGE_ORDER as readonly string[]).includes(name)) out = revertMerge(out, file, entry as MergeFileFixture);
+    else if ((BRAND_HOOK_ORDER as readonly string[]).includes(name)) out = revertLinePatch(out, file, entry as LinePatchFileFixture);
     else if ((NEUTRAL_ORDER as readonly string[]).includes(name)) out = revertNeutral(out, (entry as NeutralFixture['files'][string]).addedImports);
     else out = revertMinor(out, entry as MinorFileFixture);
   }

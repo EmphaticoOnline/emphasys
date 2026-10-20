@@ -3,7 +3,7 @@ import { Box, ButtonBase, Menu, MenuItem, Tooltip, Typography } from '@mui/mater
 import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown';
 import type { TratamientoImpuestos } from '../../types/cotizacion';
 import { neutralColors, overlayColors } from '../../theme/structural';
-import { activeBrand } from '../../theme/brand/active';
+import { useBrand } from '../../theme/brand/useBrand';
 
 export const TRATAMIENTO_OPCIONES: { label: string; value: TratamientoImpuestos }[] = [
   { label: 'Operación estándar', value: 'normal' },
@@ -27,6 +27,7 @@ type TratamientoFiscalControlProps = {
 };
 
 export default function TratamientoFiscalControl({ value, onChange, disabled = false, mostrarEtiqueta = true }: TratamientoFiscalControlProps) {
+  const { activeBrand } = useBrand();
   const [anchor, setAnchor] = useState<HTMLElement | null>(null);
   const actual = value || 'normal';
   const etiqueta = TRATAMIENTO_OPCIONES.find((opt) => opt.value === actual)?.label ?? '';

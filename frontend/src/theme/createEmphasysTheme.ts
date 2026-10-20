@@ -1,5 +1,8 @@
 import { createTheme, type Theme } from '@mui/material/styles';
 import './augmentation.ts';
+import { activeBrand } from './brand/active.ts';
+import { getBrandStyles } from './brand/styles.ts';
+import type { BrandDefinition } from './brand/types.ts';
 import {
   EDITORIAL_FIGURE_FAMILY,
   FUNCTIONAL_FONT_FAMILY,
@@ -18,8 +21,9 @@ const inputFontSize = {
 export function createEmphasysTheme(
   tokens: EmphasysTokens,
   options: { editorialFigures: boolean; restyleSurfaces: boolean },
+  brand: BrandDefinition = activeBrand,
 ): Theme {
-  return createTheme({
+  const theme = createTheme({
     palette: {
       primary: {
         main: tokens.action.primary,
@@ -186,4 +190,7 @@ export function createEmphasysTheme(
         : {}),
     },
   });
+  // Se asigna después de createTheme para conservar los objetos de marca sin clonarlos.
+  theme.brand = getBrandStyles(brand);
+  return theme;
 }

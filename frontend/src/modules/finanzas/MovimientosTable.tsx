@@ -56,7 +56,7 @@ import {
   type CapturaInline,
 } from './FilaCapturaMovimiento';
 import { amountSignColor, inflowColor, outflowColor } from '../../theme/sign';
-import { brandTints } from '../../theme/tints';
+import { useBrand } from '../../theme/brand/useBrand';
 
 // El DataGrid MIT siempre pagina (pageSize por defecto = 100, máximo 100) aunque
 // el pie esté oculto: sin esto sólo se renderizan las primeras 100 filas y el
@@ -224,6 +224,7 @@ export function MovimientosTable({
   mostrarCuenta = false,
   vistaClave,
 }: MovimientosTableProps) {
+  const { brandTints } = useBrand();
   const theme = useTheme();
   const tokens = theme.emphasys;
   const apiRef = useGridApiRef();

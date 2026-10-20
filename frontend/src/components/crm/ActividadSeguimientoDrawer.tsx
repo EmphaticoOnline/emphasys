@@ -40,7 +40,7 @@ import { loadSession } from '../../session/sessionStorage';
 import RichTextEditor from '../RichTextEditor';
 import { activityTypeChipColors, alertColors, crmAccents } from '../../theme/functional';
 import { neutralColors, whiteSurfaces } from '../../theme/structural';
-import { activeBrand } from '../../theme/brand/active';
+import { useBrand } from '../../theme/brand/useBrand';
 
 dayjs.locale('es');
 
@@ -282,6 +282,7 @@ function obtenerFechaLocalParaInput(valor: string) {
 }
 
 export default function ActividadSeguimientoDrawer({ open, onClose, target, initialMode = 'followup', onActivitiesChanged }: ActividadSeguimientoDrawerProps) {
+  const { activeBrand } = useBrand();
   const navigate = useNavigate();
   const session = React.useMemo(() => loadSession(), []);
   const sessionUserId = session.user?.id ?? null;

@@ -47,7 +47,7 @@ import { loadSession } from '../../session/sessionStorage';
 import { esRolAdmin } from '../../session/rolScope';
 import { alertColors } from '../../theme/functional';
 import { neutralColors, rowStripeColors, selectionColors } from '../../theme/structural';
-import { activeBrand } from '../../theme/brand/active';
+import { useBrand } from '../../theme/brand/useBrand';
 
 const formatDateShort = (value?: string | null) => {
   if (!value) return '';
@@ -107,6 +107,7 @@ interface FacturaPagosDrawerProps {
 }
 
 export function FacturaPagosDrawer({ open, onClose, documentoId, contactoId, saldo, tipoDocumento }: FacturaPagosDrawerProps) {
+  const { activeBrand } = useBrand();
   const [loading, setLoading] = useState(false);
   const [saldoDocumento, setSaldoDocumento] = useState<DocumentoSaldo | null>(null);
   const [aplicaciones, setAplicaciones] = useState<AplicacionOperacion[]>([]);

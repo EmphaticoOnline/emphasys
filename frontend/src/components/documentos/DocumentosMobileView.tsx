@@ -14,9 +14,9 @@ import type { CotizacionListado } from '../../types/cotizacion';
 import type { DocumentosMobileViewProps } from './DocumentosView.types';
 import DocumentoStatusIndicators from './indicadores/DocumentoStatusIndicators';
 import { neutralColors, onPrimaryColors, selectionColors, whiteSurfaces } from '../../theme/structural';
-import { activeBrand } from '../../theme/brand/active';
+import { useBrand } from '../../theme/brand/useBrand';
 import { balanceColors } from '../../theme/functional';
-import { brandElevation, elevation } from '../../theme/elevation';
+import { elevation } from '../../theme/elevation';
 
 function hasValue(value?: string | number | null) {
   return value != null && String(value).trim() !== '';
@@ -78,6 +78,7 @@ export default function DocumentosMobileView({
   currency,
   surface = 'legacy',
 }: DocumentosMobileViewProps) {
+  const { activeBrand, brandElevation } = useBrand();
   const theme = useTheme();
   const catalog = surface === 'catalog';
   const [panelOpen, setPanelOpen] = React.useState(false);

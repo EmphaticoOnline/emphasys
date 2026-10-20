@@ -47,7 +47,7 @@ import type {
 } from '../../services/reportesService';
 import { categoricalPalettes } from '../../theme/functional';
 import { neutralColors } from '../../theme/structural';
-import { activeBrand } from '../../theme/brand/active';
+import { useBrand } from '../../theme/brand/useBrand';
 
 export type VolumenComprasPageConfig = {
   titulo: string;
@@ -226,6 +226,7 @@ function DetalleTable({
   facturas: FacturaVolumenDetalle[];
   esVentas: boolean;
 }) {
+  const { activeBrand } = useBrand();
   const tokens = useTheme().emphasys;
   const facturasPorContacto = useMemo(() => {
     const m = new Map<number, FacturaVolumenDetalle[]>();

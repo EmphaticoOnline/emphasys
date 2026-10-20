@@ -61,9 +61,8 @@ import ActividadSeguimientoDrawer from '../components/crm/ActividadSeguimientoDr
 import { SeguimientoActividadCell } from '../components/crm/SeguimientoActividadCell';
 import { alertColors, crmAccents, opportunityBucketColors } from '../theme/functional';
 import { neutralColors, onPrimaryColors, overlayColors, whiteSurfaces } from '../theme/structural';
-import { activeBrand } from '../theme/brand/active';
-import { brandElevation, elevation, surfaceGradients } from '../theme/elevation';
-import { brandTints } from '../theme/tints';
+import { useBrand } from '../theme/brand/useBrand';
+import { elevation, surfaceGradients } from '../theme/elevation';
 
 dayjs.locale('es');
 
@@ -442,6 +441,7 @@ function getDeleteOportunidadErrorMessage(error: unknown) {
 }
 
 export default function OportunidadesPage() {
+  const { activeBrand, brandElevation, brandTints } = useBrand();
   const { id: oportunidadIdParam } = useParams();
   const perfilDispositivo = useDeviceProfile();
   const [oportunidades, setOportunidades] = useState<Oportunidad[]>([]);

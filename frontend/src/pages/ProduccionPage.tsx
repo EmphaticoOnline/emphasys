@@ -45,7 +45,7 @@ import {
   type SeguimientoProduccionRow,
 } from '../services/produccionService';
 import { neutralColors } from '../theme/structural';
-import { activeBrand } from '../theme/brand/active';
+import { useBrand } from '../theme/brand/useBrand';
 import { dataColorContrast } from '../theme/functional';
 
 const formatCivilDate = (value: string | null | undefined) => {
@@ -108,6 +108,7 @@ const EMPTY_ADVANCE_DIALOG: AdvanceDialogState = {
 };
 
 export default function ProduccionPage() {
+  const { activeBrand } = useBrand();
   const [rows, setRows] = React.useState<SeguimientoProduccionRow[]>([]);
   const [etapas, setEtapas] = React.useState<EtapaProduccion[]>([]);
   const [loading, setLoading] = React.useState(false);

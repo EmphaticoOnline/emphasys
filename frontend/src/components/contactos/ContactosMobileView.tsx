@@ -11,7 +11,8 @@ import type { ContactosMobileViewProps } from './ContactosView.types';
 import ContactosAdvancedFilters from './ContactosAdvancedFilters';
 import { formatearTelefonoParaMostrar } from '../../utils/telefono';
 import { neutralColors, whiteSurfaces } from '../../theme/structural';
-import { brandElevation, elevation } from '../../theme/elevation';
+import { elevation } from '../../theme/elevation';
+import { useBrand } from '../../theme/brand/useBrand';
 
 function hasValue(value?: string | number | null) {
   return value != null && String(value).trim() !== '';
@@ -59,6 +60,7 @@ export default function ContactosMobileView({
   onClearAdvancedFilters,
   onCreateContacto,
 }: ContactosMobileViewProps) {
+  const { brandElevation } = useBrand();
   const [menuAnchorEl, setMenuAnchorEl] = React.useState<null | HTMLElement>(null);
   const [menuContactoId, setMenuContactoId] = React.useState<number | string | null>(null);
   const [menuContacto, setMenuContacto] = React.useState<ContactosMobileViewProps['contactos'][number] | null>(null);

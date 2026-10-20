@@ -73,7 +73,8 @@ import {
   RelacionadosTab,
   InventarioTab,
 } from '../DocumentoDetalleContent';
-import { brandElevation, elevation } from '../../../theme/elevation';
+import { elevation } from '../../../theme/elevation';
+import { useBrand } from '../../../theme/brand/useBrand';
 
 type StatusOption = { value: string; label: string; color?: string; textColor?: string };
 type FiltroFacturas = {
@@ -1204,6 +1205,7 @@ export function PopoverFiltroFacturas({
   resumen: { general: number; porEstado: Record<string, number> } | null;
   currency: Intl.NumberFormat;
 }) {
+  const { brandElevation } = useBrand();
   const tokens = useTheme().emphasys;
   const contacto = contactos.find((item) => item.id === filtro.clienteId) ?? null;
   const agente = vendedores.find((item) => item.id === filtro.agenteId) ?? null;

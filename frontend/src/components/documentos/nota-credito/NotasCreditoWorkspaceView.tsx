@@ -43,7 +43,8 @@ import type { TipoDocumento } from '../../../types/documentos.types';
 import { formatearFolioDocumento } from '../../../utils/documentos.utils';
 import { estadoVisualDocumento } from '../estadoVisualDocumento';
 import { getStatusToneColor } from '../../status/status.semantics';
-import { brandElevation, elevation } from '../../../theme/elevation';
+import { elevation } from '../../../theme/elevation';
+import { useBrand } from '../../../theme/brand/useBrand';
 
 type Props = {
   rows: CotizacionListado[];
@@ -1081,6 +1082,7 @@ function PopoverFiltroNotas({
   onClose: () => void;
   onChange: (filtro: FiltroNotas) => void;
 }) {
+  const { brandElevation } = useBrand();
   const tokens = useTheme().emphasys;
   const activos = filtrosEncendidos(filtro);
   const cambiar = (parcial: Partial<FiltroNotas>) => onChange({ ...filtro, ...parcial });

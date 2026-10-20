@@ -28,7 +28,7 @@ import DeleteIcon from '@mui/icons-material/DeleteOutline';
 import { crearConcepto, eliminarConcepto, fetchConceptos, actualizarConcepto } from '../../services';
 import type { Concepto } from '../../types/finanzas';
 import { neutralColors } from '../../theme/structural';
-import { activeBrand } from '../../theme/brand/active';
+import { useBrand } from '../../theme/brand/useBrand';
 
 interface ConceptoDialogState {
   open: boolean;
@@ -36,6 +36,7 @@ interface ConceptoDialogState {
 }
 
 export function ConceptosPage() {
+  const { activeBrand } = useBrand();
   const [conceptos, setConceptos] = useState<Concepto[]>([]);
   const [dialog, setDialog] = useState<ConceptoDialogState>({ open: false, concepto: null });
   const [nombre, setNombre] = useState('');

@@ -39,5 +39,5 @@ export function getThemeById(id: ThemeId, brand: BrandDefinition = activeBrand):
     themes = {};
     themesByBrand.set(brand, themes);
   }
-  return (themes[id] ??= createEmphasysTheme(buildTokens[id](brand), THEME_OPTIONS[id]));
+  return (themes[id] ??= createEmphasysTheme(buildTokens[id](brand), THEME_OPTIONS[id], brand));
 }

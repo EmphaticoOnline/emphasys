@@ -9,8 +9,7 @@ import { buildAssetUrl } from '../../../services/empresasAssetsService';
 import type { ProductoArchivo } from '../../../services/productosService';
 import SeccionCard from './SeccionCard';
 import { neutralColors, selectionColors, whiteSurfaces } from '../../../theme/structural';
-import { activeBrand } from '../../../theme/brand/active';
-import { brandTints } from '../../../theme/tints';
+import { useBrand } from '../../../theme/brand/useBrand';
 
 type Props = {
   disponible: boolean;
@@ -34,8 +33,8 @@ const badgeInstante = (
     sx={{
       fontSize: 10.5,
       fontWeight: 700,
-      color: activeBrand.colors.accent,
-      backgroundColor: brandTints.accentWash,
+      color: (theme) => theme.brand.activeBrand.colors.accent,
+      backgroundColor: (theme) => theme.brand.brandTints.accentWash,
       borderRadius: 1,
       px: 0.75,
       py: 0.125,
@@ -60,6 +59,7 @@ export default function SeccionImagenesArchivos({
   onEliminar,
   onMarcarPrincipal,
 }: Props) {
+  const { activeBrand } = useBrand();
   const imagenPrincipal = archivos.find((archivo) => archivo.principal) ?? archivos[0] ?? null;
 
   if (!disponible) {

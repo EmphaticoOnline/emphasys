@@ -133,7 +133,7 @@ import type { Concepto, DocumentoAnticipoResumen, EstadoCuentaItem, FinanzasCuen
 import { NumericFormat } from 'react-number-format';
 import { neutralColors, onPrimaryColors, overlayColors, selectionColors, whiteSurfaces } from '../theme/structural';
 import { advanceBoxColors, alertColors, attachmentIndicatorColors, balanceColors, documentSummaryTones, fiscalStatusColors, moduleAccents } from '../theme/functional';
-import { brandBlueAlpha } from '../theme/brand/derived';
+import { useBrand } from '../theme/brand/useBrand';
 import { elevation } from '../theme/elevation';
 
 const toCivilDate = (date = new Date()) => {
@@ -539,6 +539,7 @@ export default function DocumentosFormPage({
   onEmbeddedClose,
   onEmbeddedSaved,
 }: DocumentosFormPageProps) {
+  const { brandBlueAlpha } = useBrand();
   const { id, codigo } = useParams();
   const { session } = useSession();
   const theme = useTheme();

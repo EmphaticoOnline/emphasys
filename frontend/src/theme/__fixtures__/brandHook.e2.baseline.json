@@ -1,0 +1,1508 @@
+{
+  "source": "b872490",
+  "files": {
+    "components/FloatingFormActions.tsx": {
+      "beforeSha256": "db6e070d37351a25e36761accbb780826eb0cc4d6531bd215388ceb03cf52754",
+      "migratedSha256": "aacd966fa3874f3995c0a3e785db38d27bc5edeb74983f5c9c4ebb074b361c31",
+      "hunks": [
+        {
+          "at": 3,
+          "migrated": [
+            "import { useBrand } from '../theme/brand/useBrand';"
+          ],
+          "original": [
+            "import { activeBrand } from '../theme/brand/active';",
+            "import { brandElevation } from '../theme/elevation';"
+          ]
+        },
+        {
+          "at": 32,
+          "migrated": [
+            "  const { activeBrand, brandElevation } = useBrand();"
+          ],
+          "original": []
+        }
+      ]
+    },
+    "components/MobileBackIconButton.tsx": {
+      "beforeSha256": "e34500779db4dbc10a1b3a9c49ec5a0eeade88f4c2768e3663dc161904a5f44e",
+      "migratedSha256": "b9237c5fb91cd0f2270811d1209dac2d6f20b7cb702ff0e4ac6f0774d433a569",
+      "hunks": [
+        {
+          "at": 3,
+          "migrated": [
+            "import { useBrand } from '../theme/brand/useBrand';"
+          ],
+          "original": [
+            "import { activeBrand } from '../theme/brand/active';"
+          ]
+        },
+        {
+          "at": 17,
+          "migrated": [
+            "  const { activeBrand } = useBrand();"
+          ],
+          "original": []
+        }
+      ]
+    },
+    "components/MobileSaveFab.tsx": {
+      "beforeSha256": "58f2fa14d432b5b2ce684289d14c6a5a5d4495b8c24318dae7caeb00e08fadc3",
+      "migratedSha256": "51cfc64b63104dfcda2b3e3ec1e7a7e839d1004521c8400ad448684a83ecc24f",
+      "hunks": [
+        {
+          "at": 2,
+          "migrated": [
+            "import { useBrand } from '../theme/brand/useBrand';"
+          ],
+          "original": [
+            "import { brandElevation } from '../theme/elevation';"
+          ]
+        },
+        {
+          "at": 19,
+          "migrated": [
+            "  const { brandElevation } = useBrand();"
+          ],
+          "original": []
+        }
+      ]
+    },
+    "components/NotificationsSettingsDialog.tsx": {
+      "beforeSha256": "662aab84f23e3f4138459f929b7628fa8a428d7a089265a94d31a6a337189c6c",
+      "migratedSha256": "96add51329e7a5bf94aef8082a290b9d7a18a9b1cd2258371a273662533eca21",
+      "hunks": [
+        {
+          "at": 33,
+          "migrated": [
+            "import { useBrand } from '../theme/brand/useBrand';"
+          ],
+          "original": [
+            "import { activeBrand } from '../theme/brand/active';"
+          ]
+        },
+        {
+          "at": 58,
+          "migrated": [
+            "  const { activeBrand } = useBrand();"
+          ],
+          "original": []
+        }
+      ]
+    },
+    "components/ObservacionesEncabezadoCampo.tsx": {
+      "beforeSha256": "9f4ad8f9ac01775744b9964ab935d31b5c4ace763fa904383e38e408ff5e7d08",
+      "migratedSha256": "8fc5dd75f9407c374fdc05cbd639eb80e0962f2ba16e238026d3eb43cfa348ec",
+      "hunks": [
+        {
+          "at": 14,
+          "migrated": [
+            "import { useBrand } from '../theme/brand/useBrand';"
+          ],
+          "original": [
+            "import { activeBrand } from '../theme/brand/active';"
+          ]
+        },
+        {
+          "at": 31,
+          "migrated": [
+            "  const { activeBrand } = useBrand();"
+          ],
+          "original": []
+        }
+      ]
+    },
+    "components/VersionUpdateDrawer.tsx": {
+      "beforeSha256": "2adc0f9351375522eb599e7c96109e500588cd9e597c9fd4ecdfeeb529b7cdce",
+      "migratedSha256": "4394d9d0c6f800adebbe2d36889d8c7ccebe2f5fc26e8843588b44f0e697deb3",
+      "hunks": [
+        {
+          "at": 9,
+          "migrated": [
+            "import { useBrand } from '../theme/brand/useBrand';",
+            "import { elevation } from '../theme/elevation';"
+          ],
+          "original": [
+            "import { activeBrand } from '../theme/brand/active';",
+            "import { brandGradients, elevation } from '../theme/elevation';",
+            "import { brandTints } from '../theme/tints';"
+          ]
+        },
+        {
+          "at": 20,
+          "migrated": [
+            "  const { activeBrand, brandGradients, brandTints } = useBrand();"
+          ],
+          "original": []
+        }
+      ]
+    },
+    "components/cfdi-sat/AutomatizacionSatSection.tsx": {
+      "beforeSha256": "37051d891b3007dba8d4ad4791faf2166a8a074853c12763a31f717acb38e9fd",
+      "migratedSha256": "4805730212ad67aa13a0b583044940c3eb1fd6e42566f20b913e1c27e6fbeeb1",
+      "hunks": [
+        {
+          "at": 30,
+          "migrated": [
+            "import { useBrand } from '../../theme/brand/useBrand';"
+          ],
+          "original": [
+            "import { activeBrand } from '../../theme/brand/active';"
+          ]
+        },
+        {
+          "at": 47,
+          "migrated": [
+            "  const { activeBrand } = useBrand();"
+          ],
+          "original": []
+        }
+      ]
+    },
+    "components/cfdi-sat/BitacoraSatSection.tsx": {
+      "beforeSha256": "7c39a14aee9b726cff5eaa0c890e804ed54e27277d27695c46ede36ecbd5bdfc",
+      "migratedSha256": "b5692ce4a23a78405adcce154d0174e2869d3182ae6b4a5366b51a7004b55534",
+      "hunks": [
+        {
+          "at": 29,
+          "migrated": [
+            "import { useBrand } from '../../theme/brand/useBrand';"
+          ],
+          "original": [
+            "import { activeBrand } from '../../theme/brand/active';"
+          ]
+        },
+        {
+          "at": 62,
+          "migrated": [
+            "  const { activeBrand } = useBrand();"
+          ],
+          "original": []
+        }
+      ]
+    },
+    "components/cfdi-sat/ComprobanteDetalleDialog.tsx": {
+      "beforeSha256": "1a6f7c403c799ab220126075e8a33d12120612a1d5f381ac74c1d0942494b4c5",
+      "migratedSha256": "a1051faab23bfa445ef783b3078f9ab7fc6b46cb110fa75307dbd28832fc2929",
+      "hunks": [
+        {
+          "at": 23,
+          "migrated": [
+            "import { useBrand } from '../../theme/brand/useBrand';"
+          ],
+          "original": [
+            "import { activeBrand } from '../../theme/brand/active';"
+          ]
+        },
+        {
+          "at": 52,
+          "migrated": [
+            "  const { activeBrand } = useBrand();"
+          ],
+          "original": []
+        }
+      ]
+    },
+    "components/cfdi-sat/ComprobantesSatSection.tsx": {
+      "beforeSha256": "f60a189601130ae42abe25861d2ebdd4b14c0ebf1d92fed652f716fb28af5de8",
+      "migratedSha256": "4602cc58598c105550df40360375be6ebf039dc7a3b04b95eb4df54d4cb31c83",
+      "hunks": [
+        {
+          "at": 39,
+          "migrated": [
+            "import { useBrand } from '../../theme/brand/useBrand';"
+          ],
+          "original": [
+            "import { activeBrand } from '../../theme/brand/active';"
+          ]
+        },
+        {
+          "at": 139,
+          "migrated": [
+            "  const { activeBrand } = useBrand();"
+          ],
+          "original": []
+        }
+      ]
+    },
+    "components/cfdi-sat/ImportarComprasDialog.tsx": {
+      "beforeSha256": "cbf5bf14d5f65f3f36d69e2356e9ea611617ae211da32515fd95db4c1c59297c",
+      "migratedSha256": "160b58ee548712b658e71dab63ce8903af080f3a96a82a9250e197a0ba743cc2",
+      "hunks": [
+        {
+          "at": 21,
+          "migrated": [
+            "import { useBrand } from '../../theme/brand/useBrand';"
+          ],
+          "original": [
+            "import { activeBrand } from '../../theme/brand/active';"
+          ]
+        },
+        {
+          "at": 50,
+          "migrated": [
+            "  const { activeBrand } = useBrand();"
+          ],
+          "original": []
+        }
+      ]
+    },
+    "components/cfdi-sat/ImportarLoteComprasDialog.tsx": {
+      "beforeSha256": "f75df85bedce92c7d090a79a2c1cd4c62fecc6ea43bd9f4a007380546a8e1f89",
+      "migratedSha256": "d3c4b27edbfef34d54df561f191f6417760200b055cc4bf840678415fcfe2d91",
+      "hunks": [
+        {
+          "at": 23,
+          "migrated": [
+            "import { useBrand } from '../../theme/brand/useBrand';"
+          ],
+          "original": [
+            "import { activeBrand } from '../../theme/brand/active';"
+          ]
+        },
+        {
+          "at": 34,
+          "migrated": [
+            "  const { activeBrand } = useBrand();"
+          ],
+          "original": []
+        }
+      ]
+    },
+    "components/cfdi-sat/ResumenSatCards.tsx": {
+      "beforeSha256": "adf5cfac1e975d8c7adfe222004006b097de920c8b603999d2c87adea6f694c2",
+      "migratedSha256": "ab1a0242bda4d980aa032ee8083297168d8059310cab2fcc09a5d528bbfeb235",
+      "hunks": [
+        {
+          "at": 9,
+          "migrated": [
+            "import { useBrand } from '../../theme/brand/useBrand';"
+          ],
+          "original": [
+            "import { activeBrand } from '../../theme/brand/active';"
+          ]
+        },
+        {
+          "at": 50,
+          "migrated": [
+            "  const { activeBrand } = useBrand();"
+          ],
+          "original": []
+        }
+      ]
+    },
+    "components/cfdi-sat/VincularDocumentoDialog.tsx": {
+      "beforeSha256": "4a959f3be59857a41885c9f415b9119b633c999879fdc0d76b4019c0fe69226e",
+      "migratedSha256": "e18eaa487715c6e2ac57295df771fab4a60dd73342e83ddbdf54d91b13e47363",
+      "hunks": [
+        {
+          "at": 29,
+          "migrated": [
+            "import { useBrand } from '../../theme/brand/useBrand';"
+          ],
+          "original": [
+            "import { activeBrand } from '../../theme/brand/active';"
+          ]
+        },
+        {
+          "at": 58,
+          "migrated": [
+            "  const { activeBrand } = useBrand();"
+          ],
+          "original": []
+        }
+      ]
+    },
+    "components/contactos/ContactosMobileView.tsx": {
+      "beforeSha256": "e1e4d703916f6f21bf11f0b976fa684385e806e537f0448e74e6b00380ca306e",
+      "migratedSha256": "65c758600e12d01400c4ee7b3559a0daddf597e192d208d21bcc8e91cbb2f25a",
+      "hunks": [
+        {
+          "at": 13,
+          "migrated": [
+            "import { elevation } from '../../theme/elevation';",
+            "import { useBrand } from '../../theme/brand/useBrand';"
+          ],
+          "original": [
+            "import { brandElevation, elevation } from '../../theme/elevation';"
+          ]
+        },
+        {
+          "at": 62,
+          "migrated": [
+            "  const { brandElevation } = useBrand();"
+          ],
+          "original": []
+        }
+      ]
+    },
+    "components/crm/ActividadSeguimientoDrawer.tsx": {
+      "beforeSha256": "f6f8eebd684303c1bcd0a5484a061784768daa8d554dbcc51475895adc93c9bc",
+      "migratedSha256": "10c1b6545bba3ecabf84abc47308298dc49f287b0ee8874eb90cc186fd9b1031",
+      "hunks": [
+        {
+          "at": 42,
+          "migrated": [
+            "import { useBrand } from '../../theme/brand/useBrand';"
+          ],
+          "original": [
+            "import { activeBrand } from '../../theme/brand/active';"
+          ]
+        },
+        {
+          "at": 284,
+          "migrated": [
+            "  const { activeBrand } = useBrand();"
+          ],
+          "original": []
+        }
+      ]
+    },
+    "components/crm/SeguimientoActividadCell.tsx": {
+      "beforeSha256": "5418f174b6430273b252179d3193b4025a959132a285c76ac9cb26551c38bbb8",
+      "migratedSha256": "f2942fb33392a31fd7364639b4c146745ae153b9a9bde7b08ca09e25a5701a2f",
+      "hunks": [
+        {
+          "at": 5,
+          "migrated": [
+            "import { useBrand } from '../../theme/brand/useBrand';"
+          ],
+          "original": [
+            "import { activeBrand } from '../../theme/brand/active';"
+          ]
+        },
+        {
+          "at": 32,
+          "migrated": [
+            "  const { activeBrand } = useBrand();"
+          ],
+          "original": []
+        }
+      ]
+    },
+    "components/documentos/DocumentoDetalleContent.tsx": {
+      "beforeSha256": "74302e5c6d1fc0ccdda6a95c658eff39964eb0488fdc9706c87a00d546d3924d",
+      "migratedSha256": "25c4f920fefe7963c03897efeab955a58c87cbc9f31719cc339a5cbd1c7605b4",
+      "hunks": [
+        {
+          "at": 39,
+          "migrated": [
+            "import { useBrand } from '../../theme/brand/useBrand';"
+          ],
+          "original": [
+            "import { activeBrand } from '../../theme/brand/active';"
+          ]
+        },
+        {
+          "at": 171,
+          "migrated": [
+            "  const { activeBrand } = useBrand();"
+          ],
+          "original": []
+        }
+      ]
+    },
+    "components/documentos/DocumentoDetalleDrawer.tsx": {
+      "beforeSha256": "e2f139c1541e34130053cfa8c2d1563944ad137cdf4494fb91ade905225c042f",
+      "migratedSha256": "32ee3d61fddc8898ddc40a3921181110c5d23afb630f98302d0e9825b288e990",
+      "hunks": [
+        {
+          "at": 16,
+          "migrated": [
+            "import { useBrand } from '../../theme/brand/useBrand';"
+          ],
+          "original": [
+            "import { activeBrand } from '../../theme/brand/active';"
+          ]
+        },
+        {
+          "at": 36,
+          "migrated": [
+            "  const { activeBrand } = useBrand();"
+          ],
+          "original": []
+        }
+      ]
+    },
+    "components/documentos/DocumentosDesktopView.tsx": {
+      "beforeSha256": "d042b210123018492dbaa7aaabfb91b2c150bbe51aa048a8563babc2a95c00a7",
+      "migratedSha256": "8b8aed93c97ddd193bbe1401a8ebecdb193e38431b9d374bec35b16ad45c5074",
+      "hunks": [
+        {
+          "at": 17,
+          "migrated": [
+            "import { useBrand } from '../../theme/brand/useBrand';"
+          ],
+          "original": [
+            "import { activeBrand } from '../../theme/brand/active';",
+            "import { brandTints } from '../../theme/tints';"
+          ]
+        },
+        {
+          "at": 58,
+          "migrated": [
+            "  const { activeBrand, brandTints } = useBrand();"
+          ],
+          "original": []
+        }
+      ]
+    },
+    "components/documentos/DocumentosMobileView.tsx": {
+      "beforeSha256": "6aac21fa287b7843e0fefe1687a8acd5bc90451e5a74d446bcbaba7b1a2901b3",
+      "migratedSha256": "187562f463a92f12a14aaf76752ba5893ea1ba0f3a1b7c3422b8898ec1e6f979",
+      "hunks": [
+        {
+          "at": 16,
+          "migrated": [
+            "import { useBrand } from '../../theme/brand/useBrand';"
+          ],
+          "original": [
+            "import { activeBrand } from '../../theme/brand/active';"
+          ]
+        },
+        {
+          "at": 18,
+          "migrated": [
+            "import { elevation } from '../../theme/elevation';"
+          ],
+          "original": [
+            "import { brandElevation, elevation } from '../../theme/elevation';"
+          ]
+        },
+        {
+          "at": 80,
+          "migrated": [
+            "  const { activeBrand, brandElevation } = useBrand();"
+          ],
+          "original": []
+        }
+      ]
+    },
+    "components/documentos/TratamientoFiscalControl.tsx": {
+      "beforeSha256": "caf38391718f840f7a718a8ec551aa4979dfbb2349f5e252d387ebc8c2944839",
+      "migratedSha256": "2130bef1185c81d2521d90e52b04536230a38da49d0039702e126d50b278242b",
+      "hunks": [
+        {
+          "at": 5,
+          "migrated": [
+            "import { useBrand } from '../../theme/brand/useBrand';"
+          ],
+          "original": [
+            "import { activeBrand } from '../../theme/brand/active';"
+          ]
+        },
+        {
+          "at": 29,
+          "migrated": [
+            "  const { activeBrand } = useBrand();"
+          ],
+          "original": []
+        }
+      ]
+    },
+    "components/documentos/WorkspaceRowContextMenu.tsx": {
+      "beforeSha256": "c87b0ba59727e00116d9a7356c67ab63ab60f64ef8461813d41f46d9ca4f77cc",
+      "migratedSha256": "4ade6d07dbda3cc48ed5f4fef30a550c06a4527c988665618f11be2bae79185c",
+      "hunks": [
+        {
+          "at": 3,
+          "migrated": [
+            "import { useBrand } from '../../theme/brand/useBrand';"
+          ],
+          "original": [
+            "import { brandElevation } from '../../theme/elevation';"
+          ]
+        },
+        {
+          "at": 20,
+          "migrated": [
+            "  const { brandElevation } = useBrand();"
+          ],
+          "original": []
+        }
+      ]
+    },
+    "components/documentos/ajustes-saldo/AjustesSaldoWorkspaceView.tsx": {
+      "beforeSha256": "9dbde9687834be0a21f84c74e9cad90ddb54706ae303922e35f90827f9137883",
+      "migratedSha256": "b94f2b190f3735fd99b503fd188db8bc9b635a91d0db8bdee957dc4da8d3d338",
+      "hunks": [
+        {
+          "at": 39,
+          "migrated": [
+            "import { elevation } from '../../../theme/elevation';",
+            "import { useBrand } from '../../../theme/brand/useBrand';"
+          ],
+          "original": [
+            "import { brandElevation, elevation } from '../../../theme/elevation';"
+          ]
+        },
+        {
+          "at": 628,
+          "migrated": [
+            "  const { brandElevation } = useBrand();"
+          ],
+          "original": []
+        }
+      ]
+    },
+    "components/documentos/cotizaciones/CotizacionPartidasTab.tsx": {
+      "beforeSha256": "638313caa1a464f0d32ae6d402f6962585e8a44424de0e4a17d6f171e3123d9f",
+      "migratedSha256": "6d4dc4ee1ba59f3e71b9beb20b851479d3a95762a9f57ea98e65a8a53a46c4d7",
+      "hunks": [
+        {
+          "at": 9,
+          "migrated": [
+            "import { useBrand } from '../../../theme/brand/useBrand';"
+          ],
+          "original": [
+            "import { brandTints } from '../../../theme/tints';"
+          ]
+        },
+        {
+          "at": 84,
+          "migrated": [
+            "  const { brandTints } = useBrand();"
+          ],
+          "original": []
+        }
+      ]
+    },
+    "components/documentos/facturas/CartaPorteIssuesDialog.tsx": {
+      "beforeSha256": "c763be979fe6fa9f37545123b90e457e9a6c865ad5703d773ac2e6c947e322df",
+      "migratedSha256": "a71a53d51e7d48e252814c43e890793e377fa0b0676c83f82919cf718b35f656",
+      "hunks": [
+        {
+          "at": 2,
+          "migrated": [
+            "import { useBrand } from '../../../theme/brand/useBrand';"
+          ],
+          "original": [
+            "import { brandElevation } from '../../../theme/elevation';"
+          ]
+        },
+        {
+          "at": 19,
+          "migrated": [
+            "  const { brandElevation } = useBrand();"
+          ],
+          "original": []
+        }
+      ]
+    },
+    "components/documentos/facturas/CartaPorteViajeEditor.tsx": {
+      "beforeSha256": "37ba0fd9377e2acf7ad42c69995b02a472b53b78e4e51f628c5e2fe58f000385",
+      "migratedSha256": "1ad6dbf9d927d78cff5467781bc5fc6c0dcbcd6ad2c58a190539715c10b8c1b2",
+      "hunks": [
+        {
+          "at": 32,
+          "migrated": [
+            "import { useBrand } from '../../../theme/brand/useBrand';",
+            "import type { Theme } from '@mui/material/styles';"
+          ],
+          "original": [
+            "import { activeBrand } from '../../../theme/brand/active';",
+            "import { brandElevation } from '../../../theme/elevation';"
+          ]
+        },
+        {
+          "at": 46,
+          "migrated": [],
+          "original": [
+            "const AZUL = activeBrand.colors.blue.base;"
+          ]
+        },
+        {
+          "at": 199,
+          "migrated": [
+            "      boxShadow: (theme: Theme) => theme.brand.brandElevation.panel,"
+          ],
+          "original": [
+            "      boxShadow: brandElevation.panel,"
+          ]
+        },
+        {
+          "at": 661,
+          "migrated": [
+            "  const { brandElevation } = useBrand();"
+          ],
+          "original": []
+        },
+        {
+          "at": 735,
+          "migrated": [
+            "  const { activeBrand } = useBrand();",
+            "  const AZUL = activeBrand.colors.blue.base;"
+          ],
+          "original": []
+        }
+      ]
+    },
+    "components/documentos/facturas/FacturaResumenFlotante.tsx": {
+      "beforeSha256": "1a585bb5d4ed5d0533326232e5e349cd09783ee5eb4682e5d69b0ef5e31ec42c",
+      "migratedSha256": "07da1238a7444b101d89f44d7028b1f28eabbd71183cc3c402387e8ce06ab512",
+      "hunks": [
+        {
+          "at": 6,
+          "migrated": [
+            "import { useBrand } from '../../../theme/brand/useBrand';"
+          ],
+          "original": [
+            "import { activeBrand } from '../../../theme/brand/active';"
+          ]
+        },
+        {
+          "at": 8,
+          "migrated": [],
+          "original": [
+            "import { brandTints } from '../../../theme/tints';"
+          ]
+        },
+        {
+          "at": 57,
+          "migrated": [
+            "  const { activeBrand, brandTints } = useBrand();"
+          ],
+          "original": []
+        }
+      ]
+    },
+    "components/documentos/facturas/FacturasWorkspaceView.tsx": {
+      "beforeSha256": "fa5deb8e2c502e418abd87bca7f6b2677a5bdf1d903cd071fc419a6caa4e6c68",
+      "migratedSha256": "a127eb97637ca85363e70d0e9c8e3611a8d2c79beac701c66de76e26ad449790",
+      "hunks": [
+        {
+          "at": 75,
+          "migrated": [
+            "import { elevation } from '../../../theme/elevation';",
+            "import { useBrand } from '../../../theme/brand/useBrand';"
+          ],
+          "original": [
+            "import { brandElevation, elevation } from '../../../theme/elevation';"
+          ]
+        },
+        {
+          "at": 1207,
+          "migrated": [
+            "  const { brandElevation } = useBrand();"
+          ],
+          "original": []
+        }
+      ]
+    },
+    "components/documentos/facturas/ResumenFlotanteMarco.tsx": {
+      "beforeSha256": "661abceee041335f31d880c85daceb827bff53d2bea56e830b6bba3a8f174f0c",
+      "migratedSha256": "77bdc380c56923acc9943b9159844c7337f7b97fdb91404b73cd17c5873de262",
+      "hunks": [
+        {
+          "at": 4,
+          "migrated": [
+            "import { useBrand } from '../../../theme/brand/useBrand';"
+          ],
+          "original": [
+            "import { activeBrand } from '../../../theme/brand/active';"
+          ]
+        },
+        {
+          "at": 36,
+          "migrated": [
+            "  const { activeBrand } = useBrand();"
+          ],
+          "original": []
+        }
+      ]
+    },
+    "components/documentos/nota-credito/NotasCreditoWorkspaceView.tsx": {
+      "beforeSha256": "d7fde03e7b4b884ebf8520255986ef4639b42a46cc2ed512bfc95bc9685ab011",
+      "migratedSha256": "08675091d23570919fe627ee627e61a1c85231fd2a13d496d6ddc93f0588fb70",
+      "hunks": [
+        {
+          "at": 45,
+          "migrated": [
+            "import { elevation } from '../../../theme/elevation';",
+            "import { useBrand } from '../../../theme/brand/useBrand';"
+          ],
+          "original": [
+            "import { brandElevation, elevation } from '../../../theme/elevation';"
+          ]
+        },
+        {
+          "at": 1084,
+          "migrated": [
+            "  const { brandElevation } = useBrand();"
+          ],
+          "original": []
+        }
+      ]
+    },
+    "components/documentos/pagos/PagosWorkspaceView.tsx": {
+      "beforeSha256": "4fe0dee3e10fd1a1f44c1bbe57d51092f6e6a2cf06143a150cdd2fd91bff3e34",
+      "migratedSha256": "e7dccb1423b724bfdceb6a0b7d5bb1fd6eac225ba0e614875bfa55034a7066b0",
+      "hunks": [
+        {
+          "at": 44,
+          "migrated": [
+            "import { elevation } from '../../../theme/elevation';",
+            "import { useBrand } from '../../../theme/brand/useBrand';"
+          ],
+          "original": [
+            "import { brandElevation, elevation } from '../../../theme/elevation';"
+          ]
+        },
+        {
+          "at": 1060,
+          "migrated": [
+            "  const { brandElevation } = useBrand();"
+          ],
+          "original": []
+        }
+      ]
+    },
+    "components/documentos/traslados/TrasladosWorkspaceView.tsx": {
+      "beforeSha256": "4c64eed31bf1fe10136f763a36db0ccab781fc45a3db7c94c39caba3d639e17c",
+      "migratedSha256": "fd27ed0ae9bc40793a09f806d33f86cb0a4648e4785db22fc2c454a3dca27827",
+      "hunks": [
+        {
+          "at": 26,
+          "migrated": [
+            "import { elevation } from '../../../theme/elevation';",
+            "import { useBrand } from '../../../theme/brand/useBrand';"
+          ],
+          "original": [
+            "import { brandElevation, elevation } from '../../../theme/elevation';"
+          ]
+        },
+        {
+          "at": 74,
+          "migrated": [
+            "  const { brandElevation } = useBrand();"
+          ],
+          "original": []
+        }
+      ]
+    },
+    "components/inventario/InventarioMovimientoErrorDialog.tsx": {
+      "beforeSha256": "8818735d55064b080c90422d9f51f44f60ff6ba4ed5eba9fdcd34c575f4f1264",
+      "migratedSha256": "54260cf3eeed60cda0f360ca766dbef471ebc973ee176785052f5de6b426c8a6",
+      "hunks": [
+        {
+          "at": 2,
+          "migrated": [
+            "import { useBrand } from '../../theme/brand/useBrand';"
+          ],
+          "original": [
+            "import { brandElevation } from '../../theme/elevation';"
+          ]
+        },
+        {
+          "at": 11,
+          "migrated": [
+            "  const { brandElevation } = useBrand();"
+          ],
+          "original": []
+        }
+      ]
+    },
+    "components/layout/SidebarLayout.tsx": {
+      "beforeSha256": "2582ad0708635dcf8a989b2ba0d584f57ced0be18208d7140a6f6904552611b1",
+      "migratedSha256": "f9f697b0954f33ceea649508e7570c0de0a01e0a33f1c662ae1921fe4a0fff43",
+      "hunks": [
+        {
+          "at": 40,
+          "migrated": [
+            "import { useBrand } from '../../theme/brand/useBrand';"
+          ],
+          "original": [
+            "import { activeBrand } from '../../theme/brand/active';"
+          ]
+        },
+        {
+          "at": 183,
+          "migrated": [
+            "  const { activeBrand } = useBrand();"
+          ],
+          "original": []
+        },
+        {
+          "at": 365,
+          "migrated": [
+            "  const { activeBrand } = useBrand();"
+          ],
+          "original": []
+        }
+      ]
+    },
+    "components/layout/moduleTabBar.ts": {
+      "beforeSha256": "c58a39ced05faa8be274bc9ccc44a6a322316db0309baa14039a1c423949cf5c",
+      "migratedSha256": "2afd098307f4c50e2834437533a5a8a10a7b5bc3108498e8c763a001d9fe1afe",
+      "hunks": [
+        {
+          "at": 1,
+          "migrated": [
+            "import type { SystemStyleObject } from '@mui/system';",
+            "import { getThemeById } from '../../theme/themes';",
+            "import { MAIN_NAV_TYPE, type EmphasysTokens } from '../../theme/tokens';"
+          ],
+          "original": [
+            "import { experimentalTokens, MAIN_NAV_TYPE } from '../../theme/tokens';"
+          ]
+        },
+        {
+          "at": 10,
+          "migrated": [
+            "const chromeOf = (experimentalTokens: EmphasysTokens) => ({"
+          ],
+          "original": [
+            "const chrome = {"
+          ]
+        },
+        {
+          "at": 17,
+          "migrated": [
+            "}) as const;",
+            "",
+            "/**",
+            " * El listón usa siempre los tokens del tema experimental, con la marca del tema",
+            " * vigente (`theme.brand`), aunque se monte dentro del tema clásico.",
+            " */",
+            "const experimentalTokensOf = (theme: Theme): EmphasysTokens => getThemeById('experimental', theme.brand?.activeBrand).emphasys;"
+          ],
+          "original": [
+            "} as const;"
+          ]
+        },
+        {
+          "at": 26,
+          "migrated": [
+            "  return (theme: Theme) => moduleTabStripStyles(experimentalTokensOf(theme));",
+            "}",
+            "",
+            "function moduleTabStripStyles(experimentalTokens: EmphasysTokens): SystemStyleObject<Theme> {"
+          ],
+          "original": []
+        },
+        {
+          "at": 42,
+          "migrated": [
+            "  return (theme: Theme) => moduleTabBarStyles(experimentalTokensOf(theme));",
+            "}",
+            "",
+            "function moduleTabBarStyles(experimentalTokens: EmphasysTokens): SystemStyleObject<Theme> {",
+            "  const chrome = chromeOf(experimentalTokens);"
+          ],
+          "original": []
+        }
+      ]
+    },
+    "components/produccion/ProduccionDetalleDrawer.tsx": {
+      "beforeSha256": "b6b0f9314f175f23ee5aa5aff32804e1fc6f8ef25999000a9bf6ebcab8062731",
+      "migratedSha256": "2684d0c359a3a7a649b98eba9f26a8f837c1aba2a2af918c6457d9fc9df9ca71",
+      "hunks": [
+        {
+          "at": 26,
+          "migrated": [
+            "import { useBrand } from '../../theme/brand/useBrand';"
+          ],
+          "original": [
+            "import { activeBrand } from '../../theme/brand/active';"
+          ]
+        },
+        {
+          "at": 243,
+          "migrated": [
+            "  const { activeBrand } = useBrand();"
+          ],
+          "original": []
+        },
+        {
+          "at": 403,
+          "migrated": [
+            "  const { activeBrand } = useBrand();"
+          ],
+          "original": []
+        }
+      ]
+    },
+    "components/productos/ProductosMobileView.tsx": {
+      "beforeSha256": "88e8d71b4288992b4fd5c98638596d120971c414a6838a256487e63dedf95554",
+      "migratedSha256": "80214b466efd1c0e927b6bc0c240e1e7851656fd5f4f5c7c1e95a9d100d23097",
+      "hunks": [
+        {
+          "at": 10,
+          "migrated": [
+            "import { elevation } from '../../theme/elevation';",
+            "import { useBrand } from '../../theme/brand/useBrand';"
+          ],
+          "original": [
+            "import { brandElevation, elevation } from '../../theme/elevation';"
+          ]
+        },
+        {
+          "at": 34,
+          "migrated": [
+            "  const { brandElevation } = useBrand();"
+          ],
+          "original": []
+        }
+      ]
+    },
+    "components/productos/formulario/SeccionImagenesArchivos.tsx": {
+      "beforeSha256": "8daf8bc0c304d09bfcbc78007d60c2595e958af171f3b608c327ae36059bb780",
+      "migratedSha256": "c1581dcb53499b59d5ca9cf57caee0150ff1ea0a84b532a6e58cc65dc8c03ebb",
+      "hunks": [
+        {
+          "at": 11,
+          "migrated": [
+            "import { useBrand } from '../../../theme/brand/useBrand';"
+          ],
+          "original": [
+            "import { activeBrand } from '../../../theme/brand/active';",
+            "import { brandTints } from '../../../theme/tints';"
+          ]
+        },
+        {
+          "at": 35,
+          "migrated": [
+            "      color: (theme) => theme.brand.activeBrand.colors.accent,",
+            "      backgroundColor: (theme) => theme.brand.brandTints.accentWash,"
+          ],
+          "original": [
+            "      color: activeBrand.colors.accent,",
+            "      backgroundColor: brandTints.accentWash,"
+          ]
+        },
+        {
+          "at": 61,
+          "migrated": [
+            "  const { activeBrand } = useBrand();"
+          ],
+          "original": []
+        }
+      ]
+    },
+    "modules/documentos/DocumentoWhatsappDialog.tsx": {
+      "beforeSha256": "0cf4f7788ba4d4ada9ea482b0ca89cb8a2d5f1ed82031a1a9aa9004e91c40fba",
+      "migratedSha256": "19a5492224697738bfbe97702bfff7bdc46648100d516e9b12bab85e3d95319b",
+      "hunks": [
+        {
+          "at": 20,
+          "migrated": [
+            "import { useBrand } from '../../theme/brand/useBrand';"
+          ],
+          "original": [
+            "import { activeBrand } from '../../theme/brand/active';"
+          ]
+        },
+        {
+          "at": 48,
+          "migrated": [
+            "  const { activeBrand } = useBrand();"
+          ],
+          "original": []
+        }
+      ]
+    },
+    "modules/documentos/FacturaGlobalDialog.tsx": {
+      "beforeSha256": "126fd7af99cf1784da8ed3aba9de39dea4e2a29aa532337228ee0017af7a7af7",
+      "migratedSha256": "9efb5a6632ceae557a96b3f75bebf25fd7865970473e1615c498186957dfa4b2",
+      "hunks": [
+        {
+          "at": 25,
+          "migrated": [
+            "import { useBrand } from '../../theme/brand/useBrand';"
+          ],
+          "original": [
+            "import { activeBrand } from '../../theme/brand/active';"
+          ]
+        },
+        {
+          "at": 83,
+          "migrated": [
+            "  const { activeBrand } = useBrand();"
+          ],
+          "original": []
+        }
+      ]
+    },
+    "modules/finanzas/AnticiposAplicacionDialog.tsx": {
+      "beforeSha256": "f8b39a819c081a3b915790000a23b59c783cf812a7ae3f6025bfd4fc33ef9e56",
+      "migratedSha256": "d08b8a06f30e175278b625c04ae8d54fdfe727ef248e68ce6dfcfc213c139671",
+      "hunks": [
+        {
+          "at": 29,
+          "migrated": [
+            "import { useBrand } from '../../theme/brand/useBrand';"
+          ],
+          "original": [
+            "import { activeBrand } from '../../theme/brand/active';"
+          ]
+        },
+        {
+          "at": 85,
+          "migrated": [
+            "  const { activeBrand } = useBrand();"
+          ],
+          "original": []
+        }
+      ]
+    },
+    "modules/finanzas/BuscadorMovimientos.tsx": {
+      "beforeSha256": "c51790058d656cd8e69d82dbe1badea2885bfa9e234614c864bfa5f9a06eaa5a",
+      "migratedSha256": "9f869dd428197ceeda6833c4b7bdfcb747e16a161cb6e8a40a9ece1a8387619c",
+      "hunks": [
+        {
+          "at": 15,
+          "migrated": [
+            "import { useBrand } from '../../theme/brand/useBrand';"
+          ],
+          "original": [
+            "import { brandElevation } from '../../theme/elevation';",
+            "import { brandTints } from '../../theme/tints';"
+          ]
+        },
+        {
+          "at": 27,
+          "migrated": [
+            "  const { brandElevation, brandTints } = useBrand();"
+          ],
+          "original": []
+        }
+      ]
+    },
+    "modules/finanzas/ConceptosPage.tsx": {
+      "beforeSha256": "00947fa925529ead025033cf467a93620f49e2576fe6f2b4f582aa0e4e8752ac",
+      "migratedSha256": "c957d1d370f2ebd54d4b6a471fea3e3c2ab9511bb0d548e47d923d287e04fd2c",
+      "hunks": [
+        {
+          "at": 30,
+          "migrated": [
+            "import { useBrand } from '../../theme/brand/useBrand';"
+          ],
+          "original": [
+            "import { activeBrand } from '../../theme/brand/active';"
+          ]
+        },
+        {
+          "at": 38,
+          "migrated": [
+            "  const { activeBrand } = useBrand();"
+          ],
+          "original": []
+        }
+      ]
+    },
+    "modules/finanzas/FacturaPagosDrawer.tsx": {
+      "beforeSha256": "ed8bb69c66d5b72e261397510fb0ab7f2695fa67019a275b8d0c39ebbc1bbe90",
+      "migratedSha256": "fe2e032feb231e234dce3abdb4a381688d51627b308ce67b3056f3bf4bb6b77b",
+      "hunks": [
+        {
+          "at": 49,
+          "migrated": [
+            "import { useBrand } from '../../theme/brand/useBrand';"
+          ],
+          "original": [
+            "import { activeBrand } from '../../theme/brand/active';"
+          ]
+        },
+        {
+          "at": 109,
+          "migrated": [
+            "  const { activeBrand } = useBrand();"
+          ],
+          "original": []
+        }
+      ]
+    },
+    "modules/finanzas/MovimientosTable.tsx": {
+      "beforeSha256": "db391879955183d2d9370737cfbb51920b0218f665cf7dda84290b81d5a30731",
+      "migratedSha256": "ddf13c20d2cfaaa12e57c8585974e6caadaff825a376b6e61140c4ab8b9b8ff1",
+      "hunks": [
+        {
+          "at": 58,
+          "migrated": [
+            "import { useBrand } from '../../theme/brand/useBrand';"
+          ],
+          "original": [
+            "import { brandTints } from '../../theme/tints';"
+          ]
+        },
+        {
+          "at": 226,
+          "migrated": [
+            "  const { brandTints } = useBrand();"
+          ],
+          "original": []
+        }
+      ]
+    },
+    "pages/AIReportesPage.tsx": {
+      "beforeSha256": "69549fe3ce4b2c6ebf02f1be8cf9b95f44638521df523a0182ebd2c2c346e694",
+      "migratedSha256": "3bd309db2e33caaeed3de8b21c981a0a71f8837b49be255ae523a1db44ee6dfb",
+      "hunks": [
+        {
+          "at": 23,
+          "migrated": [
+            "import { useBrand } from '../theme/brand/useBrand';"
+          ],
+          "original": [
+            "import { activeBrand } from '../theme/brand/active';",
+            "import { brandTints } from '../theme/tints';"
+          ]
+        },
+        {
+          "at": 66,
+          "migrated": [
+            "  const { activeBrand, brandTints } = useBrand();"
+          ],
+          "original": []
+        }
+      ]
+    },
+    "pages/AutorizacionesBandejaPage.tsx": {
+      "beforeSha256": "350ce5582c354a3e2121b648a12f0ceb17c1c87ca36b8d9b69988b44f7110782",
+      "migratedSha256": "e8cd0726aa5dd643cce1113d21656afe5117e051ce0a92ede21138eb607be005",
+      "hunks": [
+        {
+          "at": 14,
+          "migrated": [
+            "import { useBrand } from '../theme/brand/useBrand';"
+          ],
+          "original": [
+            "import { activeBrand } from '../theme/brand/active';"
+          ]
+        },
+        {
+          "at": 37,
+          "migrated": [
+            "  const { activeBrand } = useBrand();"
+          ],
+          "original": []
+        }
+      ]
+    },
+    "pages/CRMPage.tsx": {
+      "beforeSha256": "97c61205c7e07de42219c448a0f2ed8f159b2b52492427e21ad7eea9410edc8b",
+      "migratedSha256": "b49e844e508bbc2f8dafe530397a3d70dddc0b771db8bcc378939163824e7ea8",
+      "hunks": [
+        {
+          "at": 9,
+          "migrated": [
+            "import { useBrand } from '../theme/brand/useBrand';"
+          ],
+          "original": [
+            "import { activeBrand } from '../theme/brand/active';"
+          ]
+        },
+        {
+          "at": 23,
+          "migrated": [
+            "  const { activeBrand } = useBrand();"
+          ],
+          "original": []
+        }
+      ]
+    },
+    "pages/DocumentosFormPage.tsx": {
+      "beforeSha256": "83472aae1687694cdded411df63cfaab71a26874b022d390096e371c325ca1ea",
+      "migratedSha256": "b5699c3654163ab5bd4bf124c55ed6f6f4a1306830ec8349e0eb7eed904d5ee5",
+      "hunks": [
+        {
+          "at": 135,
+          "migrated": [
+            "import { useBrand } from '../theme/brand/useBrand';"
+          ],
+          "original": [
+            "import { brandBlueAlpha } from '../theme/brand/derived';"
+          ]
+        },
+        {
+          "at": 541,
+          "migrated": [
+            "  const { brandBlueAlpha } = useBrand();"
+          ],
+          "original": []
+        }
+      ]
+    },
+    "pages/EvaluacionVendedoresPage.tsx": {
+      "beforeSha256": "f9192765ec1c33d6513fc00a7ead6461a1ce73f03ba4e6e91d74a5356f122f4f",
+      "migratedSha256": "01da2f99dc7ce9750a752e4deb7854ef459aff2e6dd20e6c329a2060548b5079",
+      "hunks": [
+        {
+          "at": 18,
+          "migrated": [
+            "import { useBrand } from '../theme/brand/useBrand';"
+          ],
+          "original": [
+            "import { activeBrand } from '../theme/brand/active';"
+          ]
+        },
+        {
+          "at": 48,
+          "migrated": [
+            "  const { activeBrand } = useBrand();"
+          ],
+          "original": []
+        }
+      ]
+    },
+    "pages/InventarioMovimientosPage.tsx": {
+      "beforeSha256": "4fcc6caf26c62aa59d9df5eb472939443a63ba784e90be42adb79c26629b8527",
+      "migratedSha256": "cbdb2550d46d12ff8a179e08819ceee1827cbe9f9b64055c77a031188fe290e3",
+      "hunks": [
+        {
+          "at": 52,
+          "migrated": [
+            "import { elevation } from '../theme/elevation';"
+          ],
+          "original": [
+            "import { brandElevation, elevation } from '../theme/elevation';"
+          ]
+        },
+        {
+          "at": 54,
+          "migrated": [
+            "import { useBrand } from '../theme/brand/useBrand';"
+          ],
+          "original": []
+        },
+        {
+          "at": 235,
+          "migrated": [
+            "  const { brandElevation } = useBrand();"
+          ],
+          "original": []
+        }
+      ]
+    },
+    "pages/LoginPage.tsx": {
+      "beforeSha256": "8b2e3b11e28f106f44b35d85c4b9d40829b887f216714dc2c962142f5cd81a11",
+      "migratedSha256": "ceeed50df1769a34325e7fcb8474ee74a23ca9a2ca43d3260dfeb19d368d8040",
+      "hunks": [
+        {
+          "at": 10,
+          "migrated": [
+            "import { useBrand } from '../theme/brand/useBrand';"
+          ],
+          "original": [
+            "import { activeBrand } from \"../theme/brand/active\";"
+          ]
+        },
+        {
+          "at": 38,
+          "migrated": [
+            "  const { activeBrand } = useBrand();"
+          ],
+          "original": []
+        }
+      ]
+    },
+    "pages/OportunidadesPage.tsx": {
+      "beforeSha256": "faae95f1c9c45bcbd63e215236e40f570142d5f346f28dcbd74a3cb9ee77f24c",
+      "migratedSha256": "03461e47b827f72eab2c6268e5bed9698d6c95e933b4ab17cae703cc601519ec",
+      "hunks": [
+        {
+          "at": 63,
+          "migrated": [
+            "import { useBrand } from '../theme/brand/useBrand';",
+            "import { elevation, surfaceGradients } from '../theme/elevation';"
+          ],
+          "original": [
+            "import { activeBrand } from '../theme/brand/active';",
+            "import { brandElevation, elevation, surfaceGradients } from '../theme/elevation';",
+            "import { brandTints } from '../theme/tints';"
+          ]
+        },
+        {
+          "at": 443,
+          "migrated": [
+            "  const { activeBrand, brandElevation, brandTints } = useBrand();"
+          ],
+          "original": []
+        }
+      ]
+    },
+    "pages/ProduccionPage.tsx": {
+      "beforeSha256": "a16c1893199d68be33f5c38bd87ce2c0d67abfc67e37fbfe8d35f1d4bc328c24",
+      "migratedSha256": "d451c5d55c9947e674e9a35c7efd6a9293d3d5716ebd064ab56e69da8ddf3596",
+      "hunks": [
+        {
+          "at": 47,
+          "migrated": [
+            "import { useBrand } from '../theme/brand/useBrand';"
+          ],
+          "original": [
+            "import { activeBrand } from '../theme/brand/active';"
+          ]
+        },
+        {
+          "at": 110,
+          "migrated": [
+            "  const { activeBrand } = useBrand();"
+          ],
+          "original": []
+        }
+      ]
+    },
+    "pages/configuracion/DocumentosConfiguracionPage.tsx": {
+      "beforeSha256": "cfeb0af14c2e6906dccf8b6299a5ee0dcea935114d623bb9c082f59e19b67c7a",
+      "migratedSha256": "8fdb22210c2d5cc7c57e55e3b3e93e1d00cd6d0a32fa1fc59ef6cc88967a9e9f",
+      "hunks": [
+        {
+          "at": 39,
+          "migrated": [
+            "import { useBrand } from '../../theme/brand/useBrand';"
+          ],
+          "original": [
+            "import { activeBrand } from '../../theme/brand/active';"
+          ]
+        },
+        {
+          "at": 77,
+          "migrated": [
+            "  const { activeBrand } = useBrand();"
+          ],
+          "original": []
+        }
+      ]
+    },
+    "pages/informes/MovimientosPorPeriodoPage.tsx": {
+      "beforeSha256": "589db626839dc0285ab76c49ccf139756825f5601525caecc7b2e2ff33fd9252",
+      "migratedSha256": "ffa00061bb472c879db5898c3edebf63d97f9b938f1edef983fa0ed33df05bfa",
+      "hunks": [
+        {
+          "at": 52,
+          "migrated": [
+            "import { useBrand } from '../../theme/brand/useBrand';"
+          ],
+          "original": [
+            "import { activeBrand } from '../../theme/brand/active';"
+          ]
+        },
+        {
+          "at": 281,
+          "migrated": [
+            "  const { activeBrand } = useBrand();"
+          ],
+          "original": []
+        },
+        {
+          "at": 406,
+          "migrated": [
+            "  const { activeBrand } = useBrand();"
+          ],
+          "original": []
+        }
+      ]
+    },
+    "pages/informes/OCPendientesPage.tsx": {
+      "beforeSha256": "c32606915379688f51c5782ec5296065527a233aa9f7ca84c3179c0e71c4b60a",
+      "migratedSha256": "d261de91d23a3adfbec006e9d414f1b8b3d1af2d5de92344f6525afb37edfc37",
+      "hunks": [
+        {
+          "at": 36,
+          "migrated": [
+            "import { useBrand } from '../../theme/brand/useBrand';"
+          ],
+          "original": [
+            "import { activeBrand } from '../../theme/brand/active';"
+          ]
+        },
+        {
+          "at": 270,
+          "migrated": [
+            "  const { activeBrand } = useBrand();"
+          ],
+          "original": []
+        }
+      ]
+    },
+    "pages/informes/VolumenComprasPage.tsx": {
+      "beforeSha256": "2ac203b7115fbb33594a3fcd4f287cfe2a9cb7e1cbdca5f9f7a2a77c6a394430",
+      "migratedSha256": "5b26aee07c8f662c893193af076d21fbf31eec4352834e34c99762df6b0692cb",
+      "hunks": [
+        {
+          "at": 49,
+          "migrated": [
+            "import { useBrand } from '../../theme/brand/useBrand';"
+          ],
+          "original": [
+            "import { activeBrand } from '../../theme/brand/active';"
+          ]
+        },
+        {
+          "at": 228,
+          "migrated": [
+            "  const { activeBrand } = useBrand();"
+          ],
+          "original": []
+        }
+      ]
+    },
+    "pages/informes/VolumenProductoPage.tsx": {
+      "beforeSha256": "4613e3dee91df4e3a96f4ba1a1f3745831e1f7240f3ccdee34f9f83f5f246bfa",
+      "migratedSha256": "96ad449d40656ed64ae84273c80fd555c7cefa8b2fe3871fea5a2eeb99f04083",
+      "hunks": [
+        {
+          "at": 49,
+          "migrated": [
+            "import { useBrand } from '../../theme/brand/useBrand';"
+          ],
+          "original": [
+            "import { activeBrand } from '../../theme/brand/active';"
+          ]
+        },
+        {
+          "at": 235,
+          "migrated": [
+            "  const { activeBrand } = useBrand();"
+          ],
+          "original": []
+        }
+      ]
+    },
+    "pages/informes/contabilidad/BalanceGeneralPage.tsx": {
+      "beforeSha256": "092e00978a713e14bb4c28d968717650cf34cc106a602e3a1a6719652d65700d",
+      "migratedSha256": "8adb7d11fcd4dd86c7cb64cbd477a68eb4aa20fc35cfd97d4e83b259eee1920b",
+      "hunks": [
+        {
+          "at": 33,
+          "migrated": [
+            "import { useBrand } from '../../../theme/brand/useBrand';"
+          ],
+          "original": [
+            "import { activeBrand } from '../../../theme/brand/active';"
+          ]
+        },
+        {
+          "at": 45,
+          "migrated": [
+            "  const { activeBrand } = useBrand();"
+          ],
+          "original": []
+        }
+      ]
+    },
+    "pages/informes/contabilidad/BalanzaAnaliticaPage.tsx": {
+      "beforeSha256": "5f17c49c6543f62c9b1a312c43e6f861ac861cc5469a16761d9c087d3f3a3430",
+      "migratedSha256": "5c1c3fb6512d253360a7e205e388e3c95f96fc0f438ee46844a5633676d753fe",
+      "hunks": [
+        {
+          "at": 33,
+          "migrated": [
+            "import { useBrand } from '../../../theme/brand/useBrand';"
+          ],
+          "original": [
+            "import { activeBrand } from '../../../theme/brand/active';"
+          ]
+        },
+        {
+          "at": 40,
+          "migrated": [
+            "  const { activeBrand } = useBrand();"
+          ],
+          "original": []
+        }
+      ]
+    }
+  }
+}

@@ -37,7 +37,7 @@ import { ConfigPageHeader } from '../../components/configuracion/configVisual';
 import { catalogoTabsSx } from '../../components/catalogo/catalogoSurfaces';
 import { editorialTableSx, emptyCellSx, fieldsOnIvorySx, strongCellSx, wellSx } from '../../components/transporte/transporteVisual';
 import type { AfectaInventario, DocumentoEmpresa, TransicionDocumento } from '../../types/documentosConfiguracion';
-import { activeBrand } from '../../theme/brand/active';
+import { useBrand } from '../../theme/brand/useBrand';
 
 const AFECTA_LABELS: Record<AfectaInventario, string> = {
   none: 'No afecta inventario',
@@ -75,6 +75,7 @@ function TabPanel(props: { children: React.ReactNode; value: number; index: numb
 }
 
 export default function DocumentosConfiguracionPage() {
+  const { activeBrand } = useBrand();
   const { session, setSession } = useSession();
   const empresas = session.empresas ?? [];
   const defaultEmpresaId = session.empresaActivaId ?? (empresas[0]?.id ?? null);

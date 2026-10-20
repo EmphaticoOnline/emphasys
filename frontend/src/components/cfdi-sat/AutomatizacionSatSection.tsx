@@ -28,7 +28,7 @@ import {
   type CfdiSatEjecucionAutomatizacion,
 } from '../../services/cfdiSatService';
 import { neutralColors } from '../../theme/structural';
-import { activeBrand } from '../../theme/brand/active';
+import { useBrand } from '../../theme/brand/useBrand';
 
 function formatFecha(raw?: string | null): string {
   if (!raw) return 'Nunca';
@@ -45,6 +45,7 @@ export default function AutomatizacionSatSection({
   /** Se llama tras una ejecución exitosa para que la página refresque solicitudes/resumen/comprobantes/bitácora. */
   onEjecutado?: () => void;
 }) {
+  const { activeBrand } = useBrand();
   const [config, setConfig] = React.useState<CfdiSatAutomatizacion | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);

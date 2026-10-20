@@ -38,7 +38,7 @@ import SettingsIcon from '@mui/icons-material/Settings';
 import VerifiedUserIcon from '@mui/icons-material/VerifiedUser';
 import ShoppingCartIcon from '@mui/icons-material/ShoppingCart';
 import WarehouseIcon from '@mui/icons-material/Warehouse';
-import { activeBrand } from '../../theme/brand/active';
+import { useBrand } from '../../theme/brand/useBrand';
 import { brandLogos } from '../../theme/brand/logos';
 import EmpresaSelector from '../EmpresaSelector';
 import RuntimeEnvironmentIndicator from '../RuntimeEnvironmentIndicator';
@@ -181,6 +181,7 @@ function SidebarNav({
   onChangePassword,
   onOpenNotifications,
 }: SidebarNavProps) {
+  const { activeBrand } = useBrand();
   const frame = useTheme().emphasys.frame;
   const initials = getInitials(userName);
   const navType = MAIN_NAV_TYPE;
@@ -362,6 +363,7 @@ function SidebarNav({
 const SPECIAL_VENTAS_PATHS = new Set(['produccion']);
 
 export default function SidebarLayout() {
+  const { activeBrand } = useBrand();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const location = useLocation();
