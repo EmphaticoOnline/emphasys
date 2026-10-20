@@ -30,6 +30,7 @@ import type { Empresa, EmpresaPayload } from '../../types/empresa';
 import { apiFetch } from '../../services/apiFetch';
 import type { Theme } from '@mui/material/styles';
 import { ConfigPageFrame, ConfigPageHeader } from '../../components/configuracion/configVisual';
+import IdentidadVisualEmpresaSection from '../../components/configuracion/IdentidadVisualEmpresaSection';
 import { catalogoOutlinedButtonSx, catalogoPrimaryButtonSx, catalogoSearchSx } from '../../components/catalogo/catalogoSurfaces';
 import { Section, actionIconSx, dialogPaperSx, editorialTableSx, panelBarSx, wellSx } from '../../components/transporte/transporteVisual';
 
@@ -95,6 +96,8 @@ export default function EmpresasPage() {
   const [logoSuccess, setLogoSuccess] = useState<string | null>(null);
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoAsset, setLogoAsset] = useState<{ ruta: string } | null>(null);
+  /** Sube con cada logo nuevo: la identidad visual recarga la propuesta del análisis. */
+  const [logoVersion, setLogoVersion] = useState(0);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [csdCerFile, setCsdCerFile] = useState<File | null>(null);
   const [csdKeyFile, setCsdKeyFile] = useState<File | null>(null);
@@ -471,6 +474,7 @@ export default function EmpresasPage() {
       const asset = await uploadEmpresaAsset(editId, logoFile, 'logo_default');
       setLogoAsset({ ruta: asset.ruta });
       setLogoSuccess('Logo actualizado exitosamente');
+      setLogoVersion((version) => version + 1);
       setLogoFile(null);
     } catch (err) {
       setLogoError(err instanceof Error ? err.message : 'No se pudo subir el logo');
@@ -952,6 +956,8 @@ export default function EmpresasPage() {
               )}
             </Box>
           </Section>
+
+          <IdentidadVisualEmpresaSection empresaId={editId ? Number(editId) : null} tieneLogo={Boolean(logoAsset)} logoVersion={logoVersion} />
           </Box>
         </DialogContent>
       </Dialog>

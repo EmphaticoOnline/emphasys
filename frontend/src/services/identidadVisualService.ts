@@ -1,12 +1,64 @@
-import { apiFetch } from "./apiFetch";
+import { apiFetch, type ApiFetchError } from "./apiFetch";
 import type { ColoresEmpresa } from "../theme/brand/empresaBrand";
 
-/** Respuesta de GET /api/empresas/:id/identidad-visual (solo lo que usa la app). */
+export type RolIdentidad = keyof ColoresEmpresa;
+export type OrigenColor = "emphasys" | "analisis" | "manual";
+
+/** Respuesta de GET/PUT/POST analizar de /api/empresas/:id/identidad-visual. */
 export type IdentidadVisualEmpresa = {
   empresa_id: number;
   colores: ColoresEmpresa;
+  origen?: Record<RolIdentidad, OrigenColor>;
+  propuesta?: {
+    estado: "ok" | "sin_colores_utiles" | "error";
+    primario: string | null;
+    acento: string | null;
+    sidebar: string | null;
+    confianza: number | null;
+    asset_id: number | null;
+    algoritmo_version: number | null;
+    generada_at: string | null;
+    detalle?: Record<string, unknown> | null;
+  } | null;
+  updated_at?: string | null;
+  actualizado_por?: number | null;
 };
+
+export type ResultadoGuardarIdentidad =
+  | { ok: true; identidad: IdentidadVisualEmpresa }
+  | { ok: false; conflictos: RolIdentidad[] };
+
+/** Evento para que la app aplique enseguida los colores recién guardados. */
+export const EVENTO_IDENTIDAD_ACTUALIZADA = "emphasys:identidad-visual-actualizada";
+export type DetalleIdentidadActualizada = { empresaId: number; colores: ColoresEmpresa };
 
 export async function fetchIdentidadVisual(empresaId: number): Promise<IdentidadVisualEmpresa> {
   return apiFetch<IdentidadVisualEmpresa>(`/api/empresas/${empresaId}/identidad-visual`);
+}
+
+/** PUT: un 409 (colores manuales sin confirmar) se devuelve como conflicto, no como error. */
+export async function guardarIdentidadVisual(
+  empresaId: number,
+  colores: Partial<ColoresEmpresa>,
+  confirmarSobrescritura: boolean
+): Promise<ResultadoGuardarIdentidad> {
+  try {
+    const identidad = await apiFetch<IdentidadVisualEmpresa>(`/api/empresas/${empresaId}/identidad-visual`, {
+      method: "PUT",
+      body: { colores, confirmarSobrescritura },
+    });
+    window.dispatchEvent(
+      new CustomEvent<DetalleIdentidadActualizada>(EVENTO_IDENTIDAD_ACTUALIZADA, { detail: { empresaId, colores: identidad.colores } })
+    );
+    return { ok: true, identidad };
+  } catch (error) {
+    const err = error as ApiFetchError;
+    const conflictos = (err.payload as { conflictos?: RolIdentidad[] } | null)?.conflictos;
+    if (err.status === 409 && Array.isArray(conflictos)) return { ok: false, conflictos };
+    throw error;
+  }
+}
+
+export async function analizarLogoIdentidad(empresaId: number): Promise<IdentidadVisualEmpresa> {
+  return apiFetch<IdentidadVisualEmpresa>(`/api/empresas/${empresaId}/identidad-visual/analizar`, { method: "POST" });
 }

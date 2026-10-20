@@ -1,0 +1,63 @@
+import {
+  FONDOS_REFERENCIA,
+  IDENTIDAD_EMPHASYS,
+  normalizarHex,
+  razonContraste,
+  REGLAS_CONTRASTE,
+  ROLES_IDENTIDAD,
+  type FondoReferencia,
+  type RolIdentidad,
+} from '../../../../backend/src/shared/identidadVisual/contraste.ts';
+
+/**
+ * Lógica de la pantalla de identidad visual (sin React): qué cambió, qué
+ * colores manuales se sobrescribirían y cómo queda el contraste de cada rol.
+ */
+export type Colores = Record<RolIdentidad, string | null>;
+export type Origen = Record<RolIdentidad, 'emphasys' | 'analisis' | 'manual'>;
+
+export const ROLES = ROLES_IDENTIDAD;
+export const SIN_COLORES: Colores = { primario: null, acento: null, sidebar: null };
+
+export const ETIQUETAS: Record<RolIdentidad, { titulo: string; uso: string }> = {
+  primario: { titulo: 'Primario', uso: 'Botones principales, enlaces y títulos.' },
+  acento: { titulo: 'Acento', uso: 'Indicadores y detalles sobre fondos claros.' },
+  sidebar: { titulo: 'Sidebar', uso: 'Menú lateral y encabezados oscuros.' },
+};
+
+export const ETIQUETA_FONDO: Record<FondoReferencia, string> = { blanco: 'blanco', marfil: 'marfil', beige: 'beige' };
+
+/** Color que se verá: el de la empresa o, si es null, el de Emphasys. */
+export const colorEfectivo = (rol: RolIdentidad, valor: string | null) => valor ?? IDENTIDAD_EMPHASYS[rol];
+
+/** Hex escrito por el usuario → `#rrggbb` o null si aún no es válido. */
+export const leerHex = (texto: string) => normalizarHex(texto.startsWith('#') ? texto : `#${texto}`);
+
+/** Roles cuyo borrador difiere de lo guardado. */
+export function rolesCambiados(guardados: Colores, borrador: Colores): RolIdentidad[] {
+  return ROLES.filter((rol) => guardados[rol] !== borrador[rol]);
+}
+
+/** Roles con un color manual guardado que el borrador cambiaría (requieren confirmación). */
+export function manualesAfectados(guardados: Colores, origen: Origen, borrador: Colores): RolIdentidad[] {
+  return rolesCambiados(guardados, borrador).filter((rol) => origen[rol] === 'manual');
+}
+
+export type ContrasteRol = { ok: boolean; ratio: number; minimo: number; contra: FondoReferencia };
+
+/** Peor contraste del color efectivo del rol contra sus fondos de referencia. */
+export function contrasteRol(rol: RolIdentidad, valor: string | null): ContrasteRol {
+  const color = colorEfectivo(rol, valor);
+  const { contra, minimo } = REGLAS_CONTRASTE[rol];
+  const peor = contra
+    .map((fondo) => ({ contra: fondo, ratio: razonContraste(color, FONDOS_REFERENCIA[fondo]) }))
+    .sort((a, b) => a.ratio - b.ratio)[0]!;
+  return { ok: peor.ratio >= minimo, ratio: Math.round(peor.ratio * 100) / 100, minimo, contra: peor.contra };
+}
+
+/** Cambios a enviar en el PUT (solo los roles modificados). */
+export function cuerpoCambios(guardados: Colores, borrador: Colores): Partial<Colores> {
+  return Object.fromEntries(rolesCambiados(guardados, borrador).map((rol) => [rol, borrador[rol]])) as Partial<Colores>;
+}
+
+export const describirColor = (valor: string | null) => valor ?? 'Emphasys';

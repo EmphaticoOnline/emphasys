@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
-import { fetchIdentidadVisual } from '../../services/identidadVisualService';
+import {
+  EVENTO_IDENTIDAD_ACTUALIZADA,
+  fetchIdentidadVisual,
+  type DetalleIdentidadActualizada,
+} from '../../services/identidadVisualService';
 import { useSession } from '../../session/useSession';
 import { getEmpresaBrand, type ColoresEmpresa } from './empresaBrand.ts';
 import { guardarColoresCache, leerColoresCache } from './identidadVisualCache.ts';
@@ -46,6 +50,17 @@ export function useEmpresaBrand(): BrandDefinition {
     };
     // Se confirma al iniciar sesión y al cambiar de empresa activa.
   }, [session.token, session.empresaActivaId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Al guardar en la pantalla de identidad visual, la app aplica los colores sin recargar.
+  useEffect(() => {
+    const alGuardar = (evento: Event) => {
+      const { empresaId: id, colores } = (evento as CustomEvent<DetalleIdentidadActualizada>).detail;
+      guardarColoresCache(id, colores);
+      setConfirmados((previos) => ({ ...previos, [id]: colores }));
+    };
+    window.addEventListener(EVENTO_IDENTIDAD_ACTUALIZADA, alGuardar);
+    return () => window.removeEventListener(EVENTO_IDENTIDAD_ACTUALIZADA, alGuardar);
+  }, []);
 
   const colores = empresaId === null ? null : (confirmados[empresaId] ?? leerColoresCache(empresaId));
   const clave = colores ? `${colores.primario}|${colores.acento}|${colores.sidebar}` : '';
