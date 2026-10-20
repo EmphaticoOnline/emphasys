@@ -1,11 +1,11 @@
 -- Full schema export
 -- Database: emphasys
--- Generated at: 2026-10-10T18:41:36.486Z
+-- Generated at: 2026-10-20T18:07:11.904Z
 --
 -- PostgreSQL database dump
 --
 
-\restrict 6Ryq5TXcuSBi0cj06OVCROIPP0T9glzuhOZkhojRC7vKdAhEiiIZ87tsMleH2K4
+\restrict QNGb1zIxYsP6iEd59gJ6068Tbr8XmR7ePg0ZZUewXUd05hTrxO54fAPp8ovx2Ff
 
 -- Dumped from database version 14.24 (Ubuntu 14.24-0ubuntu0.22.04.1)
 -- Dumped by pg_dump version 18.0
@@ -902,62 +902,118 @@ END $$;
 CREATE FUNCTION inventario.reconstruir_producto(p_empresa_id integer, p_producto_id integer) RETURNS void
     LANGUAGE plpgsql
     AS $$
-DECLARE r record; q numeric(24,6); v numeric(24,6); avgc numeric(24,6);
-  outcost numeric(24,6); cantidad_calc numeric(24,6); valor_calc numeric(24,6);
-  permite_negativos boolean;
+DECLARE
+  r record;
+  q numeric(24,6); v numeric(24,6); avgc numeric(24,6); outcost numeric(24,6);
+  cantidad_calc numeric(24,6); valor_calc numeric(24,6); permite_negativos boolean;
 BEGIN
-  UPDATE inventario.movimientos_partidas mp SET existencia_resultante=0, valor_movimiento=NULL,
-    costo_promedio_resultante=NULL, secuencia_operativa=NULL
-   FROM inventario.movimientos m WHERE m.id=mp.movimiento_id AND m.empresa_id=mp.empresa_id
-    AND mp.empresa_id=p_empresa_id AND mp.producto_id=p_producto_id
-    AND COALESCE(m.estatus_afectacion,1)<>1;
-  SELECT lower(coalesce(pe.valor,p.valor_default,'false')) IN ('1','true','t','yes','si','sí','on')
-    INTO permite_negativos FROM core.parametros p LEFT JOIN core.parametros_empresa pe
+  UPDATE inventario.movimientos_partidas mp
+     SET existencia_resultante=0, valor_movimiento=NULL,
+         costo_promedio_resultante=NULL, secuencia_operativa=NULL
+    FROM inventario.movimientos m
+   WHERE m.id=mp.movimiento_id AND m.empresa_id=mp.empresa_id
+     AND mp.empresa_id=p_empresa_id AND mp.producto_id=p_producto_id
+     AND coalesce(m.estatus_afectacion,1)<>1;
+
+  SELECT lower(coalesce(pe.valor,p.valor_default,'false')) IN
+           ('1','true','t','yes','si','sí','on')
+    INTO permite_negativos
+    FROM core.parametros p
+    LEFT JOIN core.parametros_empresa pe
       ON pe.parametro_id=p.parametro_id AND pe.empresa_id=p_empresa_id
    WHERE p.clave='inventario.permite_negativos' LIMIT 1;
   permite_negativos:=coalesce(permite_negativos,false);
-  UPDATE inventario.existencias SET existencia=0,updated_at=now()
+
+  UPDATE inventario.existencias SET existencia=0, updated_at=now()
    WHERE empresa_id=p_empresa_id AND producto_id=p_producto_id;
-  CREATE TEMP TABLE IF NOT EXISTS pg_temp.inv_saldos_recalc(almacen_id integer PRIMARY KEY,
-    existencia numeric(24,6),valor numeric(24,6),ultimo_costo numeric(24,6)) ON COMMIT DROP;
-  TRUNCATE pg_temp.inv_saldos_recalc;
-  FOR r IN SELECT mp.id,mp.movimiento_id,m.fecha,mp.almacen_id,mp.almacen_destino_id,mp.cantidad,
-      mp.signo,mp.tipo_partida,mp.costo_unitario,coalesce(mp.precision_cantidad,6) precision_cantidad,
-      coalesce(mp.precision_costo,6) precision_costo,row_number() over(order by m.fecha,m.id,
-        CASE WHEN mp.tipo_partida='salida_transferencia' THEN 0 ELSE 1 END,mp.id) seq
-    FROM inventario.movimientos_partidas mp JOIN inventario.movimientos m
-      ON m.id=mp.movimiento_id AND m.empresa_id=mp.empresa_id
-   WHERE mp.empresa_id=p_empresa_id AND mp.producto_id=p_producto_id
-     AND coalesce(m.estatus_afectacion,1)=1
-   ORDER BY m.fecha,m.id,CASE WHEN mp.tipo_partida='salida_transferencia' THEN 0 ELSE 1 END,mp.id LOOP
-    INSERT INTO pg_temp.inv_saldos_recalc VALUES(r.almacen_id,0,0,NULL) ON CONFLICT DO NOTHING;
-    SELECT existencia,valor,ultimo_costo INTO q,v,outcost FROM pg_temp.inv_saldos_recalc WHERE almacen_id=r.almacen_id FOR UPDATE;
+
+  CREATE TEMP TABLE IF NOT EXISTS pg_temp.inv_saldos_canonicos (
+    almacen_id integer PRIMARY KEY,
+    existencia numeric(24,6), valor numeric(24,6), ultimo_costo numeric(24,6)
+  ) ON COMMIT DROP;
+  TRUNCATE pg_temp.inv_saldos_canonicos;
+
+  FOR r IN
+    SELECT mp.id, mp.movimiento_id, m.fecha, mp.almacen_id, mp.cantidad,
+           mp.signo, mp.tipo_partida, mp.costo_unitario,
+           coalesce(mp.precision_cantidad,6) precision_cantidad,
+           coalesce(mp.precision_costo,6) precision_costo,
+           row_number() OVER (ORDER BY m.fecha,m.id,
+             CASE WHEN mp.tipo_partida='salida_transferencia' THEN 0 ELSE 1 END,
+             mp.id) seq
+      FROM inventario.movimientos_partidas mp
+      JOIN inventario.movimientos m ON m.id=mp.movimiento_id
+       AND m.empresa_id=mp.empresa_id
+     WHERE mp.empresa_id=p_empresa_id AND mp.producto_id=p_producto_id
+       AND coalesce(m.estatus_afectacion,1)=1
+     ORDER BY m.fecha,m.id,
+       CASE WHEN mp.tipo_partida='salida_transferencia' THEN 0 ELSE 1 END,mp.id
+  LOOP
+    INSERT INTO pg_temp.inv_saldos_canonicos VALUES(r.almacen_id,0,0,NULL)
+      ON CONFLICT DO NOTHING;
+    SELECT existencia,valor,ultimo_costo INTO q,v,outcost
+      FROM pg_temp.inv_saldos_canonicos WHERE almacen_id=r.almacen_id FOR UPDATE;
     cantidad_calc:=round(r.cantidad,r.precision_cantidad);
+
     IF r.tipo_partida='entrada_transferencia' THEN
-      SELECT round(x.costo_unitario,r.precision_costo) INTO outcost FROM inventario.movimientos_partidas x
+      SELECT round(x.costo_unitario,r.precision_costo) INTO outcost
+        FROM inventario.movimientos_partidas x
        WHERE x.movimiento_id=r.movimiento_id AND x.producto_id=p_producto_id
-         AND x.tipo_partida='salida_transferencia' AND x.costo_unitario IS NOT NULL ORDER BY x.id LIMIT 1;
-      IF outcost IS NULL THEN RAISE EXCEPTION 'COSTO_TRANSFERENCIA_NO_DISPONIBLE: producto %',p_producto_id USING ERRCODE='P0001'; END IF;
+         AND x.empresa_id=p_empresa_id
+         AND x.tipo_partida='salida_transferencia' AND x.costo_unitario IS NOT NULL
+       ORDER BY x.id LIMIT 1;
+      IF outcost IS NULL THEN
+        RAISE EXCEPTION 'COSTO_TRANSFERENCIA_NO_DISPONIBLE: producto %',p_producto_id
+          USING ERRCODE='P0001';
+      END IF;
     ELSIF r.signo<0 THEN
-      IF NOT permite_negativos AND q<cantidad_calc THEN RAISE EXCEPTION 'EXISTENCIA_INSUFICIENTE: producto %, almacén %, disponible %, solicitado %',p_producto_id,r.almacen_id,q,cantidad_calc USING ERRCODE='P0001'; END IF;
+      IF NOT permite_negativos AND q<cantidad_calc THEN
+        RAISE EXCEPTION 'EXISTENCIA_INSUFICIENTE: producto %, almacén %, disponible %, solicitado %',
+          p_producto_id,r.almacen_id,q,cantidad_calc USING ERRCODE='P0001';
+      END IF;
       outcost:=CASE WHEN q<>0 THEN round(v/q,r.precision_costo) ELSE outcost END;
-      IF outcost IS NULL THEN RAISE EXCEPTION 'COSTO_NO_DISPONIBLE: producto %, almacén %',p_producto_id,r.almacen_id USING ERRCODE='P0001'; END IF;
+      IF outcost IS NULL THEN
+        RAISE EXCEPTION 'COSTO_NO_DISPONIBLE: producto %, almacén %',p_producto_id,r.almacen_id
+          USING ERRCODE='P0001';
+      END IF;
     ELSE
-      IF r.costo_unitario IS NULL OR r.costo_unitario<0 THEN RAISE EXCEPTION 'COSTO_ENTRADA_REQUERIDO: producto %, partida %',p_producto_id,r.id USING ERRCODE='P0001'; END IF;
+      IF r.costo_unitario IS NULL OR r.costo_unitario<0 THEN
+        RAISE EXCEPTION 'COSTO_ENTRADA_REQUERIDO: producto %, partida %',p_producto_id,r.id
+          USING ERRCODE='P0001';
+      END IF;
       outcost:=round(r.costo_unitario,r.precision_costo);
     END IF;
+
     valor_calc:=round(cantidad_calc*outcost,r.precision_costo);
-    q:=round(q+cantidad_calc*r.signo,r.precision_cantidad); v:=round(v+valor_calc*r.signo,r.precision_costo);
+    q:=round(q+cantidad_calc*r.signo,r.precision_cantidad);
+    v:=round(v+valor_calc*r.signo,r.precision_costo);
     avgc:=CASE WHEN q<>0 THEN round(v/q,r.precision_costo) ELSE outcost END;
-    UPDATE pg_temp.inv_saldos_recalc SET existencia=q,valor=v,ultimo_costo=outcost WHERE almacen_id=r.almacen_id;
-    UPDATE inventario.movimientos_partidas SET costo_unitario=CASE WHEN r.tipo_partida='entrada_transferencia' THEN outcost ELSE CASE WHEN r.signo<0 THEN outcost ELSE costo_unitario END END,
-      valor_movimiento=valor_calc*r.signo,existencia_resultante=q,costo_promedio_resultante=avgc,secuencia_operativa=r.seq WHERE id=r.id;
+    UPDATE pg_temp.inv_saldos_canonicos SET existencia=q,valor=v,ultimo_costo=outcost
+      WHERE almacen_id=r.almacen_id;
+    UPDATE inventario.movimientos_partidas
+       SET costo_unitario=CASE WHEN r.tipo_partida='entrada_transferencia' THEN outcost
+                               WHEN r.signo<0 THEN outcost ELSE costo_unitario END,
+           valor_movimiento=valor_calc*r.signo,
+           existencia_resultante=q,
+           costo_promedio_resultante=avgc,
+           secuencia_operativa=r.seq
+     WHERE id=r.id;
   END LOOP;
-  FOR r IN SELECT almacen_id,existencia FROM pg_temp.inv_saldos_recalc LOOP
-    INSERT INTO inventario.existencias(empresa_id,producto_id,almacen_id,existencia,updated_at) VALUES(p_empresa_id,p_producto_id,r.almacen_id,r.existencia,now())
-      ON CONFLICT(empresa_id,producto_id,almacen_id) DO UPDATE SET existencia=excluded.existencia,updated_at=now();
+
+  FOR r IN SELECT almacen_id,existencia FROM pg_temp.inv_saldos_canonicos LOOP
+    INSERT INTO inventario.existencias(empresa_id,producto_id,almacen_id,existencia,updated_at)
+    VALUES(p_empresa_id,p_producto_id,r.almacen_id,r.existencia,now())
+    ON CONFLICT(empresa_id,producto_id,almacen_id)
+    DO UPDATE SET existencia=excluded.existencia,updated_at=now();
   END LOOP;
 END $$;
+
+
+--
+-- Name: FUNCTION reconstruir_producto(p_empresa_id integer, p_producto_id integer); Type: COMMENT; Schema: inventario; Owner: -
+--
+
+COMMENT ON FUNCTION inventario.reconstruir_producto(p_empresa_id integer, p_producto_id integer) IS 'Implementación canónica: reconstruye por fecha, procesa cada partida una vez y conserva cantidades originales.';
 
 
 --
@@ -5070,6 +5126,191 @@ CREATE SEQUENCE core.empresas_id_seq
 --
 
 ALTER SEQUENCE core.empresas_id_seq OWNED BY core.empresas.id;
+
+
+--
+-- Name: empresas_identidad_visual; Type: TABLE; Schema: core; Owner: -
+--
+
+CREATE TABLE core.empresas_identidad_visual (
+    empresa_id integer NOT NULL,
+    color_primario character(7),
+    color_acento character(7),
+    color_sidebar character(7),
+    origen_primario text DEFAULT 'emphasys'::text NOT NULL,
+    origen_acento text DEFAULT 'emphasys'::text NOT NULL,
+    origen_sidebar text DEFAULT 'emphasys'::text NOT NULL,
+    propuesta_primario character(7),
+    propuesta_acento character(7),
+    propuesta_sidebar character(7),
+    propuesta_estado text,
+    propuesta_confianza numeric(4,3),
+    propuesta_detalle jsonb,
+    propuesta_asset_id integer,
+    propuesta_algoritmo_version smallint,
+    propuesta_generada_at timestamp with time zone,
+    actualizado_por integer,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT eiv_color_acento_hex CHECK (((color_acento IS NULL) OR (color_acento ~ '^#[0-9a-f]{6}$'::text))),
+    CONSTRAINT eiv_color_primario_hex CHECK (((color_primario IS NULL) OR (color_primario ~ '^#[0-9a-f]{6}$'::text))),
+    CONSTRAINT eiv_color_sidebar_hex CHECK (((color_sidebar IS NULL) OR (color_sidebar ~ '^#[0-9a-f]{6}$'::text))),
+    CONSTRAINT eiv_origen_acento CHECK (((origen_acento = ANY (ARRAY['emphasys'::text, 'analisis'::text, 'manual'::text])) AND ((color_acento IS NULL) = (origen_acento = 'emphasys'::text)))),
+    CONSTRAINT eiv_origen_primario CHECK (((origen_primario = ANY (ARRAY['emphasys'::text, 'analisis'::text, 'manual'::text])) AND ((color_primario IS NULL) = (origen_primario = 'emphasys'::text)))),
+    CONSTRAINT eiv_origen_sidebar CHECK (((origen_sidebar = ANY (ARRAY['emphasys'::text, 'analisis'::text, 'manual'::text])) AND ((color_sidebar IS NULL) = (origen_sidebar = 'emphasys'::text)))),
+    CONSTRAINT eiv_prop_acento_hex CHECK (((propuesta_acento IS NULL) OR (propuesta_acento ~ '^#[0-9a-f]{6}$'::text))),
+    CONSTRAINT eiv_prop_primario_hex CHECK (((propuesta_primario IS NULL) OR (propuesta_primario ~ '^#[0-9a-f]{6}$'::text))),
+    CONSTRAINT eiv_prop_sidebar_hex CHECK (((propuesta_sidebar IS NULL) OR (propuesta_sidebar ~ '^#[0-9a-f]{6}$'::text))),
+    CONSTRAINT eiv_propuesta_colores CHECK (
+CASE
+    WHEN (propuesta_estado = 'ok'::text) THEN ((propuesta_primario IS NOT NULL) AND (propuesta_acento IS NOT NULL) AND (propuesta_sidebar IS NOT NULL))
+    ELSE ((propuesta_primario IS NULL) AND (propuesta_acento IS NULL) AND (propuesta_sidebar IS NULL))
+END),
+    CONSTRAINT eiv_propuesta_confianza CHECK (((propuesta_confianza IS NULL) OR ((propuesta_confianza >= (0)::numeric) AND (propuesta_confianza <= (1)::numeric)))),
+    CONSTRAINT eiv_propuesta_detalle CHECK (((propuesta_detalle IS NULL) OR (jsonb_typeof(propuesta_detalle) = 'object'::text))),
+    CONSTRAINT eiv_propuesta_estado CHECK (((propuesta_estado IS NULL) OR (propuesta_estado = ANY (ARRAY['ok'::text, 'sin_colores_utiles'::text, 'error'::text])))),
+    CONSTRAINT eiv_propuesta_fecha CHECK (((propuesta_estado IS NULL) = (propuesta_generada_at IS NULL)))
+);
+
+
+--
+-- Name: TABLE empresas_identidad_visual; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON TABLE core.empresas_identidad_visual IS 'Identidad visual por empresa (1:1). Sin fila o con color NULL se usa la identidad de Emphasys. El logo vive en core.empresas_assets (logo_default).';
+
+
+--
+-- Name: COLUMN empresas_identidad_visual.empresa_id; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.empresas_identidad_visual.empresa_id IS 'Empresa (core.empresas). Se elimina junto con la empresa.';
+
+
+--
+-- Name: COLUMN empresas_identidad_visual.color_primario; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.empresas_identidad_visual.color_primario IS 'Color primario aprobado (#rrggbb). NULL = Emphasys.';
+
+
+--
+-- Name: COLUMN empresas_identidad_visual.color_acento; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.empresas_identidad_visual.color_acento IS 'Color de acento aprobado (#rrggbb); reemplaza solo el acento de marca. NULL = Emphasys.';
+
+
+--
+-- Name: COLUMN empresas_identidad_visual.color_sidebar; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.empresas_identidad_visual.color_sidebar IS 'Color del sidebar aprobado (#rrggbb); de él se derivan los grafitos. NULL = Emphasys.';
+
+
+--
+-- Name: COLUMN empresas_identidad_visual.origen_primario; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.empresas_identidad_visual.origen_primario IS 'emphasys | analisis | manual. Un color manual no se sobrescribe sin confirmación.';
+
+
+--
+-- Name: COLUMN empresas_identidad_visual.origen_acento; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.empresas_identidad_visual.origen_acento IS 'emphasys | analisis | manual. Un color manual no se sobrescribe sin confirmación.';
+
+
+--
+-- Name: COLUMN empresas_identidad_visual.origen_sidebar; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.empresas_identidad_visual.origen_sidebar IS 'emphasys | analisis | manual. Un color manual no se sobrescribe sin confirmación.';
+
+
+--
+-- Name: COLUMN empresas_identidad_visual.propuesta_primario; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.empresas_identidad_visual.propuesta_primario IS 'Primario propuesto por el último análisis del logo.';
+
+
+--
+-- Name: COLUMN empresas_identidad_visual.propuesta_acento; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.empresas_identidad_visual.propuesta_acento IS 'Acento propuesto por el último análisis del logo.';
+
+
+--
+-- Name: COLUMN empresas_identidad_visual.propuesta_sidebar; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.empresas_identidad_visual.propuesta_sidebar IS 'Sidebar propuesto por el último análisis del logo.';
+
+
+--
+-- Name: COLUMN empresas_identidad_visual.propuesta_estado; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.empresas_identidad_visual.propuesta_estado IS 'ok | sin_colores_utiles | error. NULL = nunca analizado.';
+
+
+--
+-- Name: COLUMN empresas_identidad_visual.propuesta_confianza; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.empresas_identidad_visual.propuesta_confianza IS 'Confianza del análisis, de 0 a 1.';
+
+
+--
+-- Name: COLUMN empresas_identidad_visual.propuesta_detalle; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.empresas_identidad_visual.propuesta_detalle IS 'Diagnóstico técnico del análisis (candidatos, contrastes, ajustes). Visible solo para superadministradores.';
+
+
+--
+-- Name: COLUMN empresas_identidad_visual.propuesta_asset_id; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.empresas_identidad_visual.propuesta_asset_id IS 'Logo analizado (core.empresas_assets).';
+
+
+--
+-- Name: COLUMN empresas_identidad_visual.propuesta_algoritmo_version; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.empresas_identidad_visual.propuesta_algoritmo_version IS 'Versión del algoritmo que generó la propuesta.';
+
+
+--
+-- Name: COLUMN empresas_identidad_visual.propuesta_generada_at; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.empresas_identidad_visual.propuesta_generada_at IS 'Fecha del último análisis.';
+
+
+--
+-- Name: COLUMN empresas_identidad_visual.actualizado_por; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.empresas_identidad_visual.actualizado_por IS 'Último usuario que guardó colores (core.usuarios).';
+
+
+--
+-- Name: COLUMN empresas_identidad_visual.created_at; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.empresas_identidad_visual.created_at IS 'Fecha de creación del registro.';
+
+
+--
+-- Name: COLUMN empresas_identidad_visual.updated_at; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.empresas_identidad_visual.updated_at IS 'Última modificación; la actualiza el servicio en cada escritura.';
 
 
 --
@@ -21148,6 +21389,14 @@ ALTER TABLE ONLY core.empresas_cfdi_pac_config
 
 
 --
+-- Name: empresas_identidad_visual empresas_identidad_visual_pkey; Type: CONSTRAINT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.empresas_identidad_visual
+    ADD CONSTRAINT empresas_identidad_visual_pkey PRIMARY KEY (empresa_id);
+
+
+--
 -- Name: empresas_impuestos_default empresas_impuestos_default_pkey; Type: CONSTRAINT; Schema: core; Owner: -
 --
 
@@ -26958,6 +27207,30 @@ ALTER TABLE ONLY core.empresa_horarios_laborales
 
 
 --
+-- Name: empresas_identidad_visual empresas_identidad_visual_actualizado_por_fkey; Type: FK CONSTRAINT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.empresas_identidad_visual
+    ADD CONSTRAINT empresas_identidad_visual_actualizado_por_fkey FOREIGN KEY (actualizado_por) REFERENCES core.usuarios(id) ON DELETE SET NULL;
+
+
+--
+-- Name: empresas_identidad_visual empresas_identidad_visual_empresa_id_fkey; Type: FK CONSTRAINT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.empresas_identidad_visual
+    ADD CONSTRAINT empresas_identidad_visual_empresa_id_fkey FOREIGN KEY (empresa_id) REFERENCES core.empresas(id) ON DELETE CASCADE;
+
+
+--
+-- Name: empresas_identidad_visual empresas_identidad_visual_propuesta_asset_id_fkey; Type: FK CONSTRAINT; Schema: core; Owner: -
+--
+
+ALTER TABLE ONLY core.empresas_identidad_visual
+    ADD CONSTRAINT empresas_identidad_visual_propuesta_asset_id_fkey FOREIGN KEY (propuesta_asset_id) REFERENCES core.empresas_assets(id) ON DELETE SET NULL;
+
+
+--
 -- Name: entidades_catalogos entidades_catalogos_catalogo_id_fkey; Type: FK CONSTRAINT; Schema: core; Owner: -
 --
 
@@ -29104,5 +29377,5 @@ ALTER TABLE ONLY whatsapp.plantillas
 -- PostgreSQL database dump complete
 --
 
-\unrestrict 6Ryq5TXcuSBi0cj06OVCROIPP0T9glzuhOZkhojRC7vKdAhEiiIZ87tsMleH2K4
+\unrestrict QNGb1zIxYsP6iEd59gJ6068Tbr8XmR7ePg0ZZUewXUd05hTrxO54fAPp8ovx2Ff
 
