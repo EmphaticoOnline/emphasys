@@ -1,18 +1,17 @@
-import { ThemeProvider } from '@mui/material/styles';
 import { Outlet, useLocation } from 'react-router-dom';
+import BrandThemeProvider from './BrandThemeProvider';
 import { resolveActiveThemeId } from './resolveActiveTheme';
-import { getThemeById } from './themes';
 
 /**
- * Aplica el tema que resuelve `resolveActiveThemeId`.
+ * Aplica el tema que resuelve `resolveActiveThemeId`, con la marca activa.
  * No monta CssBaseline: el de la raíz sigue siendo el único.
  */
 export default function AppThemeGate() {
   const { pathname } = useLocation();
   const themeId = resolveActiveThemeId({ pathname });
   return (
-    <ThemeProvider theme={getThemeById(themeId)}>
+    <BrandThemeProvider themeId={themeId}>
       <Outlet />
-    </ThemeProvider>
+    </BrandThemeProvider>
   );
 }

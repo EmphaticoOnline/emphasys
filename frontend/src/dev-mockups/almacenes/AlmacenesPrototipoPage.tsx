@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import { CssBaseline, ThemeProvider } from '@mui/material';
+import { CssBaseline } from '@mui/material';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { experimentalTheme } from '../../theme/themes';
+import BrandThemeProvider from '../../theme/BrandThemeProvider';
 import { ALMACENES_INICIALES, formularioVacio, type AlmacenMock, type FormularioAlmacen } from './datos';
 import { FormularioAlmacenPrototipo } from './FormularioAlmacenPrototipo';
 import { ListadoAlmacenesPrototipo } from './ListadoAlmacenesPrototipo';
@@ -66,7 +66,7 @@ export default function AlmacenesPrototipoPage() {
   };
 
   return (
-    <ThemeProvider theme={experimentalTheme}>
+    <BrandThemeProvider themeId="experimental">
       <CssBaseline />
       <TiraPrototipo modo={ruta.modo === 'lista' ? 'lista' : 'formulario'} onLista={irLista} onFormulario={irNuevo} />
       {ruta.modo === 'lista' ? (
@@ -93,6 +93,6 @@ export default function AlmacenesPrototipoPage() {
           onGuardar={guardar}
         />
       )}
-    </ThemeProvider>
+    </BrandThemeProvider>
   );
 }
