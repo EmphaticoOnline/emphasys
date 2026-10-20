@@ -10,6 +10,10 @@ import {
   obtenerAssetEmpresaController,
   subirAssetEmpresaController,
 } from "../controllers/empresasController";
+import {
+  actualizarIdentidadVisualController,
+  obtenerIdentidadVisualController,
+} from "../controllers/empresasIdentidadVisualController";
 
 const router = Router();
 
@@ -41,5 +45,7 @@ router.put("/:id", requireAuth, actualizarEmpresaController);
 router.delete("/:id", requireAuth, eliminarEmpresaController);
 router.get("/:empresa_id/assets/:tipo", requireAuth, obtenerAssetEmpresaController);
 router.post("/:empresa_id/assets", requireAuth, manejarUploadAsset, subirAssetEmpresaController);
+router.get("/:empresa_id/identidad-visual", requireAuth, obtenerIdentidadVisualController);
+router.put("/:empresa_id/identidad-visual", requireAuth, actualizarIdentidadVisualController);
 
 export default router;

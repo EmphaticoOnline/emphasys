@@ -33,7 +33,8 @@
     "test:carta-porte-consistency": "ts-node src/scripts/testCartaPorteConsistency.ts",
     "test:carta-porte-timbrado": "ts-node src/scripts/testCartaPorteTimbradoIntegration.ts",
     "test:factura-venta-estandar-transicion": "ts-node src/scripts/testFacturaVentaEstandarTransicion.ts",
-    "test:trazabilidad-partidas": "ts-node src/scripts/testTrazabilidadPartidas.ts"
+    "test:trazabilidad-partidas": "ts-node src/scripts/testTrazabilidadPartidas.ts",
+    "test:identidad-visual": "ts-node --compiler-options '{\"rootDir\":\".\"}' test/identidadVisual.test.ts"
   },
   "keywords": [],
   "author": "",
