@@ -10,18 +10,17 @@ export function ConfigPageFrame({ children }: { children: React.ReactNode }) {
   return (
     <Box
       sx={{
-        flex: 1,
+        flex: '1 1 auto',
         minHeight: 0,
         overflow: 'auto',
         px: { xs: 1.5, md: 2.75 },
         py: 1.6,
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 1.5,
         bgcolor: tokens.content.background,
       }}
     >
-      {children}
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, minWidth: 0 }}>
+        {children}
+      </Box>
     </Box>
   );
 }

@@ -12,6 +12,7 @@
     "db:query": "ts-node src/scripts/dbQuery.ts",
     "repair:historical-partida-totals": "ts-node src/scripts/repararTotalPartidasHistoricas.ts",
     "db:migrate:file": "ts-node src/scripts/dbMigrateFile.ts",
+    "test:activity-reminders-job": "ts-node src/scripts/testActivityRemindersJob.ts",
     "migrar:dicor-documentos": "ts-node src/scripts/migrarDicorDocumentos.ts",
     "migrar:dicor-documentos-empresa": "ts-node src/scripts/migrarDicorDocumentosEmpresa.ts",
     "migrar:dicor-entregas": "ts-node src/scripts/migrarDicorEntregas.ts",
