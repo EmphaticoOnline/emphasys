@@ -33,8 +33,9 @@ import {
   type ProductosBajoMinimoResult,
   type ProductoBajoMinimo,
 } from '../../../services/reportesService';
+import { alertColors, alertRowColors, moduleAccents } from '../../../theme/functional';
 
-const COLOR = '#7c3aed';
+const COLOR = moduleAccents.inventoryReports;
 const fmt = (v: number) => v.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmtCant = (v: number) => v.toLocaleString('es-MX', { maximumFractionDigits: 4 });
 
@@ -242,9 +243,9 @@ export default function ProductosBajoMinimoPage() {
       {/* Tarjetas resumen */}
       {resultado && (
         <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
-          <SummaryCard icon={WarningAmberIcon} label="Productos bajo mínimo" value={String(resultado.total_productos)} color="#dc2626" />
-          <SummaryCard icon={InventoryIcon} label="Unidades faltantes" value={fmtCant(lineas.reduce((s, l) => s + l.faltante, 0))} color="#b45309" />
-          <SummaryCard icon={AttachMoneyIcon} label="Valor faltante aprox." value={`$${fmt(resultado.total_valor_faltante)}`} color="#dc2626" />
+          <SummaryCard icon={WarningAmberIcon} label="Productos bajo mínimo" value={String(resultado.total_productos)} color={alertColors.error[600]} />
+          <SummaryCard icon={InventoryIcon} label="Unidades faltantes" value={fmtCant(lineas.reduce((s, l) => s + l.faltante, 0))} color={alertColors.warning[700]} />
+          <SummaryCard icon={AttachMoneyIcon} label="Valor faltante aprox." value={`$${fmt(resultado.total_valor_faltante)}`} color={alertColors.error[600]} />
         </Box>
       )}
 
@@ -275,7 +276,7 @@ export default function ProductosBajoMinimoPage() {
                 columnHeaderHeight={STANDARD_DATA_GRID_HEADER_HEIGHT}
                 disableRowSelectionOnClick
                 localeText={{ ...esES.components.MuiDataGrid.defaultProps.localeText, noRowsLabel: 'No hay productos bajo mínimo' }}
-                sx={[standardDataGridSx, { border: '1px solid', borderColor: 'divider', '& .MuiDataGrid-row': { bgcolor: '#fff5f5' } }]}
+                sx={[standardDataGridSx, { border: '1px solid', borderColor: 'divider', '& .MuiDataGrid-row': { bgcolor: alertRowColors.belowMinimum } }]}
               />
             </Box>
             <Box sx={{ display: 'flex', gap: 3, mt: 1.5, pt: 1.5, borderTop: '2px solid', borderColor: 'error.main', justifyContent: 'flex-end', flexWrap: 'wrap' }}>

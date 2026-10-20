@@ -49,6 +49,8 @@ import {
 import { HistorialConciliacionesDialog } from '../../modules/finanzas/HistorialConciliacionesDialog';
 import { ImportarEstadoCuentaDialog } from '../../modules/finanzas/ImportarEstadoCuentaDialog';
 import { useSession } from '../../session/useSession';
+import { cashFlowColors, onStatusColors, stalenessColors } from '../../theme/functional';
+import { onPrimaryColors } from '../../theme/structural';
 
 const fmt = (n: number, moneda = 'MXN') =>
   new Intl.NumberFormat('es-MX', { style: 'currency', currency: moneda }).format(n);
@@ -394,7 +396,7 @@ export default function ConciliacionBancariaPage() {
         renderCell: ({ row }) => (
           <Typography
             sx={{ fontSize: 13 }}
-            color={row.tipo_movimiento === 'Deposito' ? 'success.main' : 'error.main'}
+            color={row.tipo_movimiento === 'Deposito' ? cashFlowColors.inflow : cashFlowColors.outflow}
             fontWeight={600}
           >
             {row.tipo_movimiento === 'Deposito' ? '+' : '−'}
@@ -436,7 +438,7 @@ export default function ConciliacionBancariaPage() {
         headerAlign: 'right',
         renderCell: ({ value }) => {
           const n = Number(value);
-          const color = n > 30 ? 'error.main' : n > 7 ? 'warning.main' : 'text.secondary';
+          const color = n > 30 ? stalenessColors.stale : n > 7 ? stalenessColors.aging : 'text.secondary';
           return (
             <Typography sx={{ fontSize: 13 }} color={color} fontWeight={n > 30 ? 700 : 400}>
               {n}
@@ -787,7 +789,7 @@ export default function ConciliacionBancariaPage() {
             disabled={guardando}
             sx={{ textTransform: 'none' }}
           >
-            {guardando ? <CircularProgress size={18} sx={{ color: 'white' }} /> : 'Confirmar cierre'}
+            {guardando ? <CircularProgress size={18} sx={{ color: onPrimaryColors.progress }} /> : 'Confirmar cierre'}
           </Button>
         </DialogActions>
       </Dialog>
@@ -874,7 +876,7 @@ export default function ConciliacionBancariaPage() {
             sx={{ textTransform: 'none' }}
           >
             {deshaciendo
-              ? <CircularProgress size={18} sx={{ color: 'white' }} />
+              ? <CircularProgress size={18} sx={{ color: onStatusColors.warningProgress }} />
               : 'Eliminar'}
           </Button>
         </DialogActions>

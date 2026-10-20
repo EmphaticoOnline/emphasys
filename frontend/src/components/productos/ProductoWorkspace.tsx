@@ -50,6 +50,7 @@ import { useGridPreferences } from '../../hooks/useGridPreferences';
 import ProductoHistorialComercial from './ProductoHistorialComercial';
 import { folioVisualDesdeSerieYFolio, resolverFolioVisual } from '../../utils/documentos.utils';
 import type { RestauracionProductoRelacionado } from '../../modules/productos/productosOrigenNavegacion';
+import { amountSignColor } from '../../theme/sign';
 
 export async function alternarActivoDeProducto(producto: Producto): Promise<Producto> {
   const payload: ProductoBasico = {
@@ -764,7 +765,7 @@ function KardexProducto({
                         textAlign: columna.numerica ? 'right' : 'left',
                         fontVariantNumeric: 'tabular-nums',
                         color: columna.id === 'cantidad'
-                          ? (cantidad == null || cantidad === 0 ? theme.emphasys.table.muted : cantidad > 0 ? theme.emphasys.metric.applied.foreground : theme.emphasys.action.destructive)
+                          ? (cantidad == null || cantidad === 0 ? theme.emphasys.table.muted : cantidad > 0 ? amountSignColor(theme.emphasys, 'positive') : amountSignColor(theme.emphasys, 'negative'))
                           : columna.id === 'existencia'
                             ? theme.emphasys.action.primary
                             : columna.id === 'costo' || columna.id === 'costo_promedio'

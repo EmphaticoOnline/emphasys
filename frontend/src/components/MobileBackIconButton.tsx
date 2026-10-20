@@ -1,5 +1,8 @@
 import { IconButton } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import { neutralColors, whiteSurfaces } from '../theme/structural';
+import { activeBrand } from '../theme/brand/active';
+import { elevation } from '../theme/elevation';
 
 type MobileBackIconButtonProps = {
   onClick: () => void;
@@ -18,11 +21,11 @@ export default function MobileBackIconButton({
       onClick={onClick}
       disabled={disabled}
       sx={{
-        backgroundColor: '#ffffff',
-        color: '#1d2f68',
-        border: '1px solid #dbe3f0',
-        boxShadow: '0 6px 18px rgba(15, 23, 42, 0.08)',
-        '&:hover': { backgroundColor: '#f8fafc' },
+        backgroundColor: whiteSurfaces.floatingButton,
+        color: activeBrand.colors.blue.base,
+        border: `1px solid ${neutralColors.steel.line}`,
+        boxShadow: elevation.floatingButton,
+        '&:hover': { backgroundColor: neutralColors.slate[50] },
       }}
     >
       <ArrowBackIcon />

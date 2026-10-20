@@ -1,0 +1,337 @@
+{
+  "source": "HEAD 1acdbd2, DocumentosFormPage subbloque s4",
+  "files": {
+    "pages/DocumentosFormPage.tsx": {
+      "headSha256": "8de1f492a8335075c81d88695b2b7e2fee07b9a1e8a5ad8f88ff197824b99fc1",
+      "addedImports": [],
+      "lines": {
+        "5858": {
+          "original": "            <Typography variant=\"body2\" color=\"#4b5563\">",
+          "migrated": "            <Typography variant=\"body2\" color={neutralColors.gray[600]}>",
+          "entries": [
+            {
+              "hex": "#4b5563",
+              "token": "neutralColors.gray[600]"
+            }
+          ]
+        },
+        "5887": {
+          "original": "            <Typography variant=\"body2\" color=\"#4b5563\">",
+          "migrated": "            <Typography variant=\"body2\" color={neutralColors.gray[600]}>",
+          "entries": [
+            {
+              "hex": "#4b5563",
+              "token": "neutralColors.gray[600]"
+            }
+          ]
+        },
+        "7097": {
+          "original": "                    <Paper variant=\"outlined\" sx={{ borderColor: '#e5e7eb', overflow: 'hidden' }}>",
+          "migrated": "                    <Paper variant=\"outlined\" sx={{ borderColor: neutralColors.gray[200], overflow: 'hidden' }}>",
+          "entries": [
+            {
+              "hex": "#e5e7eb",
+              "token": "neutralColors.gray[200]"
+            }
+          ]
+        },
+        "7107": {
+          "original": "                              bgcolor: '#f8fafc',",
+          "migrated": "                              bgcolor: neutralColors.slate[50],",
+          "entries": [
+            {
+              "hex": "#f8fafc",
+              "token": "neutralColors.slate[50]"
+            }
+          ]
+        },
+        "7108": {
+          "original": "                              borderBottom: '1px solid #e5e7eb',",
+          "migrated": "                              borderBottom: `1px solid ${neutralColors.gray[200]}`,",
+          "entries": [
+            {
+              "hex": "#e5e7eb",
+              "token": "neutralColors.gray[200]"
+            }
+          ]
+        },
+        "7115": {
+          "original": "                              <Typography key={header} variant=\"caption\" sx={{ fontWeight: 800, color: '#475569', fontSize: 11.5 }}>",
+          "migrated": "                              <Typography key={header} variant=\"caption\" sx={{ fontWeight: 800, color: neutralColors.slate[600], fontSize: 11.5 }}>",
+          "entries": [
+            {
+              "hex": "#475569",
+              "token": "neutralColors.slate[600]"
+            }
+          ]
+        },
+        "7370": {
+          "original": "                                  <Typography variant=\"body2\" fontWeight={item.label === 'Total' ? 800 : 700} color={item.label === 'Total' ? '#111827' : 'text.primary'} noWrap>",
+          "migrated": "                                  <Typography variant=\"body2\" fontWeight={item.label === 'Total' ? 800 : 700} color={item.label === 'Total' ? neutralColors.gray[900] : 'text.primary'} noWrap>",
+          "entries": [
+            {
+              "hex": "#111827",
+              "token": "neutralColors.gray[900]"
+            }
+          ]
+        },
+        "7453": {
+          "original": "                                          color: '#111827',",
+          "migrated": "                                          color: neutralColors.gray[900],",
+          "entries": [
+            {
+              "hex": "#111827",
+              "token": "neutralColors.gray[900]"
+            }
+          ]
+        },
+        "7466": {
+          "original": "                                          color: '#374151',",
+          "migrated": "                                          color: neutralColors.gray[700],",
+          "entries": [
+            {
+              "hex": "#374151",
+              "token": "neutralColors.gray[700]"
+            }
+          ]
+        },
+        "7648": {
+          "original": "                                  <Paper variant=\"outlined\" sx={{ px: 1.25, py: 1, borderRadius: 1.5, borderColor: '#e5e7eb', bgcolor: '#f8fafc' }}>",
+          "migrated": "                                  <Paper variant=\"outlined\" sx={{ px: 1.25, py: 1, borderRadius: 1.5, borderColor: neutralColors.gray[200], bgcolor: neutralColors.slate[50] }}>",
+          "entries": [
+            {
+              "hex": "#e5e7eb",
+              "token": "neutralColors.gray[200]"
+            },
+            {
+              "hex": "#f8fafc",
+              "token": "neutralColors.slate[50]"
+            }
+          ]
+        },
+        "7649": {
+          "original": "                                    <Typography variant=\"caption\" sx={{ display: 'block', color: '#64748b', fontSize: 11.5, mb: 0.5 }}>",
+          "migrated": "                                    <Typography variant=\"caption\" sx={{ display: 'block', color: neutralColors.slate[500], fontSize: 11.5, mb: 0.5 }}>",
+          "entries": [
+            {
+              "hex": "#64748b",
+              "token": "neutralColors.slate[500]"
+            }
+          ]
+        },
+        "7667": {
+          "original": "                                      <Typography variant=\"body2\" sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, color: '#111827' }}>",
+          "migrated": "                                      <Typography variant=\"body2\" sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, color: neutralColors.gray[900] }}>",
+          "entries": [
+            {
+              "hex": "#111827",
+              "token": "neutralColors.gray[900]"
+            }
+          ]
+        },
+        "7845": {
+          "original": "                                    color: '#111827',",
+          "migrated": "                                    color: neutralColors.gray[900],",
+          "entries": [
+            {
+              "hex": "#111827",
+              "token": "neutralColors.gray[900]"
+            }
+          ]
+        },
+        "7858": {
+          "original": "                                    color: '#374151',",
+          "migrated": "                                    color: neutralColors.gray[700],",
+          "entries": [
+            {
+              "hex": "#374151",
+              "token": "neutralColors.gray[700]"
+            }
+          ]
+        },
+        "8313": {
+          "original": "                <Paper variant=\"outlined\" sx={{ borderRadius: 1.5, borderColor: '#dbe3f0', overflow: 'hidden' }}>",
+          "migrated": "                <Paper variant=\"outlined\" sx={{ borderRadius: 1.5, borderColor: neutralColors.steel.line, overflow: 'hidden' }}>",
+          "entries": [
+            {
+              "hex": "#dbe3f0",
+              "token": "neutralColors.steel.line"
+            }
+          ]
+        },
+        "8365": {
+          "original": "                              borderColor: '#e5e7eb',",
+          "migrated": "                              borderColor: neutralColors.gray[200],",
+          "entries": [
+            {
+              "hex": "#e5e7eb",
+              "token": "neutralColors.gray[200]"
+            }
+          ]
+        },
+        "8374": {
+          "original": "                            <Typography variant=\"caption\" sx={{ color: '#64748b', fontSize: 11.5 }}>",
+          "migrated": "                            <Typography variant=\"caption\" sx={{ color: neutralColors.slate[500], fontSize: 11.5 }}>",
+          "entries": [
+            {
+              "hex": "#64748b",
+              "token": "neutralColors.slate[500]"
+            }
+          ]
+        },
+        "8435": {
+          "original": "                      borderColor: '#e5e7eb',",
+          "migrated": "                      borderColor: neutralColors.gray[200],",
+          "entries": [
+            {
+              "hex": "#e5e7eb",
+              "token": "neutralColors.gray[200]"
+            }
+          ]
+        },
+        "8444": {
+          "original": "                    <Typography variant=\"caption\" sx={{ display: 'block', color: '#64748b', fontSize: 11.5 }}>",
+          "migrated": "                    <Typography variant=\"caption\" sx={{ display: 'block', color: neutralColors.slate[500], fontSize: 11.5 }}>",
+          "entries": [
+            {
+              "hex": "#64748b",
+              "token": "neutralColors.slate[500]"
+            }
+          ]
+        },
+        "8497": {
+          "original": "            sx={{ px: 2, py: 1.25, bgcolor: '#f8fafc', borderBottom: '1px solid', borderColor: 'rgba(148,163,184,0.25)' }}",
+          "migrated": "            sx={{ px: 2, py: 1.25, bgcolor: neutralColors.slate[50], borderBottom: '1px solid', borderColor: 'rgba(148,163,184,0.25)' }}",
+          "entries": [
+            {
+              "hex": "#f8fafc",
+              "token": "neutralColors.slate[50]"
+            }
+          ]
+        },
+        "8499": {
+          "original": "            <Typography variant=\"subtitle2\" sx={{ fontWeight: 700, color: '#1e293b', flexGrow: 1 }}>",
+          "migrated": "            <Typography variant=\"subtitle2\" sx={{ fontWeight: 700, color: neutralColors.slate[800], flexGrow: 1 }}>",
+          "entries": [
+            {
+              "hex": "#1e293b",
+              "token": "neutralColors.slate[800]"
+            }
+          ]
+        },
+        "8525": {
+          "original": "                  <TableRow sx={{ '& th': { bgcolor: '#f1f5f9', fontWeight: 700, fontSize: '0.75rem', color: '#475569', py: 0.75 } }}>",
+          "migrated": "                  <TableRow sx={{ '& th': { bgcolor: neutralColors.slate[100], fontWeight: 700, fontSize: '0.75rem', color: neutralColors.slate[600], py: 0.75 } }}>",
+          "entries": [
+            {
+              "hex": "#f1f5f9",
+              "token": "neutralColors.slate[100]"
+            },
+            {
+              "hex": "#475569",
+              "token": "neutralColors.slate[600]"
+            }
+          ]
+        },
+        "8539": {
+          "original": "                        <Typography variant=\"body2\" sx={{ fontSize: '0.8rem', fontWeight: 500, color: '#1e293b' }}>",
+          "migrated": "                        <Typography variant=\"body2\" sx={{ fontSize: '0.8rem', fontWeight: 500, color: neutralColors.slate[800] }}>",
+          "entries": [
+            {
+              "hex": "#1e293b",
+              "token": "neutralColors.slate[800]"
+            }
+          ]
+        },
+        "8543": {
+          "original": "                          <Typography variant=\"caption\" sx={{ color: '#64748b' }}>{p.producto_clave}</Typography>",
+          "migrated": "                          <Typography variant=\"caption\" sx={{ color: neutralColors.slate[500] }}>{p.producto_clave}</Typography>",
+          "entries": [
+            {
+              "hex": "#64748b",
+              "token": "neutralColors.slate[500]"
+            }
+          ]
+        },
+        "8546": {
+          "original": "                      <TableCell align=\"right\" sx={{ color: '#334155' }}>",
+          "migrated": "                      <TableCell align=\"right\" sx={{ color: neutralColors.slate[700] }}>",
+          "entries": [
+            {
+              "hex": "#334155",
+              "token": "neutralColors.slate[700]"
+            }
+          ]
+        },
+        "8558": {
+          "original": "                  <TableRow sx={{ bgcolor: '#f8fafc', '& td': { fontWeight: 700, fontSize: '0.8rem', borderTop: '2px solid', borderColor: 'rgba(148,163,184,0.4)' } }}>",
+          "migrated": "                  <TableRow sx={{ bgcolor: neutralColors.slate[50], '& td': { fontWeight: 700, fontSize: '0.8rem', borderTop: '2px solid', borderColor: 'rgba(148,163,184,0.4)' } }}>",
+          "entries": [
+            {
+              "hex": "#f8fafc",
+              "token": "neutralColors.slate[50]"
+            }
+          ]
+        },
+        "8570": {
+          "original": "            <Box sx={{ px: 2, py: 2, color: '#94a3b8', fontSize: '0.82rem' }}>",
+          "migrated": "            <Box sx={{ px: 2, py: 2, color: neutralColors.slate[400], fontSize: '0.82rem' }}>",
+          "entries": [
+            {
+              "hex": "#94a3b8",
+              "token": "neutralColors.slate[400]"
+            }
+          ]
+        },
+        "8623": {
+          "original": "                <Typography variant=\"caption\" sx={{ color: '#64748b', fontSize: 10.5, lineHeight: 1.1 }}>",
+          "migrated": "                <Typography variant=\"caption\" sx={{ color: neutralColors.slate[500], fontSize: 10.5, lineHeight: 1.1 }}>",
+          "entries": [
+            {
+              "hex": "#64748b",
+              "token": "neutralColors.slate[500]"
+            }
+          ]
+        },
+        "8657": {
+          "original": "          <DialogContentText sx={{ color: '#374151' }}>",
+          "migrated": "          <DialogContentText sx={{ color: neutralColors.gray[700] }}>",
+          "entries": [
+            {
+              "hex": "#374151",
+              "token": "neutralColors.gray[700]"
+            }
+          ]
+        },
+        "8678": {
+          "original": "          <DialogContentText sx={{ color: '#374151' }}>",
+          "migrated": "          <DialogContentText sx={{ color: neutralColors.gray[700] }}>",
+          "entries": [
+            {
+              "hex": "#374151",
+              "token": "neutralColors.gray[700]"
+            }
+          ]
+        },
+        "8704": {
+          "original": "          <DialogContentText sx={{ color: '#374151' }}>",
+          "migrated": "          <DialogContentText sx={{ color: neutralColors.gray[700] }}>",
+          "entries": [
+            {
+              "hex": "#374151",
+              "token": "neutralColors.gray[700]"
+            }
+          ]
+        }
+      },
+      "snippets": {},
+      "keptLiteral": {
+        "#475569": 1,
+        "#111827": 3,
+        "#334155": 3,
+        "#f1f5f9": 1,
+        "#94a3b8": 1
+      }
+    }
+  }
+}

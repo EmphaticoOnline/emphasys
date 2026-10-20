@@ -6,6 +6,8 @@ import {
   type CfdiSatAlmacenamiento,
   type CfdiSatResumenModulo,
 } from '../../services/cfdiSatService';
+import { neutralColors, whiteSurfaces } from '../../theme/structural';
+import { activeBrand } from '../../theme/brand/active';
 
 function formatBytes(bytes: number): string {
   if (bytes <= 0) return '0 B';
@@ -28,14 +30,14 @@ function StatTile({
   return (
     <Box
       sx={{
-        border: '1px solid #dbe3f0',
+        border: `1px solid ${neutralColors.steel.line}`,
         borderRadius: 2,
         p: 2,
-        backgroundColor: '#fff',
+        backgroundColor: whiteSurfaces.panel,
         minWidth: 0,
       }}
     >
-      <Typography variant="caption" color="#6b7280" component="div" noWrap>
+      <Typography variant="caption" color={neutralColors.gray[500]} component="div" noWrap>
         {label}
       </Typography>
       <Typography variant="h5" fontWeight={600} sx={{ color }}>
@@ -76,9 +78,9 @@ export default function ResumenSatCards() {
   }, []);
 
   return (
-    <Card variant="outlined" sx={{ borderRadius: 2, borderColor: '#dbe3f0' }}>
+    <Card variant="outlined" sx={{ borderRadius: 2, borderColor: neutralColors.steel.line }}>
       <CardContent sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 2 }}>
-        <Typography variant="h6" fontWeight={700} color="#1d2f68">
+        <Typography variant="h6" fontWeight={700} color={activeBrand.colors.blue.base}>
           Resumen del módulo
         </Typography>
 
@@ -109,7 +111,7 @@ export default function ResumenSatCards() {
             </Box>
 
             {almacenamiento && (
-              <Typography variant="caption" color="#6b7280">
+              <Typography variant="caption" color={neutralColors.gray[500]}>
                 Storage de esta empresa: {almacenamiento.total_archivos} archivo
                 {almacenamiento.total_archivos === 1 ? '' : 's'} ({formatBytes(almacenamiento.total_bytes)}) —{' '}
                 {almacenamiento.zips.archivos} ZIP{!almacenamiento.zips.disponible ? ' (no se pudo medir)' : ''},{' '}

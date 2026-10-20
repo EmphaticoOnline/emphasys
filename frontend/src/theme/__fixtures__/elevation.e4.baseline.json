@@ -1,0 +1,109 @@
+{
+  "source": "HEAD dbdf348, elevación bloque e4",
+  "files": {
+    "components/documentos/DocumentosMobileView.tsx": {
+      "headSha256": "0836555fcc10c0de290a0bd115fa7fa67458fa8a9c526ccce2a1699c391a4eff",
+      "addedImports": [],
+      "lines": {
+        "285": {
+          "original": "            boxShadow: '0 10px 24px rgba(29, 47, 104, 0.28)',",
+          "migrated": "            boxShadow: brandElevation.primaryGlow,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'0 10px 24px rgba(29, 47, 104, 0.28)'",
+              "to": "brandElevation.primaryGlow",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "pages/OportunidadesPage.tsx": {
+      "headSha256": "9cc109a6b5ea4db23598e1b939c3c0741ca8ee5deace17c1f4b5a8fdf46c1b6e",
+      "addedImports": [],
+      "lines": {
+        "65": {
+          "original": "import { elevation } from '../theme/elevation';",
+          "migrated": "import { brandElevation, elevation, surfaceGradients } from '../theme/elevation';",
+          "entries": [],
+          "replacements": [],
+          "importMerge": true
+        },
+        "1615": {
+          "original": "                      boxShadow: filtersOpen || activeAdvancedFiltersCount > 0 ? '0 6px 16px rgba(29, 47, 104, 0.16)' : 'none',",
+          "migrated": "                      boxShadow: filtersOpen || activeAdvancedFiltersCount > 0 ? brandElevation.activeGlow : 'none',",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'0 6px 16px rgba(29, 47, 104, 0.16)'",
+              "to": "brandElevation.activeGlow",
+              "times": 1
+            }
+          ]
+        },
+        "1629": {
+          "original": "                      background: 'linear-gradient(180deg, #fbfcff 0%, #f6f8fd 100%)',",
+          "migrated": "                      background: surfaceGradients.header,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'linear-gradient(180deg, #fbfcff 0%, #f6f8fd 100%)'",
+              "to": "surfaceGradients.header",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "components/productos/formulario/SeccionCard.tsx": {
+      "headSha256": "3c32dae94420368f338ef5f159177fe48b79eb0c3a4cbd15259faa6667ccc408",
+      "addedImports": [
+        "import { surfaceGradients } from '../../../theme/elevation';"
+      ],
+      "lines": {
+        "33": {
+          "original": "                'repeating-linear-gradient(135deg, rgba(107,114,128,0.05) 0px, rgba(107,114,128,0.05) 6px, transparent 6px, transparent 12px)',",
+          "migrated": "                surfaceGradients.disabledHatch,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'repeating-linear-gradient(135deg, rgba(107,114,128,0.05) 0px, rgba(107,114,128,0.05) 6px, transparent 6px, transparent 12px)'",
+              "to": "surfaceGradients.disabledHatch",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "components/VersionUpdateDrawer.tsx": {
+      "headSha256": "671f892471ed8636c262db27654fe57fdd17677d5963d1334fe118f023d78262",
+      "addedImports": [],
+      "lines": {
+        "11": {
+          "original": "import { elevation } from '../theme/elevation';",
+          "migrated": "import { brandGradients, elevation } from '../theme/elevation';",
+          "entries": [],
+          "replacements": [],
+          "importMerge": true
+        },
+        "75": {
+          "original": "          <Box sx={{ height: 4, background: 'linear-gradient(90deg, #1d2f68 0%, #3b82f6 100%)' }} />",
+          "migrated": "          <Box sx={{ height: 4, background: brandGradients.updateBar }} />",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'linear-gradient(90deg, #1d2f68 0%, #3b82f6 100%)'",
+              "to": "brandGradients.updateBar",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    }
+  }
+}

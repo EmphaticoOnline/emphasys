@@ -1,10 +1,10 @@
 import { createTheme, type Theme } from '@mui/material/styles';
-import './augmentation';
+import './augmentation.ts';
 import {
   EDITORIAL_FIGURE_FAMILY,
   FUNCTIONAL_FONT_FAMILY,
   type EmphasysTokens,
-} from './tokens';
+} from './tokens.ts';
 
 const mobileEditableInputMediaQuery = '@media (max-width:899.95px)';
 const mobileEditableInputFontSize = '16px !important';

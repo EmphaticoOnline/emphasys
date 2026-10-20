@@ -44,6 +44,9 @@ import {
   type EtapaProduccion,
   type SeguimientoProduccionRow,
 } from '../services/produccionService';
+import { neutralColors } from '../theme/structural';
+import { activeBrand } from '../theme/brand/active';
+import { dataColorContrast } from '../theme/functional';
 
 const formatCivilDate = (value: string | null | undefined) => {
   const raw = String(value ?? '').trim();
@@ -72,7 +75,7 @@ function normalizeHexColor(color: string | null | undefined) {
 function getContrastingTextColor(color: string | null | undefined) {
   const hex = normalizeHexColor(color);
   if (!hex) {
-    return '#111827';
+    return neutralColors.gray[900];
   }
 
   const red = Number.parseInt(hex.slice(1, 3), 16) / 255;
@@ -85,7 +88,7 @@ function getContrastingTextColor(color: string | null | undefined) {
   const contrastWithWhite = 1.05 / (luminance + 0.05);
   const contrastWithDark = (luminance + 0.05) / 0.05;
 
-  return contrastWithWhite >= contrastWithDark ? '#ffffff' : '#111827';
+  return contrastWithWhite >= contrastWithDark ? dataColorContrast.stageLight : neutralColors.gray[900];
 }
 
 type AdvanceDialogState = {
@@ -383,10 +386,10 @@ export default function ProduccionPage() {
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, width: '100%' }}>
         <Toolbar disableGutters sx={{ justifyContent: 'space-between', alignItems: 'center', pb: 1 }}>
           <Stack spacing={0.5}>
-            <Typography variant="h5" fontWeight={700} color="#1d2f68">
+            <Typography variant="h5" fontWeight={700} color={activeBrand.colors.blue.base}>
               Producción
             </Typography>
-            <Typography variant="body2" color="#4b5563">
+            <Typography variant="body2" color={neutralColors.gray[600]}>
               Seguimiento operativo de trabajos enviados desde Ventas.
             </Typography>
           </Stack>

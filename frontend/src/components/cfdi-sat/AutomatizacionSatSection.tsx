@@ -27,6 +27,8 @@ import {
   type CfdiSatAutomatizacion,
   type CfdiSatEjecucionAutomatizacion,
 } from '../../services/cfdiSatService';
+import { neutralColors } from '../../theme/structural';
+import { activeBrand } from '../../theme/brand/active';
 
 function formatFecha(raw?: string | null): string {
   if (!raw) return 'Nunca';
@@ -151,13 +153,13 @@ export default function AutomatizacionSatSection({
     (minutosDesdeUltimoRun === null || minutosDesdeUltimoRun >= config.frecuencia_minutos);
 
   return (
-    <Card variant="outlined" sx={{ borderRadius: 2, borderColor: '#dbe3f0' }}>
+    <Card variant="outlined" sx={{ borderRadius: 2, borderColor: neutralColors.steel.line }}>
       <CardContent sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 2 }}>
         <Stack spacing={0.5}>
-          <Typography variant="h6" fontWeight={700} color="#1d2f68">
+          <Typography variant="h6" fontWeight={700} color={activeBrand.colors.blue.base}>
             Automatización
           </Typography>
-          <Typography variant="body2" color="#4b5563">
+          <Typography variant="body2" color={neutralColors.gray[600]}>
             Reduce el trabajo manual de verificar y descargar solicitudes del SAT.
           </Typography>
         </Stack>
@@ -227,7 +229,7 @@ export default function AutomatizacionSatSection({
             </Typography>
 
             {!puedeAdministrar && (
-              <Typography variant="caption" color="#6b7280">
+              <Typography variant="caption" color={neutralColors.gray[500]}>
                 Solo un administrador de la empresa puede cambiar esta configuración o ejecutar la automatización.
               </Typography>
             )}
@@ -239,7 +241,7 @@ export default function AutomatizacionSatSection({
                 variant="contained"
                 onClick={() => void handleGuardar()}
                 disabled={!puedeAdministrar || guardando || !hayCambios}
-                sx={{ textTransform: 'none', fontWeight: 700, backgroundColor: '#1d2f68' }}
+                sx={{ textTransform: 'none', fontWeight: 700, backgroundColor: activeBrand.colors.blue.base }}
               >
                 {guardando ? 'Guardando...' : 'Guardar configuración'}
               </Button>
@@ -323,7 +325,7 @@ export default function AutomatizacionSatSection({
             variant="contained"
             onClick={() => void handleEjecutar()}
             disabled={ejecutando}
-            sx={{ textTransform: 'none', fontWeight: 700, backgroundColor: '#1d2f68' }}
+            sx={{ textTransform: 'none', fontWeight: 700, backgroundColor: activeBrand.colors.blue.base }}
           >
             {ejecutando ? 'Ejecutando...' : 'Ejecutar'}
           </Button>

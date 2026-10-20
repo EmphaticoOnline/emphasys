@@ -45,6 +45,9 @@ import type {
   ContactoVolumen,
   FacturaVolumenDetalle,
 } from '../../services/reportesService';
+import { categoricalPalettes } from '../../theme/functional';
+import { neutralColors } from '../../theme/structural';
+import { activeBrand } from '../../theme/brand/active';
 
 export type VolumenComprasPageConfig = {
   titulo: string;
@@ -253,7 +256,7 @@ function DetalleTable({
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
-                bgcolor: esVentas ? tokens.metric.amount.background : '#f1f5f9',
+                bgcolor: esVentas ? tokens.metric.amount.background : neutralColors.slate[100],
                 border: '1px solid',
                 borderColor: esVentas ? tokens.content.border : 'divider',
                 borderRadius: '6px 6px 0 0',
@@ -291,7 +294,7 @@ function DetalleTable({
               }}
             >
               <TableHead>
-                <TableRow sx={{ bgcolor: esVentas ? tokens.table.headerBg : '#1d2f6808' }}>
+                <TableRow sx={{ bgcolor: esVentas ? tokens.table.headerBg : `${activeBrand.colors.blue.base}08` }}>
                   <TableCell>Fecha</TableCell>
                   <TableCell>Folio</TableCell>
                   <TableCell align="right">{esVentas ? 'Ventas' : 'Subtotal'}</TableCell>
@@ -323,7 +326,7 @@ function DetalleTable({
                   ))
                 )}
                 {/* Subtotal del proveedor */}
-                <TableRow sx={{ bgcolor: esVentas ? tokens.content.elevated : '#f8fafc' }}>
+                <TableRow sx={{ bgcolor: esVentas ? tokens.content.elevated : neutralColors.slate[50] }}>
                   <TableCell colSpan={esVentas ? 2 : 4} align="right" sx={{ fontWeight: 600, color: 'text.secondary', fontSize: '0.74rem' }}>
                     {esVentas ? 'Ventas' : 'Total'} {p.nombre}:
                   </TableCell>
@@ -617,25 +620,25 @@ export default function VolumenComprasPage({ config }: { config: VolumenComprasP
             icon={StoreIcon}
             label={`${etiquetaContactoPlural} activos`}
             value={String(contactos.length)}
-            color="#1d2f68"
+            color={categoricalPalettes.reportKpis[0]}
           />
           <SummaryCard
             icon={ShoppingCartIcon}
             label={`${etiquetaMovimiento} totales`}
             value={`$${formatMXN(totalComprado)}`}
-            color="#006261"
+            color={categoricalPalettes.reportKpis[1]}
           />
           <SummaryCard
             icon={ReceiptIcon}
             label="Factura promedio"
             value={totalFacturas > 0 ? `$${formatMXN(facturaPromedio)}` : '—'}
-            color="#7c3aed"
+            color={categoricalPalettes.reportKpis[2]}
           />
           <SummaryCard
             icon={TrendingUpIcon}
             label={`Principal ${config.contactoLabel.toLowerCase()}`}
             value={principal ? principal.nombre : '—'}
-            color="#b45309"
+            color={categoricalPalettes.reportKpis[3]}
           />
         </Box>
         )

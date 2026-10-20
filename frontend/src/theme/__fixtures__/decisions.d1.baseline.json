@@ -1,0 +1,36 @@
+{
+  "source": "HEAD 4a308b4, decisions bloque d1",
+  "files": {
+    "pages/informes/EstadoCuentaPage.tsx": {
+      "headSha256": "03323b25f2dd8bb1d3264c7abf8991ec3d34e4ab871527b3d95a98b41603d236",
+      "addedImports": [],
+      "lines": {
+        "37": {
+          "original": "import { accountingColors, balanceColors } from '../../theme/functional';",
+          "migrated": "import { accountingColors } from '../../theme/functional';",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "import { accountingColors, balanceColors } from",
+              "to": "import { accountingColors } from",
+              "times": 1
+            }
+          ]
+        },
+        "641": {
+          "original": "                color={saldoFinal > 0 ? balanceColors.due : saldoFinal < 0 ? balanceColors.inFavor : 'text.primary'}",
+          "migrated": "                color={saldoFinal > 0 ? accountingColors.debit : saldoFinal < 0 ? accountingColors.credit : 'text.primary'}",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "saldoFinal > 0 ? balanceColors.due : saldoFinal < 0 ? balanceColors.inFavor",
+              "to": "saldoFinal > 0 ? accountingColors.debit : saldoFinal < 0 ? accountingColors.credit",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    }
+  }
+}

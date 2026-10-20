@@ -55,6 +55,8 @@ import {
   useCapturaMovimiento,
   type CapturaInline,
 } from './FilaCapturaMovimiento';
+import { amountSignColor, inflowColor, outflowColor } from '../../theme/sign';
+import { brandTints } from '../../theme/tints';
 
 // El DataGrid MIT siempre pagina (pageSize por defecto = 100, máximo 100) aunque
 // el pie esté oculto: sin esto sólo se renderizan las primeras 100 filas y el
@@ -702,7 +704,7 @@ export function MovimientosTable({
           const monto = Math.abs(Number(params.row.monto) || 0);
           if (params.row.tipo_movimiento !== 'Retiro' || monto <= 0) return null;
           return (
-            <Typography noWrap sx={{ width: '100%', textAlign: 'right', fontSize: 12.5, fontWeight: 700, color: tokens.action.destructive }}>
+            <Typography noWrap sx={{ width: '100%', textAlign: 'right', fontSize: 12.5, fontWeight: 700, color: outflowColor(tokens) }}>
               {formatter.format(monto)}
             </Typography>
           );
@@ -726,7 +728,7 @@ export function MovimientosTable({
           const monto = Math.abs(Number(params.row.monto) || 0);
           if (params.row.tipo_movimiento !== 'Deposito' || monto <= 0) return null;
           return (
-            <Typography noWrap sx={{ width: '100%', textAlign: 'right', fontSize: 12.5, fontWeight: 700, color: tokens.metric.applied.foreground }}>
+            <Typography noWrap sx={{ width: '100%', textAlign: 'right', fontSize: 12.5, fontWeight: 700, color: inflowColor(tokens) }}>
               {formatter.format(monto)}
             </Typography>
           );
@@ -856,9 +858,9 @@ export function MovimientosTable({
           const colorSaldo = esCapturaVisual(params.row.id)
             ? tokens.action.primaryForeground
             : saldo > 0
-              ? tokens.metric.applied.foreground
+              ? amountSignColor(tokens, 'positive')
               : saldo < 0
-                ? tokens.action.destructive
+                ? amountSignColor(tokens, 'negative')
                 : tokens.action.primary;
           return (
             <Typography noWrap sx={{ fontSize: 12.5, fontWeight: 700, color: colorSaldo }}>
@@ -1292,7 +1294,7 @@ export function MovimientosTable({
             '& .MuiDataGrid-virtualScroller': { pb: filasSeleccionadas.length ? '56px' : 0 },
             '& .MuiDataGrid-columnSeparator': {
               height: '100%',
-              color: 'rgba(244, 240, 232, 0.55)',
+              color: brandTints.onChromeSeparator,
               '& svg': { height: 22 },
             },
           },

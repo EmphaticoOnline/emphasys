@@ -1,6 +1,7 @@
 import type { MouseEvent, ReactNode } from 'react';
 import { ListItemIcon, Menu, MenuItem } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
+import { brandElevation } from '../../theme/elevation';
 
 export type WorkspaceContextItem = {
   id: string;
@@ -33,7 +34,7 @@ export function WorkspaceRowContextMenu({ anchorPosition, items, onClose }: Work
             bgcolor: tokens.content.elevated,
             color: tokens.content.foreground,
             border: `1px solid ${tokens.content.border}`,
-            boxShadow: '0 16px 40px rgba(44, 49, 56, 0.18)',
+            boxShadow: brandElevation.floating,
             py: 0.75,
             '& .MuiMenuItem-root': {
               minHeight: 34,

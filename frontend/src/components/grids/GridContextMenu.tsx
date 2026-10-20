@@ -1,6 +1,9 @@
 import * as React from 'react';
 import { Box, Divider, ListItemIcon, Menu, MenuItem, Typography } from '@mui/material';
 import type { GridContextMenuPosition } from '../../hooks/useGridContextMenu';
+import { alertColors } from '../../theme/functional';
+import { neutralColors, overlayColors } from '../../theme/structural';
+import { elevation } from '../../theme/elevation';
 
 type GridContextMenuActionBase = {
   id: string;
@@ -73,8 +76,8 @@ export function GridContextMenu({ actions, anchorPosition, open, onClose }: Grid
           sx: {
             minWidth: 220,
             borderRadius: 2,
-            border: '1px solid #e5e7eb',
-            boxShadow: '0 14px 34px rgba(15, 23, 42, 0.14)',
+            border: `1px solid ${neutralColors.gray[200]}`,
+            boxShadow: elevation.gridMenu,
             py: 0.75,
             '& .MuiMenuItem-root': {
               minHeight: 34,
@@ -83,9 +86,9 @@ export function GridContextMenu({ actions, anchorPosition, open, onClose }: Grid
               borderRadius: 1.5,
               fontSize: 13,
               fontWeight: 500,
-              color: '#111827',
+              color: neutralColors.gray[900],
               '&:hover': {
-                backgroundColor: 'rgba(15, 23, 42, 0.06)',
+                backgroundColor: overlayColors.hover.gridMenuItem,
               },
             },
           },
@@ -107,13 +110,13 @@ export function GridContextMenu({ actions, anchorPosition, open, onClose }: Grid
               }
               void action.onClick?.(event);
             }}
-            sx={action.destructive ? { color: '#b91c1c !important' } : {}}
+            sx={action.destructive ? { color: `${alertColors.error[700]} !important` } : {}}
           >
             {action.icon ? (
               <ListItemIcon
                 sx={{
                   minWidth: 30,
-                  color: action.destructive ? '#b91c1c' : 'inherit',
+                  color: action.destructive ? alertColors.error[700] : 'inherit',
                 }}
               >
                 {action.icon}
@@ -124,7 +127,7 @@ export function GridContextMenu({ actions, anchorPosition, open, onClose }: Grid
                 {action.label}
               </Typography>
               {action.shortcut ? (
-                <Typography component="span" sx={{ fontSize: 11, color: '#6b7280', letterSpacing: 0.2 }}>
+                <Typography component="span" sx={{ fontSize: 11, color: neutralColors.gray[500], letterSpacing: 0.2 }}>
                   {action.shortcut}
                 </Typography>
               ) : null}

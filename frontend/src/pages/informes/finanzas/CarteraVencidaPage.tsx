@@ -35,6 +35,7 @@ import {
   type CarteraVencidaResult,
   type CarteraVencidaParams,
 } from '../../../services/reportesService';
+import { agingBucketColors } from '../../../theme/functional';
 
 const formatNum = (v: number) =>
   v.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -50,12 +51,7 @@ const hoy = () => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
 
-const BUCKET_COLOR: Record<string, string> = {
-  '0-30':  '#388e3c',
-  '31-60': '#f57c00',
-  '61-90': '#d32f2f',
-  '90+':   '#7b1fa2',
-};
+const BUCKET_COLOR: Record<string, string> = agingBucketColors;
 
 const BUCKETS: Array<{ key: keyof TotalCarteraMoneda; label: string }> = [
   { key: 'bucket_0_30',    label: '0-30 días'  },

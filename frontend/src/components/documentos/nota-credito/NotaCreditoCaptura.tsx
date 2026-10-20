@@ -35,6 +35,8 @@ import type { TratamientoImpuestos } from '../../../types/cotizacion';
 import type { Contacto } from '../../../types/contactos.types';
 import type { Concepto } from '../../../types/finanzas';
 import type { PrepararGeneracionResponse } from '../../../services/documentGenerationService';
+import { alertColors, alertTints } from '../../../theme/functional';
+import { neutralColors, onPrimaryColors, whiteSurfaces } from '../../../theme/structural';
 
 const MENSAJE_PARTIDAS_INCOMPATIBLES = 'Solo pueden combinarse partidas compatibles en la misma nota.';
 
@@ -175,7 +177,7 @@ const capturaHeadSx = {
 };
 
 function fondoFila(index: number) {
-  return index % 2 === 0 ? '#fff' : '#f4f6f8';
+  return index % 2 === 0 ? whiteSurfaces.tableRow : neutralColors.steel.stripe;
 }
 
 function CeldaFactura({ folio, fecha }: { folio: string; fecha: string }) {
@@ -190,7 +192,7 @@ function CeldaFactura({ folio, fecha }: { folio: string; fecha: string }) {
             fontWeight: 700,
             color: 'primary.main',
             cursor: 'help',
-            borderBottom: '1px dotted #94a3b8',
+            borderBottom: `1px dotted ${neutralColors.slate[400]}`,
             lineHeight: 1.2,
           }}
         >
@@ -204,7 +206,7 @@ function CeldaFactura({ folio, fecha }: { folio: string; fecha: string }) {
 function CeldaClave({ clave }: { clave: string }) {
   return (
     <TableCell sx={idCellSx}>
-      <Box component="span" sx={{ fontSize: 12, fontWeight: 600, letterSpacing: '0.01em', color: '#1e293b' }}>
+      <Box component="span" sx={{ fontSize: 12, fontWeight: 600, letterSpacing: '0.01em', color: neutralColors.slate[800] }}>
         {clave || '—'}
       </Box>
     </TableCell>
@@ -230,7 +232,7 @@ function CeldaProducto({
             minWidth: 0,
             fontSize: 13,
             fontWeight: activo ? 600 : 500,
-            color: activo ? '#0f172a' : '#334155',
+            color: activo ? neutralColors.slate[900] : neutralColors.slate[700],
             lineHeight: 1.25,
             display: '-webkit-box',
             WebkitLineClamp: 2,
@@ -250,8 +252,8 @@ function CeldaProducto({
                 flexShrink: 0,
                 width: 28,
                 height: 28,
-                color: '#dc2626',
-                '&:hover': { color: '#b91c1c', bgcolor: 'rgba(220, 38, 38, 0.08)' },
+                color: alertColors.error[600],
+                '&:hover': { color: alertColors.error[700], bgcolor: alertTints.errorHover },
               }}
             >
               <RemoveCircleOutlineIcon sx={{ fontSize: 18 }} />
@@ -265,7 +267,7 @@ function CeldaProducto({
 
 function CeldaNumero({ children, color, peso }: { children: string; color?: string; peso?: number }) {
   return (
-    <TableCell align="right" sx={{ ...numCellSx, color: color ?? '#334155', fontWeight: peso ?? 500 }}>
+    <TableCell align="right" sx={{ ...numCellSx, color: color ?? neutralColors.slate[700], fontWeight: peso ?? 500 }}>
       {children}
     </TableCell>
   );
@@ -570,11 +572,11 @@ export default function NotaCreditoCaptura({
           <Chip
             size="small"
             label={`Desde factura ${folioOrigen}`}
-            sx={{ height: 22, fontSize: 11, fontWeight: 700, color: '#fff', bgcolor: 'primary.main' }}
+            sx={{ height: 22, fontSize: 11, fontWeight: 700, color: onPrimaryColors.text, bgcolor: 'primary.main' }}
           />
         ) : null}
         {clienteNombre && motivo !== 'otro' ? (
-          <Typography sx={{ fontSize: 13, color: '#64748b' }}>{clienteNombre}</Typography>
+          <Typography sx={{ fontSize: 13, color: neutralColors.slate[500] }}>{clienteNombre}</Typography>
         ) : null}
       </Stack>
 
@@ -583,8 +585,8 @@ export default function NotaCreditoCaptura({
         sx={{
           flexShrink: 0,
           p: { xs: 1.5, md: 2 },
-          borderColor: '#d7dde7',
-          bgcolor: '#fff',
+          borderColor: neutralColors.steel.inputBorder,
+          bgcolor: whiteSurfaces.panel,
           borderRadius: motivo === 'otro' ? '8px 8px 0 0' : 2,
           borderBottom: motivo === 'otro' ? 'none' : undefined,
         }}
@@ -656,7 +658,7 @@ export default function NotaCreditoCaptura({
               )}
             </Stack>
             {clienteId && (
-              <Typography sx={{ fontSize: 13, color: '#64748b', fontVariantNumeric: 'tabular-nums' }}>
+              <Typography sx={{ fontSize: 13, color: neutralColors.slate[500], fontVariantNumeric: 'tabular-nums' }}>
                 {resumen.capturadas} de {filas.length}
               </Typography>
             )}
@@ -665,10 +667,10 @@ export default function NotaCreditoCaptura({
           {!clienteId ? (
             <Paper
               variant="outlined"
-              sx={{ borderStyle: 'dashed', borderColor: '#d7dde7', borderRadius: 2, py: 7, px: 3, textAlign: 'center', bgcolor: '#fff', flexShrink: 0 }}
+              sx={{ borderStyle: 'dashed', borderColor: neutralColors.steel.inputBorder, borderRadius: 2, py: 7, px: 3, textAlign: 'center', bgcolor: whiteSurfaces.panel, flexShrink: 0 }}
             >
               <Typography sx={{ fontSize: 16, fontWeight: 700, color: 'primary.main' }}>Selecciona un {tituloCliente.toLowerCase()}</Typography>
-              <Typography sx={{ mt: 0.75, fontSize: 13, color: '#64748b' }}>
+              <Typography sx={{ mt: 0.75, fontSize: 13, color: neutralColors.slate[500] }}>
                 Después podrás elegir partidas de todas sus facturas compatibles.
               </Typography>
             </Paper>
@@ -677,7 +679,7 @@ export default function NotaCreditoCaptura({
               variant="outlined"
               sx={{
                 borderRadius: '8px 8px 0 0',
-                borderColor: '#d7dde7',
+                borderColor: neutralColors.steel.inputBorder,
                 overflow: 'hidden',
                 display: 'flex',
                 flexDirection: 'column',
@@ -716,7 +718,7 @@ export default function NotaCreditoCaptura({
                   <TableBody>
                     {filas.length === 0 && (
                       <TableRow>
-                        <TableCell colSpan={devolucion ? 9 : 6} sx={{ ...cellSx, py: 3, color: '#64748b', textAlign: 'center' }}>
+                        <TableCell colSpan={devolucion ? 9 : 6} sx={{ ...cellSx, py: 3, color: neutralColors.slate[500], textAlign: 'center' }}>
                           Esta nota no tiene partidas. Puedes agregarlas desde otras facturas del cliente.
                         </TableCell>
                       </TableRow>
@@ -741,7 +743,7 @@ export default function NotaCreditoCaptura({
                           {devolucion ? (
                             <>
                               <CeldaNumero>{formatCantidad(fila.facturado)}</CeldaNumero>
-                              <CeldaNumero color={fila.devuelto > 0 ? '#9a3412' : '#94a3b8'} peso={fila.devuelto > 0 ? 700 : 500}>
+                              <CeldaNumero color={fila.devuelto > 0 ? alertColors.caution[800] : neutralColors.slate[400]} peso={fila.devuelto > 0 ? 700 : 500}>
                                 {formatCantidad(fila.devuelto)}
                               </CeldaNumero>
                               <TableCell align="right" sx={numCellSx}>
@@ -765,12 +767,12 @@ export default function NotaCreditoCaptura({
                                   onCommit={(next) => onValor(fila.partidaId, next)}
                                 />
                               </TableCell>
-                              <CeldaNumero color="#475569">{money.format(fila.precio)}</CeldaNumero>
+                              <CeldaNumero color={neutralColors.slate[600]}>{money.format(fila.precio)}</CeldaNumero>
                               <TableCell align="right" sx={numCellSx}>
                                 {activo ? (
                                   <Box component="span" sx={{ fontWeight: 700, color: 'primary.main' }}>{money.format(importeLinea)}</Box>
                                 ) : (
-                                  <Box component="span" sx={{ fontWeight: 700, color: excede ? '#c2410c' : '#cbd5e1' }}>
+                                  <Box component="span" sx={{ fontWeight: 700, color: excede ? alertColors.caution[700] : neutralColors.slate[300] }}>
                                     {excede ? 'Excede' : '—'}
                                   </Box>
                                 )}
@@ -778,7 +780,7 @@ export default function NotaCreditoCaptura({
                             </>
                           ) : (
                             <>
-                              <CeldaNumero color="#475569">{money.format(fila.base)}</CeldaNumero>
+                              <CeldaNumero color={neutralColors.slate[600]}>{money.format(fila.base)}</CeldaNumero>
                               <TableCell align="right" sx={numCellSx}>
                                 {soloLectura ? (
                                   <Box component="span" sx={{ fontWeight: 700, color: 'primary.main' }}>{money.format(fila.maximo)}</Box>
@@ -802,7 +804,7 @@ export default function NotaCreditoCaptura({
                                     onCommit={(next) => onValor(fila.partidaId, next)}
                                   />
                                   {excede && (
-                                    <Typography sx={{ mt: 0.35, fontSize: 11, fontWeight: 700, color: '#c2410c' }}>Excede</Typography>
+                                    <Typography sx={{ mt: 0.35, fontSize: 11, fontWeight: 700, color: alertColors.caution[700] }}>Excede</Typography>
                                   )}
                                 </Box>
                               </TableCell>
@@ -829,7 +831,7 @@ export default function NotaCreditoCaptura({
             <Typography color="text.secondary">No hay partidas compatibles disponibles.</Typography>
           ) : null}
           {new Set(candidatas.map((fila) => fila.tratamiento)).size > 1 && (
-            <Typography sx={{ fontSize: 12, color: '#64748b', mb: 1 }}>
+            <Typography sx={{ fontSize: 12, color: neutralColors.slate[500], mb: 1 }}>
               {MENSAJE_PARTIDAS_INCOMPATIBLES}
             </Typography>
           )}
@@ -1008,7 +1010,7 @@ function Captura({
         ? {
             InputProps: {
               startAdornment: (
-                <Box component="span" sx={{ fontSize: 12, fontWeight: 700, color: activo ? 'primary.main' : '#94a3b8', pl: 0.75 }}>
+                <Box component="span" sx={{ fontSize: 12, fontWeight: 700, color: activo ? 'primary.main' : neutralColors.slate[400], pl: 0.75 }}>
                   $
                 </Box>
               ),
@@ -1019,11 +1021,11 @@ function Captura({
         width,
         '& .MuiOutlinedInput-root': {
           height: 28,
-          bgcolor: '#fff',
+          bgcolor: whiteSurfaces.panel,
           borderRadius: '6px',
-          '& fieldset': { borderColor: invalido ? '#d97706' : activo ? 'primary.main' : '#d5dce6' },
-          '&:hover fieldset': { borderColor: invalido ? '#d97706' : 'primary.main' },
-          '&.Mui-focused fieldset': { borderWidth: 1.5, borderColor: invalido ? '#d97706' : 'primary.main' },
+          '& fieldset': { borderColor: invalido ? alertColors.warning[600] : activo ? 'primary.main' : neutralColors.steel.fieldBorder },
+          '&:hover fieldset': { borderColor: invalido ? alertColors.warning[600] : 'primary.main' },
+          '&.Mui-focused fieldset': { borderWidth: 1.5, borderColor: invalido ? alertColors.warning[600] : 'primary.main' },
         },
         '& .MuiOutlinedInput-input': {
           py: 0,
@@ -1031,9 +1033,9 @@ function Captura({
           textAlign: 'right',
           fontWeight: 700,
           fontSize: 13,
-          color: invalido ? '#9a3412' : activo ? 'primary.main' : '#64748b',
+          color: invalido ? alertColors.caution[800] : activo ? 'primary.main' : neutralColors.slate[500],
           fontVariantNumeric: 'tabular-nums',
-          '&::placeholder': { color: '#c5cdd8', opacity: 1, fontWeight: 600 },
+          '&::placeholder': { color: neutralColors.steel.placeholder, opacity: 1, fontWeight: 600 },
         },
       }}
     />
@@ -1049,7 +1051,7 @@ function TotalDato({ label, value, emphasis }: { label: string; value: string; e
           fontWeight: 700,
           letterSpacing: '0.08em',
           textTransform: 'uppercase',
-          color: emphasis ? 'primary.main' : '#8b93a7',
+          color: emphasis ? 'primary.main' : neutralColors.steel.label,
           lineHeight: 1,
           mb: 0.45,
         }}
@@ -1060,7 +1062,7 @@ function TotalDato({ label, value, emphasis }: { label: string; value: string; e
         sx={{
           fontSize: emphasis ? 22 : 14,
           fontWeight: emphasis ? 800 : 600,
-          color: emphasis ? 'primary.main' : '#334155',
+          color: emphasis ? 'primary.main' : neutralColors.slate[700],
           fontVariantNumeric: 'tabular-nums',
           letterSpacing: emphasis ? '-0.02em' : 0,
           lineHeight: 1.05,
@@ -1105,9 +1107,9 @@ function PieNotaCredito({
         px: { xs: 1.5, md: 2 },
         py: 1,
         borderRadius: '0 0 8px 8px',
-        border: '1px solid #d7dde7',
-        borderTop: '1px solid #e5eaf1',
-        bgcolor: '#fff',
+        border: `1px solid ${neutralColors.steel.inputBorder}`,
+        borderTop: `1px solid ${neutralColors.steel.divider}`,
+        bgcolor: whiteSurfaces.panel,
         boxShadow: 'none',
         display: 'flex',
         flexWrap: 'wrap',
@@ -1118,8 +1120,8 @@ function PieNotaCredito({
         px: { xs: 1.5, md: 2 },
         py: 1.25,
         borderRadius: 2,
-        border: '1px solid #d7dde7',
-        bgcolor: '#fff',
+        border: `1px solid ${neutralColors.steel.inputBorder}`,
+        bgcolor: whiteSurfaces.panel,
         boxShadow: (theme: Theme) => `0 10px 28px ${theme.emphasys.action.hoverTint}`,
         display: 'flex',
         flexWrap: 'wrap',
@@ -1132,7 +1134,7 @@ function PieNotaCredito({
           flex: '1 1 220px',
           fontSize: 13,
           fontWeight: 600,
-          color: problemas > 0 ? '#9a3412' : '#475569',
+          color: problemas > 0 ? alertColors.caution[800] : neutralColors.slate[600],
           minWidth: 180,
         }}
       >
@@ -1142,7 +1144,7 @@ function PieNotaCredito({
       <Stack direction="row" spacing={2.5} alignItems="flex-end" useFlexGap flexWrap="wrap">
         <TotalDato label="Subtotal" value={money.format(subtotal)} />
         <TotalDato label="IVA" value={money.format(iva)} />
-        <Box sx={{ width: '1px', alignSelf: 'stretch', bgcolor: '#e5eaf1' }} />
+        <Box sx={{ width: '1px', alignSelf: 'stretch', bgcolor: neutralColors.steel.divider }} />
         <TotalDato label="Total" value={money.format(total)} emphasis />
       </Stack>
       <Stack direction="row" spacing={1} alignItems="center">
@@ -1155,9 +1157,9 @@ function PieNotaCredito({
             px: 2,
             textTransform: 'none',
             fontWeight: 600,
-            color: '#334155',
-            borderColor: '#cbd5e1',
-            '&:hover': { borderColor: '#94a3b8', bgcolor: '#f8fafc' },
+            color: neutralColors.slate[700],
+            borderColor: neutralColors.slate[300],
+            '&:hover': { borderColor: neutralColors.slate[400], bgcolor: neutralColors.slate[50] },
           }}
         >
           Cancelar

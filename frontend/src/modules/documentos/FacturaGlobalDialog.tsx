@@ -23,6 +23,7 @@ import {
   previewFacturaGlobal,
   type FacturaGlobalPreviewResult,
 } from '../../services/facturaGlobalService';
+import { activeBrand } from '../../theme/brand/active';
 
 const PERIODICIDADES = [
   { value: '01', label: '01 – Diario' },
@@ -291,7 +292,7 @@ export default function FacturaGlobalDialog({ open, onClose, onGenerado }: Props
           onClick={handleGenerar}
           disabled={generating || !preview || preview.count === 0}
           startIcon={generating ? <CircularProgress size={14} color="inherit" /> : undefined}
-          sx={{ backgroundColor: '#1d2f68', '&:hover': { backgroundColor: '#162551' } }}
+          sx={{ backgroundColor: activeBrand.colors.blue.base, '&:hover': { backgroundColor: activeBrand.colors.blue.hover } }}
         >
           {generating ? 'Generando...' : 'Generar factura global'}
         </Button>

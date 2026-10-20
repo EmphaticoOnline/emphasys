@@ -92,6 +92,8 @@ import type {
   WhatsappEtiqueta,
 } from '../../pages/LeadsPage';
 import TemperaturaScoreButton from './TemperaturaScoreButton';
+import { onStatusColors, searchHighlightColors, thirdPartyColors } from '../../theme/functional';
+import { neutralColors, onMediaColors, overlayColors } from '../../theme/structural';
 
 // Vista de escritorio del módulo de Leads/conversaciones de WhatsApp.
 // LeadsPage.tsx sigue siendo dueño de todo el estado y la lógica de negocio
@@ -374,9 +376,9 @@ function renderStatusIcon(status?: 'sending' | 'sent' | 'delivered' | 'read' | '
     case 'sent':
       return <DoneIcon fontSize="small" />;
     case 'delivered':
-      return <DoneAllIcon fontSize="small" sx={{ color: '#9e9e9e' }} />;
+      return <DoneAllIcon fontSize="small" sx={{ color: thirdPartyColors.whatsappDelivered }} />;
     case 'read':
-      return <DoneAllIcon fontSize="small" sx={{ color: '#4fc3f7' }} />;
+      return <DoneAllIcon fontSize="small" sx={{ color: thirdPartyColors.whatsappRead }} />;
     case 'failed':
       return <ErrorOutlineIcon fontSize="small" color="error" />;
     default:
@@ -748,7 +750,7 @@ export default function LeadsDesktopView(props: LeadsDesktopViewProps) {
           component="span"
           key={match.key}
           ref={(element: HTMLSpanElement | null) => { conversationMatchRefs.current[match.key] = element; }}
-          sx={{ bgcolor: conversationSearchMatches[conversationSearchIndex]?.key === match.key ? '#facc15' : '#fef08a', borderRadius: 0.25 }}
+          sx={{ bgcolor: conversationSearchMatches[conversationSearchIndex]?.key === match.key ? searchHighlightColors.current : searchHighlightColors.match, borderRadius: 0.25 }}
         >
           {value.slice(match.start, match.end)}
         </Box>,
@@ -1116,7 +1118,7 @@ export default function LeadsDesktopView(props: LeadsDesktopViewProps) {
               aria-label="Abrir guía de ayuda"
               size="small"
               onClick={() => window.open('/docs/guia-leads.html', '_blank')}
-              sx={{ color: '#64748b', p: 0.25, flexShrink: 0 }}
+              sx={{ color: neutralColors.slate[500], p: 0.25, flexShrink: 0 }}
             >
               <HelpOutlineIcon sx={{ fontSize: 16 }} />
             </IconButton>
@@ -1408,7 +1410,7 @@ export default function LeadsDesktopView(props: LeadsDesktopViewProps) {
                     onClick={() => setVistaFinalizadas((prev) => !prev)}
                     sx={{
                       fontWeight: 700,
-                      color: vistaFinalizadas ? '#ffffff' : 'text.secondary',
+                      color: vistaFinalizadas ? onStatusColors.leadViewToggle : 'text.secondary',
                       backgroundColor: vistaFinalizadas ? 'text.secondary' : 'transparent',
                       border: '1px solid',
                       borderColor: 'divider',
@@ -1486,7 +1488,7 @@ export default function LeadsDesktopView(props: LeadsDesktopViewProps) {
                             <Stack direction="row" spacing={0.75} alignItems="center" minWidth={0}>
                               <Typography variant="body2" color="text.secondary" noWrap sx={{ minWidth: 0, flex: 1 }}>{conversationLead.lastMessage || 'Sin mensajes'}</Typography>
                               {conversationLead.unreadCount && conversationLead.unreadCount > 0 ? (
-                                <Box sx={{ minWidth: 20, height: 20, px: 0.5, flexShrink: 0, borderRadius: '50%', bgcolor: '#25D366', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700 }}>{conversationLead.unreadCount}</Box>
+                                <Box sx={{ minWidth: 20, height: 20, px: 0.5, flexShrink: 0, borderRadius: '50%', bgcolor: thirdPartyColors.whatsapp, color: onStatusColors.whatsapp, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700 }}>{conversationLead.unreadCount}</Box>
                               ) : null}
                             </Stack>
                           </Stack>
@@ -1855,8 +1857,8 @@ export default function LeadsDesktopView(props: LeadsDesktopViewProps) {
                         {conversationAttachments.filter(({ message }) => message.tipoContenido === 'image' || message.tipoContenido === 'video').map(({ message, filename }) => (
                           <Box key={message.id} component="a" href={message.mediaUrl ?? undefined} target="_blank" rel="noopener noreferrer" sx={{ position: 'relative', width: 120, height: 100, bgcolor: 'action.hover', borderRadius: 1, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', textDecoration: 'none' }}>
                             {message.tipoContenido === 'image' && message.mediaUrl ? <Box component="img" src={message.mediaUrl} alt={filename} sx={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : message.tipoContenido === 'video' && message.mediaUrl ? <Box component="video" src={message.mediaUrl} muted sx={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <Typography variant="caption">{filename}</Typography>}
-                            {message.tipoContenido === 'video' && <VideoLibraryIcon sx={{ position: 'absolute', right: 4, bottom: 4, color: 'white', filter: 'drop-shadow(0 1px 2px black)' }} />}
-                            <IconButton size="small" onClick={(event) => { event.preventDefault(); event.stopPropagation(); setAttachmentMenu({ anchor: event.currentTarget, message: { id: message.id, tipoContenido: message.tipoContenido!, text: message.text || '', caption: message.caption, mediaUrl: message.mediaUrl } }); }} sx={{ position: 'absolute', top: 2, right: 2, color: 'white', bgcolor: 'rgba(0,0,0,.45)', '&:hover': { bgcolor: 'rgba(0,0,0,.7)' } }} aria-label="Acciones del archivo"><MoreVertIcon fontSize="small" /></IconButton>
+                            {message.tipoContenido === 'video' && <VideoLibraryIcon sx={{ position: 'absolute', right: 4, bottom: 4, color: onMediaColors.icon, filter: 'drop-shadow(0 1px 2px black)' }} />}
+                            <IconButton size="small" onClick={(event) => { event.preventDefault(); event.stopPropagation(); setAttachmentMenu({ anchor: event.currentTarget, message: { id: message.id, tipoContenido: message.tipoContenido!, text: message.text || '', caption: message.caption, mediaUrl: message.mediaUrl } }); }} sx={{ position: 'absolute', top: 2, right: 2, color: onMediaColors.icon, bgcolor: overlayColors.media.imageButton, '&:hover': { bgcolor: overlayColors.media.imageButtonHover } }} aria-label="Acciones del archivo"><MoreVertIcon fontSize="small" /></IconButton>
                           </Box>
                         ))}
                       </Stack>
@@ -2007,8 +2009,8 @@ export default function LeadsDesktopView(props: LeadsDesktopViewProps) {
                             }}
                             sx={{
                               borderLeft: '3px solid',
-                              borderColor: (theme) => msg.from === 'me' ? 'rgba(255,255,255,0.6)' : theme.emphasys.action.info,
-                              bgcolor: (theme) => msg.from === 'me' ? 'rgba(255,255,255,0.15)' : theme.emphasys.chat.reply,
+                              borderColor: (theme) => msg.from === 'me' ? overlayColors.chat.ownBubbleBorder : theme.emphasys.action.info,
+                              bgcolor: (theme) => msg.from === 'me' ? overlayColors.chat.ownBubbleSurface : theme.emphasys.chat.reply,
                               borderRadius: 0.75,
                               px: 1,
                               py: 0.5,

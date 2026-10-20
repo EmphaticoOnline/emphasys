@@ -1,0 +1,187 @@
+{
+  "source": "HEAD d70d93a, restos",
+  "files": {
+    "components/RuntimeEnvironmentIndicator.tsx": {
+      "group": "environment",
+      "headSha256": "9a764128a9d329728f5f50933c017b9d9d2c65263a68e57b23431d8673599751",
+      "addedImports": [
+        "import { environmentColors } from '../theme/functional';"
+      ],
+      "lines": {
+        "55": {
+          "original": "        color: production ? '#fff' : warning ? '#4a2b00' : '#e8edf7',",
+          "migrated": "        color: production ? '#fff' : warning ? environmentColors.warningText : environmentColors.defaultText,",
+          "entries": [
+            {
+              "hex": "#4a2b00",
+              "token": "environmentColors.warningText"
+            },
+            {
+              "hex": "#e8edf7",
+              "token": "environmentColors.defaultText"
+            }
+          ]
+        },
+        "56": {
+          "original": "        backgroundColor: production ? '#b3261e' : warning ? '#ffc857' : 'rgba(255,255,255,0.16)',",
+          "migrated": "        backgroundColor: production ? environmentColors.productionBackground : warning ? environmentColors.warningBackground : 'rgba(255,255,255,0.16)',",
+          "entries": [
+            {
+              "hex": "#b3261e",
+              "token": "environmentColors.productionBackground"
+            },
+            {
+              "hex": "#ffc857",
+              "token": "environmentColors.warningBackground"
+            }
+          ]
+        },
+        "57": {
+          "original": "        border: production ? '1px solid #ffb4ab' : warning ? '1px solid #ffe08a' : '1px solid rgba(255,255,255,0.28)',",
+          "migrated": "        border: production ? `1px solid ${environmentColors.productionBorder}` : warning ? `1px solid ${environmentColors.warningBorder}` : '1px solid rgba(255,255,255,0.28)',",
+          "entries": [
+            {
+              "hex": "#ffb4ab",
+              "token": "environmentColors.productionBorder"
+            },
+            {
+              "hex": "#ffe08a",
+              "token": "environmentColors.warningBorder"
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "components/crm/ActividadSeguimientoDrawer.tsx": {
+      "group": "activityChip",
+      "headSha256": "e11b557c514033d699d1a8ac7d4310c99660698f992c8b3939a5c2b4b2b56bf2",
+      "addedImports": [],
+      "lines": {
+        "41": {
+          "original": "import { alertColors } from '../../theme/functional';",
+          "migrated": "import { activityTypeChipColors, alertColors } from '../../theme/functional';",
+          "entries": []
+        },
+        "686": {
+          "original": "                              <Chip size=\"small\" label={formatTipoActividadLabel(actividad.tipo_actividad)} sx={{ fontWeight: 700, bgcolor: '#eef2ff', color: '#3730a3' }} />",
+          "migrated": "                              <Chip size=\"small\" label={formatTipoActividadLabel(actividad.tipo_actividad)} sx={{ fontWeight: 700, bgcolor: activityTypeChipColors.pendingBackground, color: activityTypeChipColors.pendingText }} />",
+          "entries": [
+            {
+              "hex": "#eef2ff",
+              "token": "activityTypeChipColors.pendingBackground"
+            },
+            {
+              "hex": "#3730a3",
+              "token": "activityTypeChipColors.pendingText"
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "pages/OportunidadesPage.tsx": {
+      "group": "buckets",
+      "headSha256": "784327e23c0c3a72dd89adbcea831ad01277b642e148bc4a0463a415523087de",
+      "addedImports": [],
+      "lines": {
+        "62": {
+          "original": "import { alertColors } from '../theme/functional';",
+          "migrated": "import { alertColors, opportunityBucketColors } from '../theme/functional';",
+          "entries": []
+        },
+        "363": {
+          "original": "  if (bucket === 'convertidas') return '#2e7d32';",
+          "migrated": "  if (bucket === 'convertidas') return opportunityBucketColors.convertidas;",
+          "entries": [
+            {
+              "hex": "#2e7d32",
+              "token": "opportunityBucketColors.convertidas"
+            }
+          ]
+        },
+        "364": {
+          "original": "  if (bucket === 'perdidas') return '#d32f2f';",
+          "migrated": "  if (bucket === 'perdidas') return opportunityBucketColors.perdidas;",
+          "entries": [
+            {
+              "hex": "#d32f2f",
+              "token": "opportunityBucketColors.perdidas"
+            }
+          ]
+        },
+        "365": {
+          "original": "  if (bucket === 'pausadas') return '#ed6c02';",
+          "migrated": "  if (bucket === 'pausadas') return opportunityBucketColors.pausadas;",
+          "entries": [
+            {
+              "hex": "#ed6c02",
+              "token": "opportunityBucketColors.pausadas"
+            }
+          ]
+        },
+        "366": {
+          "original": "  if (bucket === 'abiertas') return '#1976d2';",
+          "migrated": "  if (bucket === 'abiertas') return opportunityBucketColors.abiertas;",
+          "entries": [
+            {
+              "hex": "#1976d2",
+              "token": "opportunityBucketColors.abiertas"
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "components/leads/TemperaturaScoreButton.tsx": {
+      "group": "temperature",
+      "headSha256": "bc94cea92a0423d5ecef228bc419f16745e8f9797fb9fa5743b343776db28d5c",
+      "addedImports": [
+        "import { temperatureColors } from '../../theme/functional';"
+      ],
+      "lines": {
+        "11": {
+          "original": "  frio: '#607d8b',",
+          "migrated": "  frio: temperatureColors.frio,",
+          "entries": [
+            {
+              "hex": "#607d8b",
+              "token": "temperatureColors.frio"
+            }
+          ]
+        },
+        "12": {
+          "original": "  tibio: '#1976d2',",
+          "migrated": "  tibio: temperatureColors.tibio,",
+          "entries": [
+            {
+              "hex": "#1976d2",
+              "token": "temperatureColors.tibio"
+            }
+          ]
+        },
+        "13": {
+          "original": "  caliente: '#ed6c02',",
+          "migrated": "  caliente: temperatureColors.caliente,",
+          "entries": [
+            {
+              "hex": "#ed6c02",
+              "token": "temperatureColors.caliente"
+            }
+          ]
+        },
+        "14": {
+          "original": "  muy_caliente: '#d32f2f',",
+          "migrated": "  muy_caliente: temperatureColors.muy_caliente,",
+          "entries": [
+            {
+              "hex": "#d32f2f",
+              "token": "temperatureColors.muy_caliente"
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    }
+  }
+}

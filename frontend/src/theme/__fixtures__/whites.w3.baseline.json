@@ -1,0 +1,230 @@
+{
+  "source": "HEAD 2e0c312, whites bloque w3",
+  "files": {
+    "components/RuntimeEnvironmentIndicator.tsx": {
+      "headSha256": "9eb25131c28be0227b9a8d71dfa80adf814ca72cc35b12072afb6d1bea3c7c36",
+      "addedImports": [],
+      "lines": {
+        "4": {
+          "original": "import { environmentColors } from '../theme/functional';",
+          "migrated": "import { environmentColors, onStatusColors } from '../theme/functional';",
+          "entries": [],
+          "replacements": [],
+          "importMerge": true
+        },
+        "56": {
+          "original": "        color: production ? '#fff' : warning ? environmentColors.warningText : environmentColors.defaultText,",
+          "migrated": "        color: production ? onStatusColors.environmentProduction : warning ? environmentColors.warningText : environmentColors.defaultText,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "production ? '#fff'",
+              "to": "production ? onStatusColors.environmentProduction",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "pages/LeadsPage.tsx": {
+      "headSha256": "cffbc506d69409e8702ddca03c926044fa3a88601d1110ca8ae93c402f83d7e4",
+      "addedImports": [],
+      "lines": {
+        "89": {
+          "original": "import { leadPriorityColors, thirdPartyColors } from '../theme/functional';",
+          "migrated": "import { leadPriorityColors, onStatusColors, thirdPartyColors } from '../theme/functional';",
+          "entries": [],
+          "replacements": [],
+          "importMerge": true
+        },
+        "2969": {
+          "original": "                <Box sx={{ minWidth: 20, height: 20, px: 0.5, flexShrink: 0, borderRadius: '50%', bgcolor: thirdPartyColors.whatsapp, color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700 }}>{lead.unreadCount}</Box>",
+          "migrated": "                <Box sx={{ minWidth: 20, height: 20, px: 0.5, flexShrink: 0, borderRadius: '50%', bgcolor: thirdPartyColors.whatsapp, color: onStatusColors.whatsapp, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700 }}>{lead.unreadCount}</Box>",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "bgcolor: thirdPartyColors.whatsapp, color: 'white'",
+              "to": "bgcolor: thirdPartyColors.whatsapp, color: onStatusColors.whatsapp",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "components/leads/LeadsMobileView.tsx": {
+      "headSha256": "a944644f1c71c7310767246534b403458878f76c140a4f26a49e166f76823cc5",
+      "addedImports": [],
+      "lines": {
+        "88": {
+          "original": "import { leadFilterChipColors, thirdPartyColors } from '../../theme/functional';",
+          "migrated": "import { leadFilterChipColors, onStatusColors, thirdPartyColors } from '../../theme/functional';",
+          "entries": [],
+          "replacements": [],
+          "importMerge": true
+        },
+        "1981": {
+          "original": "                    color: whatsappWindowFilter === opt.key ? '#ffffff' : leadFilterChipColors.foreground,",
+          "migrated": "                    color: whatsappWindowFilter === opt.key ? onStatusColors.leadFilterChip : leadFilterChipColors.foreground,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "? '#ffffff' : leadFilterChipColors",
+              "to": "? onStatusColors.leadFilterChip : leadFilterChipColors",
+              "times": 1
+            }
+          ]
+        },
+        "2011": {
+          "original": "                    color: opportunityFilter === opt.key ? '#ffffff' : leadFilterChipColors.foreground,",
+          "migrated": "                    color: opportunityFilter === opt.key ? onStatusColors.leadFilterChip : leadFilterChipColors.foreground,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "? '#ffffff' : leadFilterChipColors",
+              "to": "? onStatusColors.leadFilterChip : leadFilterChipColors",
+              "times": 1
+            }
+          ]
+        },
+        "2022": {
+          "original": "                  color: vistaFinalizadas ? '#ffffff' : 'text.secondary',",
+          "migrated": "                  color: vistaFinalizadas ? onStatusColors.leadViewToggle : 'text.secondary',",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "vistaFinalizadas ? '#ffffff'",
+              "to": "vistaFinalizadas ? onStatusColors.leadViewToggle",
+              "times": 1
+            }
+          ]
+        },
+        "2097": {
+          "original": "                          <Box sx={{ minWidth: 20, height: 20, px: 0.5, flexShrink: 0, borderRadius: '50%', bgcolor: thirdPartyColors.whatsapp, color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700 }}>{lead.unreadCount}</Box>",
+          "migrated": "                          <Box sx={{ minWidth: 20, height: 20, px: 0.5, flexShrink: 0, borderRadius: '50%', bgcolor: thirdPartyColors.whatsapp, color: onStatusColors.whatsapp, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700 }}>{lead.unreadCount}</Box>",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "bgcolor: thirdPartyColors.whatsapp, color: 'white'",
+              "to": "bgcolor: thirdPartyColors.whatsapp, color: onStatusColors.whatsapp",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "components/leads/TemperaturaProspectoModal.tsx": {
+      "headSha256": "b29ae20d82a83354244e174336f1b259d7d37c31894016fb663685f7331e79d8",
+      "addedImports": [
+        "import { onStatusColors } from '../../theme/functional';"
+      ],
+      "lines": {
+        "115": {
+          "original": "          <Box sx={{ width: 54, height: 54, borderRadius: '50%', display: 'grid', placeItems: 'center', bgcolor: current ? temperaturaColor(current.nivel) : 'action.hover', color: current ? '#fff' : 'text.secondary', flexShrink: 0 }}>",
+          "migrated": "          <Box sx={{ width: 54, height: 54, borderRadius: '50%', display: 'grid', placeItems: 'center', bgcolor: current ? temperaturaColor(current.nivel) : 'action.hover', color: current ? onStatusColors.temperature : 'text.secondary', flexShrink: 0 }}>",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "color: current ? '#fff'",
+              "to": "color: current ? onStatusColors.temperature",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "components/leads/TemperaturaScoreButton.tsx": {
+      "headSha256": "5d5ad358e30b0904ad97d3324dcd7d9beb375c3109ffceeeeeb2cca068b830f6",
+      "addedImports": [],
+      "lines": {
+        "6": {
+          "original": "import { temperatureColors } from '../../theme/functional';",
+          "migrated": "import { onStatusColors, temperatureColors } from '../../theme/functional';",
+          "entries": [],
+          "replacements": [],
+          "importMerge": true
+        },
+        "93": {
+          "original": "                  color: analysis.desactualizado ? temperaturaColor(analysis.nivel) : '#fff',",
+          "migrated": "                  color: analysis.desactualizado ? temperaturaColor(analysis.nivel) : onStatusColors.temperature,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": ": '#fff',",
+              "to": ": onStatusColors.temperature,",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "components/produccion/ProduccionDetalleDrawer.tsx": {
+      "headSha256": "211994a1920008277956624914a41f3dca6efb84c11485e975e7d7967e0376af",
+      "addedImports": [],
+      "lines": {
+        "26": {
+          "original": "import { neutralColors, overlayColors } from '../../theme/structural';",
+          "migrated": "import { neutralColors, onMediaColors, overlayColors } from '../../theme/structural';",
+          "entries": [],
+          "replacements": [],
+          "importMerge": true
+        },
+        "165": {
+          "original": "              <OpenInNewIcon sx={{ fontSize: 11, color: '#fff' }} />",
+          "migrated": "              <OpenInNewIcon sx={{ fontSize: 11, color: onMediaColors.badgeIcon }} />",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "fontSize: 11, color: '#fff'",
+              "to": "fontSize: 11, color: onMediaColors.badgeIcon",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "components/leads/LeadsDesktopView.tsx": {
+      "headSha256": "d59a0063dd804aee11d6182d373ab18a993d89596ea8e8b46433a872c3d2d9a6",
+      "addedImports": [],
+      "lines": {
+        "95": {
+          "original": "import { searchHighlightColors, thirdPartyColors } from '../../theme/functional';",
+          "migrated": "import { onStatusColors, searchHighlightColors, thirdPartyColors } from '../../theme/functional';",
+          "entries": [],
+          "replacements": [],
+          "importMerge": true
+        },
+        "1413": {
+          "original": "                      color: vistaFinalizadas ? '#ffffff' : 'text.secondary',",
+          "migrated": "                      color: vistaFinalizadas ? onStatusColors.leadViewToggle : 'text.secondary',",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "vistaFinalizadas ? '#ffffff'",
+              "to": "vistaFinalizadas ? onStatusColors.leadViewToggle",
+              "times": 1
+            }
+          ]
+        },
+        "1491": {
+          "original": "                                <Box sx={{ minWidth: 20, height: 20, px: 0.5, flexShrink: 0, borderRadius: '50%', bgcolor: thirdPartyColors.whatsapp, color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700 }}>{conversationLead.unreadCount}</Box>",
+          "migrated": "                                <Box sx={{ minWidth: 20, height: 20, px: 0.5, flexShrink: 0, borderRadius: '50%', bgcolor: thirdPartyColors.whatsapp, color: onStatusColors.whatsapp, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700 }}>{conversationLead.unreadCount}</Box>",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "bgcolor: thirdPartyColors.whatsapp, color: 'white'",
+              "to": "bgcolor: thirdPartyColors.whatsapp, color: onStatusColors.whatsapp",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    }
+  }
+}

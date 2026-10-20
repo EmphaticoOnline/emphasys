@@ -23,6 +23,7 @@ import type { SaldoInicialCuenta } from '../../types/saldosIniciales';
 import { fetchSaldosIniciales, actualizarSaldosInicialesLote } from '../../services/saldosInicialesService';
 import { CUENTAS_GRID_ROW_HEIGHT, cuentasGridDensidadSx, cuentasSinFocoDeCeldaSx } from './cuentasGridEstilos';
 import { botonPrimarioSx, chipEstadoSx, encabezadoTablaSx, iconoAccionSx, iconoPeligroSx, panelEstadoSx, textoEstadoSx, tonoDeClave } from './contabilidadVisual';
+import { balanceColors } from '../../theme/functional';
 
 
 type Filtro = 'todas' | 'sin-saldo' | 'con-saldo';
@@ -127,7 +128,7 @@ function CeldaSaldoInicial({ valor, onCommit, onEnterGuardar }: CeldaSaldoInicia
       InputProps={{ disableUnderline: true }}
       sx={{
         width: '100%',
-        '& .MuiInputBase-input': { color: negativo ? 'error.main' : 'inherit' },
+        '& .MuiInputBase-input': { color: negativo ? balanceColors.negative : 'inherit' },
       }}
     />
   );

@@ -1,6 +1,8 @@
 import { Button, CircularProgress, Paper } from '@mui/material';
 import CloseOutlinedIcon from '@mui/icons-material/CloseOutlined';
 import SaveIcon from '@mui/icons-material/Save';
+import { activeBrand } from '../theme/brand/active';
+import { brandElevation } from '../theme/elevation';
 
 type FloatingFormActionsProps = {
   onBack: () => void;
@@ -45,7 +47,7 @@ export default function FloatingFormActions({
         ...(graphite ? {
           bgcolor: theme.emphasys.content.elevated,
           border: `1px solid ${theme.emphasys.content.border}`,
-          boxShadow: '0 16px 40px rgba(44, 49, 56, 0.18)',
+          boxShadow: brandElevation.floating,
         } : {}),
       })}
     >
@@ -79,8 +81,8 @@ export default function FloatingFormActions({
           '&:hover': { backgroundColor: theme.emphasys.action.primaryHover },
           '&.Mui-disabled': { backgroundColor: theme.emphasys.action.disabled, color: theme.emphasys.action.primaryForeground },
         }) : {
-          backgroundColor: '#1d2f68',
-          '&:hover': { backgroundColor: '#162551' },
+          backgroundColor: activeBrand.colors.blue.base,
+          '&:hover': { backgroundColor: activeBrand.colors.blue.hover },
         }}
       >
         {saving ? savingLabel : saveLabel}

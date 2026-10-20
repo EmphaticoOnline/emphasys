@@ -1,0 +1,620 @@
+{
+  "source": "HEAD e85704d, bloque crm",
+  "files": {
+    "components/crm/ActividadSeguimientoDrawer.tsx": {
+      "headSha256": "eba83b001518b0b9f90890c2845093d2e503b2e7fa8f9939709862822ae0281f",
+      "addedImports": [
+        "import { neutralColors } from '../../theme/structural';",
+        "import { activeBrand } from '../../theme/brand/active';"
+      ],
+      "lines": {
+        "186": [
+          {
+            "hex": "#475569",
+            "token": "neutralColors.slate[600]"
+          }
+        ],
+        "187": [
+          {
+            "hex": "#94a3b8",
+            "token": "neutralColors.slate[400]"
+          }
+        ],
+        "188": [
+          {
+            "hex": "#f8fafc",
+            "token": "neutralColors.slate[50]"
+          }
+        ],
+        "189": [
+          {
+            "hex": "#cbd5e1",
+            "token": "neutralColors.slate[300]"
+          }
+        ],
+        "544": [
+          {
+            "hex": "#f8fafc",
+            "token": "neutralColors.slate[50]"
+          }
+        ],
+        "545": [
+          {
+            "hex": "#e2e8f0",
+            "token": "neutralColors.slate[200]"
+          }
+        ],
+        "547": [
+          {
+            "hex": "#64748b",
+            "token": "neutralColors.slate[500]"
+          }
+        ],
+        "550": [
+          {
+            "hex": "#0f172a",
+            "token": "neutralColors.slate[900]"
+          }
+        ],
+        "553": [
+          {
+            "hex": "#475569",
+            "token": "neutralColors.slate[600]"
+          }
+        ],
+        "593": [
+          {
+            "hex": "#64748b",
+            "token": "neutralColors.slate[500]"
+          }
+        ],
+        "600": [
+          {
+            "hex": "#dbe3ee",
+            "token": "neutralColors.steel.cardBorder"
+          }
+        ],
+        "601": [
+          {
+            "hex": "#64748b",
+            "token": "neutralColors.slate[500]"
+          }
+        ],
+        "608": [
+          {
+            "hex": "#f8fafc",
+            "token": "neutralColors.slate[50]"
+          }
+        ],
+        "618": [
+          {
+            "hex": "#64748b",
+            "token": "neutralColors.slate[500]"
+          }
+        ],
+        "635": [
+          {
+            "hex": "#dbe3ee",
+            "token": "neutralColors.steel.cardBorder"
+          }
+        ],
+        "636": [
+          {
+            "hex": "#475569",
+            "token": "neutralColors.slate[600]"
+          }
+        ],
+        "643": [
+          {
+            "hex": "#0f172a",
+            "token": "neutralColors.slate[900]"
+          }
+        ],
+        "648": [
+          {
+            "hex": "#dbe3ee",
+            "token": "neutralColors.steel.cardBorder"
+          }
+        ],
+        "650": [
+          {
+            "hex": "#475569",
+            "token": "neutralColors.slate[600]"
+          }
+        ],
+        "658": [
+          {
+            "hex": "#1d2f68",
+            "token": "activeBrand.colors.blue.base"
+          },
+          {
+            "hex": "#162551",
+            "token": "activeBrand.colors.blue.hover"
+          }
+        ],
+        "697": [
+          {
+            "hex": "#475569",
+            "token": "neutralColors.slate[600]"
+          }
+        ],
+        "701": [
+          {
+            "hex": "#334155",
+            "token": "neutralColors.slate[700]"
+          }
+        ],
+        "739": [
+          {
+            "hex": "#1d2f68",
+            "token": "activeBrand.colors.blue.base"
+          },
+          {
+            "hex": "#162551",
+            "token": "activeBrand.colors.blue.hover"
+          }
+        ],
+        "746": [
+          {
+            "hex": "#0f172a",
+            "token": "neutralColors.slate[900]"
+          }
+        ],
+        "751": [
+          {
+            "hex": "#dbe3ee",
+            "token": "neutralColors.steel.cardBorder"
+          }
+        ],
+        "752": [
+          {
+            "hex": "#64748b",
+            "token": "neutralColors.slate[500]"
+          }
+        ],
+        "778": [
+          {
+            "hex": "#475569",
+            "token": "neutralColors.slate[600]"
+          }
+        ],
+        "782": [
+          {
+            "hex": "#0f172a",
+            "token": "neutralColors.slate[900]"
+          }
+        ],
+        "803": [
+          {
+            "hex": "#0f172a",
+            "token": "neutralColors.slate[900]"
+          }
+        ],
+        "830": [
+          {
+            "hex": "#475569",
+            "token": "neutralColors.slate[600]"
+          }
+        ],
+        "852": [
+          {
+            "hex": "#0f172a",
+            "token": "neutralColors.slate[900]"
+          }
+        ],
+        "855": [
+          {
+            "hex": "#64748b",
+            "token": "neutralColors.slate[500]"
+          }
+        ],
+        "965": [
+          {
+            "hex": "#64748b",
+            "token": "neutralColors.slate[500]"
+          }
+        ]
+      },
+      "keptLiteral": {}
+    },
+    "components/crm/SeguimientoActividadCell.tsx": {
+      "headSha256": "a6e9342ce636648a15171fc83d0f1b0b956a8f8fdaba80981e0ebd989371a6d4",
+      "addedImports": [
+        "import { activeBrand } from '../../theme/brand/active';"
+      ],
+      "lines": {
+        "63": [
+          {
+            "hex": "#1d2f68",
+            "token": "activeBrand.colors.blue.base"
+          }
+        ]
+      },
+      "keptLiteral": {}
+    },
+    "hooks/useSeguimientoActividades.ts": {
+      "headSha256": "7954c36454c9218fee24a602c2953ffaf080bbff6ad8665cc0687024cea185b5",
+      "addedImports": [
+        "import { neutralColors } from '../theme/structural';"
+      ],
+      "lines": {
+        "115": [
+          {
+            "hex": "#f8fafc",
+            "token": "neutralColors.slate[50]"
+          }
+        ],
+        "116": [
+          {
+            "hex": "#64748b",
+            "token": "neutralColors.slate[500]"
+          }
+        ],
+        "117": [
+          {
+            "hex": "#cbd5e1",
+            "token": "neutralColors.slate[300]"
+          }
+        ]
+      },
+      "keptLiteral": {}
+    },
+    "pages/OportunidadesPage.tsx": {
+      "headSha256": "f5ada3826bab15362cc4851d848974743e3389dbb15177fbcfa85eb64073a14f",
+      "addedImports": [
+        "import { neutralColors } from '../theme/structural';",
+        "import { activeBrand } from '../theme/brand/active';"
+      ],
+      "lines": {
+        "334": [
+          {
+            "hex": "#f1f5f9",
+            "token": "neutralColors.slate[100]"
+          },
+          {
+            "hex": "#475569",
+            "token": "neutralColors.slate[600]"
+          },
+          {
+            "hex": "#cbd5e1",
+            "token": "neutralColors.slate[300]"
+          }
+        ],
+        "365": [
+          {
+            "hex": "#94a3b8",
+            "token": "neutralColors.slate[400]"
+          }
+        ],
+        "1201": [
+          {
+            "hex": "#64748b",
+            "token": "neutralColors.slate[500]"
+          }
+        ],
+        "1221": [
+          {
+            "hex": "#94a3b8",
+            "token": "neutralColors.slate[400]"
+          }
+        ],
+        "1270": [
+          {
+            "hex": "#64748b",
+            "token": "neutralColors.slate[500]"
+          }
+        ],
+        "1271": [
+          {
+            "hex": "#0f172a",
+            "token": "neutralColors.slate[900]"
+          },
+          {
+            "hex": "#94a3b8",
+            "token": "neutralColors.slate[400]"
+          }
+        ],
+        "1362": [
+          {
+            "hex": "#dbe3ee",
+            "token": "neutralColors.steel.cardBorder"
+          }
+        ],
+        "1365": [
+          {
+            "hex": "#475569",
+            "token": "neutralColors.slate[600]"
+          }
+        ],
+        "1409": [
+          {
+            "hex": "#f8fafc",
+            "token": "neutralColors.slate[50]"
+          }
+        ],
+        "1410": [
+          {
+            "hex": "#cbd5e1",
+            "token": "neutralColors.slate[300]"
+          }
+        ],
+        "1411": [
+          {
+            "hex": "#475569",
+            "token": "neutralColors.slate[600]"
+          }
+        ],
+        "1449": [
+          {
+            "hex": "#f8fafc",
+            "token": "neutralColors.slate[50]"
+          }
+        ],
+        "1450": [
+          {
+            "hex": "#cbd5e1",
+            "token": "neutralColors.slate[300]"
+          }
+        ],
+        "1451": [
+          {
+            "hex": "#64748b",
+            "token": "neutralColors.slate[500]"
+          }
+        ],
+        "1452": [
+          {
+            "hex": "#334155",
+            "token": "neutralColors.slate[700]"
+          }
+        ],
+        "1510": [
+          {
+            "hex": "#fcfdff",
+            "token": "neutralColors.steel.surfaceRaised"
+          }
+        ],
+        "1511": [
+          {
+            "hex": "#e2e8f0",
+            "token": "neutralColors.slate[200]"
+          }
+        ],
+        "1512": [
+          {
+            "hex": "#64748b",
+            "token": "neutralColors.slate[500]"
+          }
+        ],
+        "1513": [
+          {
+            "hex": "#0f172a",
+            "token": "neutralColors.slate[900]"
+          }
+        ],
+        "1522": [
+          {
+            "hex": "#fcfdff",
+            "token": "neutralColors.steel.surfaceRaised"
+          }
+        ],
+        "1523": [
+          {
+            "hex": "#e2e8f0",
+            "token": "neutralColors.slate[200]"
+          }
+        ],
+        "1524": [
+          {
+            "hex": "#64748b",
+            "token": "neutralColors.slate[500]"
+          }
+        ],
+        "1525": [
+          {
+            "hex": "#0f172a",
+            "token": "neutralColors.slate[900]"
+          }
+        ],
+        "1531": [
+          {
+            "hex": "#fcfdff",
+            "token": "neutralColors.steel.surfaceRaised"
+          }
+        ],
+        "1532": [
+          {
+            "hex": "#e2e8f0",
+            "token": "neutralColors.slate[200]"
+          }
+        ],
+        "1533": [
+          {
+            "hex": "#64748b",
+            "token": "neutralColors.slate[500]"
+          }
+        ],
+        "1534": [
+          {
+            "hex": "#0f172a",
+            "token": "neutralColors.slate[900]"
+          }
+        ],
+        "1562": [
+          {
+            "hex": "#94a3b8",
+            "token": "neutralColors.slate[400]"
+          }
+        ],
+        "1631": [
+          {
+            "hex": "#1d2f68",
+            "token": "activeBrand.colors.blue.base"
+          }
+        ],
+        "1834": [
+          {
+            "hex": "#1d2f68",
+            "token": "activeBrand.colors.blue.base"
+          },
+          {
+            "hex": "#162551",
+            "token": "activeBrand.colors.blue.hover"
+          }
+        ],
+        "1890": [
+          {
+            "hex": "#1d2f68",
+            "token": "activeBrand.colors.blue.base"
+          }
+        ],
+        "1918": [
+          {
+            "hex": "#f1f5f9",
+            "token": "neutralColors.slate[100]"
+          }
+        ],
+        "1979": [
+          {
+            "hex": "#475569",
+            "token": "neutralColors.slate[600]"
+          }
+        ],
+        "2011": [
+          {
+            "hex": "#475569",
+            "token": "neutralColors.slate[600]"
+          }
+        ],
+        "2135": [
+          {
+            "hex": "#e5e7eb",
+            "token": "neutralColors.gray[200]"
+          }
+        ]
+      },
+      "keptLiteral": {}
+    },
+    "pages/OportunidadDetallePage.tsx": {
+      "headSha256": "2a08b4789ec80ec84aebcb35fe588d0eba8fa858962bbad98b50241057a28409",
+      "addedImports": [
+        "import { neutralColors } from '../theme/structural';"
+      ],
+      "lines": {
+        "68": [
+          {
+            "hex": "#64748b",
+            "token": "neutralColors.slate[500]"
+          }
+        ],
+        "71": [
+          {
+            "hex": "#0f172a",
+            "token": "neutralColors.slate[900]"
+          }
+        ],
+        "122": [
+          {
+            "hex": "#dbe3ee",
+            "token": "neutralColors.steel.cardBorder"
+          }
+        ],
+        "125": [
+          {
+            "hex": "#475569",
+            "token": "neutralColors.slate[600]"
+          }
+        ],
+        "137": [
+          {
+            "hex": "#0f172a",
+            "token": "neutralColors.slate[900]"
+          }
+        ],
+        "140": [
+          {
+            "hex": "#475569",
+            "token": "neutralColors.slate[600]"
+          }
+        ],
+        "153": [
+          {
+            "hex": "#dbe3ee",
+            "token": "neutralColors.steel.cardBorder"
+          }
+        ],
+        "168": [
+          {
+            "hex": "#dbe3ee",
+            "token": "neutralColors.steel.cardBorder"
+          }
+        ],
+        "170": [
+          {
+            "hex": "#0f172a",
+            "token": "neutralColors.slate[900]"
+          }
+        ],
+        "200": [
+          {
+            "hex": "#64748b",
+            "token": "neutralColors.slate[500]"
+          }
+        ]
+      },
+      "keptLiteral": {}
+    },
+    "pages/CRMPage.tsx": {
+      "headSha256": "0c332a91e64a697f34c4e44120857667431914cb88af4852c82c7faf1e9cef7d",
+      "addedImports": [
+        "import { neutralColors } from '../theme/structural';",
+        "import { activeBrand } from '../theme/brand/active';"
+      ],
+      "lines": {
+        "73": [
+          {
+            "hex": "#1d2f68",
+            "token": "activeBrand.colors.blue.base"
+          }
+        ],
+        "76": [
+          {
+            "hex": "#4b5563",
+            "token": "neutralColors.gray[600]"
+          }
+        ]
+      },
+      "keptLiteral": {}
+    },
+    "pages/EvaluacionVendedoresPage.tsx": {
+      "headSha256": "1b67509f746c8cddc8e1b15abecff8b01424f16dd9f0f15db41e59210cec417d",
+      "addedImports": [
+        "import { activeBrand } from '../theme/brand/active';"
+      ],
+      "lines": {
+        "117": [
+          {
+            "hex": "#1d2f68",
+            "token": "activeBrand.colors.blue.base"
+          }
+        ]
+      },
+      "keptLiteral": {}
+    },
+    "components/leads/LeadsDesktopView.tsx": {
+      "headSha256": "55fa23afaa0f7ff9de7fa931fad072a61a00790af92fc449cf05a5f629473774",
+      "addedImports": [
+        "import { neutralColors } from '../../theme/structural';"
+      ],
+      "lines": {
+        "1120": [
+          {
+            "hex": "#64748b",
+            "token": "neutralColors.slate[500]"
+          }
+        ]
+      },
+      "keptLiteral": {}
+    }
+  }
+}

@@ -1,0 +1,111 @@
+{
+  "source": "HEAD 6ccb623, whites bloque w4",
+  "files": {
+    "components/leads/LeadDetailPanel.tsx": {
+      "headSha256": "f89c24b05faa1d5790f06a9d65ef624025fe49d8397b89dc3ab1a7f0bea6132a",
+      "addedImports": [
+        "import { dataColorContrast } from '../../theme/functional';"
+      ],
+      "lines": {
+        "212": {
+          "original": "                  color: '#fff',",
+          "migrated": "                  color: dataColorContrast.tagChipForeground,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "color: '#fff',",
+              "to": "color: dataColorContrast.tagChipForeground,",
+              "times": 1
+            }
+          ]
+        },
+        "215": {
+          "original": "                  '& .MuiChip-deleteIcon': { color: '#fff' },",
+          "migrated": "                  '& .MuiChip-deleteIcon': { color: dataColorContrast.tagChipForeground },",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "{ color: '#fff' }",
+              "to": "{ color: dataColorContrast.tagChipForeground }",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "components/produccion/ProduccionDetalleDrawer.tsx": {
+      "headSha256": "6829df7837294635347470e8c5e38599df27b4f56faa2fce0e0e7c3363c4d8e1",
+      "addedImports": [],
+      "lines": {
+        "25": {
+          "original": "import { alertColors } from '../../theme/functional';",
+          "migrated": "import { alertColors, dataColorContrast } from '../../theme/functional';",
+          "entries": [],
+          "replacements": [],
+          "importMerge": true
+        },
+        "85": {
+          "original": "  return contrastWithWhite >= contrastWithDark ? '#ffffff' : neutralColors.gray[900];",
+          "migrated": "  return contrastWithWhite >= contrastWithDark ? dataColorContrast.stageLight : neutralColors.gray[900];",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "? '#ffffff' :",
+              "to": "? dataColorContrast.stageLight :",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "pages/DocumentosPage.tsx": {
+      "headSha256": "3fb72f04af38144dbf4d6c80e2e5125b4c50d1da46cf89b9735b3df884400a75",
+      "addedImports": [],
+      "lines": {
+        "169": {
+          "original": "import { alertColors, balanceColors } from '../theme/functional';",
+          "migrated": "import { alertColors, balanceColors, dataColorContrast } from '../theme/functional';",
+          "entries": [],
+          "replacements": [],
+          "importMerge": true
+        },
+        "249": {
+          "original": "  return contrastWithWhite >= contrastWithDark ? '#ffffff' : neutralColors.gray[900];",
+          "migrated": "  return contrastWithWhite >= contrastWithDark ? dataColorContrast.stageLight : neutralColors.gray[900];",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "? '#ffffff' :",
+              "to": "? dataColorContrast.stageLight :",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "pages/ProduccionPage.tsx": {
+      "headSha256": "9a9e5c0fda5be65991f95b0ba5251a63a7e48367d2ea5cc5274c60ad4d9d27d7",
+      "addedImports": [
+        "import { dataColorContrast } from '../theme/functional';"
+      ],
+      "lines": {
+        "90": {
+          "original": "  return contrastWithWhite >= contrastWithDark ? '#ffffff' : neutralColors.gray[900];",
+          "migrated": "  return contrastWithWhite >= contrastWithDark ? dataColorContrast.stageLight : neutralColors.gray[900];",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "? '#ffffff' :",
+              "to": "? dataColorContrast.stageLight :",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    }
+  }
+}

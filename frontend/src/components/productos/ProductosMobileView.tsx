@@ -7,6 +7,8 @@ import MoreVertIcon from '@mui/icons-material/MoreVert';
 import SearchIcon from '@mui/icons-material/Search';
 import ClearIcon from '@mui/icons-material/Clear';
 import type { ProductosMobileViewProps } from './ProductosView.types';
+import { neutralColors, whiteSurfaces } from '../../theme/structural';
+import { brandElevation, elevation } from '../../theme/elevation';
 
 function hasValue(value?: string | number | boolean | null) {
   return value != null && String(value).trim() !== '';
@@ -65,7 +67,7 @@ export default function ProductosMobileView({
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25, position: 'sticky', top: 72, zIndex: 2, py: 1, backgroundColor: (theme) => theme.emphasys.canvas.page }}>
           <Box>
             <Typography variant="h5" fontWeight={600} sx={{ color: (theme) => theme.emphasys.content.foreground }}>Productos</Typography>
-            <Typography variant="body2" color="#4b5563">Gestiona el catálogo básico de productos. Existencias son solo de lectura.</Typography>
+            <Typography variant="body2" color={neutralColors.gray[600]}>Gestiona el catálogo básico de productos. Existencias son solo de lectura.</Typography>
           </Box>
           <TextField
             size="small"
@@ -102,8 +104,8 @@ export default function ProductosMobileView({
               <CircularProgress size={28} />
             </Box>
           ) : productos.length === 0 ? (
-            <Box sx={{ border: '1px solid #e5e7eb', borderRadius: 2, backgroundColor: '#fff', px: 2, py: 4, textAlign: 'center' }}>
-              <Typography variant="body2" color="#4b5563">
+            <Box sx={{ border: `1px solid ${neutralColors.gray[200]}`, borderRadius: 2, backgroundColor: whiteSurfaces.mobileEmptyState, px: 2, py: 4, textAlign: 'center' }}>
+              <Typography variant="body2" color={neutralColors.gray[600]}>
                 {searchTerm.trim() ? `No hay productos que coincidan con "${searchTerm}".` : 'No hay productos registrados.'}
               </Typography>
             </Box>
@@ -120,10 +122,10 @@ export default function ProductosMobileView({
                   key={producto.id}
                   variant="outlined"
                   sx={{
-                    borderColor: '#e5e7eb',
+                    borderColor: neutralColors.gray[200],
                     borderRadius: 2.5,
-                    backgroundColor: '#ffffff',
-                    boxShadow: '0 8px 20px rgba(15, 23, 42, 0.05)',
+                    backgroundColor: whiteSurfaces.mobileListCard,
+                    boxShadow: elevation.card,
                   }}
                 >
                   <CardContent sx={{ display: 'flex', flexDirection: 'column', gap: 1, p: 1.5, '&:last-child': { pb: 1.5 } }}>
@@ -133,7 +135,7 @@ export default function ProductosMobileView({
                           {renderValue(producto.descripcion)}
                         </Typography>
                         {hasValue(producto.clave) ? (
-                          <Typography variant="body2" color="#4b5563" sx={{ mt: 0.25, wordBreak: 'break-word', lineHeight: 1.3 }}>
+                          <Typography variant="body2" color={neutralColors.gray[600]} sx={{ mt: 0.25, wordBreak: 'break-word', lineHeight: 1.3 }}>
                             {producto.clave}
                           </Typography>
                         ) : null}
@@ -160,10 +162,10 @@ export default function ProductosMobileView({
                       <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 0.75 }}>
                         {detailItems.map((item) => (
                           <Box key={`${producto.id}-${item.label}`} sx={{ minWidth: 0 }}>
-                            <Typography variant="caption" color="#6b7280" sx={{ display: 'block', lineHeight: 1.1 }}>
+                            <Typography variant="caption" color={neutralColors.gray[500]} sx={{ display: 'block', lineHeight: 1.1 }}>
                               {item.label}
                             </Typography>
-                            <Typography variant="body2" color="#111827" sx={{ lineHeight: 1.25, wordBreak: 'break-word' }}>
+                            <Typography variant="body2" color={neutralColors.gray[900]} sx={{ lineHeight: 1.25, wordBreak: 'break-word' }}>
                               {renderValue(item.value)}
                             </Typography>
                           </Box>
@@ -187,7 +189,7 @@ export default function ProductosMobileView({
             bottom: 20,
             backgroundColor: (theme) => theme.emphasys.action.primary,
             color: (theme) => theme.emphasys.action.primaryForeground,
-            boxShadow: '0 16px 40px rgba(44, 49, 56, 0.18)',
+            boxShadow: brandElevation.floating,
             '&:hover': { backgroundColor: (theme) => theme.emphasys.action.primaryHover },
           }}
         >

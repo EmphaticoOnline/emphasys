@@ -1,0 +1,189 @@
+{
+  "source": "HEAD 2a96ab6, literales rgba de marca antes de los tintes (docs/white-label-tintes-alfa-audit.md, T1)",
+  "brand": {
+    "focusRow": {
+      "value": "rgba(29, 47, 104, 0.10)",
+      "headOccurrences": 2
+    },
+    "focusRowSelected": {
+      "value": "rgba(29, 47, 104, 0.16)",
+      "headOccurrences": 2
+    },
+    "focusRowSelectedHover": {
+      "value": "rgba(29, 47, 104, 0.20)",
+      "headOccurrences": 1
+    },
+    "focusRowBorder": {
+      "value": "rgba(29, 47, 104, 0.24)",
+      "headOccurrences": 2
+    },
+    "focusPulseEnd": {
+      "value": "rgba(29, 47, 104, 0.10)",
+      "headOccurrences": 2
+    },
+    "gridRowSelected": {
+      "value": "rgba(29, 47, 104, 0.08)",
+      "headOccurrences": 3
+    },
+    "gridRowSelectedHover": {
+      "value": "rgba(29, 47, 104, 0.12)",
+      "headOccurrences": 1
+    },
+    "activeItem": {
+      "value": "rgba(29, 47, 104, 0.06)",
+      "headOccurrences": 1
+    },
+    "activeItemHover": {
+      "value": "rgba(29, 47, 104, 0.08)",
+      "headOccurrences": 3
+    },
+    "drawerBorder": {
+      "value": "rgba(29, 47, 104, 0.16)",
+      "headOccurrences": 2
+    },
+    "iconWash": {
+      "value": "rgba(29, 47, 104, 0.08)",
+      "headOccurrences": 3
+    },
+    "noteSurface": {
+      "value": "rgba(29,47,104,0.05)",
+      "headOccurrences": 1
+    },
+    "outlineButtonBorder": {
+      "value": "rgba(29,47,104,0.5)",
+      "headOccurrences": 1
+    },
+    "onChromeSeparator": {
+      "value": "rgba(244, 240, 232, 0.55)",
+      "headOccurrences": 1
+    },
+    "onChromeMutedIcon": {
+      "value": "rgba(244,240,232,0.72)",
+      "headOccurrences": 1
+    },
+    "accentWash": {
+      "value": "rgba(0,98,97,0.1)",
+      "headOccurrences": 1
+    }
+  },
+  "functional": {
+    "alertTints.errorHover": {
+      "value": "rgba(220, 38, 38, 0.08)",
+      "headOccurrences": 2
+    },
+    "environmentColors.defaultBackground": {
+      "value": "rgba(255,255,255,0.16)",
+      "headOccurrences": 2
+    },
+    "environmentColors.defaultBorder": {
+      "value": "rgba(255,255,255,0.28)",
+      "headOccurrences": 1
+    }
+  },
+  "structural": {
+    "overlayColors.onDark.gridHeaderSeparator": {
+      "value": "rgba(255,255,255,0.25)",
+      "headOccurrences": 2
+    },
+    "overlayColors.onDark.railSelectedHover": {
+      "value": "rgba(255,255,255,0.14)",
+      "headOccurrences": 2
+    },
+    "overlayColors.onDark.selectionBarDivider": {
+      "value": "rgba(255,255,255,0.2)",
+      "headOccurrences": 2
+    },
+    "overlayColors.onDark.mutedLabel": {
+      "value": "rgba(255,255,255,0.7)",
+      "headOccurrences": 2
+    },
+    "overlayColors.onDark.iconHover": {
+      "value": "rgba(255,255,255,0.12)",
+      "headOccurrences": 1
+    },
+    "overlayColors.onDark.tabHighlight": {
+      "value": "rgba(255,255,255,0.16)",
+      "headOccurrences": 2
+    },
+    "overlayColors.chat.ownBubbleBorder": {
+      "value": "rgba(255,255,255,0.6)",
+      "headOccurrences": 3
+    },
+    "overlayColors.chat.ownBubbleSurface": {
+      "value": "rgba(255,255,255,0.15)",
+      "headOccurrences": 2
+    },
+    "overlayColors.chat.otherBubbleSurface": {
+      "value": "rgba(0,0,0,0.04)",
+      "headOccurrences": 1
+    },
+    "overlayColors.media.imageButton": {
+      "value": "rgba(0,0,0,.45)",
+      "headOccurrences": 1
+    },
+    "overlayColors.media.imageButtonHover": {
+      "value": "rgba(0,0,0,.7)",
+      "headOccurrences": 1
+    },
+    "overlayColors.media.imageBadge": {
+      "value": "rgba(0,0,0,0.55)",
+      "headOccurrences": 1
+    },
+    "overlayColors.veils.loading": {
+      "value": "rgba(255,255,255,0.6)",
+      "headOccurrences": 3
+    },
+    "overlayColors.drawer.surface": {
+      "value": "rgba(255, 255, 255, 0.98)",
+      "headOccurrences": 1
+    },
+    "overlayColors.drawer.closeButton": {
+      "value": "rgba(255,255,255,0.92)",
+      "headOccurrences": 1
+    },
+    "overlayColors.drawer.closeButtonHover": {
+      "value": "rgba(255,255,255,1)",
+      "headOccurrences": 1
+    },
+    "overlayColors.drawer.closeButtonBorder": {
+      "value": "rgba(15, 23, 42, 0.08)",
+      "headOccurrences": 1
+    },
+    "overlayColors.hover.gridMenuItem": {
+      "value": "rgba(15, 23, 42, 0.06)",
+      "headOccurrences": 2
+    },
+    "overlayColors.hover.gridRow": {
+      "value": "rgba(15, 23, 42, 0.04)",
+      "headOccurrences": 1
+    },
+    "overlayColors.text.fieldCaption": {
+      "value": "rgba(0,0,0,0.6)",
+      "headOccurrences": 1
+    },
+    "overlayColors.pulse.recentStart": {
+      "value": "rgba(56, 189, 248, 0.24)",
+      "headOccurrences": 1
+    },
+    "overlayColors.receptionPanel.border": {
+      "value": "rgba(148,163,184,0.35)",
+      "headOccurrences": 1
+    },
+    "overlayColors.receptionPanel.headerDivider": {
+      "value": "rgba(148,163,184,0.25)",
+      "headOccurrences": 1
+    },
+    "overlayColors.receptionPanel.totalBorder": {
+      "value": "rgba(148,163,184,0.4)",
+      "headOccurrences": 1
+    },
+    "overlayColors.floatingSummary.border": {
+      "value": "rgba(148, 163, 184, 0.35)",
+      "headOccurrences": 1
+    },
+    "overlayColors.floatingSummary.surface": {
+      "value": "rgba(255, 255, 255, 0.96)",
+      "headOccurrences": 1
+    }
+  }
+}

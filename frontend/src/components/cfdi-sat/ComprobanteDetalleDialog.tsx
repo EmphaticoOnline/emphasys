@@ -19,6 +19,9 @@ import {
   type CfdiSatComprobanteDetalle,
 } from '../../services/cfdiSatService';
 import { ESTADO_IMPORTACION_INFO, POSIBLE_DUPLICADO_LABEL } from './estadoImportacion';
+import { alertColors } from '../../theme/functional';
+import { neutralColors } from '../../theme/structural';
+import { activeBrand } from '../../theme/brand/active';
 
 function formatFecha(raw?: string | null): string {
   if (!raw) return '—';
@@ -30,10 +33,10 @@ function formatFecha(raw?: string | null): string {
 function Campo({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <Stack spacing={0.25}>
-      <Typography variant="caption" color="#6b7280">
+      <Typography variant="caption" color={neutralColors.gray[500]}>
         {label}
       </Typography>
-      <Typography variant="body2" color="#1f2937">
+      <Typography variant="body2" color={neutralColors.gray[800]}>
         {value}
       </Typography>
     </Stack>
@@ -155,7 +158,7 @@ export default function ComprobanteDetalleDialog({
 
             <Stack spacing={1}>
               <Stack direction="row" alignItems="center" spacing={1}>
-                <Typography variant="caption" color="#6b7280">
+                <Typography variant="caption" color={neutralColors.gray[500]}>
                   Estado operativo de importación
                 </Typography>
                 {detalle?.evaluacion && (
@@ -171,25 +174,25 @@ export default function ComprobanteDetalleDialog({
               </Stack>
 
               {detalle?.evaluacion && (
-                <Typography variant="body2" color="#1f2937">
+                <Typography variant="body2" color={neutralColors.gray[800]}>
                   {detalle.evaluacion.mensaje}
                 </Typography>
               )}
 
               {detalle?.evaluacion?.proveedor_nombre && (
-                <Typography variant="body2" color="#4b5563">
+                <Typography variant="body2" color={neutralColors.gray[600]}>
                   Proveedor detectado: {detalle.evaluacion.proveedor_nombre} (#{detalle.evaluacion.proveedor_id})
                 </Typography>
               )}
 
               {detalle?.evaluacion?.documento_id && (
-                <Typography variant="body2" color="#4b5563">
+                <Typography variant="body2" color={neutralColors.gray[600]}>
                   Documento relacionado: #{detalle.evaluacion.documento_id}
                 </Typography>
               )}
 
               {detalle?.evaluacion?.posible_documento_existente && (
-                <Typography variant="body2" color="#92400e">
+                <Typography variant="body2" color={alertColors.warning[800]}>
                   Posible duplicado (documento #{detalle.evaluacion.posible_documento_existente.documento_id},
                   confianza {detalle.evaluacion.posible_documento_existente.confianza}):{' '}
                   {detalle.evaluacion.posible_documento_existente.motivo}
@@ -240,7 +243,7 @@ export default function ComprobanteDetalleDialog({
             <Button
               variant="contained"
               onClick={() => navigate(`/compras/factura_compra/${documentoObjetivo}`)}
-              sx={{ textTransform: 'none', fontWeight: 700, backgroundColor: '#1d2f68' }}
+              sx={{ textTransform: 'none', fontWeight: 700, backgroundColor: activeBrand.colors.blue.base }}
             >
               Ver factura
             </Button>

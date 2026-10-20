@@ -37,6 +37,7 @@ import type { AplicacionOperacion } from '../../../types/finanzas';
 import type { Contacto } from '../../../types/contactos.types';
 import type { CotizacionDocumento, CotizacionListado } from '../../../types/cotizacion';
 import type { TipoDocumento } from '../../../types/documentos.types';
+import { brandElevation, elevation } from '../../../theme/elevation';
 
 type FiltroAjustes = {
   fechaDesde: string;
@@ -301,7 +302,7 @@ export default function AjustesSaldoWorkspaceView(props: Props) {
               </span>
             </Tooltip>
             <Tooltip title="Nuevo ajuste" arrow>
-              <IconButton aria-label="Nuevo ajuste" onClick={onCreate} sx={{ width: 34, height: 34, bgcolor: tokens.navigation.control, color: tokens.navigation.controlForeground, boxShadow: '0 1px 2px rgba(0,0,0,0.35)', '&:hover': { bgcolor: tokens.content.elevated } }}>
+              <IconButton aria-label="Nuevo ajuste" onClick={onCreate} sx={{ width: 34, height: 34, bgcolor: tokens.navigation.control, color: tokens.navigation.controlForeground, boxShadow: elevation.railControl, '&:hover': { bgcolor: tokens.content.elevated } }}>
                 <AddIcon fontSize="small" />
               </IconButton>
             </Tooltip>
@@ -362,7 +363,7 @@ export default function AjustesSaldoWorkspaceView(props: Props) {
           const agotada = saldo <= 0 && !esCancelado(row.estatus_documento);
           const tono = tonoEstatus(row.estatus_documento);
           return (
-            <Box key={row.id} onClick={() => { onSelect(row); setDetalleMovil(true); }} onContextMenu={(event) => { event.preventDefault(); event.stopPropagation(); onSelect(row); setMenuFila({ top: event.clientY, left: event.clientX, rowId: row.id }); }} sx={{ px: 1, py: 1.05, mb: 0.45, borderRadius: 2, cursor: 'pointer', display: 'flex', gap: 0.4, bgcolor: activa ? tokens.navigation.selection : 'transparent', color: activa ? tokens.navigation.selectionForeground : tokens.navigation.foreground, boxShadow: row.id === highlightedId ? `inset 0 0 0 1px ${tokens.navigation.accent}` : activa ? '0 1px 2px rgba(0,0,0,0.18)' : 'none', '&:hover': { bgcolor: activa ? tokens.navigation.selection : tokens.navigation.hover } }}>
+            <Box key={row.id} onClick={() => { onSelect(row); setDetalleMovil(true); }} onContextMenu={(event) => { event.preventDefault(); event.stopPropagation(); onSelect(row); setMenuFila({ top: event.clientY, left: event.clientX, rowId: row.id }); }} sx={{ px: 1, py: 1.05, mb: 0.45, borderRadius: 2, cursor: 'pointer', display: 'flex', gap: 0.4, bgcolor: activa ? tokens.navigation.selection : 'transparent', color: activa ? tokens.navigation.selectionForeground : tokens.navigation.foreground, boxShadow: row.id === highlightedId ? `inset 0 0 0 1px ${tokens.navigation.accent}` : activa ? elevation.railSelection : 'none', '&:hover': { bgcolor: activa ? tokens.navigation.selection : tokens.navigation.hover } }}>
               <Checkbox size="small" checked={selectedIds.includes(row.id)} onClick={(event) => event.stopPropagation()} onChange={() => alternarSeleccion(row.id)} inputProps={{ 'aria-label': `Seleccionar ${formatFolio(row)}` }} sx={{ p: 0.3, mt: -0.2, color: tokens.navigation.muted, '&.Mui-checked': { color: activa ? tokens.navigation.selectionForeground : tokens.navigation.foreground } }} />
               <Box sx={{ minWidth: 0, flex: 1 }}>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, alignItems: 'baseline' }}>
@@ -638,7 +639,7 @@ function PopoverFiltroAjustes({
     },
   };
   return (
-    <Popover open={Boolean(ancla)} anchorEl={ancla} onClose={onClose} anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }} transformOrigin={{ vertical: 'top', horizontal: 'right' }} slotProps={{ paper: { sx: { mt: 0.75, p: 1.5, width: 320, borderRadius: 2, bgcolor: tokens.content.card, color: tokens.content.foreground, border: `1px solid ${tokens.content.border}`, boxShadow: '0 16px 40px rgba(44, 49, 56, 0.18)', maxHeight: 'min(70vh, 560px)', overflow: 'auto' } } }}>
+    <Popover open={Boolean(ancla)} anchorEl={ancla} onClose={onClose} anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }} transformOrigin={{ vertical: 'top', horizontal: 'right' }} slotProps={{ paper: { sx: { mt: 0.75, p: 1.5, width: 320, borderRadius: 2, bgcolor: tokens.content.card, color: tokens.content.foreground, border: `1px solid ${tokens.content.border}`, boxShadow: brandElevation.floating, maxHeight: 'min(70vh, 560px)', overflow: 'auto' } } }}>
       <Typography sx={{ fontSize: 12, fontWeight: 800, letterSpacing: '0.08em', color: tokens.content.muted }}>FILTROS</Typography>
       <Box sx={{ display: 'grid', gap: 1.1, mt: 1.2 }}>
         <Box component="label" sx={{ display: 'flex', alignItems: 'center', gap: 0.4, cursor: 'pointer', color: tokens.content.foreground }}>

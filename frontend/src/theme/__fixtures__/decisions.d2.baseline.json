@@ -1,0 +1,36 @@
+{
+  "source": "HEAD 6e8bf8f, decisions bloque d2",
+  "files": {
+    "pages/informes/inventario/MovimientosInventarioPage.tsx": {
+      "headSha256": "15d08193d52de88aaae18aca5de73ed6e205c3dd1efbcffa4a7da83a456ac45c",
+      "addedImports": [],
+      "lines": {
+        "39": {
+          "original": "import { cashFlowColors, inventoryFlowColors, moduleAccents } from '../../../theme/functional';",
+          "migrated": "import { inventoryFlowColors, moduleAccents } from '../../../theme/functional';",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "import { cashFlowColors, inventoryFlowColors, moduleAccents } from",
+              "to": "import { inventoryFlowColors, moduleAccents } from",
+              "times": 1
+            }
+          ]
+        },
+        "97": {
+          "original": "          <Typography variant=\"body2\" fontWeight={700} color={esEntrada ? cashFlowColors.inflow : cashFlowColors.outflow}>",
+          "migrated": "          <Typography variant=\"body2\" fontWeight={700} color={esEntrada ? inventoryFlowColors.inbound : inventoryFlowColors.outbound}>",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "esEntrada ? cashFlowColors.inflow : cashFlowColors.outflow",
+              "to": "esEntrada ? inventoryFlowColors.inbound : inventoryFlowColors.outbound",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    }
+  }
+}

@@ -8,13 +8,14 @@ import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import { useNavigate } from 'react-router-dom';
 import { apiFetch } from '../../../api/apiClient';
 import { buildVentasPorOrigenExportUrl, fetchOrigenesContacto, fetchVentasPorOrigen, fetchDetalleVentasPorOrigen, type OrigenContacto, type VentasPorOrigenResult, type MovimientosPorPeriodoParams, type Agrupacion } from '../../../services/reportesService';
+import { categoricalPalettes } from '../../../theme/functional';
 
 const money = (v: number) => v.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const formatDate = (v: string) => {
   const d = v.slice(0, 10).split('-');
   return d.length === 3 ? d[2].concat('/', d[1], '/', d[0]) : v;
 };
-const ORIGIN_COLORS = ['#3d5f86', '#3f6b52', '#8a6232', '#5c5348', '#4e6f78', '#6a7354', '#7a5648', '#3c4149'];
+const ORIGIN_COLORS = categoricalPalettes.series;
 const today = () => new Date().toISOString().slice(0, 10);
 
 type Opt = { id: number; nombre?: string; clave?: string; descripcion?: string };

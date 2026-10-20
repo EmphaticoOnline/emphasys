@@ -38,6 +38,8 @@ import type {
   FinanzasMetodoPago,
   ProgramacionMasivaInput,
 } from '../../types/finanzas';
+import { dueDateColors } from '../../theme/functional';
+import { overlayColors } from '../../theme/structural';
 
 type ContactoOpcion = { id: number; nombre: string; rfc?: string | null };
 
@@ -311,7 +313,7 @@ export default function ProgramacionMasivaDrawer({ open, onClose, onSaved }: Pro
         if (!p.value) return <Typography sx={{ fontSize: 13 }} color="text.disabled">—</Typography>;
         const vencida = p.value < hoy;
         return (
-          <Typography sx={{ fontSize: 13 }} color={vencida ? 'error.main' : 'text.secondary'}>
+          <Typography sx={{ fontSize: 13 }} color={vencida ? dueDateColors.overdue : 'text.secondary'}>
             {formatFecha(p.value)}
           </Typography>
         );
@@ -445,7 +447,7 @@ export default function ProgramacionMasivaDrawer({ open, onClose, onSaved }: Pro
         {/* ── Grid de facturas ─────────────────────────────────────────── */}
         <Box sx={{ height: 380, position: 'relative' }}>
           {cargandoFacturas && (
-            <Box sx={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'rgba(255,255,255,0.6)', zIndex: 1 }}>
+            <Box sx={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: overlayColors.veils.loading, zIndex: 1 }}>
               <CircularProgress size={24} />
             </Box>
           )}

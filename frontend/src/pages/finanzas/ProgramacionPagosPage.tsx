@@ -23,7 +23,7 @@ import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import { DataGrid } from '@mui/x-data-grid';
 import { esES } from '@mui/x-data-grid/locales';
 import type { GridColDef, GridRenderCellParams } from '@mui/x-data-grid';
-import { useTheme } from '@mui/material/styles';
+import { useTheme, type Theme } from '@mui/material/styles';
 import { useNavigate } from 'react-router-dom';
 import { apiFetch } from '../../api/apiClient';
 import { resolverFolioVisual } from '../../utils/documentos.utils';
@@ -41,6 +41,8 @@ import {
 import type { ProgramacionPago } from '../../types/finanzas';
 import ProgramacionPagoDialog from '../../modules/finanzas/ProgramacionPagoDialog';
 import ProgramacionMasivaDrawer from '../../modules/finanzas/ProgramacionMasivaDrawer';
+import { overdueColor } from '../../theme/sign';
+import { dueDateColors } from '../../theme/functional';
 
 type ContactoOpcion = { id: number; nombre: string; rfc?: string | null };
 
@@ -119,9 +121,9 @@ function buildColumns(
         const fv = p.value;
         if (!fv) return <Typography variant="caption" color="text.disabled">—</Typography>;
         const dias = Math.round((new Date(fv).getTime() - new Date(hoy()).getTime()) / 86400000);
-        const color = dias < 0 ? 'error.main' : dias === 0 ? 'warning.main' : 'text.secondary';
+        const color = dias < 0 ? (theme: Theme) => overdueColor(theme.emphasys) : dias === 0 ? dueDateColors.dueToday : 'text.secondary';
         return (
-          <Typography variant="body2" color={color}>
+          <Typography variant="body2" sx={{ color }}>
             {formatFecha(fv)}
           </Typography>
         );
@@ -512,7 +514,7 @@ export default function ProgramacionPagosPage() {
                 </Typography>
                 <Box>
                   <Typography variant="caption" color="text.secondary">Vencido</Typography>
-                  <Typography variant="body2" fontWeight={700} sx={{ color: tokens.action.destructive }}>
+                  <Typography variant="body2" fontWeight={700} sx={{ color: overdueColor(tokens) }}>
                     {formatMXN(k.totalVencido, k.moneda)}
                   </Typography>
                 </Box>

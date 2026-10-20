@@ -1,6 +1,7 @@
 import * as React from 'react';
 import { Box, FormControlLabel, MenuItem, Stack, Switch, TextField, Typography } from '@mui/material';
 import SeccionCard from './SeccionCard';
+import { neutralColors } from '../../../theme/structural';
 
 const TIPO_PRODUCTO_OPCIONES = ['Inventariable', 'No inventariable', 'Kit'] as const;
 
@@ -97,7 +98,7 @@ export default function SeccionIdentificacion({
               labelPlacement="top"
               sx={{ m: 0 }}
               control={<Switch size="small" checked={activo} onChange={(e) => onActivoChange(e.target.checked)} color="primary" />}
-              label={<Typography variant="caption" color="#6b7280">Activo</Typography>}
+              label={<Typography variant="caption" color={neutralColors.gray[500]}>Activo</Typography>}
             />
           </Box>
         </Box>
@@ -123,7 +124,7 @@ export default function SeccionIdentificacion({
               flexShrink: 0,
             }}
           />
-          <Typography variant="caption" color="#6b7280" fontSize={12}>
+          <Typography variant="caption" color={neutralColors.gray[500]} fontSize={12}>
             {explicacionObligatoriedad}
           </Typography>
         </Stack>

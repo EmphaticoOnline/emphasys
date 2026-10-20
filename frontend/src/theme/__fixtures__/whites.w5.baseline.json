@@ -1,0 +1,103 @@
+{
+  "source": "HEAD f5b3165, whites bloque w5",
+  "files": {
+    "pages/OportunidadesPage.tsx": {
+      "headSha256": "6a416a9481c8241a1be29097399e41b4d1fab927a95b37b579fdbab360789e0a",
+      "addedImports": [],
+      "lines": {
+        "63": {
+          "original": "import { neutralColors, overlayColors, whiteSurfaces } from '../theme/structural';",
+          "migrated": "import { neutralColors, onPrimaryColors, overlayColors, whiteSurfaces } from '../theme/structural';",
+          "entries": [],
+          "replacements": [],
+          "importMerge": true
+        },
+        "1891": {
+          "original": "                      color: '#ffffff',",
+          "migrated": "                      color: onPrimaryColors.textLong,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'#ffffff'",
+              "to": "onPrimaryColors.textLong",
+              "times": 1
+            }
+          ]
+        },
+        "1895": {
+          "original": "                      color: '#ffffff',",
+          "migrated": "                      color: onPrimaryColors.textLong,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'#ffffff'",
+              "to": "onPrimaryColors.textLong",
+              "times": 1
+            }
+          ]
+        },
+        "1899": {
+          "original": "                      color: '#ffffff',",
+          "migrated": "                      color: onPrimaryColors.textLong,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'#ffffff'",
+              "to": "onPrimaryColors.textLong",
+              "times": 1
+            }
+          ]
+        },
+        "1902": {
+          "original": "                      color: '#ffffff',",
+          "migrated": "                      color: onPrimaryColors.textLong,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'#ffffff'",
+              "to": "onPrimaryColors.textLong",
+              "times": 1
+            }
+          ]
+        },
+        "1905": {
+          "original": "                      color: '#ffffff',",
+          "migrated": "                      color: onPrimaryColors.textLong,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'#ffffff'",
+              "to": "onPrimaryColors.textLong",
+              "times": 1
+            }
+          ]
+        },
+        "1908": {
+          "original": "                      color: '#ffffff',",
+          "migrated": "                      color: onPrimaryColors.textLong,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'#ffffff'",
+              "to": "onPrimaryColors.textLong",
+              "times": 1
+            }
+          ]
+        },
+        "1911": {
+          "original": "                      color: '#ffffff',",
+          "migrated": "                      color: onPrimaryColors.textLong,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'#ffffff'",
+              "to": "onPrimaryColors.textLong",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    }
+  }
+}

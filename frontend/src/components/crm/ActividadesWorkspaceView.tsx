@@ -27,6 +27,8 @@ import { WorkspaceRowContextMenu, type WorkspaceContextItem } from '../documento
 import { catalogoOutlinedButtonSx, catalogoPrimaryButtonSx } from '../catalogo/catalogoSurfaces';
 import ActividadFormPage from '../../pages/ActividadFormPage';
 import type { Usuario } from '../../types/usuario';
+import { elevation } from '../../theme/elevation';
+import { activityRailTones } from '../../theme/functional';
 
 export type GrupoWorkspace = {
   key: string;
@@ -120,9 +122,9 @@ export default function ActividadesWorkspaceView({
   }, [visibles, selectedId]);
 
   const colorEstado = (tono: GrupoWorkspace['tono']) => {
-    if (tono === 'atrasada') return '#e7b2ab';
-    if (tono === 'hoy') return '#b7d4c4';
-    if (tono === 'futuro') return '#c9c0dc';
+    if (tono === 'atrasada') return activityRailTones.overdue;
+    if (tono === 'hoy') return activityRailTones.today;
+    if (tono === 'futuro') return activityRailTones.upcoming;
     return tokens.navigation.muted;
   };
 
@@ -226,7 +228,7 @@ export default function ActividadesWorkspaceView({
                     height: 34,
                     bgcolor: tokens.navigation.control,
                     color: tokens.navigation.controlForeground,
-                    boxShadow: '0 1px 2px rgba(0,0,0,0.35)',
+                    boxShadow: elevation.railControl,
                     '&:hover': { bgcolor: tokens.content.elevated, color: tokens.content.foreground },
                   }}
                 >

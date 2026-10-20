@@ -18,6 +18,8 @@ import {
   type CfdiSatDocumentoImportado,
   type CfdiSatImportacionPreview,
 } from '../../services/cfdiSatService';
+import { neutralColors } from '../../theme/structural';
+import { activeBrand } from '../../theme/brand/active';
 
 function formatFecha(raw?: string | null): string {
   if (!raw) return '—';
@@ -159,7 +161,7 @@ export default function ImportarComprasDialog({
                 <Typography variant="body2">
                   <strong>Conceptos:</strong> {preview.numero_conceptos}
                 </Typography>
-                <Typography variant="caption" color="#6b7280">
+                <Typography variant="caption" color={neutralColors.gray[500]}>
                   Se creará como factura de compra en estado Borrador. No se generan pagos ni movimientos bancarios.
                 </Typography>
               </Stack>
@@ -176,7 +178,7 @@ export default function ImportarComprasDialog({
             variant="contained"
             disabled={!preview || importando}
             onClick={() => void handleImportar()}
-            sx={{ textTransform: 'none', fontWeight: 700, backgroundColor: '#1d2f68' }}
+            sx={{ textTransform: 'none', fontWeight: 700, backgroundColor: activeBrand.colors.blue.base }}
           >
             {importando ? 'Importando...' : 'Confirmar importación'}
           </Button>

@@ -30,8 +30,10 @@ import {
   type KardexResult,
   type KardexLinea,
 } from '../../../services/reportesService';
+import { inventoryFlowColors, moduleAccents } from '../../../theme/functional';
+import { rowStripeColors } from '../../../theme/structural';
 
-const COLOR = '#7c3aed';
+const COLOR = moduleAccents.inventoryReports;
 const fmt = (v: number) => v.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmtCant = (v: number) => v.toLocaleString('es-MX', { maximumFractionDigits: 4 });
 const fmtFecha = (iso: string) => {
@@ -252,7 +254,7 @@ export default function KardexProductoPage() {
                   <TableHead>
                     <TableRow sx={{ bgcolor: COLOR }}>
                       {['Fecha', 'Tipo', 'Folio', 'Almacén', 'Entrada', 'Salida', 'Existencia', 'Costo', 'Valor', 'Obs.'].map((h) => (
-                        <TableCell key={h} sx={{ color: '#fff', fontWeight: 700, fontSize: '0.75rem' }}
+                        <TableCell key={h} sx={{ color: 'common.white', fontWeight: 700, fontSize: '0.75rem' }}
                           align={['Entrada', 'Salida', 'Existencia', 'Costo', 'Valor'].includes(h) ? 'right' : 'left'}>
                           {h}
                         </TableCell>
@@ -261,7 +263,7 @@ export default function KardexProductoPage() {
                   </TableHead>
                   <TableBody>
                     {lineas.map((l: KardexLinea, i) => (
-                      <TableRow key={i} sx={{ '&:nth-of-type(even)': { bgcolor: '#f8f8ff' } }}>
+                      <TableRow key={i} sx={{ '&:nth-of-type(even)': { bgcolor: rowStripeColors.kardex } }}>
                         <TableCell>{fmtFecha(l.fecha)}</TableCell>
                         <TableCell>{l.tipo_movimiento}</TableCell>
                         <TableCell>
@@ -271,10 +273,10 @@ export default function KardexProductoPage() {
                           )}
                         </TableCell>
                         <TableCell>{l.almacen}</TableCell>
-                        <TableCell align="right" sx={{ color: '#16a34a', fontWeight: l.entrada > 0 ? 600 : 400 }}>
+                        <TableCell align="right" sx={{ color: inventoryFlowColors.inbound, fontWeight: l.entrada > 0 ? 600 : 400 }}>
                           {l.entrada > 0 ? fmtCant(l.entrada) : ''}
                         </TableCell>
-                        <TableCell align="right" sx={{ color: '#dc2626', fontWeight: l.salida > 0 ? 600 : 400 }}>
+                        <TableCell align="right" sx={{ color: inventoryFlowColors.outbound, fontWeight: l.salida > 0 ? 600 : 400 }}>
                           {l.salida > 0 ? fmtCant(l.salida) : ''}
                         </TableCell>
                         <TableCell align="right" sx={{ fontWeight: 700 }}>{fmtCant(l.existencia_despues)}</TableCell>

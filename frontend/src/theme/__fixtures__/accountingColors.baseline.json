@@ -1,0 +1,254 @@
+{
+  "source": "HEAD 2af87e7, antes de migrar colores contables",
+  "files": {
+    "pages/informes/EstadoCuentaPage.tsx": {
+      "lines": {
+        "77": [
+          {
+            "hex": "#9ca3af",
+            "token": "accountingColors.cancelled"
+          }
+        ],
+        "78": [
+          {
+            "hex": "#dc2626",
+            "token": "accountingColors.debit"
+          }
+        ],
+        "79": [
+          {
+            "hex": "#16a34a",
+            "token": "accountingColors.credit"
+          }
+        ],
+        "80": [
+          {
+            "hex": "#111827",
+            "token": "accountingColors.zero"
+          }
+        ],
+        "136": [
+          {
+            "hex": "#9ca3af",
+            "token": "accountingColors.cancelled"
+          }
+        ],
+        "146": [
+          {
+            "hex": "#9ca3af",
+            "token": "accountingColors.cancelled"
+          }
+        ],
+        "157": [
+          {
+            "hex": "#9ca3af",
+            "token": "accountingColors.cancelled"
+          }
+        ],
+        "168": [
+          {
+            "hex": "#9ca3af",
+            "token": "accountingColors.cancelled"
+          }
+        ],
+        "180": [
+          {
+            "hex": "#9ca3af",
+            "token": "accountingColors.cancelled"
+          }
+        ],
+        "193": [
+          {
+            "hex": "#9ca3af",
+            "token": "accountingColors.cancelled"
+          }
+        ],
+        "206": [
+          {
+            "hex": "#9ca3af",
+            "token": "accountingColors.cancelled"
+          }
+        ],
+        "208": [
+          {
+            "hex": "#111827",
+            "token": "accountingColors.zero"
+          }
+        ],
+        "210": [
+          {
+            "hex": "#dc2626",
+            "token": "accountingColors.debit"
+          }
+        ],
+        "211": [
+          {
+            "hex": "#16a34a",
+            "token": "accountingColors.credit"
+          }
+        ],
+        "238": [
+          {
+            "hex": "#9ca3af",
+            "token": "accountingColors.cancelled"
+          }
+        ],
+        "252": [
+          {
+            "hex": "#9ca3af",
+            "token": "accountingColors.cancelled"
+          }
+        ],
+        "266": [
+          {
+            "hex": "#9ca3af",
+            "token": "accountingColors.cancelled"
+          }
+        ],
+        "293": [
+          {
+            "hex": "#9ca3af",
+            "token": "accountingColors.cancelled"
+          }
+        ],
+        "310": [
+          {
+            "hex": "#9ca3af",
+            "token": "accountingColors.cancelled"
+          }
+        ],
+        "329": [
+          {
+            "hex": "#9ca3af",
+            "token": "accountingColors.cancelled"
+          }
+        ],
+        "346": [
+          {
+            "hex": "#9ca3af",
+            "token": "accountingColors.cancelled"
+          }
+        ],
+        "348": [
+          {
+            "hex": "#111827",
+            "token": "accountingColors.zero"
+          }
+        ],
+        "350": [
+          {
+            "hex": "#dc2626",
+            "token": "accountingColors.debit"
+          }
+        ],
+        "351": [
+          {
+            "hex": "#16a34a",
+            "token": "accountingColors.credit"
+          }
+        ]
+      },
+      "keptLiteral": {
+        "#9ca3af": 2
+      }
+    },
+    "pages/informes/contabilidad/EstadoResultadosPage.tsx": {
+      "lines": {
+        "226": [
+          {
+            "hex": "#ecfdf5",
+            "token": "accountingColors.favorable.surface"
+          },
+          {
+            "hex": "#fef2f2",
+            "token": "accountingColors.unfavorable.surface"
+          }
+        ],
+        "227": [
+          {
+            "hex": "#166534",
+            "token": "accountingColors.favorable.border"
+          },
+          {
+            "hex": "#b91c1c",
+            "token": "accountingColors.unfavorable.border"
+          }
+        ],
+        "230": [
+          {
+            "hex": "#166534",
+            "token": "accountingColors.favorable.text"
+          },
+          {
+            "hex": "#b91c1c",
+            "token": "accountingColors.unfavorable.text"
+          }
+        ]
+      },
+      "keptLiteral": {}
+    },
+    "pages/informes/contabilidad/BalanceGeneralPage.tsx": {
+      "lines": {
+        "220": [
+          {
+            "hex": "#ecfdf5",
+            "token": "accountingColors.favorable.surface"
+          },
+          {
+            "hex": "#fef2f2",
+            "token": "accountingColors.unfavorable.surface"
+          }
+        ],
+        "221": [
+          {
+            "hex": "#166534",
+            "token": "accountingColors.favorable.border"
+          },
+          {
+            "hex": "#b91c1c",
+            "token": "accountingColors.unfavorable.border"
+          }
+        ],
+        "224": [
+          {
+            "hex": "#166534",
+            "token": "accountingColors.favorable.text"
+          },
+          {
+            "hex": "#b91c1c",
+            "token": "accountingColors.unfavorable.text"
+          }
+        ]
+      },
+      "keptLiteral": {}
+    },
+    "modules/contabilidad/AuxiliaresSatView.tsx": {
+      "lines": {
+        "286": [
+          {
+            "hex": "#b91c1c",
+            "token": "accountingColors.negativeAmount"
+          }
+        ],
+        "295": [
+          {
+            "hex": "#b91c1c",
+            "token": "accountingColors.negativeAmount"
+          }
+        ]
+      },
+      "keptLiteral": {}
+    },
+    "modules/contabilidad/BalanzaXmlView.tsx": {
+      "lines": {
+        "75": [
+          {
+            "hex": "#b91c1c",
+            "token": "accountingColors.negativeAmount"
+          }
+        ]
+      },
+      "keptLiteral": {}
+    }
+  }
+}

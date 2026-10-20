@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { apiFetch } from '../services/apiFetch';
+import { alertColors } from '../theme/functional';
+import { neutralColors } from '../theme/structural';
 
 type TipoActividad = 'llamada' | 'whatsapp' | 'visita' | 'tarea';
 
@@ -111,9 +113,9 @@ export function useSeguimientoActividades(enabled = true) {
     if (loadingSeguimientoResumen) {
       return {
         label: '...',
-        backgroundColor: '#f8fafc',
-        textColor: '#64748b',
-        borderColor: '#cbd5e1',
+        backgroundColor: neutralColors.slate[50],
+        textColor: neutralColors.slate[500],
+        borderColor: neutralColors.slate[300],
       };
     }
 
@@ -124,9 +126,9 @@ export function useSeguimientoActividades(enabled = true) {
     if (!summary || summary.pendingCount === 0) {
       return {
         label: 'Sin actividad',
-        backgroundColor: '#fffbeb',
-        textColor: '#b45309',
-        borderColor: '#fde68a',
+        backgroundColor: alertColors.warning[50],
+        textColor: alertColors.warning[700],
+        borderColor: alertColors.warning[200],
       };
     }
 
@@ -134,27 +136,27 @@ export function useSeguimientoActividades(enabled = true) {
     if (summary.overdueCount > 0) {
       return {
         label: `Vencida (${summary.overdueCount})`,
-        backgroundColor: '#fef2f2',
-        textColor: '#b91c1c',
-        borderColor: '#fecaca',
+        backgroundColor: alertColors.error[50],
+        textColor: alertColors.error[700],
+        borderColor: alertColors.error[200],
       };
     }
 
     if (summary.todayCount > 0) {
       return {
         label: 'Pendiente hoy',
-        backgroundColor: '#fff7ed',
-        textColor: '#b45309',
-        borderColor: '#fdba74',
+        backgroundColor: alertColors.caution[50],
+        textColor: alertColors.warning[700],
+        borderColor: alertColors.caution[300],
       };
     }
 
     // Sin vencidas ni pendientes de hoy, pero hay una actividad futura programada: al día.
     return {
       label: 'Al dia',
-      backgroundColor: '#ecfdf5',
-      textColor: '#047857',
-      borderColor: '#a7f3d0',
+      backgroundColor: alertColors.positive[50],
+      textColor: alertColors.positive[700],
+      borderColor: alertColors.positive[200],
     };
   }, [loadingSeguimientoResumen, seguimientoResumenByOportunidad]);
 

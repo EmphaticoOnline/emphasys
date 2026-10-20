@@ -131,6 +131,10 @@ import {
 import type { CampoValorPayload, CampoValorGuardado } from '../types/camposDinamicos';
 import type { Concepto, DocumentoAnticipoResumen, EstadoCuentaItem, FinanzasCuenta } from '../types/finanzas';
 import { NumericFormat } from 'react-number-format';
+import { neutralColors, onPrimaryColors, overlayColors, selectionColors, whiteSurfaces } from '../theme/structural';
+import { advanceBoxColors, alertColors, attachmentIndicatorColors, balanceColors, documentSummaryTones, fiscalStatusColors, moduleAccents } from '../theme/functional';
+import { brandBlueAlpha } from '../theme/brand/derived';
+import { elevation } from '../theme/elevation';
 
 const toCivilDate = (date = new Date()) => {
   const year = date.getFullYear();
@@ -3909,7 +3913,7 @@ export default function DocumentosFormPage({
     <Box
       sx={{
         display: 'inline-flex',
-        border: '1px solid #d9dde6',
+        border: `1px solid ${neutralColors.steel.panelBorder}`,
         borderRadius: 999,
         overflow: 'hidden',
         flexShrink: 0,
@@ -3929,8 +3933,8 @@ export default function DocumentosFormPage({
             py: 0.6,
             fontSize: 12.5,
             fontWeight: vistaFacturaCaptura === opt.value ? 700 : 500,
-            color: vistaFacturaCaptura === opt.value ? '#fff' : '#3d4557',
-            bgcolor: vistaFacturaCaptura === opt.value ? 'primary.main' : '#fff',
+            color: vistaFacturaCaptura === opt.value ? onPrimaryColors.text : neutralColors.steel.strong,
+            bgcolor: vistaFacturaCaptura === opt.value ? 'primary.main' : whiteSurfaces.controlIdle,
           }}
         >
           {opt.label}
@@ -4027,7 +4031,7 @@ export default function DocumentosFormPage({
             />
 
             {partidaImagenPreviewUrl && (
-              <Box sx={{ border: '1px solid #e5e7eb', borderRadius: 1.5, p: 1, bgcolor: '#fafafa' }}>
+              <Box sx={{ border: `1px solid ${neutralColors.gray[200]}`, borderRadius: 1.5, p: 1, bgcolor: neutralColors.steel.attachmentSurface }}>
                 <Box
                   component="img"
                   src={partidaImagenPreviewUrl}
@@ -4083,13 +4087,13 @@ export default function DocumentosFormPage({
                   role="textbox"
                   aria-label="Área para pegar imagen del portapapeles"
                   sx={{
-                    border: '2px dashed #9ca3af',
+                    border: `2px dashed ${neutralColors.gray[400]}`,
                     borderRadius: 1.5,
                     p: 3,
                     textAlign: 'center',
-                    color: '#6b7280',
+                    color: neutralColors.gray[500],
                     outline: 'none',
-                    '&:focus': { borderColor: '#1565c0', color: '#1565c0' },
+                    '&:focus': { borderColor: selectionColors.attachmentFocus, color: selectionColors.attachmentFocus },
                   }}
                 >
                   {uploadingImagen[partidaImagenDialog.index ?? -1] ? (
@@ -4152,8 +4156,8 @@ export default function DocumentosFormPage({
                                 position: 'relative',
                                 borderRadius: 1.5,
                                 overflow: 'hidden',
-                                border: selected ? '2px solid #1565c0' : '1px solid #e5e7eb',
-                                bgcolor: '#fafafa',
+                                border: selected ? `2px solid ${selectionColors.attachmentFocus}` : `1px solid ${neutralColors.gray[200]}`,
+                                bgcolor: neutralColors.steel.attachmentSurface,
                                 aspectRatio: '1 / 1',
                               }}
                             >
@@ -4181,7 +4185,7 @@ export default function DocumentosFormPage({
         <Dialog open={duplicateDialog.open} onClose={() => setDuplicateDialog({ open: false, message: '' })}>
           <DialogTitle fontWeight={700}>Documento duplicado</DialogTitle>
           <DialogContent>
-            <DialogContentText sx={{ color: '#374151' }}>
+            <DialogContentText sx={{ color: neutralColors.gray[700] }}>
               Ya existe un documento con la misma serie y número. Por favor verifique el consecutivo antes de continuar.
               {duplicateDialog.message && (
                 <>
@@ -4202,7 +4206,7 @@ export default function DocumentosFormPage({
         <Dialog open={trazabilidadDialog.open} onClose={() => setTrazabilidadDialog({ open: false, folioRelacionado: '' })}>
           <DialogTitle fontWeight={700}>Documento con trazabilidad activa</DialogTitle>
           <DialogContent>
-            <DialogContentText sx={{ color: '#374151' }}>
+            <DialogContentText sx={{ color: neutralColors.gray[700] }}>
               Este documento fue generado a partir de otro documento o ya participa en una cadena de trazabilidad.
               <br />
               <br />
@@ -4257,8 +4261,8 @@ export default function DocumentosFormPage({
     const railContenido = (
       <>
         <Paper variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden' }}>
-          <Box sx={{ px: 1.75, py: 1, borderBottom: '1px solid #eef0f4' }}>
-            <Typography sx={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#8b93a7' }}>
+          <Box sx={{ px: 1.75, py: 1, borderBottom: `1px solid ${neutralColors.steel.dividerSoft}` }}>
+            <Typography sx={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: neutralColors.steel.label }}>
               Totales
             </Typography>
           </Box>
@@ -4276,26 +4280,26 @@ export default function DocumentosFormPage({
                   ]),
             ].map((item) => (
               <Box key={item.label} sx={{ display: 'flex', justifyContent: 'space-between', gap: 1.5 }}>
-                <Typography sx={{ fontSize: 12.5, color: '#5b6479' }}>{item.label}</Typography>
-                <Typography sx={{ fontSize: 13, color: '#3d4557', fontFamily: 'monospace', fontVariantNumeric: 'tabular-nums' }}>
+                <Typography sx={{ fontSize: 12.5, color: neutralColors.steel.text }}>{item.label}</Typography>
+                <Typography sx={{ fontSize: 13, color: neutralColors.steel.strong, fontFamily: 'monospace', fontVariantNumeric: 'tabular-nums' }}>
                   {formatter.format(item.value)}
                 </Typography>
               </Box>
             ))}
           </Stack>
           <Box sx={{ bgcolor: 'primary.main', px: 1.75, py: 1.25, display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-            <Typography sx={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', letterSpacing: '0.06em', textTransform: 'uppercase', fontWeight: 600 }}>
+            <Typography sx={{ fontSize: 12, color: overlayColors.onDark.mutedLabel, letterSpacing: '0.06em', textTransform: 'uppercase', fontWeight: 600 }}>
               Total {form.moneda}
             </Typography>
-            <Typography sx={{ fontSize: 21, color: '#fff', fontWeight: 700, fontFamily: 'monospace', fontVariantNumeric: 'tabular-nums' }}>
+            <Typography sx={{ fontSize: 21, color: onPrimaryColors.text, fontWeight: 700, fontFamily: 'monospace', fontVariantNumeric: 'tabular-nums' }}>
               {formatter.format(resumenFinanciero.total)}
             </Typography>
           </Box>
         </Paper>
 
         <Paper variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden' }}>
-          <Box sx={{ px: 1.75, py: 1, borderBottom: '1px solid #eef0f4', display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Typography sx={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#8b93a7' }}>
+          <Box sx={{ px: 1.75, py: 1, borderBottom: `1px solid ${neutralColors.steel.dividerSoft}`, display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Typography sx={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: neutralColors.steel.label }}>
               Datos fiscales
             </Typography>
             <Box sx={{ flex: 1 }} />
@@ -4306,8 +4310,8 @@ export default function DocumentosFormPage({
                 px: 1,
                 py: 0.3,
                 borderRadius: 999,
-                bgcolor: fiscalCompleto ? '#e8f4ee' : '#fdf3e3',
-                color: fiscalCompleto ? '#1c6b47' : '#9a5b00',
+                bgcolor: fiscalCompleto ? fiscalStatusColors.completeBackground : fiscalStatusColors.incompleteBackground,
+                color: fiscalCompleto ? fiscalStatusColors.completeText : fiscalStatusColors.incompleteText,
               }}
             >
               {fiscalLabel}
@@ -4371,7 +4375,7 @@ export default function DocumentosFormPage({
               <Button
                 size="small"
                 onClick={() => setRailFacturaAbierto((prev) => !prev)}
-                sx={{ fontSize: 12, color: '#5b6479', textTransform: 'none', flexShrink: 0 }}
+                sx={{ fontSize: 12, color: neutralColors.steel.text, textTransform: 'none', flexShrink: 0 }}
               >
                 {railFacturaAbierto ? 'Colapsar panel ⇥' : 'Expandir panel ⇤'}
               </Button>
@@ -4568,9 +4572,9 @@ export default function DocumentosFormPage({
                         height: 26,
                         borderRadius: 1,
                         border: '1px solid',
-                        borderColor: (theme) => (encabezadoDetalleAbierto ? theme.emphasys.action.disabled : '#d9dde6'),
-                        bgcolor: encabezadoDetalleAbierto ? '#eef1f8' : 'transparent',
-                        color: encabezadoDetalleAbierto ? 'primary.main' : '#5b6479',
+                        borderColor: (theme) => (encabezadoDetalleAbierto ? theme.emphasys.action.disabled : neutralColors.steel.panelBorder),
+                        bgcolor: encabezadoDetalleAbierto ? neutralColors.steel.hoverAlt : 'transparent',
+                        color: encabezadoDetalleAbierto ? 'primary.main' : neutralColors.steel.text,
                       }}
                     >
                       {encabezadoDetalleAbierto ? <ExpandLessIcon sx={{ fontSize: 18 }} /> : <ExpandMoreIcon sx={{ fontSize: 18 }} />}
@@ -4579,12 +4583,12 @@ export default function DocumentosFormPage({
                 </Box>
 
                 {encabezadoDetalleAbierto && (
-                  <Box sx={{ bgcolor: '#f7f9fc', border: '1px solid #e2e6ee', borderRadius: 1, p: 1.25, display: 'flex', flexDirection: 'column', gap: 1 }}>
+                  <Box sx={{ bgcolor: neutralColors.steel.softSurface, border: `1px solid ${neutralColors.steel.taxBorder}`, borderRadius: 1, p: 1.25, display: 'flex', flexDirection: 'column', gap: 1 }}>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                       <Typography sx={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'primary.main' }}>
                         Detalle del documento
                       </Typography>
-                      <Box sx={{ flex: 1, height: '1px', bgcolor: '#dde3ee' }} />
+                      <Box sx={{ flex: 1, height: '1px', bgcolor: neutralColors.steel.taxDivider }} />
                     </Box>
                     <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, alignItems: 'flex-start' }}>
                       {camposDocumento.campos.map((campo) => {
@@ -4623,13 +4627,13 @@ export default function DocumentosFormPage({
               {/* ── Partidas ── */}
               {usaPartidas && (
                 <Paper variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden', flexGrow: 1 }}>
-                  <Box sx={{ px: 1.75, py: 1, borderBottom: '1px solid #e2e5ec', display: 'flex', alignItems: 'center', gap: 1.25 }}>
+                  <Box sx={{ px: 1.75, py: 1, borderBottom: `1px solid ${neutralColors.steel.dividerStrong}`, display: 'flex', alignItems: 'center', gap: 1.25 }}>
                     <Typography sx={{ fontSize: 13.5, fontWeight: 700, color: 'primary.main' }}>Partidas</Typography>
                     <Box
                       sx={{
                         fontSize: 11,
-                        color: '#5b6479',
-                        bgcolor: '#f0f2f6',
+                        color: neutralColors.steel.text,
+                        bgcolor: neutralColors.steel.hover,
                         px: 1,
                         borderRadius: 999,
                         fontFamily: 'monospace',
@@ -4648,7 +4652,7 @@ export default function DocumentosFormPage({
                             width: 26,
                             height: 26,
                             bgcolor: 'primary.main',
-                            color: '#fff',
+                            color: onPrimaryColors.text,
                             boxShadow: (theme) => `0 1px 3px ${theme.emphasys.action.hoverTint}`,
                             '&:hover': { bgcolor: 'primary.dark' },
                             '&.Mui-disabled': { bgcolor: (theme) => theme.emphasys.action.disabled, color: 'primary.contrastText' },
@@ -4680,13 +4684,13 @@ export default function DocumentosFormPage({
                       fontWeight: 700,
                       letterSpacing: '0.06em',
                       textTransform: 'uppercase' as const,
-                      color: '#8b93a7',
+                      color: neutralColors.steel.label,
                     };
                     // Celdas editables sin apariencia de TextField: sin borde/label, solo un
                     // subrayado que aparece en hover y se remarca en foco (accesible vía aria-label).
                     const cellUnderlineSx = {
                       '& .MuiInput-underline:before': { borderBottomColor: 'transparent' },
-                      '& .MuiInput-underline:hover:not(.Mui-disabled):before': { borderBottomColor: '#d9dde6' },
+                      '& .MuiInput-underline:hover:not(.Mui-disabled):before': { borderBottomColor: neutralColors.steel.panelBorder },
                       '& .MuiInput-underline:after': { borderBottomColor: 'primary.main' },
                       width: '100%',
                     };
@@ -4697,7 +4701,7 @@ export default function DocumentosFormPage({
                       breakdown: ReturnType<typeof getPartidaDiscountBreakdown>,
                       impuestosPartida: ReturnType<typeof getPartidaTaxSummary>
                     ) => (
-                      <Box sx={{ bgcolor: '#fafbfd', borderTop: '1px solid #eef0f4', p: 1.5, display: 'flex', flexDirection: 'column', gap: 1.25 }}>
+                      <Box sx={{ bgcolor: neutralColors.steel.panelBand, borderTop: `1px solid ${neutralColors.steel.dividerSoft}`, p: 1.5, display: 'flex', flexDirection: 'column', gap: 1.25 }}>
                         <TextField
                           label="Descripción"
                           value={partida.descripcion_alterna ?? ''}
@@ -4718,9 +4722,9 @@ export default function DocumentosFormPage({
                           // derecha). Solo apilan (1 columna) cuando de verdad no cabe
                           // una a lado de la otra.
                           const detalleBoxSx = {
-                            border: '1px solid #eef0f4',
+                            border: `1px solid ${neutralColors.steel.dividerSoft}`,
                             borderRadius: 1,
-                            bgcolor: '#fff',
+                            bgcolor: whiteSurfaces.panel,
                             p: { xs: 0.75, sm: 1 },
                             display: 'flex' as const,
                             flexDirection: 'column' as const,
@@ -4737,7 +4741,7 @@ export default function DocumentosFormPage({
                               }}
                             >
                               <Box sx={detalleBoxSx}>
-                                <Typography sx={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: '#8b93a7' }}>
+                                <Typography sx={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: neutralColors.steel.label }}>
                                   Desglose del subtotal
                                 </Typography>
                                 {[
@@ -4746,7 +4750,7 @@ export default function DocumentosFormPage({
                                   { label: 'Subtotal final', value: breakdown.subtotalFinal, strong: true },
                                 ].map((row) => (
                                   <Box key={row.label} sx={detalleRowSx}>
-                                    <Typography sx={{ fontSize: 12, color: row.strong ? '#0f1626' : '#5b6479', fontWeight: row.strong ? 700 : 400 }}>
+                                    <Typography sx={{ fontSize: 12, color: row.strong ? neutralColors.steel.ink : neutralColors.steel.text, fontWeight: row.strong ? 700 : 400 }}>
                                       {row.label}
                                     </Typography>
                                     <Typography sx={{ fontSize: 12, fontFamily: 'monospace', fontWeight: row.strong ? 700 : 400 }}>
@@ -4757,23 +4761,23 @@ export default function DocumentosFormPage({
                               </Box>
 
                               <Box sx={detalleBoxSx}>
-                                <Typography sx={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: '#8b93a7' }}>
+                                <Typography sx={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: neutralColors.steel.label }}>
                                   Impuestos de la partida
                                 </Typography>
                                 <Box sx={detalleRowSx}>
-                                  <Typography sx={{ fontSize: 12, color: '#5b6479' }}>IVA trasladado</Typography>
+                                  <Typography sx={{ fontSize: 12, color: neutralColors.steel.text }}>IVA trasladado</Typography>
                                   <Typography sx={{ fontSize: 12, fontFamily: 'monospace' }}>{formatter.format(impuestosPartida.traslados)}</Typography>
                                 </Box>
                                 {impuestosPartida.retenciones > 0 && (
                                   <Box sx={detalleRowSx}>
-                                    <Typography sx={{ fontSize: 11.5, color: '#9a5b00' }}>Retención</Typography>
-                                    <Typography sx={{ fontSize: 11.5, fontFamily: 'monospace', color: '#9a5b00' }}>
+                                    <Typography sx={{ fontSize: 11.5, color: documentSummaryTones.withholding }}>Retención</Typography>
+                                    <Typography sx={{ fontSize: 11.5, fontFamily: 'monospace', color: documentSummaryTones.withholding }}>
                                       -{formatter.format(impuestosPartida.retenciones)}
                                     </Typography>
                                   </Box>
                                 )}
                                 <Box sx={detalleRowSx}>
-                                  <Typography sx={{ fontSize: 12, fontWeight: 700, color: '#0f1626' }}>Efecto neto</Typography>
+                                  <Typography sx={{ fontSize: 12, fontWeight: 700, color: neutralColors.steel.ink }}>Efecto neto</Typography>
                                   <Typography sx={{ fontSize: 12, fontWeight: 700, fontFamily: 'monospace' }}>
                                     {formatter.format(impuestosPartida.traslados - impuestosPartida.retenciones)}
                                   </Typography>
@@ -4818,7 +4822,7 @@ export default function DocumentosFormPage({
                         */}
                         {(especificacionesHabilitadas || (partida.especificaciones ?? []).length > 0) && (
                           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                            <Typography sx={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: '#8b93a7' }}>
+                            <Typography sx={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: neutralColors.steel.label }}>
                               Especificaciones de partida
                             </Typography>
                             <PartidaEspecificacionesEditor
@@ -4840,7 +4844,7 @@ export default function DocumentosFormPage({
                           especificacionesHabilitadas.
                         */}
                         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                          <Typography sx={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: '#8b93a7' }}>
+                          <Typography sx={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: neutralColors.steel.label }}>
                             Observaciones de partida
                           </Typography>
                           <PartidaObservacionesEditor
@@ -4867,8 +4871,8 @@ export default function DocumentosFormPage({
                               alignItems: 'center',
                               px: 1.5,
                               py: 0.65,
-                              bgcolor: '#fafbfd',
-                              borderBottom: '1px solid #e2e5ec',
+                              bgcolor: neutralColors.steel.panelBand,
+                              borderBottom: `1px solid ${neutralColors.steel.dividerStrong}`,
                             }}
                           >
                             <Box />
@@ -4883,9 +4887,9 @@ export default function DocumentosFormPage({
                           </Box>
 
                           {partidasComputadas.map(({ partida, index, productoSeleccionado, impuestosPartida, breakdown, expanded }) => {
-                            const filaBase = expanded ? '#f7f9fc' : index % 2 === 1 ? '#f4f6f9' : '#fff';
+                            const filaBase = expanded ? neutralColors.steel.softSurface : index % 2 === 1 ? neutralColors.steel.rowStripe : whiteSurfaces.tableRow;
                             return (
-                            <Box key={index} sx={{ borderBottom: '1px solid #eef0f4' }}>
+                            <Box key={index} sx={{ borderBottom: `1px solid ${neutralColors.steel.dividerSoft}` }}>
                               <Box
                                 sx={{
                                   display: 'grid',
@@ -4895,10 +4899,10 @@ export default function DocumentosFormPage({
                                   px: 1.5,
                                   py: 0.4,
                                   bgcolor: filaBase,
-                                  '&:hover': { bgcolor: expanded ? '#f7f9fc' : '#eef1f4' },
+                                  '&:hover': { bgcolor: expanded ? neutralColors.steel.softSurface : neutralColors.steel.wash },
                                 }}
                               >
-                                <Typography sx={{ fontSize: 11, color: '#a6adbd', fontFamily: 'monospace' }}>
+                                <Typography sx={{ fontSize: 11, color: neutralColors.steel.dot, fontFamily: 'monospace' }}>
                                   {String(index + 1).padStart(2, '0')}
                                 </Typography>
 
@@ -4943,10 +4947,10 @@ export default function DocumentosFormPage({
                                         width: '100%',
                                       }}
                                     >
-                                      <Typography component="span" fontWeight={700} sx={{ fontSize: 12, color: '#111827', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                      <Typography component="span" fontWeight={700} sx={{ fontSize: 12, color: neutralColors.gray[900], whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                         {'kind' in option ? option.clave : option.clave || ''}
                                       </Typography>
-                                      <Typography component="span" sx={{ fontSize: 12, color: '#374151', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                      <Typography component="span" sx={{ fontSize: 12, color: neutralColors.gray[700], whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                         {'kind' in option ? option.descripcion : option.descripcion || ''}
                                       </Typography>
                                     </Box>
@@ -5144,7 +5148,7 @@ export default function DocumentosFormPage({
                                   </Typography>
                                   {impuestosPartida.retenciones > 0 && (
                                     <Tooltip title={`Incluye retención de ${formatter.format(impuestosPartida.retenciones)}`}>
-                                      <Typography sx={{ fontSize: 16, lineHeight: 0, textAlign: 'center', color: '#c8a25a' }}>·</Typography>
+                                      <Typography sx={{ fontSize: 16, lineHeight: 0, textAlign: 'center', color: moduleAccents.documentSeparator }}>·</Typography>
                                     </Tooltip>
                                   )}
                                 </Box>
@@ -5153,7 +5157,7 @@ export default function DocumentosFormPage({
                                   sx={{
                                     fontSize: 13.5,
                                     fontWeight: 800,
-                                    color: '#0f1626',
+                                    color: neutralColors.steel.ink,
                                     textAlign: 'right',
                                     fontFamily: 'monospace',
                                     fontVariantNumeric: 'tabular-nums',
@@ -5180,7 +5184,7 @@ export default function DocumentosFormPage({
                                           aria-label="Imagen de partida"
                                           onClick={() => abrirImagenDialog(index)}
                                           disabled={Boolean(uploadingImagen[index])}
-                                          sx={{ color: partida.archivo_imagen_1 ? '#2e7d32' : partida.producto_archivo_id ? '#1565c0' : '#6b7280', p: 0.5 }}
+                                          sx={{ color: partida.archivo_imagen_1 ? attachmentIndicatorColors.withImage : partida.producto_archivo_id ? attachmentIndicatorColors.productFile : attachmentIndicatorColors.none, p: 0.5 }}
                                         >
                                           {uploadingImagen[index] ? <CircularProgress size={16} /> : <PhotoCameraOutlinedIcon fontSize="small" />}
                                         </IconButton>
@@ -5188,7 +5192,7 @@ export default function DocumentosFormPage({
                                     </Tooltip>
                                   )}
                                   {partidasMostrarImagenes && (
-                                    <Box sx={{ width: '1px', height: 16, bgcolor: '#e2e5ec', mx: 0.25, flexShrink: 0 }} />
+                                    <Box sx={{ width: '1px', height: 16, bgcolor: neutralColors.steel.dividerStrong, mx: 0.25, flexShrink: 0 }} />
                                   )}
                                   <Tooltip title={expanded ? 'Ocultar detalles de partida' : 'Ver detalles de partida'}>
                                     <IconButton
@@ -5197,12 +5201,12 @@ export default function DocumentosFormPage({
                                       aria-label={expanded ? 'Ocultar detalles de partida' : 'Ver detalles de partida'}
                                       sx={{
                                         p: 0.5,
-                                        color: expanded ? 'primary.main' : '#5b6479',
-                                        bgcolor: expanded ? '#eef1f8' : 'transparent',
+                                        color: expanded ? 'primary.main' : neutralColors.steel.text,
+                                        bgcolor: expanded ? neutralColors.steel.hoverAlt : 'transparent',
                                         border: '1px solid',
-                                        borderColor: (theme) => (expanded ? theme.emphasys.action.disabled : '#d9dde6'),
+                                        borderColor: (theme) => (expanded ? theme.emphasys.action.disabled : neutralColors.steel.panelBorder),
                                         borderRadius: 1,
-                                        '&:hover': { borderColor: 'primary.main', color: 'primary.main', bgcolor: '#f7f9fc' },
+                                        '&:hover': { borderColor: 'primary.main', color: 'primary.main', bgcolor: neutralColors.steel.softSurface },
                                       }}
                                     >
                                       {expanded ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
@@ -5228,7 +5232,7 @@ export default function DocumentosFormPage({
                                 width: 26,
                                 height: 26,
                                 bgcolor: 'primary.main',
-                                color: '#fff',
+                                color: onPrimaryColors.text,
                                 boxShadow: (theme) => `0 1px 3px ${theme.emphasys.action.hoverTint}`,
                                 '&:hover': { bgcolor: 'primary.dark' },
                                 '&.Mui-disabled': { bgcolor: (theme) => theme.emphasys.action.disabled, color: 'primary.contrastText' },
@@ -5236,7 +5240,7 @@ export default function DocumentosFormPage({
                             >
                               <AddIcon sx={{ fontSize: 18 }} />
                             </IconButton>
-                            <Typography sx={{ fontSize: 12, color: '#8b93a7' }}>Agregar partida</Typography>
+                            <Typography sx={{ fontSize: 12, color: neutralColors.steel.label }}>Agregar partida</Typography>
                           </Box>
                         </Box>
                       </Box>
@@ -5248,12 +5252,12 @@ export default function DocumentosFormPage({
                             variant="outlined"
                             sx={{
                               borderRadius: 1.5,
-                              borderColor: expanded ? 'primary.main' : '#e2e5ec',
+                              borderColor: expanded ? 'primary.main' : neutralColors.steel.dividerStrong,
                               overflow: 'hidden',
                             }}
                           >
                             <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1, p: 1.25 }}>
-                              <Typography sx={{ fontSize: 11, color: '#a6adbd', fontFamily: 'monospace', flex: '0 0 20px' }}>
+                              <Typography sx={{ fontSize: 11, color: neutralColors.steel.dot, fontFamily: 'monospace', flex: '0 0 20px' }}>
                                 {String(index + 1).padStart(2, '0')}
                               </Typography>
 
@@ -5298,10 +5302,10 @@ export default function DocumentosFormPage({
                                       width: '100%',
                                     }}
                                   >
-                                    <Typography component="span" fontWeight={700} sx={{ fontSize: 12, color: '#111827', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                    <Typography component="span" fontWeight={700} sx={{ fontSize: 12, color: neutralColors.gray[900], whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                       {'kind' in option ? option.clave : option.clave || ''}
                                     </Typography>
-                                    <Typography component="span" sx={{ fontSize: 12, color: '#374151', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                    <Typography component="span" sx={{ fontSize: 12, color: neutralColors.gray[700], whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                       {'kind' in option ? option.descripcion : option.descripcion || ''}
                                     </Typography>
                                   </Box>
@@ -5482,12 +5486,12 @@ export default function DocumentosFormPage({
                               </Tooltip>
 
                               <Box sx={{ flex: '0 1 96px', minWidth: 88, display: 'flex', flexDirection: 'column' }}>
-                                <Typography sx={{ fontSize: 10, color: '#8b93a7' }}>Impuestos</Typography>
+                                <Typography sx={{ fontSize: 10, color: neutralColors.steel.label }}>Impuestos</Typography>
                                 <Typography sx={{ fontSize: 12.5, fontFamily: 'monospace', textAlign: 'right' }}>
                                   {formatter.format(impuestosPartida.traslados)}
                                 </Typography>
                                 {impuestosPartida.retenciones > 0 && (
-                                  <Typography sx={{ fontSize: 10.5, color: '#9a5b00', textAlign: 'right' }}>
+                                  <Typography sx={{ fontSize: 10.5, color: documentSummaryTones.withholding, textAlign: 'right' }}>
                                     ret -{formatter.format(impuestosPartida.retenciones)}
                                   </Typography>
                                 )}
@@ -5515,7 +5519,7 @@ export default function DocumentosFormPage({
                                         aria-label="Imagen de partida"
                                         onClick={() => abrirImagenDialog(index)}
                                         disabled={Boolean(uploadingImagen[index])}
-                                        sx={{ color: partida.archivo_imagen_1 ? '#2e7d32' : partida.producto_archivo_id ? '#1565c0' : '#6b7280' }}
+                                        sx={{ color: partida.archivo_imagen_1 ? attachmentIndicatorColors.withImage : partida.producto_archivo_id ? attachmentIndicatorColors.productFile : attachmentIndicatorColors.none }}
                                       >
                                         {uploadingImagen[index] ? <CircularProgress size={16} /> : <PhotoCameraOutlinedIcon fontSize="small" />}
                                       </IconButton>
@@ -5569,7 +5573,7 @@ export default function DocumentosFormPage({
                         onClick={handleSave}
                         disabled={saving || loading || tieneDerivadosActivos || notaVentaBloqueada}
                         aria-label={`Guardar ${textos.singular.toLowerCase()}`}
-                        sx={{ bgcolor: 'primary.main', color: '#fff', borderRadius: 1, '&:hover': { bgcolor: 'primary.dark' }, '&.Mui-disabled': { bgcolor: (theme) => theme.emphasys.action.disabled, color: 'primary.contrastText' } }}
+                        sx={{ bgcolor: 'primary.main', color: onPrimaryColors.text, borderRadius: 1, '&:hover': { bgcolor: 'primary.dark' }, '&.Mui-disabled': { bgcolor: (theme) => theme.emphasys.action.disabled, color: 'primary.contrastText' } }}
                       >
                         {saving ? <CircularProgress size={18} color="inherit" /> : <CheckIcon fontSize="small" />}
                       </IconButton>
@@ -5841,7 +5845,7 @@ export default function DocumentosFormPage({
             top: 72,
             zIndex: 2,
             py: 1,
-            backgroundColor: '#eef1f4',
+            backgroundColor: neutralColors.steel.wash,
           }}
         >
           <MobileBackIconButton
@@ -5854,7 +5858,7 @@ export default function DocumentosFormPage({
             <Typography variant="h5" fontWeight={600} color="primary.main">
               {isEdit ? textos.editar : textos.nuevo}
             </Typography>
-            <Typography variant="body2" color="#4b5563">
+            <Typography variant="body2" color={neutralColors.gray[600]}>
               {textos.descripcion}
             </Typography>
           </Box>
@@ -5883,7 +5887,7 @@ export default function DocumentosFormPage({
             <Typography variant="h5" fontWeight={700} color="primary.main">
               {isEdit ? textos.editar : textos.nuevo}
             </Typography>
-            <Typography variant="body2" color="#4b5563">
+            <Typography variant="body2" color={neutralColors.gray[600]}>
               {textos.descripcion}
             </Typography>
           </Box>
@@ -6027,8 +6031,8 @@ export default function DocumentosFormPage({
             alignItems: 'center',
             gap: 1,
             flexWrap: 'wrap',
-            borderColor: hasAnticiposRegistrados ? '#9db4ff' : '#d7deed',
-            bgcolor: '#f7faff',
+            borderColor: hasAnticiposRegistrados ? advanceBoxColors.registeredBorder : advanceBoxColors.idleBorder,
+            bgcolor: advanceBoxColors.surface,
           }}
         >
           {loadingAnticiposResumen ? <CircularProgress size={16} /> : null}
@@ -6044,7 +6048,7 @@ export default function DocumentosFormPage({
             Disponible: {anticiposFormatter.format(Number(anticiposResumen?.disponible_por_aplicar ?? 0))}
           </Typography>
           <Typography variant="body2" color="text.secondary">·</Typography>
-          <Typography variant="body2" color={Number(form.total || 0) < totalAnticipadoRegistrado ? 'error.main' : 'text.primary'}>
+          <Typography variant="body2" color={Number(form.total || 0) < totalAnticipadoRegistrado ? balanceColors.negative : 'text.primary'}>
             Pendiente: {anticiposFormatter.format(Number(anticiposResumen?.pendiente_estimado ?? Math.max(Number(form.total || 0), 0)))}
           </Typography>
         </Paper>
@@ -7093,7 +7097,7 @@ export default function DocumentosFormPage({
                   )}
 
                   {preparacionNotaCredito && partidasNotaCreditoDisponibles.length > 0 && (
-                    <Paper variant="outlined" sx={{ borderColor: '#e5e7eb', overflow: 'hidden' }}>
+                    <Paper variant="outlined" sx={{ borderColor: neutralColors.gray[200], overflow: 'hidden' }}>
                       <Box sx={{ overflowX: 'auto' }}>
                         <Box sx={{ minWidth: isNotaCreditoDevolucion ? 980 : 980 }}>
                           <Box
@@ -7103,15 +7107,15 @@ export default function DocumentosFormPage({
                               gap: 1,
                               px: 1.25,
                               py: 1,
-                              bgcolor: '#f8fafc',
-                              borderBottom: '1px solid #e5e7eb',
+                              bgcolor: neutralColors.slate[50],
+                              borderBottom: `1px solid ${neutralColors.gray[200]}`,
                             }}
                           >
                             {(isNotaCreditoDevolucion
                               ? ['Sel.', 'Factura / producto', 'Disponible', 'A devolver', 'Precio', 'Total', 'Acción']
                               : ['Sel.', 'Factura / producto', 'Cantidad', 'Precio unitario', 'Subtotal partida', 'Monto bonificado', 'Acción']
                             ).map((header) => (
-                              <Typography key={header} variant="caption" sx={{ fontWeight: 800, color: '#475569', fontSize: 11.5 }}>
+                              <Typography key={header} variant="caption" sx={{ fontWeight: 800, color: neutralColors.slate[600], fontSize: 11.5 }}>
                                 {header}
                               </Typography>
                             ))}
@@ -7333,9 +7337,9 @@ export default function DocumentosFormPage({
                             p: 1.5,
                             borderRadius: 1.75,
                             border: '1.5px solid',
-                            borderColor: '#96a7c7',
-                            bgcolor: '#ffffff',
-                            boxShadow: '0 1px 0 rgba(29, 47, 104, 0.06)',
+                            borderColor: neutralColors.steel.totalsBorder,
+                            bgcolor: whiteSurfaces.totalsPanel,
+                            boxShadow: `0 1px 0 ${brandBlueAlpha(0.06)}`,
                             mb: 1.5,
                           }}
                         >
@@ -7366,7 +7370,7 @@ export default function DocumentosFormPage({
                                   <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontSize: 11.5 }}>
                                     {item.label}
                                   </Typography>
-                                  <Typography variant="body2" fontWeight={item.label === 'Total' ? 800 : 700} color={item.label === 'Total' ? '#111827' : 'text.primary'} noWrap>
+                                  <Typography variant="body2" fontWeight={item.label === 'Total' ? 800 : 700} color={item.label === 'Total' ? neutralColors.gray[900] : 'text.primary'} noWrap>
                                     {item.value}
                                   </Typography>
                                 </Box>
@@ -7449,7 +7453,7 @@ export default function DocumentosFormPage({
                                         fontWeight={700}
                                         sx={{
                                           fontSize: 12,
-                                          color: '#111827',
+                                          color: neutralColors.gray[900],
                                           textAlign: 'left',
                                           whiteSpace: 'nowrap',
                                           overflow: 'hidden',
@@ -7462,7 +7466,7 @@ export default function DocumentosFormPage({
                                         component="span"
                                         sx={{
                                           fontSize: 12,
-                                          color: '#374151',
+                                          color: neutralColors.gray[700],
                                           whiteSpace: 'nowrap',
                                           overflow: 'hidden',
                                           textOverflow: 'ellipsis',
@@ -7644,8 +7648,8 @@ export default function DocumentosFormPage({
                                     </Box>
                                   )}
                                 >
-                                  <Paper variant="outlined" sx={{ px: 1.25, py: 1, borderRadius: 1.5, borderColor: '#e5e7eb', bgcolor: '#f8fafc' }}>
-                                    <Typography variant="caption" sx={{ display: 'block', color: '#64748b', fontSize: 11.5, mb: 0.5 }}>
+                                  <Paper variant="outlined" sx={{ px: 1.25, py: 1, borderRadius: 1.5, borderColor: neutralColors.gray[200], bgcolor: neutralColors.slate[50] }}>
+                                    <Typography variant="caption" sx={{ display: 'block', color: neutralColors.slate[500], fontSize: 11.5, mb: 0.5 }}>
                                       Resumen calculado
                                     </Typography>
                                     <Stack spacing={0.35}>
@@ -7663,7 +7667,7 @@ export default function DocumentosFormPage({
                                           <Box component="span" fontWeight={700}>-{formatter.format(impuestosPartida.retenciones)}</Box>
                                         </Typography>
                                       )}
-                                      <Typography variant="body2" sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, color: '#111827' }}>
+                                      <Typography variant="body2" sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, color: neutralColors.gray[900] }}>
                                         <Box component="span" color="text.secondary">Total</Box>
                                         <Box component="span" fontWeight={800}>{formatter.format(partida.total_partida ?? 0)}</Box>
                                       </Typography>
@@ -7759,9 +7763,9 @@ export default function DocumentosFormPage({
                             p: 1.75,
                             borderRadius: 1.75,
                             border: '1.75px solid',
-                            borderColor: '#96a7c7',
-                            bgcolor: '#ffffff',
-                            boxShadow: '0 1px 0 rgba(29, 47, 104, 0.06)',
+                            borderColor: neutralColors.steel.totalsBorder,
+                            bgcolor: whiteSurfaces.totalsPanel,
+                            boxShadow: `0 1px 0 ${brandBlueAlpha(0.06)}`,
                             display: 'flex',
                             flexDirection: 'column',
                             gap: { xs: 1, md: 1.25 },
@@ -7841,7 +7845,7 @@ export default function DocumentosFormPage({
                                   fontWeight={700}
                                   sx={{
                                     fontSize: 12,
-                                    color: '#111827',
+                                    color: neutralColors.gray[900],
                                     textAlign: 'left',
                                     whiteSpace: 'nowrap',
                                     overflow: 'hidden',
@@ -7854,7 +7858,7 @@ export default function DocumentosFormPage({
                                   component="span"
                                   sx={{
                                     fontSize: 12,
-                                    color: '#374151',
+                                    color: neutralColors.gray[700],
                                     whiteSpace: 'nowrap',
                                     overflow: 'hidden',
                                     textOverflow: 'ellipsis',
@@ -8109,10 +8113,10 @@ export default function DocumentosFormPage({
                                     disabled={Boolean(uploadingImagen[index])}
                                     sx={{
                                       color: partida.archivo_imagen_1
-                                        ? '#2e7d32'
+                                        ? attachmentIndicatorColors.withImage
                                         : partida.producto_archivo_id
-                                          ? '#1565c0'
-                                          : '#6b7280',
+                                          ? attachmentIndicatorColors.productFile
+                                          : attachmentIndicatorColors.none,
                                     }}
                                   >
                                     {uploadingImagen[index] ? (
@@ -8309,7 +8313,7 @@ export default function DocumentosFormPage({
 
               {!isTraslado && mostrarResumenFinanciero && usaPartidas && (
               useCompactMobilePartidas ? (
-                <Paper variant="outlined" sx={{ borderRadius: 1.5, borderColor: '#dbe3f0', overflow: 'hidden' }}>
+                <Paper variant="outlined" sx={{ borderRadius: 1.5, borderColor: neutralColors.steel.line, overflow: 'hidden' }}>
                   <ButtonBase
                     onClick={() => setMobileTotalsExpanded((prev) => !prev)}
                     sx={{
@@ -8344,15 +8348,15 @@ export default function DocumentosFormPage({
                         }}
                       >
                         {[
-                          { label: 'Subtotal bruto', value: resumenFinanciero.subtotalBruto, tone: '#334155' },
-                          { label: 'Desc. partidas', value: -resumenFinanciero.descuentoPartidas, tone: '#b45309' },
-                          { label: 'Desc. global', value: -resumenFinanciero.descuentoGlobal, tone: '#9a3412' },
-                          { label: 'Subtotal neto', value: resumenFinanciero.subtotalNeto, tone: '#1d4ed8' },
+                          { label: 'Subtotal bruto', value: resumenFinanciero.subtotalBruto, tone: documentSummaryTones.gross },
+                          { label: 'Desc. partidas', value: -resumenFinanciero.descuentoPartidas, tone: documentSummaryTones.itemDiscount },
+                          { label: 'Desc. global', value: -resumenFinanciero.descuentoGlobal, tone: documentSummaryTones.globalDiscount },
+                          { label: 'Subtotal neto', value: resumenFinanciero.subtotalNeto, tone: documentSummaryTones.net },
                           ...(ocultarIvaPorTratamiento ? [] : [
-                            { label: 'IVA trasladado', value: resumenFinanciero.iva, tone: '#0f766e' },
-                            { label: 'Retenciones', value: -resumenFinanciero.retenciones, tone: '#b45309' },
+                            { label: 'IVA trasladado', value: resumenFinanciero.iva, tone: documentSummaryTones.tax },
+                            { label: 'Retenciones', value: -resumenFinanciero.retenciones, tone: documentSummaryTones.withholding },
                           ]),
-                          { label: 'Total', value: resumenFinanciero.total, tone: '#111827' },
+                          { label: 'Total', value: resumenFinanciero.total, tone: documentSummaryTones.total },
                         ].map((item) => (
                           <Paper
                             key={item.label}
@@ -8361,8 +8365,8 @@ export default function DocumentosFormPage({
                               px: 1.25,
                               py: 1,
                               borderRadius: 1.25,
-                              borderColor: '#e5e7eb',
-                              bgcolor: '#fbfdff',
+                              borderColor: neutralColors.gray[200],
+                              bgcolor: neutralColors.steel.summarySurface,
                               minWidth: 0,
                               display: 'flex',
                               alignItems: 'center',
@@ -8370,7 +8374,7 @@ export default function DocumentosFormPage({
                               gap: 1,
                             }}
                           >
-                            <Typography variant="caption" sx={{ color: '#64748b', fontSize: 11.5 }}>
+                            <Typography variant="caption" sx={{ color: neutralColors.slate[500], fontSize: 11.5 }}>
                               {item.label}
                             </Typography>
                             <Typography
@@ -8414,15 +8418,15 @@ export default function DocumentosFormPage({
                 }}
               >
                 {[
-                  { label: 'Subtotal bruto', value: resumenFinanciero.subtotalBruto, tone: '#334155' },
-                  { label: 'Desc. partidas', value: -resumenFinanciero.descuentoPartidas, tone: '#b45309' },
-                  { label: 'Desc. global', value: -resumenFinanciero.descuentoGlobal, tone: '#9a3412' },
-                  { label: 'Subtotal neto', value: resumenFinanciero.subtotalNeto, tone: '#1d4ed8' },
+                  { label: 'Subtotal bruto', value: resumenFinanciero.subtotalBruto, tone: documentSummaryTones.gross },
+                  { label: 'Desc. partidas', value: -resumenFinanciero.descuentoPartidas, tone: documentSummaryTones.itemDiscount },
+                  { label: 'Desc. global', value: -resumenFinanciero.descuentoGlobal, tone: documentSummaryTones.globalDiscount },
+                  { label: 'Subtotal neto', value: resumenFinanciero.subtotalNeto, tone: documentSummaryTones.net },
                   ...(ocultarIvaPorTratamiento ? [] : [
-                    { label: 'IVA trasladado', value: resumenFinanciero.iva, tone: '#0f766e' },
-                    { label: 'Retenciones', value: -resumenFinanciero.retenciones, tone: '#b45309' },
+                    { label: 'IVA trasladado', value: resumenFinanciero.iva, tone: documentSummaryTones.tax },
+                    { label: 'Retenciones', value: -resumenFinanciero.retenciones, tone: documentSummaryTones.withholding },
                   ]),
-                  { label: 'Total', value: resumenFinanciero.total, tone: '#111827' },
+                  { label: 'Total', value: resumenFinanciero.total, tone: documentSummaryTones.total },
                 ].map((item) => (
                   <Paper
                     key={item.label}
@@ -8431,8 +8435,8 @@ export default function DocumentosFormPage({
                       px: 1.25,
                       py: 1,
                       borderRadius: 1.5,
-                      borderColor: '#e5e7eb',
-                      bgcolor: '#fbfdff',
+                      borderColor: neutralColors.gray[200],
+                      bgcolor: neutralColors.steel.summarySurface,
                       minWidth: 0,
                       display: 'flex',
                       flexDirection: 'column',
@@ -8440,7 +8444,7 @@ export default function DocumentosFormPage({
                       gap: 0.35,
                     }}
                   >
-                    <Typography variant="caption" sx={{ display: 'block', color: '#64748b', fontSize: 11.5 }}>
+                    <Typography variant="caption" sx={{ display: 'block', color: neutralColors.slate[500], fontSize: 11.5 }}>
                       {item.label}
                     </Typography>
                     <Typography
@@ -8484,7 +8488,7 @@ export default function DocumentosFormPage({
           sx={{
             mt: 2,
             border: '1px solid',
-            borderColor: 'rgba(148,163,184,0.35)',
+            borderColor: overlayColors.receptionPanel.border,
             borderRadius: 2,
             overflow: 'hidden',
           }}
@@ -8493,18 +8497,18 @@ export default function DocumentosFormPage({
             direction="row"
             alignItems="center"
             spacing={1}
-            sx={{ px: 2, py: 1.25, bgcolor: '#f8fafc', borderBottom: '1px solid', borderColor: 'rgba(148,163,184,0.25)' }}
+            sx={{ px: 2, py: 1.25, bgcolor: neutralColors.slate[50], borderBottom: '1px solid', borderColor: overlayColors.receptionPanel.headerDivider }}
           >
-            <Typography variant="subtitle2" sx={{ fontWeight: 700, color: '#1e293b', flexGrow: 1 }}>
+            <Typography variant="subtitle2" sx={{ fontWeight: 700, color: neutralColors.slate[800], flexGrow: 1 }}>
               Recepciones
             </Typography>
             {recepcionLoading && <CircularProgress size={16} />}
             {!recepcionLoading && recepcionResumen && (() => {
               const estado = recepcionResumen.estado_recepcion;
               const cfg: Record<string, { label: string; bgcolor: string; color: string }> = {
-                abierta: { label: 'Abierta', bgcolor: '#f1f5f9', color: '#475569' },
-                parcial: { label: 'Parcial', bgcolor: '#fef3c7', color: '#92400e' },
-                cerrada: { label: 'Cerrada', bgcolor: '#dcfce7', color: '#166534' },
+                abierta: { label: 'Abierta', bgcolor: neutralColors.slate[100], color: neutralColors.slate[600] },
+                parcial: { label: 'Parcial', bgcolor: alertColors.warning[100], color: alertColors.warning[800] },
+                cerrada: { label: 'Cerrada', bgcolor: alertColors.success[100], color: alertColors.success[800] },
               };
               const { label, bgcolor, color } = cfg[estado] ?? cfg.abierta!;
               return (
@@ -8521,7 +8525,7 @@ export default function DocumentosFormPage({
             <TableContainer>
               <Table size="small">
                 <TableHead>
-                  <TableRow sx={{ '& th': { bgcolor: '#f1f5f9', fontWeight: 700, fontSize: '0.75rem', color: '#475569', py: 0.75 } }}>
+                  <TableRow sx={{ '& th': { bgcolor: neutralColors.slate[100], fontWeight: 700, fontSize: '0.75rem', color: neutralColors.slate[600], py: 0.75 } }}>
                     <TableCell>Producto</TableCell>
                     <TableCell align="right">Ordenado</TableCell>
                     <TableCell align="right">Recibido</TableCell>
@@ -8535,30 +8539,30 @@ export default function DocumentosFormPage({
                       sx={{ '&:last-child td': { border: 0 }, '& td': { fontSize: '0.8rem', py: 0.6 } }}
                     >
                       <TableCell>
-                        <Typography variant="body2" sx={{ fontSize: '0.8rem', fontWeight: 500, color: '#1e293b' }}>
+                        <Typography variant="body2" sx={{ fontSize: '0.8rem', fontWeight: 500, color: neutralColors.slate[800] }}>
                           {p.producto_descripcion ?? p.descripcion_alterna ?? '—'}
                         </Typography>
                         {p.producto_clave && (
-                          <Typography variant="caption" sx={{ color: '#64748b' }}>{p.producto_clave}</Typography>
+                          <Typography variant="caption" sx={{ color: neutralColors.slate[500] }}>{p.producto_clave}</Typography>
                         )}
                       </TableCell>
-                      <TableCell align="right" sx={{ color: '#334155' }}>
+                      <TableCell align="right" sx={{ color: neutralColors.slate[700] }}>
                         {Number(p.cantidad_ordenada).toLocaleString('es-MX', { maximumFractionDigits: 4 })}
                         {p.unidad ? ` ${p.unidad}` : ''}
                       </TableCell>
-                      <TableCell align="right" sx={{ color: p.cantidad_recibida > 0 ? '#166534' : '#94a3b8' }}>
+                      <TableCell align="right" sx={{ color: p.cantidad_recibida > 0 ? alertColors.success[800] : neutralColors.slate[400] }}>
                         {Number(p.cantidad_recibida).toLocaleString('es-MX', { maximumFractionDigits: 4 })}
                       </TableCell>
-                      <TableCell align="right" sx={{ color: p.cantidad_pendiente > 0.000001 ? '#92400e' : '#166534', fontWeight: 600 }}>
+                      <TableCell align="right" sx={{ color: p.cantidad_pendiente > 0.000001 ? alertColors.warning[800] : alertColors.success[800], fontWeight: 600 }}>
                         {Number(p.cantidad_pendiente).toLocaleString('es-MX', { maximumFractionDigits: 4 })}
                       </TableCell>
                     </TableRow>
                   ))}
-                  <TableRow sx={{ bgcolor: '#f8fafc', '& td': { fontWeight: 700, fontSize: '0.8rem', borderTop: '2px solid', borderColor: 'rgba(148,163,184,0.4)' } }}>
+                  <TableRow sx={{ bgcolor: neutralColors.slate[50], '& td': { fontWeight: 700, fontSize: '0.8rem', borderTop: '2px solid', borderColor: overlayColors.receptionPanel.totalBorder } }}>
                     <TableCell>Total</TableCell>
                     <TableCell align="right">{Number(recepcionResumen.total_ordenado).toLocaleString('es-MX', { maximumFractionDigits: 4 })}</TableCell>
-                    <TableCell align="right" sx={{ color: '#166534' }}>{Number(recepcionResumen.total_recibido).toLocaleString('es-MX', { maximumFractionDigits: 4 })}</TableCell>
-                    <TableCell align="right" sx={{ color: recepcionResumen.total_pendiente > 0.000001 ? '#92400e' : '#166534' }}>{Number(recepcionResumen.total_pendiente).toLocaleString('es-MX', { maximumFractionDigits: 4 })}</TableCell>
+                    <TableCell align="right" sx={{ color: alertColors.success[800] }}>{Number(recepcionResumen.total_recibido).toLocaleString('es-MX', { maximumFractionDigits: 4 })}</TableCell>
+                    <TableCell align="right" sx={{ color: recepcionResumen.total_pendiente > 0.000001 ? alertColors.warning[800] : alertColors.success[800] }}>{Number(recepcionResumen.total_pendiente).toLocaleString('es-MX', { maximumFractionDigits: 4 })}</TableCell>
                   </TableRow>
                 </TableBody>
               </Table>
@@ -8566,7 +8570,7 @@ export default function DocumentosFormPage({
           )}
 
           {!recepcionLoading && (!recepcionResumen || recepcionResumen.partidas.length === 0) && (
-            <Box sx={{ px: 2, py: 2, color: '#94a3b8', fontSize: '0.82rem' }}>
+            <Box sx={{ px: 2, py: 2, color: neutralColors.slate[400], fontSize: '0.82rem' }}>
               Sin partidas de recepción registradas.
             </Box>
           )}
@@ -8587,26 +8591,26 @@ export default function DocumentosFormPage({
             zIndex: 1200,
             borderRadius: 2,
             border: '1px solid',
-            borderColor: 'rgba(148, 163, 184, 0.35)',
-            bgcolor: 'rgba(255, 255, 255, 0.96)',
+            borderColor: overlayColors.floatingSummary.border,
+            bgcolor: overlayColors.floatingSummary.surface,
             backdropFilter: 'blur(10px)',
-            boxShadow: '0 12px 30px rgba(15, 23, 42, 0.12)',
+            boxShadow: elevation.floatingSummary,
             px: 1.5,
             py: 1,
           }}
         >
           <Stack direction="row" spacing={1.5} alignItems="center" justifyContent="center" sx={{ flexWrap: 'wrap' }}>
             {[
-              { label: 'Bruto', value: resumenFinanciero.subtotalBruto, tone: '#334155' },
+              { label: 'Bruto', value: resumenFinanciero.subtotalBruto, tone: documentSummaryTones.gross },
               ...(resumenFinanciero.descuentoPartidas + resumenFinanciero.descuentoGlobal > 0
-                ? [{ label: 'Desc', value: -(resumenFinanciero.descuentoPartidas + resumenFinanciero.descuentoGlobal), tone: '#9a3412' }]
+                ? [{ label: 'Desc', value: -(resumenFinanciero.descuentoPartidas + resumenFinanciero.descuentoGlobal), tone: documentSummaryTones.discount }]
                 : []),
-              { label: 'Neto', value: resumenFinanciero.subtotalNeto, tone: '#1d4ed8' },
+              { label: 'Neto', value: resumenFinanciero.subtotalNeto, tone: documentSummaryTones.net },
               ...(ocultarIvaPorTratamiento ? [] : [
-                { label: 'IVA trasladado', value: resumenFinanciero.iva, tone: '#0f766e' },
-                { label: 'Retenciones', value: -resumenFinanciero.retenciones, tone: '#b45309' },
+                { label: 'IVA trasladado', value: resumenFinanciero.iva, tone: documentSummaryTones.tax },
+                { label: 'Retenciones', value: -resumenFinanciero.retenciones, tone: documentSummaryTones.withholding },
               ]),
-              { label: 'Total', value: resumenFinanciero.total, tone: '#111827', strong: true },
+              { label: 'Total', value: resumenFinanciero.total, tone: documentSummaryTones.total, strong: true },
             ].map((item) => (
               <Box
                 key={item.label}
@@ -8619,7 +8623,7 @@ export default function DocumentosFormPage({
                   px: 0.5,
                 }}
               >
-                <Typography variant="caption" sx={{ color: '#64748b', fontSize: 10.5, lineHeight: 1.1 }}>
+                <Typography variant="caption" sx={{ color: neutralColors.slate[500], fontSize: 10.5, lineHeight: 1.1 }}>
                   {item.label}
                 </Typography>
                 <Typography
@@ -8653,7 +8657,7 @@ export default function DocumentosFormPage({
       <Dialog open={duplicateDialog.open} onClose={() => setDuplicateDialog({ open: false, message: '' })}>
         <DialogTitle fontWeight={700}>Documento duplicado</DialogTitle>
         <DialogContent>
-          <DialogContentText sx={{ color: '#374151' }}>
+          <DialogContentText sx={{ color: neutralColors.gray[700] }}>
             Ya existe un documento con la misma serie y número. Por favor verifique el consecutivo antes de continuar.
             {duplicateDialog.message && (
               <>
@@ -8674,7 +8678,7 @@ export default function DocumentosFormPage({
       <Dialog open={trazabilidadDialog.open} onClose={() => setTrazabilidadDialog({ open: false, folioRelacionado: '' })}>
         <DialogTitle fontWeight={700}>Documento con trazabilidad activa</DialogTitle>
         <DialogContent>
-          <DialogContentText sx={{ color: '#374151' }}>
+          <DialogContentText sx={{ color: neutralColors.gray[700] }}>
             Este documento fue generado a partir de otro documento o ya participa en una cadena de trazabilidad.
             <br /><br />
             Modificar sus partidas podría afectar la integridad de la información y romper las relaciones entre documentos.
@@ -8700,7 +8704,7 @@ export default function DocumentosFormPage({
       <Dialog open={conceptoObligatorioDialog.open} onClose={() => setConceptoObligatorioDialog({ open: false, message: '' })}>
         <DialogTitle fontWeight={700}>Concepto obligatorio</DialogTitle>
         <DialogContent>
-          <DialogContentText sx={{ color: '#374151' }}>
+          <DialogContentText sx={{ color: neutralColors.gray[700] }}>
             {conceptoObligatorioDialog.message}
           </DialogContentText>
         </DialogContent>
@@ -8823,10 +8827,10 @@ export default function DocumentosFormPage({
           {partidaImagenPreviewUrl && (
             <Box
               sx={{
-                border: '1px solid #e5e7eb',
+                border: `1px solid ${neutralColors.gray[200]}`,
                 borderRadius: 1.5,
                 p: 1,
-                bgcolor: '#fafafa',
+                bgcolor: neutralColors.steel.attachmentSurface,
               }}
             >
               <Box
@@ -8886,13 +8890,13 @@ export default function DocumentosFormPage({
                 role="textbox"
                 aria-label="Área para pegar imagen del portapapeles"
                 sx={{
-                  border: '2px dashed #9ca3af',
+                  border: `2px dashed ${neutralColors.gray[400]}`,
                   borderRadius: 1.5,
                   p: 3,
                   textAlign: 'center',
-                  color: '#6b7280',
+                  color: neutralColors.gray[500],
                   outline: 'none',
-                  '&:focus': { borderColor: '#1565c0', color: '#1565c0' },
+                  '&:focus': { borderColor: selectionColors.attachmentFocus, color: selectionColors.attachmentFocus },
                 }}
               >
                 {uploadingImagen[partidaImagenDialog.index ?? -1] ? (
@@ -8962,8 +8966,8 @@ export default function DocumentosFormPage({
                               position: 'relative',
                               borderRadius: 1.5,
                               overflow: 'hidden',
-                              border: selected ? '2px solid #1565c0' : '1px solid #e5e7eb',
-                              bgcolor: '#fafafa',
+                              border: selected ? `2px solid ${selectionColors.attachmentFocus}` : `1px solid ${neutralColors.gray[200]}`,
+                              bgcolor: neutralColors.steel.attachmentSurface,
                               aspectRatio: '1 / 1',
                             }}
                           >

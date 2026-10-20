@@ -26,6 +26,8 @@ import type {
   AnticipoDisponible,
   DocumentoAnticiposDisponibles,
 } from '../../types/finanzas';
+import { neutralColors } from '../../theme/structural';
+import { activeBrand } from '../../theme/brand/active';
 
 const toCivilDate = (date = new Date()) => {
   const year = date.getFullYear();
@@ -212,13 +214,13 @@ export function AnticiposAplicacionDialog({
         </Alert>
 
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-          <Box sx={{ flex: 1, p: 1.5, border: '1px solid #e5e7eb', borderRadius: 2, backgroundColor: '#f8fafc' }}>
+          <Box sx={{ flex: 1, p: 1.5, border: `1px solid ${neutralColors.gray[200]}`, borderRadius: 2, backgroundColor: neutralColors.slate[50] }}>
             <Typography variant="caption" color="text.secondary">Saldo actual de la factura</Typography>
-            <Typography variant="h6" color="#1d2f68">{formatter.format(saldoFactura)}</Typography>
+            <Typography variant="h6" color={activeBrand.colors.blue.base}>{formatter.format(saldoFactura)}</Typography>
           </Box>
-          <Box sx={{ flex: 1, p: 1.5, border: '1px solid #e5e7eb', borderRadius: 2, backgroundColor: '#f8fafc' }}>
+          <Box sx={{ flex: 1, p: 1.5, border: `1px solid ${neutralColors.gray[200]}`, borderRadius: 2, backgroundColor: neutralColors.slate[50] }}>
             <Typography variant="caption" color="text.secondary">Total a aplicar</Typography>
-            <Typography variant="h6" color="#006261">{formatter.format(totalIngresado)}</Typography>
+            <Typography variant="h6" color={activeBrand.colors.accent}>{formatter.format(totalIngresado)}</Typography>
           </Box>
         </Stack>
 
@@ -231,7 +233,7 @@ export function AnticiposAplicacionDialog({
         ) : null}
 
         {!loading && anticipos.length > 0 ? (
-          <TableContainer sx={{ border: '1px solid #e5e7eb', borderRadius: 2 }}>
+          <TableContainer sx={{ border: `1px solid ${neutralColors.gray[200]}`, borderRadius: 2 }}>
             <Table size="small">
               <TableHead>
                 <TableRow>
@@ -283,7 +285,7 @@ export function AnticiposAplicacionDialog({
           onClick={handleApplyAll}
           disabled={loading || submitting || anticipos.length === 0}
           variant="contained"
-          sx={{ textTransform: 'none', borderRadius: 999, bgcolor: '#1d2f68', '&:hover': { bgcolor: '#162551' } }}
+          sx={{ textTransform: 'none', borderRadius: 999, bgcolor: activeBrand.colors.blue.base, '&:hover': { bgcolor: activeBrand.colors.blue.hover } }}
         >
           {submitting ? 'Aplicando…' : 'Aplicar todo'}
         </Button>

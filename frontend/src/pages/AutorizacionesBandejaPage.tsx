@@ -10,12 +10,15 @@ import {
   getBandeja, getMisSolicitudes, responderSolicitud, cancelarSolicitud,
   type AutorizacionSolicitud, type EstadoSolicitud,
 } from '../services/autorizacionesService';
+import { alertColors } from '../theme/functional';
+import { neutralColors } from '../theme/structural';
+import { activeBrand } from '../theme/brand/active';
 
 const ESTADO_CHIP: Record<EstadoSolicitud, { label: string; bgcolor: string; color: string }> = {
-  pendiente: { label: 'Pendiente', bgcolor: '#fef3c7', color: '#92400e' },
-  aprobada:  { label: 'Aprobada',  bgcolor: '#dcfce7', color: '#166534' },
-  rechazada: { label: 'Rechazada', bgcolor: '#fee2e2', color: '#991b1b' },
-  cancelada: { label: 'Cancelada', bgcolor: '#f3f4f6', color: '#6b7280' },
+  pendiente: { label: 'Pendiente', bgcolor: alertColors.warning[100], color: alertColors.warning[800] },
+  aprobada:  { label: 'Aprobada',  bgcolor: alertColors.success[100], color: alertColors.success[800] },
+  rechazada: { label: 'Rechazada', bgcolor: alertColors.error[100], color: alertColors.error[800] },
+  cancelada: { label: 'Cancelada', bgcolor: neutralColors.gray[100], color: neutralColors.gray[500] },
 };
 
 function EstadoChip({ estado }: { estado: EstadoSolicitud }) {
@@ -89,7 +92,7 @@ export default function AutorizacionesBandejaPage() {
   const columnasBandeja = (
     <Table size="small">
       <TableHead>
-        <TableRow sx={{ bgcolor: '#f8fafc' }}>
+        <TableRow sx={{ bgcolor: neutralColors.slate[50] }}>
           <TableCell>Documento</TableCell>
           <TableCell>Transición</TableCell>
           <TableCell>Monto</TableCell>
@@ -102,7 +105,7 @@ export default function AutorizacionesBandejaPage() {
       <TableBody>
         {bandeja.length === 0 && (
           <TableRow>
-            <TableCell colSpan={7} align="center" sx={{ py: 4, color: '#9ca3af' }}>
+            <TableCell colSpan={7} align="center" sx={{ py: 4, color: neutralColors.gray[400] }}>
               No hay solicitudes pendientes de autorizar
             </TableCell>
           </TableRow>
@@ -149,7 +152,7 @@ export default function AutorizacionesBandejaPage() {
       </Box>
       <Table size="small">
         <TableHead>
-          <TableRow sx={{ bgcolor: '#f8fafc' }}>
+          <TableRow sx={{ bgcolor: neutralColors.slate[50] }}>
             <TableCell>Documento</TableCell>
             <TableCell>Transición</TableCell>
             <TableCell>Monto</TableCell>
@@ -163,7 +166,7 @@ export default function AutorizacionesBandejaPage() {
         <TableBody>
           {misSolicitudes.length === 0 && (
             <TableRow>
-              <TableCell colSpan={8} align="center" sx={{ py: 4, color: '#9ca3af' }}>
+              <TableCell colSpan={8} align="center" sx={{ py: 4, color: neutralColors.gray[400] }}>
                 No hay solicitudes
               </TableCell>
             </TableRow>
@@ -209,7 +212,7 @@ export default function AutorizacionesBandejaPage() {
 
   return (
     <Box>
-      <Typography variant="h5" fontWeight={700} color="#1d2f68" mb={3}>Autorizaciones</Typography>
+      <Typography variant="h5" fontWeight={700} color={activeBrand.colors.blue.base} mb={3}>Autorizaciones</Typography>
 
       {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>{error}</Alert>}
 

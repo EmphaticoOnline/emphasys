@@ -35,6 +35,9 @@ import type { TipoDocumento } from '../../types/documentos.types';
 import { formatearFolioDocumento } from '../../utils/documentos.utils';
 import { getDocumentoTypeConfig, resolveDocumentoTextos } from '../../modules/documentos/documentoTypeConfig';
 import { summarizeDocumentTaxes } from '../../utils/documentTaxSummary';
+import { alertColors } from '../../theme/functional';
+import { neutralColors } from '../../theme/structural';
+import { activeBrand } from '../../theme/brand/active';
 
 export const formatDateShort = (value?: string | null) => {
   if (!value) return '—';
@@ -72,7 +75,7 @@ export const headerCellSx = {
 export const bodyCellSx = {
   fontSize: '13px',
   py: '6px',
-  borderBottom: '1px solid #e5e7eb',
+  borderBottom: `1px solid ${neutralColors.gray[200]}`,
 };
 
 export function EmptyState({ mensaje }: { mensaje: string }) {
@@ -219,7 +222,7 @@ export function ResumenTab({
           display: 'grid',
           gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' },
           gap: 1.5,
-          border: '1px solid #e5e7eb',
+          border: `1px solid ${neutralColors.gray[200]}`,
           borderRadius: 2,
           p: 2,
         }}
@@ -236,8 +239,8 @@ export function ResumenTab({
         ))}
       </Box>
       {cancelacionRelevante ? (
-        <Box sx={{ border: '1px solid #f59e0b', borderRadius: 2, p: 2, bgcolor: '#fffbeb' }}>
-          <Typography variant="subtitle2" fontWeight={700} color="#92400e" sx={{ mb: 1 }}>
+        <Box sx={{ border: `1px solid ${alertColors.warning[500]}`, borderRadius: 2, p: 2, bgcolor: alertColors.warning[50] }}>
+          <Typography variant="subtitle2" fontWeight={700} color={alertColors.warning[800]} sx={{ mb: 1 }}>
             CANCELACIÓN CFDI
           </Typography>
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 1 }}>
@@ -296,7 +299,7 @@ export function ResumenTab({
       ) : null}
       {documento.observaciones ? (
         <Box>
-          <Typography variant="subtitle2" fontWeight={700} color="#1d2f68">
+          <Typography variant="subtitle2" fontWeight={700} color={activeBrand.colors.blue.base}>
             Observaciones
           </Typography>
           <Typography variant="body2" whiteSpace="pre-wrap">
@@ -312,7 +315,7 @@ export function PartidasTab({ partidas, formatter }: { partidas: DocumentoDetall
   if (!partidas || partidas.length === 0) return <EmptyState mensaje="Este documento no tiene partidas." />;
 
   return (
-    <TableContainer sx={{ border: '1px solid #e5e7eb', borderRadius: 2 }}>
+    <TableContainer sx={{ border: `1px solid ${neutralColors.gray[200]}`, borderRadius: 2 }}>
       <Table size="small">
         <TableHead>
           <TableRow>
@@ -377,7 +380,7 @@ export function PagosTab({ pagos, formatter }: { pagos: PagoAplicado[]; formatte
   if (!pagos || pagos.length === 0) return <EmptyState mensaje="Este documento aún no tiene pagos aplicados." />;
 
   return (
-    <TableContainer sx={{ border: '1px solid #e5e7eb', borderRadius: 2 }}>
+    <TableContainer sx={{ border: `1px solid ${neutralColors.gray[200]}`, borderRadius: 2 }}>
       <Table size="small">
         <TableHead>
           <TableRow>
@@ -426,7 +429,7 @@ export function NotasCreditoTab({ notasCredito, formatter }: { notasCredito: Not
   }
 
   return (
-    <TableContainer sx={{ border: '1px solid #e5e7eb', borderRadius: 2 }}>
+    <TableContainer sx={{ border: `1px solid ${neutralColors.gray[200]}`, borderRadius: 2 }}>
       <Table size="small">
         <TableHead>
           <TableRow>
@@ -469,7 +472,7 @@ export function RelacionadosTab({
   }
 
   return (
-    <TableContainer sx={{ border: '1px solid #e5e7eb', borderRadius: 2 }}>
+    <TableContainer sx={{ border: `1px solid ${neutralColors.gray[200]}`, borderRadius: 2 }}>
       <Table size="small">
         <TableHead>
           <TableRow>
@@ -504,7 +507,7 @@ export function InventarioTab({ movimientos }: { movimientos: MovimientoInventar
   }
 
   return (
-    <TableContainer sx={{ border: '1px solid #e5e7eb', borderRadius: 2 }}>
+    <TableContainer sx={{ border: `1px solid ${neutralColors.gray[200]}`, borderRadius: 2 }}>
       <Table size="small">
         <TableHead>
           <TableRow>

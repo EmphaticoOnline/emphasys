@@ -166,6 +166,9 @@ import {
   buildFacturaIndicatorModel,
   type DocumentoIndicatorModel,
 } from '../components/documentos/indicadores';
+import { alertColors, balanceColors, dataColorContrast } from '../theme/functional';
+import { neutralColors, selectionColors, whiteSurfaces } from '../theme/structural';
+import { elevation } from '../theme/elevation';
 
 const formatCivilDate = (value: unknown) => {
   const raw = String(value ?? '').trim();
@@ -231,7 +234,7 @@ function normalizeHexColor(color: string | null | undefined) {
 function getContrastingTextColor(color: string | null | undefined) {
   const hex = normalizeHexColor(color);
   if (!hex) {
-    return '#111827';
+    return neutralColors.gray[900];
   }
 
   const red = Number.parseInt(hex.slice(1, 3), 16) / 255;
@@ -243,7 +246,7 @@ function getContrastingTextColor(color: string | null | undefined) {
   const contrastWithWhite = 1.05 / (luminance + 0.05);
   const contrastWithDark = (luminance + 0.05) / 0.05;
 
-  return contrastWithWhite >= contrastWithDark ? '#ffffff' : '#111827';
+  return contrastWithWhite >= contrastWithDark ? dataColorContrast.stageLight : neutralColors.gray[900];
 }
 import {
   ESTADOS_SEGUIMIENTO,
@@ -468,13 +471,13 @@ const getCotizacionEstatusPresentation = (value: unknown) => {
   const normalized = normalizeCotizacionEstatusDocumento(value);
 
   if (normalized === 'enviado') {
-    return { value: normalized, label: COTIZACION_ESTATUS_LABELS.enviado, color: '#dbeafe', textColor: '#1d4ed8' };
+    return { value: normalized, label: COTIZACION_ESTATUS_LABELS.enviado, color: alertColors.info[100], textColor: alertColors.info[700] };
   }
   if (normalized === 'en negociacion') {
-    return { value: normalized, label: COTIZACION_ESTATUS_LABELS['en negociacion'], color: '#fef3c7', textColor: '#92400e' };
+    return { value: normalized, label: COTIZACION_ESTATUS_LABELS['en negociacion'], color: alertColors.warning[100], textColor: alertColors.warning[800] };
   }
 
-  return { value: normalized, label: COTIZACION_ESTATUS_LABELS.borrador, color: '#f3f4f6', textColor: '#374151' };
+  return { value: normalized, label: COTIZACION_ESTATUS_LABELS.borrador, color: neutralColors.gray[100], textColor: neutralColors.gray[700] };
 };
 
 const getCotizacionEstatusEditableOptions = (value: unknown): StatusOption[] => {
@@ -2191,7 +2194,7 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
             width: 130,
             headerClassName: 'finanzas-header',
             renderCell: (params: any) => (
-              <Typography variant="body2" noWrap sx={{ width: '100%', color: '#374151' }}>
+              <Typography variant="body2" noWrap sx={{ width: '100%', color: neutralColors.gray[700] }}>
                 {formatMotivoNcLabel(params.row?.motivo_nc)}
               </Typography>
             ),
@@ -2207,7 +2210,7 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
             renderCell: (params: any) => {
               const agenteNombre = vendedoresPorId.get(Number(params.row?.agente_id ?? 0)) || '';
               return (
-                <Typography variant="body2" noWrap sx={{ color: agenteNombre ? '#111827' : '#9ca3af', width: '100%' }}>
+                <Typography variant="body2" noWrap sx={{ color: agenteNombre ? neutralColors.gray[900] : neutralColors.gray[400], width: '100%' }}>
                   {agenteNombre || 'Sin asignar'}
                 </Typography>
               );
@@ -2322,7 +2325,7 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
                 const content = (
                   <Box
                     sx={{
-                      color: suspended ? 'warning.main' : Number(params.value ?? 0) === 0 ? 'success.main' : 'error.main',
+                      color: suspended ? balanceColors.onHold : Number(params.value ?? 0) === 0 ? balanceColors.settled : balanceColors.due,
                       fontWeight: 600,
                       textDecoration: suspended ? 'underline dotted' : undefined,
                     }}
@@ -2374,9 +2377,9 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
             renderCell: (params: any) => {
               const estado = String(params.row?.estado_recepcion ?? 'abierta');
               const cfg: Record<string, { label: string; bgcolor: string; color: string }> = {
-                abierta: { label: 'Abierta',  bgcolor: '#f1f5f9', color: '#475569' },
-                parcial: { label: 'Parcial',  bgcolor: '#fef3c7', color: '#92400e' },
-                cerrada: { label: 'Cerrada',  bgcolor: '#dcfce7', color: '#166534' },
+                abierta: { label: 'Abierta',  bgcolor: neutralColors.slate[100], color: neutralColors.slate[600] },
+                parcial: { label: 'Parcial',  bgcolor: alertColors.warning[100], color: alertColors.warning[800] },
+                cerrada: { label: 'Cerrada',  bgcolor: alertColors.success[100], color: alertColors.success[800] },
               };
               const { label, bgcolor, color } = cfg[estado] ?? cfg.abierta!;
               return (
@@ -2400,9 +2403,9 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
             const estado = params.row?.estado_autorizacion as string | null | undefined;
             if (!estado || estado === 'no_requerida') return null;
             const MAP: Record<string, { label: string; bgcolor: string; color: string }> = {
-              pendiente: { label: 'Pendiente auth.', bgcolor: '#fef3c7', color: '#92400e' },
-              aprobada:  { label: 'Autorizado',      bgcolor: '#dcfce7', color: '#166534' },
-              rechazada: { label: 'Rechazado',        bgcolor: '#fee2e2', color: '#991b1b' },
+              pendiente: { label: 'Pendiente auth.', bgcolor: alertColors.warning[100], color: alertColors.warning[800] },
+              aprobada:  { label: 'Autorizado',      bgcolor: alertColors.success[100], color: alertColors.success[800] },
+              rechazada: { label: 'Rechazado',        bgcolor: alertColors.error[100], color: alertColors.error[800] },
             };
             const cfg = MAP[estado];
             if (!cfg) return null;
@@ -3562,11 +3565,11 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
                   fontSize: 12,
                   fontWeight: selected ? 700 : 600,
                   px: 0.35,
-                  color: selected ? 'primary.main' : '#4b5563',
-                  backgroundColor: selected ? '#e8eefc' : '#fff',
-                  borderColor: selected ? '#9db1ea' : '#d1d5db',
+                  color: selected ? 'primary.main' : neutralColors.gray[600],
+                  backgroundColor: selected ? selectionColors.chipSurface : whiteSurfaces.controlIdle,
+                  borderColor: selected ? selectionColors.border : neutralColors.gray[300],
                   '&:hover': {
-                    backgroundColor: selected ? '#dce6fb' : '#f8fafc',
+                    backgroundColor: selected ? selectionColors.surface : neutralColors.slate[50],
                   },
                   '& .MuiChip-label': {
                     px: 1.2,
@@ -3620,12 +3623,12 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
           } : {
             p: { xs: 1.25, sm: 1.5 },
             borderRadius: 2,
-            borderColor: '#dbe3f4',
-            backgroundColor: '#f8fafc',
+            borderColor: neutralColors.steel.documentFiltersBorder,
+            backgroundColor: neutralColors.slate[50],
           }}
         >
           <Stack spacing={1.25}>
-            <Typography variant="subtitle2" sx={{ fontWeight: 700, color: usaSuperficieCatalogo ? theme.emphasys.content.foreground : '#1f2937' }}>
+            <Typography variant="subtitle2" sx={{ fontWeight: 700, color: usaSuperficieCatalogo ? theme.emphasys.content.foreground : neutralColors.gray[800] }}>
               Filtros avanzados
             </Typography>
 
@@ -3834,7 +3837,7 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
       }}
     >
       {(() => {
-        const totalColor = '#2563eb';
+        const totalColor = alertColors.info[600];
         const total = theme.emphasys.metric.amount;
         return esCotizacion
           ? [
@@ -3858,7 +3861,7 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
               ...statusOptions.map((status) => ({
                 label: status.label,
                 value: Number(resumenTotales.porEstado[status.value] ?? 0),
-                color: status.textColor || '#374151',
+                color: status.textColor || neutralColors.gray[700],
                 bgColor: undefined,
                 borderColor: undefined,
               })),
@@ -3878,10 +3881,10 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
             px: 1,
             py: 0.8,
             borderRadius: 1.5,
-            boxShadow: '0 1px 2px rgba(15, 23, 42, 0.04)',
+            boxShadow: elevation.hairline,
           }}
         >
-          <Typography sx={usaSuperficieCatalogo ? { fontSize: 10, fontWeight: 700, color: theme.emphasys.metric.caption, textTransform: 'uppercase', letterSpacing: '0.06em', lineHeight: 1.15 } : { color: '#6b7280', fontWeight: 700, mb: 0.2, fontSize: 12.5, lineHeight: 1.2 }}>
+          <Typography sx={usaSuperficieCatalogo ? { fontSize: 10, fontWeight: 700, color: theme.emphasys.metric.caption, textTransform: 'uppercase', letterSpacing: '0.06em', lineHeight: 1.15 } : { color: neutralColors.gray[500], fontWeight: 700, mb: 0.2, fontSize: 12.5, lineHeight: 1.2 }}>
             {item.label}
           </Typography>
           <Typography sx={usaSuperficieCatalogo ? { mt: 0.35, fontSize: 16, lineHeight: 1.05, fontWeight: 500, fontFamily: theme.typography.figure.fontFamily, fontVariantNumeric: 'tabular-nums', color: item.color } : { color: item.color, fontWeight: 800, lineHeight: 1.1, fontSize: { xs: 16, sm: 17, lg: 18 } }}>
@@ -3917,7 +3920,7 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
         flexDirection: { xs: 'column', sm: 'row' },
       }}
     >
-      <Typography variant="body2" sx={{ fontWeight: 700, color: usaSuperficieCatalogo ? theme.emphasys.content.foreground : '#1f2937' }}>
+      <Typography variant="body2" sx={{ fontWeight: 700, color: usaSuperficieCatalogo ? theme.emphasys.content.foreground : neutralColors.gray[800] }}>
         {selectedDocumentIds.length} documento{selectedDocumentIds.length === 1 ? '' : 's'} seleccionado{selectedDocumentIds.length === 1 ? '' : 's'}
       </Typography>
       <Stack direction="row" spacing={1}>
@@ -5357,13 +5360,13 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
             <>
               <Box
                 sx={{
-                  border: '1px solid #e5e7eb',
+                  border: `1px solid ${neutralColors.gray[200]}`,
                   borderRadius: 2,
-                  backgroundColor: '#f8fafc',
+                  backgroundColor: neutralColors.slate[50],
                   p: 2,
                 }}
               >
-                <Typography variant="overline" sx={{ color: '#6b7280', letterSpacing: 0.8 }}>
+                <Typography variant="overline" sx={{ color: neutralColors.gray[500], letterSpacing: 0.8 }}>
                   Estado actual
                 </Typography>
                 {produccionActual ? (
@@ -5430,12 +5433,12 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
                                 height: avance.activo ? 12 : 9,
                                 borderRadius: '50%',
                                 backgroundColor,
-                                boxShadow: avance.activo ? '0 0 0 2px #16a34a' : '0 0 0 1px #cbd5e1',
+                                boxShadow: avance.activo ? `0 0 0 2px ${alertColors.success[600]}` : `0 0 0 1px ${neutralColors.slate[300]}`,
                                 flexShrink: 0,
                               }}
                             />
                             {!esUltimo ? (
-                              <Box sx={{ width: 2, flexGrow: 1, minHeight: 28, backgroundColor: '#e2e8f0', mt: 0.5 }} />
+                              <Box sx={{ width: 2, flexGrow: 1, minHeight: 28, backgroundColor: neutralColors.slate[200], mt: 0.5 }} />
                             ) : null}
                           </Stack>
 
@@ -5455,7 +5458,7 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
                                   }}
                                 />
                                 {avance.activo ? (
-                                  <Typography variant="caption" sx={{ color: '#16a34a', fontWeight: 700 }}>
+                                  <Typography variant="caption" sx={{ color: alertColors.success[600], fontWeight: 700 }}>
                                     Actual
                                   </Typography>
                                 ) : null}
@@ -5469,7 +5472,7 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
                               variant="body2"
                               sx={{
                                 mt: 0.5,
-                                color: '#111827',
+                                color: neutralColors.gray[900],
                                 whiteSpace: 'pre-wrap',
                                 wordBreak: 'break-word',
                                 ...(comentarioLargo && !comentarioExpandido
@@ -5597,7 +5600,7 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
       >
   <DialogTitle fontWeight={700}>Eliminar {textos.singular}</DialogTitle>
         <DialogContent>
-          <DialogContentText sx={{ color: '#374151' }}>
+          <DialogContentText sx={{ color: neutralColors.gray[700] }}>
             ¿Eliminar {textos.singular.toLowerCase()}? Esta acción no se puede deshacer.
           </DialogContentText>
           {tipoDocumento === 'cotizacion' && pendingDeleteRow?.eliminara_oportunidad ? (
@@ -5648,7 +5651,7 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
       >
         <DialogTitle>No se puede eliminar la cotización</DialogTitle>
         <DialogContent>
-          <Typography sx={{ pt: 1, color: '#475569' }}>
+          <Typography sx={{ pt: 1, color: neutralColors.slate[600] }}>
             {deleteBlockedDialog.message}
           </Typography>
         </DialogContent>
@@ -5667,7 +5670,7 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
       >
         <DialogTitle>No se puede cancelar esta factura</DialogTitle>
         <DialogContent>
-          <Typography sx={{ pt: 1, color: '#475569' }}>
+          <Typography sx={{ pt: 1, color: neutralColors.slate[600] }}>
             {MENSAJE_FACTURA_BORRADOR_CANCELAR}
           </Typography>
         </DialogContent>

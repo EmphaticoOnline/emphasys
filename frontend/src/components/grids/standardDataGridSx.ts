@@ -1,5 +1,6 @@
 import type { Theme } from '@mui/material/styles';
 import type { SystemStyleObject } from '@mui/system';
+import { overlayColors } from '../../theme/structural';
 
 export const STANDARD_DATA_GRID_HEADER_HEIGHT = 38;
 export const STANDARD_DATA_GRID_ROW_HEIGHT = 34;
@@ -71,7 +72,7 @@ export const standardDataGridSx = (theme: Theme): SystemStyleObject<Theme> => ({
     opacity: 1,
   },
   '& .MuiDataGrid-columnSeparator': {
-    color: 'rgba(255,255,255,0.25)',
+    color: overlayColors.onDark.gridHeaderSeparator,
   },
   '& .MuiDataGrid-row:nth-of-type(even)': {
     backgroundColor: theme.emphasys.grid.stripe,

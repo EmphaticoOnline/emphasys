@@ -1,0 +1,411 @@
+{
+  "source": "HEAD a9e1fd2, bloque tesoreria",
+  "files": {
+    "modules/finanzas/AnticiposAplicacionDialog.tsx": {
+      "headSha256": "91b843321357ff19b99bf63e2233888ae137086f589fbdc904f74fbf0e5f265c",
+      "addedImports": [
+        "import { neutralColors } from '../../theme/structural';",
+        "import { activeBrand } from '../../theme/brand/active';"
+      ],
+      "lines": {
+        "215": [
+          {
+            "hex": "#e5e7eb",
+            "token": "neutralColors.gray[200]"
+          },
+          {
+            "hex": "#f8fafc",
+            "token": "neutralColors.slate[50]"
+          }
+        ],
+        "217": [
+          {
+            "hex": "#1d2f68",
+            "token": "activeBrand.colors.blue.base"
+          }
+        ],
+        "219": [
+          {
+            "hex": "#e5e7eb",
+            "token": "neutralColors.gray[200]"
+          },
+          {
+            "hex": "#f8fafc",
+            "token": "neutralColors.slate[50]"
+          }
+        ],
+        "221": [
+          {
+            "hex": "#006261",
+            "token": "activeBrand.colors.accent"
+          }
+        ],
+        "234": [
+          {
+            "hex": "#e5e7eb",
+            "token": "neutralColors.gray[200]"
+          }
+        ],
+        "286": [
+          {
+            "hex": "#1d2f68",
+            "token": "activeBrand.colors.blue.base"
+          },
+          {
+            "hex": "#162551",
+            "token": "activeBrand.colors.blue.hover"
+          }
+        ]
+      },
+      "keptLiteral": {}
+    },
+    "modules/finanzas/AplicarSaldoNotaCreditoDialog.tsx": {
+      "headSha256": "b8f7a701d142909eb0724410501bb729a8664e062c02f2e4cca06ee6b32de0a1",
+      "addedImports": [
+        "import { neutralColors } from '../../theme/structural';"
+      ],
+      "lines": {
+        "110": [
+          {
+            "hex": "#94a3b8",
+            "token": "neutralColors.slate[400]"
+          },
+          {
+            "hex": "#334155",
+            "token": "neutralColors.slate[700]"
+          }
+        ],
+        "113": [
+          {
+            "hex": "#8b93a7",
+            "token": "neutralColors.steel.label"
+          }
+        ],
+        "167": [
+          {
+            "hex": "#94a3b8",
+            "token": "neutralColors.slate[400]"
+          }
+        ],
+        "176": [
+          {
+            "hex": "#d5dce6",
+            "token": "neutralColors.steel.fieldBorder"
+          }
+        ],
+        "186": [
+          {
+            "hex": "#64748b",
+            "token": "neutralColors.slate[500]"
+          }
+        ],
+        "188": [
+          {
+            "hex": "#c5cdd8",
+            "token": "neutralColors.steel.placeholder"
+          }
+        ],
+        "449": [
+          {
+            "hex": "#475569",
+            "token": "neutralColors.slate[600]"
+          }
+        ],
+        "451": [
+          {
+            "hex": "#cbd5e1",
+            "token": "neutralColors.slate[300]"
+          }
+        ],
+        "465": [
+          {
+            "hex": "#e5eaf1",
+            "token": "neutralColors.steel.divider"
+          }
+        ],
+        "467": [
+          {
+            "hex": "#f8fafc",
+            "token": "neutralColors.slate[50]"
+          }
+        ],
+        "472": [
+          {
+            "hex": "#e5eaf1",
+            "token": "neutralColors.steel.divider"
+          }
+        ],
+        "478": [
+          {
+            "hex": "#e5eaf1",
+            "token": "neutralColors.steel.divider"
+          }
+        ],
+        "487": [
+          {
+            "hex": "#e5eaf1",
+            "token": "neutralColors.steel.divider"
+          }
+        ],
+        "488": [
+          {
+            "hex": "#f8fafc",
+            "token": "neutralColors.slate[50]"
+          },
+          {
+            "hex": "#e5eaf1",
+            "token": "neutralColors.steel.divider"
+          }
+        ],
+        "489": [
+          {
+            "hex": "#64748b",
+            "token": "neutralColors.slate[500]"
+          }
+        ],
+        "500": [
+          {
+            "hex": "#f8fafc",
+            "token": "neutralColors.slate[50]"
+          }
+        ],
+        "501": [
+          {
+            "hex": "#94a3b8",
+            "token": "neutralColors.slate[400]"
+          },
+          {
+            "hex": "#334155",
+            "token": "neutralColors.slate[700]"
+          }
+        ],
+        "502": [
+          {
+            "hex": "#64748b",
+            "token": "neutralColors.slate[500]"
+          }
+        ],
+        "505": [
+          {
+            "hex": "#94a3b8",
+            "token": "neutralColors.slate[400]"
+          },
+          {
+            "hex": "#334155",
+            "token": "neutralColors.slate[700]"
+          }
+        ],
+        "517": [
+          {
+            "hex": "#475569",
+            "token": "neutralColors.slate[600]"
+          }
+        ],
+        "546": [
+          {
+            "hex": "#e5eaf1",
+            "token": "neutralColors.steel.divider"
+          }
+        ],
+        "560": [
+          {
+            "hex": "#64748b",
+            "token": "neutralColors.slate[500]"
+          }
+        ],
+        "570": [
+          {
+            "hex": "#f4f6f8",
+            "token": "neutralColors.steel.stripe"
+          }
+        ],
+        "572": [
+          {
+            "hex": "#64748b",
+            "token": "neutralColors.slate[500]"
+          }
+        ],
+        "573": [
+          {
+            "hex": "#475569",
+            "token": "neutralColors.slate[600]"
+          }
+        ],
+        "597": [
+          {
+            "hex": "#94a3b8",
+            "token": "neutralColors.slate[400]"
+          }
+        ],
+        "624": [
+          {
+            "hex": "#e5eaf1",
+            "token": "neutralColors.steel.divider"
+          }
+        ],
+        "631": [
+          {
+            "hex": "#475569",
+            "token": "neutralColors.slate[600]"
+          }
+        ],
+        "649": [
+          {
+            "hex": "#334155",
+            "token": "neutralColors.slate[700]"
+          }
+        ],
+        "663": [
+          {
+            "hex": "#475569",
+            "token": "neutralColors.slate[600]"
+          }
+        ],
+        "670": [
+          {
+            "hex": "#475569",
+            "token": "neutralColors.slate[600]"
+          }
+        ]
+      },
+      "keptLiteral": {}
+    },
+    "modules/finanzas/ConceptosPage.tsx": {
+      "headSha256": "e74df8b27aef16572da34d396cae89463aae46bc4a71f5a0487f31facfa894fc",
+      "addedImports": [
+        "import { neutralColors } from '../../theme/structural';",
+        "import { activeBrand } from '../../theme/brand/active';"
+      ],
+      "lines": {
+        "117": [
+          {
+            "hex": "#1d2f68",
+            "token": "activeBrand.colors.blue.base"
+          }
+        ],
+        "128": [
+          {
+            "hex": "#1d2f68",
+            "token": "activeBrand.colors.blue.base"
+          },
+          {
+            "hex": "#162551",
+            "token": "activeBrand.colors.blue.hover"
+          }
+        ],
+        "140": [
+          {
+            "hex": "#e5e7eb",
+            "token": "neutralColors.gray[200]"
+          }
+        ],
+        "232": [
+          {
+            "hex": "#1d2f68",
+            "token": "activeBrand.colors.blue.base"
+          },
+          {
+            "hex": "#162551",
+            "token": "activeBrand.colors.blue.hover"
+          }
+        ]
+      },
+      "keptLiteral": {}
+    },
+    "modules/finanzas/OperacionDetalleDrawer.tsx": {
+      "headSha256": "2ced3f745cb0bfdcf14b32c02e8e11e8ea9381c72c8cae7b2cb1aaf4c73a6170",
+      "addedImports": [
+        "import { neutralColors } from '../../theme/structural';"
+      ],
+      "lines": {
+        "551": [
+          {
+            "hex": "#cbd5e1",
+            "token": "neutralColors.slate[300]"
+          }
+        ]
+      },
+      "keptLiteral": {}
+    },
+    "modules/finanzas/FacturaPagosDrawer.tsx": {
+      "headSha256": "4527f6c2112adf03356a47065ed8b5e28b271207c74363b144107b140511a10c",
+      "addedImports": [
+        "import { neutralColors } from '../../theme/structural';",
+        "import { activeBrand } from '../../theme/brand/active';"
+      ],
+      "lines": {
+        "371": [
+          {
+            "hex": "#1d2f68",
+            "token": "activeBrand.colors.blue.base"
+          }
+        ],
+        "381": [
+          {
+            "hex": "#e5e7eb",
+            "token": "neutralColors.gray[200]"
+          }
+        ],
+        "405": [
+          {
+            "hex": "#1d2f68",
+            "token": "activeBrand.colors.blue.base"
+          }
+        ],
+        "439": [
+          {
+            "hex": "#e5e7eb",
+            "token": "neutralColors.gray[200]"
+          },
+          {
+            "hex": "#f8fafc",
+            "token": "neutralColors.slate[50]"
+          }
+        ],
+        "453": [
+          {
+            "hex": "#1d2f68",
+            "token": "activeBrand.colors.blue.base"
+          }
+        ],
+        "461": [
+          {
+            "hex": "#1d2f68",
+            "token": "activeBrand.colors.blue.base"
+          }
+        ],
+        "473": [
+          {
+            "hex": "#e5e7eb",
+            "token": "neutralColors.gray[200]"
+          }
+        ],
+        "539": [
+          {
+            "hex": "#1d2f68",
+            "token": "activeBrand.colors.blue.base"
+          }
+        ],
+        "572": [
+          {
+            "hex": "#e5e7eb",
+            "token": "neutralColors.gray[200]"
+          }
+        ],
+        "589": [
+          {
+            "hex": "#1f2937",
+            "token": "neutralColors.gray[800]"
+          }
+        ],
+        "629": [
+          {
+            "hex": "#cbd5e1",
+            "token": "neutralColors.slate[300]"
+          }
+        ]
+      },
+      "keptLiteral": {}
+    }
+  }
+}

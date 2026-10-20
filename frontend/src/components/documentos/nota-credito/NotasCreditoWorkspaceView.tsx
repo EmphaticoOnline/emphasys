@@ -43,6 +43,7 @@ import type { TipoDocumento } from '../../../types/documentos.types';
 import { formatearFolioDocumento } from '../../../utils/documentos.utils';
 import { estadoVisualDocumento } from '../estadoVisualDocumento';
 import { getStatusToneColor } from '../../status/status.semantics';
+import { brandElevation, elevation } from '../../../theme/elevation';
 
 type Props = {
   rows: CotizacionListado[];
@@ -415,7 +416,7 @@ export default function NotasCreditoWorkspaceView({
                 height: 34,
                 bgcolor: tokens.navigation.control,
                 color: tokens.navigation.controlForeground,
-                boxShadow: '0 1px 2px rgba(0,0,0,0.35)',
+                boxShadow: elevation.railControl,
                 '&:hover': { bgcolor: tokens.content.elevated },
               }}
             >
@@ -577,7 +578,7 @@ export default function NotasCreditoWorkspaceView({
                 cursor: 'pointer',
                 bgcolor: activa ? tokens.navigation.selection : 'transparent',
                 color: activa ? tokens.navigation.selectionForeground : tokens.navigation.foreground,
-                boxShadow: activa ? '0 1px 2px rgba(0,0,0,0.18)' : 'none',
+                boxShadow: activa ? elevation.railSelection : 'none',
                 '&:hover': { bgcolor: activa ? tokens.navigation.selection : tokens.navigation.hover },
               }}
             >
@@ -1002,7 +1003,7 @@ function ColumnasEnfrentadas({
 
 function TarjetaDocumento({ folio, meta, monto, detalle, borde, fondo, tinta, secundaria, muted }: { folio: string; meta: string; monto: string; detalle?: string | undefined; borde: string; fondo: string; tinta: string; secundaria: string; muted: string }) {
   return (
-    <Box sx={{ flex: 1, alignSelf: 'stretch', border: `1px solid ${borde}`, borderRadius: 1.5, bgcolor: fondo, px: 1.4, py: 1.1, boxShadow: '0 1px 0 rgba(20,28,46,0.03)', width: '100%', boxSizing: 'border-box' }}>
+    <Box sx={{ flex: 1, alignSelf: 'stretch', border: `1px solid ${borde}`, borderRadius: 1.5, bgcolor: fondo, px: 1.4, py: 1.1, boxShadow: elevation.underline, width: '100%', boxSizing: 'border-box' }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 1 }}>
         <Typography sx={{ fontSize: 14.5, fontWeight: 800, color: tinta }}>{folio}</Typography>
         {monto ? <Typography variant="figure" sx={{ fontSize: 18, color: tinta }}>{monto}</Typography> : null}
@@ -1106,7 +1107,7 @@ function PopoverFiltroNotas({
             color: tokens.content.foreground,
             border: `1px solid ${tokens.content.border}`,
             borderRadius: 2,
-            boxShadow: '0 16px 40px rgba(44, 49, 56, 0.18)',
+            boxShadow: brandElevation.floating,
           },
         },
       }}

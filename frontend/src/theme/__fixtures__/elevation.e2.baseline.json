@@ -1,0 +1,383 @@
+{
+  "source": "HEAD 35d4d45, elevación bloque e2",
+  "files": {
+    "components/FloatingFormActions.tsx": {
+      "headSha256": "26f241cd050eb60553771623bcf4eb18e6fc6fd4d7b5944bceb0750f0b04117a",
+      "addedImports": [
+        "import { brandElevation } from '../theme/elevation';"
+      ],
+      "lines": {
+        "49": {
+          "original": "          boxShadow: '0 16px 40px rgba(44, 49, 56, 0.18)',",
+          "migrated": "          boxShadow: brandElevation.floating,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'0 16px 40px rgba(44, 49, 56, 0.18)'",
+              "to": "brandElevation.floating",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "components/MobileSaveFab.tsx": {
+      "headSha256": "918d1b9982c99662be8902ae1c1e126d0727d50513e6327cd60a423f48ce4b00",
+      "addedImports": [
+        "import { brandElevation } from '../theme/elevation';"
+      ],
+      "lines": {
+        "40": {
+          "original": "          boxShadow: '0 16px 40px rgba(44, 49, 56, 0.18)',",
+          "migrated": "          boxShadow: brandElevation.floating,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'0 16px 40px rgba(44, 49, 56, 0.18)'",
+              "to": "brandElevation.floating",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "components/contactos/ContactosMobileView.tsx": {
+      "headSha256": "a15e726d46c0c83f1169fe4d7b1b47e072bb09028f3b85131cd441deeb4694a8",
+      "addedImports": [
+        "import { brandElevation } from '../../theme/elevation';"
+      ],
+      "lines": {
+        "247": {
+          "original": "            boxShadow: '0 16px 40px rgba(44, 49, 56, 0.18)',",
+          "migrated": "            boxShadow: brandElevation.floating,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'0 16px 40px rgba(44, 49, 56, 0.18)'",
+              "to": "brandElevation.floating",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "components/documentos/DocumentosMobileView.tsx": {
+      "headSha256": "d4fa102538c677f9a69a89b6047c68274452cd3737dbfba224d2e98cdbf07393",
+      "addedImports": [
+        "import { brandElevation } from '../../theme/elevation';"
+      ],
+      "lines": {
+        "276": {
+          "original": "            boxShadow: '0 8px 18px rgba(44, 49, 56, 0.22)',",
+          "migrated": "            boxShadow: brandElevation.floatingStrong,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'0 8px 18px rgba(44, 49, 56, 0.22)'",
+              "to": "brandElevation.floatingStrong",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "components/documentos/WorkspaceRowContextMenu.tsx": {
+      "headSha256": "b8d6cb50f3c9f16350b05fcf598542481f9ee2fbaeb4ec5e5f1ce95b5a451b15",
+      "addedImports": [
+        "import { brandElevation } from '../../theme/elevation';"
+      ],
+      "lines": {
+        "36": {
+          "original": "            boxShadow: '0 16px 40px rgba(44, 49, 56, 0.18)',",
+          "migrated": "            boxShadow: brandElevation.floating,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'0 16px 40px rgba(44, 49, 56, 0.18)'",
+              "to": "brandElevation.floating",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "components/documentos/ajustes-saldo/AjustesSaldoWorkspaceView.tsx": {
+      "headSha256": "c9ddfd90e87b2b857eb881aadb35d1afc66824eae6cc835e9fff307d7a65e5f3",
+      "addedImports": [],
+      "lines": {
+        "40": {
+          "original": "import { elevation } from '../../../theme/elevation';",
+          "migrated": "import { brandElevation, elevation } from '../../../theme/elevation';",
+          "entries": [],
+          "replacements": [],
+          "importMerge": true
+        },
+        "642": {
+          "original": "    <Popover open={Boolean(ancla)} anchorEl={ancla} onClose={onClose} anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }} transformOrigin={{ vertical: 'top', horizontal: 'right' }} slotProps={{ paper: { sx: { mt: 0.75, p: 1.5, width: 320, borderRadius: 2, bgcolor: tokens.content.card, color: tokens.content.foreground, border: `1px solid ${tokens.content.border}`, boxShadow: '0 16px 40px rgba(44, 49, 56, 0.18)', maxHeight: 'min(70vh, 560px)', overflow: 'auto' } } }}>",
+          "migrated": "    <Popover open={Boolean(ancla)} anchorEl={ancla} onClose={onClose} anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }} transformOrigin={{ vertical: 'top', horizontal: 'right' }} slotProps={{ paper: { sx: { mt: 0.75, p: 1.5, width: 320, borderRadius: 2, bgcolor: tokens.content.card, color: tokens.content.foreground, border: `1px solid ${tokens.content.border}`, boxShadow: brandElevation.floating, maxHeight: 'min(70vh, 560px)', overflow: 'auto' } } }}>",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'0 16px 40px rgba(44, 49, 56, 0.18)'",
+              "to": "brandElevation.floating",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "components/documentos/facturas/CartaPorteIssuesDialog.tsx": {
+      "headSha256": "9bad6db64bb23001796da88a832b3d26e1cb27f07d787f7c2f0de6aad263ef50",
+      "addedImports": [
+        "import { brandElevation } from '../../../theme/elevation';"
+      ],
+      "lines": {
+        "39": {
+          "original": "          boxShadow: '0 18px 48px rgba(62, 52, 40, 0.16)',",
+          "migrated": "          boxShadow: brandElevation.dialog,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'0 18px 48px rgba(62, 52, 40, 0.16)'",
+              "to": "brandElevation.dialog",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "components/documentos/facturas/CartaPorteViajeEditor.tsx": {
+      "headSha256": "2ff9611003e2847b1edfea700686afb52da7a579366f75eb05004ab10feb8543",
+      "addedImports": [
+        "import { brandElevation } from '../../../theme/elevation';"
+      ],
+      "lines": {
+        "199": {
+          "original": "      boxShadow: '0 10px 28px rgba(62, 52, 40, 0.08)',",
+          "migrated": "      boxShadow: brandElevation.panel,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'0 10px 28px rgba(62, 52, 40, 0.08)'",
+              "to": "brandElevation.panel",
+              "times": 1
+            }
+          ]
+        },
+        "681": {
+          "original": "            boxShadow: '0 10px 28px rgba(62, 52, 40, 0.08)',",
+          "migrated": "            boxShadow: brandElevation.panel,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'0 10px 28px rgba(62, 52, 40, 0.08)'",
+              "to": "brandElevation.panel",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "components/documentos/facturas/FacturasWorkspaceView.tsx": {
+      "headSha256": "68c2b856c89dbe4cf61015837ab1ba879b66bd9a9acf67c9f5e4d455acc4d7b8",
+      "addedImports": [],
+      "lines": {
+        "76": {
+          "original": "import { elevation } from '../../../theme/elevation';",
+          "migrated": "import { brandElevation, elevation } from '../../../theme/elevation';",
+          "entries": [],
+          "replacements": [],
+          "importMerge": true
+        },
+        "1239": {
+          "original": "            boxShadow: '0 16px 40px rgba(44, 49, 56, 0.18)',",
+          "migrated": "            boxShadow: brandElevation.floating,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'0 16px 40px rgba(44, 49, 56, 0.18)'",
+              "to": "brandElevation.floating",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "components/documentos/nota-credito/NotasCreditoWorkspaceView.tsx": {
+      "headSha256": "1bd94d861c951c9c044058857821781e81cfeaa64d078793850ad77c5899bcff",
+      "addedImports": [],
+      "lines": {
+        "46": {
+          "original": "import { elevation } from '../../../theme/elevation';",
+          "migrated": "import { brandElevation, elevation } from '../../../theme/elevation';",
+          "entries": [],
+          "replacements": [],
+          "importMerge": true
+        },
+        "1110": {
+          "original": "            boxShadow: '0 16px 40px rgba(44, 49, 56, 0.18)',",
+          "migrated": "            boxShadow: brandElevation.floating,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'0 16px 40px rgba(44, 49, 56, 0.18)'",
+              "to": "brandElevation.floating",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "components/documentos/pagos/PagosWorkspaceView.tsx": {
+      "headSha256": "49654597e29c031f895b3e8f7e2fc3d530cc877a6756357e44f7a0e22fa268c0",
+      "addedImports": [],
+      "lines": {
+        "45": {
+          "original": "import { elevation } from '../../../theme/elevation';",
+          "migrated": "import { brandElevation, elevation } from '../../../theme/elevation';",
+          "entries": [],
+          "replacements": [],
+          "importMerge": true
+        },
+        "1091": {
+          "original": "            boxShadow: '0 16px 40px rgba(44, 49, 56, 0.18)',",
+          "migrated": "            boxShadow: brandElevation.floating,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'0 16px 40px rgba(44, 49, 56, 0.18)'",
+              "to": "brandElevation.floating",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "components/documentos/traslados/TrasladosWorkspaceView.tsx": {
+      "headSha256": "da2c698cb5171b81354957ecdc56c3cb6f5828d6e85ca90f8401067c4bea90dd",
+      "addedImports": [],
+      "lines": {
+        "27": {
+          "original": "import { elevation } from '../../../theme/elevation';",
+          "migrated": "import { brandElevation, elevation } from '../../../theme/elevation';",
+          "entries": [],
+          "replacements": [],
+          "importMerge": true
+        },
+        "649": {
+          "original": "            boxShadow: '0 18px 48px rgba(62, 52, 40, 0.16)',",
+          "migrated": "            boxShadow: brandElevation.dialog,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'0 18px 48px rgba(62, 52, 40, 0.16)'",
+              "to": "brandElevation.dialog",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "components/inventario/InventarioMovimientoErrorDialog.tsx": {
+      "headSha256": "a0c8f7ddebf2409d2bf6d684a62f1086f5222206e9edec03a3f0d0424089b8de",
+      "addedImports": [
+        "import { brandElevation } from '../../theme/elevation';"
+      ],
+      "lines": {
+        "13": {
+          "original": "    <Dialog open={error != null} onClose={onClose} fullWidth maxWidth=\"xs\" PaperProps={{ sx: { bgcolor: tokens.content.elevated, backgroundImage: 'none', color: tokens.content.foreground, border: `1px solid ${tokens.content.border}`, borderRadius: 2, boxShadow: '0 18px 48px rgba(62, 52, 40, 0.16)' } }}>",
+          "migrated": "    <Dialog open={error != null} onClose={onClose} fullWidth maxWidth=\"xs\" PaperProps={{ sx: { bgcolor: tokens.content.elevated, backgroundImage: 'none', color: tokens.content.foreground, border: `1px solid ${tokens.content.border}`, borderRadius: 2, boxShadow: brandElevation.dialog } }}>",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'0 18px 48px rgba(62, 52, 40, 0.16)'",
+              "to": "brandElevation.dialog",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "components/productos/ProductosMobileView.tsx": {
+      "headSha256": "23b8c60eb0c32ab0dee39aeabfbfbdb4004a1ee9086f907a0f28ce8938a77927",
+      "addedImports": [
+        "import { brandElevation } from '../../theme/elevation';"
+      ],
+      "lines": {
+        "191": {
+          "original": "            boxShadow: '0 16px 40px rgba(44, 49, 56, 0.18)',",
+          "migrated": "            boxShadow: brandElevation.floating,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'0 16px 40px rgba(44, 49, 56, 0.18)'",
+              "to": "brandElevation.floating",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "modules/finanzas/BuscadorMovimientos.tsx": {
+      "headSha256": "81a6b26d9e2ad6ece1201fd052c32e5a055eaca17bccbc9eaa02cf0f83311bd8",
+      "addedImports": [
+        "import { brandElevation } from '../../theme/elevation';"
+      ],
+      "lines": {
+        "188": {
+          "original": "            boxShadow: '0 8px 24px rgba(62, 52, 40, 0.12)',",
+          "migrated": "            boxShadow: brandElevation.dropdown,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'0 8px 24px rgba(62, 52, 40, 0.12)'",
+              "to": "brandElevation.dropdown",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "pages/InventarioMovimientosPage.tsx": {
+      "headSha256": "2f79be5dac1ca910f62d182f66ca3c89da6179a11cb6faf6e46efa2d22783b1a",
+      "addedImports": [],
+      "lines": {
+        "53": {
+          "original": "import { elevation } from '../theme/elevation';",
+          "migrated": "import { brandElevation, elevation } from '../theme/elevation';",
+          "entries": [],
+          "replacements": [],
+          "importMerge": true
+        },
+        "648": {
+          "original": "                boxShadow: '0 16px 40px rgba(44, 49, 56, 0.18)',",
+          "migrated": "                boxShadow: brandElevation.floating,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'0 16px 40px rgba(44, 49, 56, 0.18)'",
+              "to": "brandElevation.floating",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    }
+  }
+}

@@ -73,6 +73,7 @@ import {
   RelacionadosTab,
   InventarioTab,
 } from '../DocumentoDetalleContent';
+import { brandElevation, elevation } from '../../../theme/elevation';
 
 type StatusOption = { value: string; label: string; color?: string; textColor?: string };
 type FiltroFacturas = {
@@ -482,7 +483,7 @@ export default function FacturasWorkspaceView({
                     height: 34,
                     bgcolor: tokens.navigation.control,
                     color: tokens.navigation.controlForeground,
-                    boxShadow: '0 1px 2px rgba(0,0,0,0.35)',
+                    boxShadow: elevation.railControl,
                     '&:hover': { bgcolor: tokens.content.elevated, color: tokens.content.foreground },
                   }}
                 >
@@ -654,7 +655,7 @@ export default function FacturasWorkspaceView({
                     cursor: 'pointer',
                     bgcolor: selected ? tokens.navigation.selection : 'transparent',
                     color: selected ? tokens.navigation.selectionForeground : tokens.navigation.foreground,
-                    boxShadow: selected ? '0 1px 2px rgba(0,0,0,0.18)' : 'none',
+                    boxShadow: selected ? elevation.railSelection : 'none',
                     '&:hover': { bgcolor: selected ? tokens.navigation.selection : tokens.navigation.hover },
                   }}
                 >
@@ -1235,7 +1236,7 @@ export function PopoverFiltroFacturas({
             bgcolor: tokens.content.card,
             color: tokens.content.foreground,
             border: `1px solid ${tokens.content.border}`,
-            boxShadow: '0 16px 40px rgba(44, 49, 56, 0.18)',
+            boxShadow: brandElevation.floating,
             maxHeight: 'min(70vh, 560px)',
             overflow: 'auto',
           },

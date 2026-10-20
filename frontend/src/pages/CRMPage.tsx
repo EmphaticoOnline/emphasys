@@ -6,6 +6,8 @@ import LeadsPage from './LeadsPage';
 import OportunidadesPage from './OportunidadesPage';
 import { CRM_TABS } from '../components/crmNavigation';
 import { moduleTabBarSx, moduleTabStripSx } from '../components/layout/moduleTabBar';
+import { neutralColors } from '../theme/structural';
+import { activeBrand } from '../theme/brand/active';
 
 type CrmTabKey = (typeof CRM_TABS)[number]['key'];
 
@@ -70,10 +72,10 @@ export default function CRMPage() {
         <>
           {!compactCrmChrome && (
             <Box sx={{ px: { xs: 2, md: 2.5 }, pt: 2.5, flexShrink: 0 }}>
-              <Typography variant="h5" fontWeight={700} color="#1d2f68">
+              <Typography variant="h5" fontWeight={700} color={activeBrand.colors.blue.base}>
                 CRM
               </Typography>
-              <Typography variant="body2" color="#4b5563" sx={{ mt: 0.5, mb: 1.5 }}>
+              <Typography variant="body2" color={neutralColors.gray[600]} sx={{ mt: 0.5, mb: 1.5 }}>
                 Gestiona actividades, oportunidades y conversaciones desde un solo módulo.
               </Typography>
             </Box>

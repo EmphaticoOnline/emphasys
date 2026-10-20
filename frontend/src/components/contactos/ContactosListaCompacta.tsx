@@ -15,6 +15,7 @@ import type { ContactoRow } from './ContactosView.types';
 import { formatearTelefonoParaMostrar } from '../../utils/telefono';
 import { catalogoRailIconButtonSx, catalogoRailSearchSx } from '../catalogo/catalogoSurfaces';
 import { CatalogoRailVistaAyuda } from '../catalogo/CatalogoModuloToolbar';
+import { elevation } from '../../theme/elevation';
 type ContactosListaCompactaProps = {
   contactos: ContactoRow[];
   rowCount: number;
@@ -153,7 +154,7 @@ export default function ContactosListaCompacta({
                 flexShrink: 0,
                 bgcolor: theme.emphasys.navigation.control,
                 color: theme.emphasys.navigation.controlForeground,
-                boxShadow: '0 1px 2px rgba(0,0,0,0.35)',
+                boxShadow: elevation.railControl,
                 '&:hover': { bgcolor: theme.emphasys.content.elevated },
               })}
             >
@@ -239,7 +240,7 @@ export default function ContactosListaCompacta({
                   cursor: 'pointer',
                   bgcolor: isSelected ? theme.emphasys.navigation.selection : 'transparent',
                   color: isSelected ? theme.emphasys.navigation.selectionForeground : theme.emphasys.navigation.foreground,
-                  boxShadow: isSelected ? '0 1px 2px rgba(0,0,0,0.18)' : 'none',
+                  boxShadow: isSelected ? elevation.railSelection : 'none',
                   '&:hover': { bgcolor: isSelected ? theme.emphasys.navigation.selection : theme.emphasys.navigation.hover },
                 })}
               >

@@ -14,6 +14,9 @@ import {
 } from '../grids/standardDataGridSx';
 import { catalogoOutlinedButtonSx, catalogoPrimaryButtonSx, catalogoSearchSx } from '../catalogo/catalogoSurfaces';
 import type { DocumentosDesktopViewProps } from './DocumentosView.types';
+import { neutralColors, onPrimaryColors, overlayColors, whiteSurfaces } from '../../theme/structural';
+import { activeBrand } from '../../theme/brand/active';
+import { brandTints } from '../../theme/tints';
 
 export default function DocumentosDesktopView({
   searchTerm,
@@ -124,9 +127,9 @@ export default function DocumentosDesktopView({
               sx={catalog ? catalogoPrimaryButtonSx : {
                 textTransform: 'uppercase',
                 fontWeight: 700,
-                backgroundColor: '#1d2f68',
-                color: '#ffffff',
-                '&:hover': { backgroundColor: '#162551' },
+                backgroundColor: activeBrand.colors.blue.base,
+                color: onPrimaryColors.textLong,
+                '&:hover': { backgroundColor: activeBrand.colors.blue.hover },
               }}
             >
               + Nuevo
@@ -154,15 +157,15 @@ export default function DocumentosDesktopView({
         >
           <Box sx={{ px: 2, pt: 1.25, pb: 1, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
             <Box sx={{ display: 'flex', justifyContent: 'center' }}>
-              <Box sx={{ width: 44, height: 5, borderRadius: 999, backgroundColor: catalog ? theme.emphasys.content.border : '#cbd5e1' }} />
+              <Box sx={{ width: 44, height: 5, borderRadius: 999, backgroundColor: catalog ? theme.emphasys.content.border : neutralColors.slate[300] }} />
             </Box>
 
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
               <Box>
-                <Typography variant="subtitle1" fontWeight={800} color={catalog ? theme.emphasys.content.foreground : '#1d2f68'}>
+                <Typography variant="subtitle1" fontWeight={800} color={catalog ? theme.emphasys.content.foreground : activeBrand.colors.blue.base}>
                   Filtros y Resumen
                 </Typography>
-                <Typography variant="body2" color={catalog ? theme.emphasys.content.secondary : '#4b5563'}>
+                <Typography variant="body2" color={catalog ? theme.emphasys.content.secondary : neutralColors.gray[600]}>
                   Consulta filtros y totales sin salir del grid.
                 </Typography>
               </Box>
@@ -185,7 +188,7 @@ export default function DocumentosDesktopView({
 
             {filtersContent ? (
               <Stack spacing={1.25}>
-                <Typography variant="subtitle2" fontWeight={800} color={catalog ? theme.emphasys.content.foreground : '#1f2937'}>
+                <Typography variant="subtitle2" fontWeight={800} color={catalog ? theme.emphasys.content.foreground : neutralColors.gray[800]}>
                   Filtros
                 </Typography>
                 {filtersContent}
@@ -196,7 +199,7 @@ export default function DocumentosDesktopView({
               <>
                 <Divider />
                 <Stack spacing={1.25}>
-                  <Typography variant="subtitle2" fontWeight={800} color={catalog ? theme.emphasys.content.foreground : '#1f2937'}>
+                  <Typography variant="subtitle2" fontWeight={800} color={catalog ? theme.emphasys.content.foreground : neutralColors.gray[800]}>
                     Resumen
                   </Typography>
                   {summaryContent}
@@ -209,9 +212,9 @@ export default function DocumentosDesktopView({
         {/* Grid */}
         <Box sx={{
           width: '100%',
-          backgroundColor: catalog ? theme.emphasys.content.card : '#fff',
+          backgroundColor: catalog ? theme.emphasys.content.card : whiteSurfaces.panel,
           borderRadius: catalog ? 2 : 1,
-          border: `1px solid ${catalog ? theme.emphasys.content.border : '#e5e7eb'}`,
+          border: `1px solid ${catalog ? theme.emphasys.content.border : neutralColors.gray[200]}`,
           overflow: 'hidden',
         }}>
           <EmphasysDataGrid
@@ -303,27 +306,27 @@ export default function DocumentosDesktopView({
                       alignItems: 'center',
                     },
                     '& .documento-focus-row': {
-                      backgroundColor: 'rgba(29, 47, 104, 0.10) !important',
+                      backgroundColor: `${brandTints.focusRow} !important`,
                     },
                     '& .documento-focus-row.Mui-selected': {
-                      backgroundColor: 'rgba(29, 47, 104, 0.16) !important',
+                      backgroundColor: `${brandTints.focusRowSelected} !important`,
                     },
                     '& .documento-focus-row.Mui-selected:hover': {
-                      backgroundColor: 'rgba(29, 47, 104, 0.20) !important',
+                      backgroundColor: `${brandTints.focusRowSelectedHover} !important`,
                     },
                     '& .documento-focus-row .MuiDataGrid-cell': {
-                      borderTop: '1px solid rgba(29, 47, 104, 0.24)',
-                      borderBottom: '1px solid rgba(29, 47, 104, 0.24)',
+                      borderTop: `1px solid ${brandTints.focusRowBorder}`,
+                      borderBottom: `1px solid ${brandTints.focusRowBorder}`,
                     },
                     '& .documento-focus-row .MuiDataGrid-cell:first-of-type': {
-                      borderLeft: '3px solid #1d2f68',
+                      borderLeft: `3px solid ${activeBrand.colors.blue.base}`,
                     },
                     '& .documento-focus-row--recent': {
                       animation: 'documentoFocusPulse 2.4s ease-out 1',
                     },
                     '@keyframes documentoFocusPulse': {
-                      '0%': { backgroundColor: 'rgba(56, 189, 248, 0.24)' },
-                      '100%': { backgroundColor: 'rgba(29, 47, 104, 0.10)' },
+                      '0%': { backgroundColor: overlayColors.pulse.recentStart },
+                      '100%': { backgroundColor: brandTints.focusPulseEnd },
                     },
                   },
               ...(Array.isArray(rowAppearanceSx) ? rowAppearanceSx : rowAppearanceSx ? [rowAppearanceSx] : []),

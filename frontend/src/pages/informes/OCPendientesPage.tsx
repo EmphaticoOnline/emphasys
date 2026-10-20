@@ -34,6 +34,9 @@ import type {
   OCPendienteOC,
   OCPendientePartida,
 } from '../../services/reportesService';
+import { activeBrand } from '../../theme/brand/active';
+import { selectionColors } from '../../theme/structural';
+import { balanceColors } from '../../theme/functional';
 
 export type OCPendientesPageConfig = {
   titulo: string;
@@ -127,7 +130,7 @@ function buildColumnsResumen(): GridColDef<OCPendienteOC>[] {
       renderCell: (p: GridRenderCellParams<OCPendienteOC, number>) => {
         const v = p.value ?? 0;
         return (
-          <Typography variant="body2" fontWeight={700} color={v > 0 ? 'error.main' : 'text.primary'}>
+          <Typography variant="body2" fontWeight={700} color={v > 0 ? balanceColors.outstanding : 'text.primary'}>
             {formatCant(v)}
           </Typography>
         );
@@ -243,7 +246,7 @@ function buildColumnsDetalle(): GridColDef<FilaDetalle>[] {
         const v = 'cantidad_pendiente' in row ? row.cantidad_pendiente : 0;
         const bold = row._tipo === 'oc';
         return (
-          <Typography variant="body2" fontWeight={bold ? 700 : 400} color={v > 0 ? 'error.main' : 'text.primary'}>
+          <Typography variant="body2" fontWeight={bold ? 700 : 400} color={v > 0 ? balanceColors.outstanding : 'text.primary'}>
             {formatCant(v)}
           </Typography>
         );
@@ -557,9 +560,9 @@ export default function OCPendientesPage({ config }: { config: OCPendientesPageC
                   border: '1px solid',
                   borderColor: 'divider',
                   '& .fila-oc': {
-                    bgcolor: '#f0f4ff',
+                    bgcolor: selectionColors.highlight,
                     fontWeight: 700,
-                    borderLeft: '3px solid #1d2f68',
+                    borderLeft: `3px solid ${activeBrand.colors.blue.base}`,
                   },
                   '& .fila-partida': {
                     bgcolor: 'background.paper',

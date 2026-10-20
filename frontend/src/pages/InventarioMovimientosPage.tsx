@@ -49,6 +49,9 @@ import { fetchParametrosSistema } from '../services/parametrosService';
 import { getDocumentoTypeConfig } from '../modules/documentos/documentoTypeConfig';
 import type { TipoDocumento } from '../types/documentos.types';
 import { formatearFolioDocumento } from '../utils/documentos.utils';
+import { amountSignColor } from '../theme/sign';
+import { brandElevation, elevation } from '../theme/elevation';
+import { inventoryAffectationColors } from '../theme/functional';
 
 const MESES = [
   { value: '01', label: 'Enero' },
@@ -497,7 +500,7 @@ export default function InventarioMovimientosPage() {
     fontWeight: valor != null && valor !== 0 ? 700 : 500,
     fontVariantNumeric: 'tabular-nums' as const,
     whiteSpace: 'nowrap' as const,
-    ...(salida ? { '&&': { color: tokens.action.destructive } } : {}),
+    ...(salida ? { '&&': { color: amountSignColor(tokens, 'negative') } } : {}),
   });
 
   const tonoTipo = (tipo: string) => {
@@ -558,7 +561,7 @@ export default function InventarioMovimientosPage() {
                     height: 34,
                     bgcolor: tokens.navigation.control,
                     color: tokens.navigation.controlForeground,
-                    boxShadow: '0 1px 2px rgba(0,0,0,0.35)',
+                    boxShadow: elevation.railControl,
                     '&:hover': { bgcolor: tokens.content.elevated, color: tokens.content.foreground },
                   }}
                 >
@@ -643,7 +646,7 @@ export default function InventarioMovimientosPage() {
                 bgcolor: tokens.content.card,
                 color: tokens.content.foreground,
                 border: `1px solid ${tokens.content.border}`,
-                boxShadow: '0 16px 40px rgba(44, 49, 56, 0.18)',
+                boxShadow: brandElevation.floating,
               },
             },
           }}
@@ -729,7 +732,7 @@ export default function InventarioMovimientosPage() {
                     cursor: 'pointer',
                     bgcolor: selected ? tokens.navigation.selection : 'transparent',
                     color: selected ? tokens.navigation.selectionForeground : tokens.navigation.foreground,
-                    boxShadow: selected ? '0 1px 2px rgba(0,0,0,0.18)' : 'none',
+                    boxShadow: selected ? elevation.railSelection : 'none',
                     '&:hover': { bgcolor: selected ? tokens.navigation.selection : tokens.navigation.hover },
                   }}
                 >
@@ -770,7 +773,7 @@ export default function InventarioMovimientosPage() {
                   </Typography>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 1, mt: 0.45, minWidth: 0 }}>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6, minWidth: 0 }}>
-                      <Box component="span" aria-label={movimiento.estatus_afectacion === 1 ? 'Afectada' : 'Desafectada'} sx={{ width: 7, height: 7, borderRadius: '50%', bgcolor: movimiento.estatus_afectacion === 1 ? '#4ade80' : '#f87171', flexShrink: 0 }} />
+                      <Box component="span" aria-label={movimiento.estatus_afectacion === 1 ? 'Afectada' : 'Desafectada'} sx={{ width: 7, height: 7, borderRadius: '50%', bgcolor: movimiento.estatus_afectacion === 1 ? inventoryAffectationColors.applied : inventoryAffectationColors.reverted, flexShrink: 0 }} />
                       <Typography sx={{ fontSize: 12, color: tokens.navigation.foreground, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {movimiento.usuario_nombre?.trim() || 'Sin usuario'}
                       </Typography>

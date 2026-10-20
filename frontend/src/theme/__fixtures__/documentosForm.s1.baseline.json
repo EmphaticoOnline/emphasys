@@ -1,0 +1,141 @@
+{
+  "source": "HEAD 90e6063, DocumentosFormPage subbloque s1",
+  "files": {
+    "pages/DocumentosFormPage.tsx": {
+      "headSha256": "b5bad2ae68c3d9516ec6874abfabf693bba379923fff93adfc65bd6ccb526fb7",
+      "addedImports": [
+        "import { neutralColors } from '../theme/structural';"
+      ],
+      "lines": {
+        "3912": {
+          "original": "        border: '1px solid #d9dde6',",
+          "migrated": "        border: `1px solid ${neutralColors.steel.panelBorder}`,",
+          "entries": [
+            {
+              "hex": "#d9dde6",
+              "token": "neutralColors.steel.panelBorder"
+            }
+          ]
+        },
+        "3932": {
+          "original": "            color: vistaFacturaCaptura === opt.value ? '#fff' : '#3d4557',",
+          "migrated": "            color: vistaFacturaCaptura === opt.value ? '#fff' : neutralColors.steel.strong,",
+          "entries": [
+            {
+              "hex": "#3d4557",
+              "token": "neutralColors.steel.strong"
+            }
+          ]
+        },
+        "4030": {
+          "original": "              <Box sx={{ border: '1px solid #e5e7eb', borderRadius: 1.5, p: 1, bgcolor: '#fafafa' }}>",
+          "migrated": "              <Box sx={{ border: `1px solid ${neutralColors.gray[200]}`, borderRadius: 1.5, p: 1, bgcolor: '#fafafa' }}>",
+          "entries": [
+            {
+              "hex": "#e5e7eb",
+              "token": "neutralColors.gray[200]"
+            }
+          ]
+        },
+        "4086": {
+          "original": "                    border: '2px dashed #9ca3af',",
+          "migrated": "                    border: `2px dashed ${neutralColors.gray[400]}`,",
+          "entries": [
+            {
+              "hex": "#9ca3af",
+              "token": "neutralColors.gray[400]"
+            }
+          ]
+        },
+        "4090": {
+          "original": "                    color: '#6b7280',",
+          "migrated": "                    color: neutralColors.gray[500],",
+          "entries": [
+            {
+              "hex": "#6b7280",
+              "token": "neutralColors.gray[500]"
+            }
+          ]
+        },
+        "4155": {
+          "original": "                                border: selected ? '2px solid #1565c0' : '1px solid #e5e7eb',",
+          "migrated": "                                border: selected ? '2px solid #1565c0' : `1px solid ${neutralColors.gray[200]}`,",
+          "entries": [
+            {
+              "hex": "#e5e7eb",
+              "token": "neutralColors.gray[200]"
+            }
+          ]
+        },
+        "4184": {
+          "original": "            <DialogContentText sx={{ color: '#374151' }}>",
+          "migrated": "            <DialogContentText sx={{ color: neutralColors.gray[700] }}>",
+          "entries": [
+            {
+              "hex": "#374151",
+              "token": "neutralColors.gray[700]"
+            }
+          ]
+        },
+        "4205": {
+          "original": "            <DialogContentText sx={{ color: '#374151' }}>",
+          "migrated": "            <DialogContentText sx={{ color: neutralColors.gray[700] }}>",
+          "entries": [
+            {
+              "hex": "#374151",
+              "token": "neutralColors.gray[700]"
+            }
+          ]
+        },
+        "8826": {
+          "original": "                border: '1px solid #e5e7eb',",
+          "migrated": "                border: `1px solid ${neutralColors.gray[200]}`,",
+          "entries": [
+            {
+              "hex": "#e5e7eb",
+              "token": "neutralColors.gray[200]"
+            }
+          ]
+        },
+        "8889": {
+          "original": "                  border: '2px dashed #9ca3af',",
+          "migrated": "                  border: `2px dashed ${neutralColors.gray[400]}`,",
+          "entries": [
+            {
+              "hex": "#9ca3af",
+              "token": "neutralColors.gray[400]"
+            }
+          ]
+        },
+        "8893": {
+          "original": "                  color: '#6b7280',",
+          "migrated": "                  color: neutralColors.gray[500],",
+          "entries": [
+            {
+              "hex": "#6b7280",
+              "token": "neutralColors.gray[500]"
+            }
+          ]
+        },
+        "8965": {
+          "original": "                              border: selected ? '2px solid #1565c0' : '1px solid #e5e7eb',",
+          "migrated": "                              border: selected ? '2px solid #1565c0' : `1px solid ${neutralColors.gray[200]}`,",
+          "entries": [
+            {
+              "hex": "#e5e7eb",
+              "token": "neutralColors.gray[200]"
+            }
+          ]
+        }
+      },
+      "snippets": {},
+      "keptLiteral": {
+        "#d9dde6": 3,
+        "#3d4557": 1,
+        "#e5e7eb": 5,
+        "#6b7280": 3,
+        "#374151": 7
+      }
+    }
+  }
+}

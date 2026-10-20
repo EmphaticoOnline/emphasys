@@ -7,6 +7,10 @@ import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 import CloseIcon from '@mui/icons-material/Close';
 import UpdateIcon from '@mui/icons-material/SystemUpdateAlt';
+import { activeBrand } from '../theme/brand/active';
+import { brandGradients, elevation } from '../theme/elevation';
+import { brandTints } from '../theme/tints';
+import { overlayColors } from '../theme/structural';
 type VersionUpdateDrawerProps = {
   open: boolean;
   version: string | null;
@@ -46,9 +50,9 @@ export default function VersionUpdateDrawer({ open, version, onClose, onUpdateNo
             maxWidth: 760,
             borderRadius: 4,
             overflow: 'hidden',
-            border: '1px solid rgba(29, 47, 104, 0.16)',
-            backgroundColor: 'rgba(255, 255, 255, 0.98)',
-            boxShadow: '0 18px 48px rgba(15, 23, 42, 0.18)',
+            border: `1px solid ${brandTints.drawerBorder}`,
+            backgroundColor: overlayColors.drawer.surface,
+            boxShadow: elevation.drawer,
             backdropFilter: 'blur(12px)',
           }}
         >
@@ -62,15 +66,15 @@ export default function VersionUpdateDrawer({ open, version, onClose, onUpdateNo
               right: 10,
               zIndex: 1,
               color: 'text.secondary',
-              backgroundColor: 'rgba(255,255,255,0.92)',
-              border: '1px solid rgba(15, 23, 42, 0.08)',
-              boxShadow: '0 2px 8px rgba(15, 23, 42, 0.08)',
-              '&:hover': { backgroundColor: 'rgba(255,255,255,1)' },
+              backgroundColor: overlayColors.drawer.closeButton,
+              border: `1px solid ${overlayColors.drawer.closeButtonBorder}`,
+              boxShadow: elevation.drawerButton,
+              '&:hover': { backgroundColor: overlayColors.drawer.closeButtonHover },
             }}
           >
             <CloseIcon fontSize="small" />
           </IconButton>
-          <Box sx={{ height: 4, background: 'linear-gradient(90deg, #1d2f68 0%, #3b82f6 100%)' }} />
+          <Box sx={{ height: 4, background: brandGradients.updateBar }} />
           <Box sx={{ p: { xs: 2, sm: 2.5 } }}>
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2.25} alignItems={{ sm: 'center' }}>
               <Box
@@ -81,8 +85,8 @@ export default function VersionUpdateDrawer({ open, version, onClose, onUpdateNo
                   display: 'grid',
                   placeItems: 'center',
                   flexShrink: 0,
-                  backgroundColor: 'rgba(29, 47, 104, 0.08)',
-                  color: '#1d2f68',
+                  backgroundColor: brandTints.iconWash,
+                  color: activeBrand.colors.blue.base,
                 }}
               >
                 <UpdateIcon sx={{ fontSize: 26 }} />
@@ -93,7 +97,7 @@ export default function VersionUpdateDrawer({ open, version, onClose, onUpdateNo
                   Actualización disponible
                 </Typography>
                 <Typography sx={{ mt: 0.5, color: 'text.secondary' }}>
-                  Se han realizado mejoras en Emphasys.
+                  {`Se han realizado mejoras en ${activeBrand.name}.`}
                 </Typography>
                 <Typography sx={{ mt: 0.25, color: 'text.secondary' }}>
                   Para utilizar la versión más reciente, actualiza la página.

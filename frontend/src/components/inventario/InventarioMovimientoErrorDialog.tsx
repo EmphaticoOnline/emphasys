@@ -1,5 +1,6 @@
 import WarningAmberRoundedIcon from '@mui/icons-material/WarningAmberRounded';
 import { Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, Stack, Typography, useTheme } from '@mui/material';
+import { brandElevation } from '../../theme/elevation';
 
 export type InventarioMovimientoError = {
   title: string;
@@ -10,7 +11,7 @@ export type InventarioMovimientoError = {
 export default function InventarioMovimientoErrorDialog({ error, onClose }: { error: InventarioMovimientoError | null; onClose: () => void }) {
   const tokens = useTheme().emphasys;
   return (
-    <Dialog open={error != null} onClose={onClose} fullWidth maxWidth="xs" PaperProps={{ sx: { bgcolor: tokens.content.elevated, backgroundImage: 'none', color: tokens.content.foreground, border: `1px solid ${tokens.content.border}`, borderRadius: 2, boxShadow: '0 18px 48px rgba(62, 52, 40, 0.16)' } }}>
+    <Dialog open={error != null} onClose={onClose} fullWidth maxWidth="xs" PaperProps={{ sx: { bgcolor: tokens.content.elevated, backgroundImage: 'none', color: tokens.content.foreground, border: `1px solid ${tokens.content.border}`, borderRadius: 2, boxShadow: brandElevation.dialog } }}>
       <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1, fontSize: 19, fontWeight: 700 }}>
         <WarningAmberRoundedIcon sx={{ color: tokens.action.destructive }} />
         {error?.title}

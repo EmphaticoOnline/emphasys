@@ -33,6 +33,7 @@ import {
   type CuentaTesoreria,
   type PosicionTesoreriaResult,
 } from '../../../services/reportesService';
+import { balanceColors } from '../../../theme/functional';
 
 const formatMXN = (v: number) =>
   v.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -54,7 +55,7 @@ const COLUMNAS: GridColDef<CuentaTesoreria>[] = [
     align: 'right',
     headerAlign: 'right',
     renderCell: (p: GridRenderCellParams<CuentaTesoreria, number>) => (
-      <Typography variant="body2" fontWeight={700} color={(p.value ?? 0) < 0 ? 'error.main' : 'text.primary'}>
+      <Typography variant="body2" fontWeight={700} color={(p.value ?? 0) < 0 ? balanceColors.negative : 'text.primary'}>
         {formatMXN(p.value ?? 0)}
       </Typography>
     ),
@@ -189,7 +190,7 @@ export default function PosicionTesoreriaPage() {
                     {t.moneda} — {t.cantidad_cuentas} cuenta{t.cantidad_cuentas !== 1 ? 's' : ''}
                   </Typography>
                 </Box>
-                <Typography variant="h6" fontWeight={700} color={t.saldo < 0 ? 'error.main' : 'text.primary'}>
+                <Typography variant="h6" fontWeight={700} color={t.saldo < 0 ? balanceColors.negative : 'text.primary'}>
                   {formatMXN(t.saldo)}
                 </Typography>
                 <Box sx={{ display: 'flex', gap: 1, mt: 0.5 }}>

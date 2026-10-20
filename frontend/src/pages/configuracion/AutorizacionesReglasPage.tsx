@@ -17,14 +17,15 @@ import { useSession } from '../../session/useSession';
 import { ConfigPageFrame, ConfigPageHeader } from '../../components/configuracion/configVisual';
 import { CloseRounded, SaveOutlined } from '@mui/icons-material';
 import { PanelBar, Pill, Section, actionIconSx, dialogContentSx, dialogPaperSx, dialogTitleSx, editorialTableSx, emptyCellSx, fieldsOnIvorySx, formWellSx, rowIconSx, wellSx } from '../../components/transporte/transporteVisual';
+import { alertColors, authorizationModeColors } from '../../theme/functional';
 
 interface Usuario { id: number; nombre: string; }
 
 const MODO_LABELS: Record<ModoAutorizacion, string> = { ninguna: 'Ninguna', directa: 'Directa', flujo: 'Flujo' };
 const MODO_CHIP: Record<ModoAutorizacion, { bgcolor: string; color: string }> = {
   ninguna: { bgcolor: 'action.hover', color: 'text.secondary' },
-  directa: { bgcolor: '#dbeafe', color: '#1d4ed8' },
-  flujo:   { bgcolor: '#ede9fe', color: '#6d28d9' },
+  directa: { bgcolor: alertColors.info[100], color: alertColors.info[700] },
+  flujo:   { bgcolor: authorizationModeColors.flowBackground, color: authorizationModeColors.flowText },
 };
 
 function fmtMonto(v: string | null) {

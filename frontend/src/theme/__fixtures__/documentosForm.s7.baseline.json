@@ -1,0 +1,248 @@
+{
+  "source": "HEAD 11ef568, DocumentosFormPage subbloque s7",
+  "files": {
+    "pages/DocumentosFormPage.tsx": {
+      "headSha256": "8f49f0d271d1bfa5e8af1ed619e043a34a7cb58d6002804204cd1c9acd4f5c4b",
+      "addedImports": [],
+      "lines": {
+        "135": {
+          "original": "import { advanceBoxColors, alertColors, attachmentIndicatorColors, fiscalStatusColors } from '../theme/functional';",
+          "migrated": "import { advanceBoxColors, alertColors, attachmentIndicatorColors, documentSummaryTones, fiscalStatusColors } from '../theme/functional';",
+          "entries": []
+        },
+        "4771": {
+          "original": "                                    <Typography sx={{ fontSize: 11.5, color: '#9a5b00' }}>Retención</Typography>",
+          "migrated": "                                    <Typography sx={{ fontSize: 11.5, color: documentSummaryTones.withholdingInline }}>Retención</Typography>",
+          "entries": [
+            {
+              "hex": "#9a5b00",
+              "token": "documentSummaryTones.withholdingInline"
+            }
+          ]
+        },
+        "4772": {
+          "original": "                                    <Typography sx={{ fontSize: 11.5, fontFamily: 'monospace', color: '#9a5b00' }}>",
+          "migrated": "                                    <Typography sx={{ fontSize: 11.5, fontFamily: 'monospace', color: documentSummaryTones.withholdingInline }}>",
+          "entries": [
+            {
+              "hex": "#9a5b00",
+              "token": "documentSummaryTones.withholdingInline"
+            }
+          ]
+        },
+        "5492": {
+          "original": "                                  <Typography sx={{ fontSize: 10.5, color: '#9a5b00', textAlign: 'right' }}>",
+          "migrated": "                                  <Typography sx={{ fontSize: 10.5, color: documentSummaryTones.withholdingInline, textAlign: 'right' }}>",
+          "entries": [
+            {
+              "hex": "#9a5b00",
+              "token": "documentSummaryTones.withholdingInline"
+            }
+          ]
+        },
+        "8349": {
+          "original": "                          { label: 'Subtotal bruto', value: resumenFinanciero.subtotalBruto, tone: '#334155' },",
+          "migrated": "                          { label: 'Subtotal bruto', value: resumenFinanciero.subtotalBruto, tone: documentSummaryTones.gross },",
+          "entries": [
+            {
+              "hex": "#334155",
+              "token": "documentSummaryTones.gross"
+            }
+          ]
+        },
+        "8350": {
+          "original": "                          { label: 'Desc. partidas', value: -resumenFinanciero.descuentoPartidas, tone: '#b45309' },",
+          "migrated": "                          { label: 'Desc. partidas', value: -resumenFinanciero.descuentoPartidas, tone: documentSummaryTones.itemDiscount },",
+          "entries": [
+            {
+              "hex": "#b45309",
+              "token": "documentSummaryTones.itemDiscount"
+            }
+          ]
+        },
+        "8351": {
+          "original": "                          { label: 'Desc. global', value: -resumenFinanciero.descuentoGlobal, tone: '#9a3412' },",
+          "migrated": "                          { label: 'Desc. global', value: -resumenFinanciero.descuentoGlobal, tone: documentSummaryTones.globalDiscount },",
+          "entries": [
+            {
+              "hex": "#9a3412",
+              "token": "documentSummaryTones.globalDiscount"
+            }
+          ]
+        },
+        "8352": {
+          "original": "                          { label: 'Subtotal neto', value: resumenFinanciero.subtotalNeto, tone: '#1d4ed8' },",
+          "migrated": "                          { label: 'Subtotal neto', value: resumenFinanciero.subtotalNeto, tone: documentSummaryTones.net },",
+          "entries": [
+            {
+              "hex": "#1d4ed8",
+              "token": "documentSummaryTones.net"
+            }
+          ]
+        },
+        "8354": {
+          "original": "                            { label: 'IVA trasladado', value: resumenFinanciero.iva, tone: '#0f766e' },",
+          "migrated": "                            { label: 'IVA trasladado', value: resumenFinanciero.iva, tone: documentSummaryTones.tax },",
+          "entries": [
+            {
+              "hex": "#0f766e",
+              "token": "documentSummaryTones.tax"
+            }
+          ]
+        },
+        "8355": {
+          "original": "                            { label: 'Retenciones', value: -resumenFinanciero.retenciones, tone: '#b45309' },",
+          "migrated": "                            { label: 'Retenciones', value: -resumenFinanciero.retenciones, tone: documentSummaryTones.withholding },",
+          "entries": [
+            {
+              "hex": "#b45309",
+              "token": "documentSummaryTones.withholding"
+            }
+          ]
+        },
+        "8357": {
+          "original": "                          { label: 'Total', value: resumenFinanciero.total, tone: '#111827' },",
+          "migrated": "                          { label: 'Total', value: resumenFinanciero.total, tone: documentSummaryTones.total },",
+          "entries": [
+            {
+              "hex": "#111827",
+              "token": "documentSummaryTones.total"
+            }
+          ]
+        },
+        "8419": {
+          "original": "                  { label: 'Subtotal bruto', value: resumenFinanciero.subtotalBruto, tone: '#334155' },",
+          "migrated": "                  { label: 'Subtotal bruto', value: resumenFinanciero.subtotalBruto, tone: documentSummaryTones.gross },",
+          "entries": [
+            {
+              "hex": "#334155",
+              "token": "documentSummaryTones.gross"
+            }
+          ]
+        },
+        "8420": {
+          "original": "                  { label: 'Desc. partidas', value: -resumenFinanciero.descuentoPartidas, tone: '#b45309' },",
+          "migrated": "                  { label: 'Desc. partidas', value: -resumenFinanciero.descuentoPartidas, tone: documentSummaryTones.itemDiscount },",
+          "entries": [
+            {
+              "hex": "#b45309",
+              "token": "documentSummaryTones.itemDiscount"
+            }
+          ]
+        },
+        "8421": {
+          "original": "                  { label: 'Desc. global', value: -resumenFinanciero.descuentoGlobal, tone: '#9a3412' },",
+          "migrated": "                  { label: 'Desc. global', value: -resumenFinanciero.descuentoGlobal, tone: documentSummaryTones.globalDiscount },",
+          "entries": [
+            {
+              "hex": "#9a3412",
+              "token": "documentSummaryTones.globalDiscount"
+            }
+          ]
+        },
+        "8422": {
+          "original": "                  { label: 'Subtotal neto', value: resumenFinanciero.subtotalNeto, tone: '#1d4ed8' },",
+          "migrated": "                  { label: 'Subtotal neto', value: resumenFinanciero.subtotalNeto, tone: documentSummaryTones.net },",
+          "entries": [
+            {
+              "hex": "#1d4ed8",
+              "token": "documentSummaryTones.net"
+            }
+          ]
+        },
+        "8424": {
+          "original": "                    { label: 'IVA trasladado', value: resumenFinanciero.iva, tone: '#0f766e' },",
+          "migrated": "                    { label: 'IVA trasladado', value: resumenFinanciero.iva, tone: documentSummaryTones.tax },",
+          "entries": [
+            {
+              "hex": "#0f766e",
+              "token": "documentSummaryTones.tax"
+            }
+          ]
+        },
+        "8425": {
+          "original": "                    { label: 'Retenciones', value: -resumenFinanciero.retenciones, tone: '#b45309' },",
+          "migrated": "                    { label: 'Retenciones', value: -resumenFinanciero.retenciones, tone: documentSummaryTones.withholding },",
+          "entries": [
+            {
+              "hex": "#b45309",
+              "token": "documentSummaryTones.withholding"
+            }
+          ]
+        },
+        "8427": {
+          "original": "                  { label: 'Total', value: resumenFinanciero.total, tone: '#111827' },",
+          "migrated": "                  { label: 'Total', value: resumenFinanciero.total, tone: documentSummaryTones.total },",
+          "entries": [
+            {
+              "hex": "#111827",
+              "token": "documentSummaryTones.total"
+            }
+          ]
+        },
+        "8602": {
+          "original": "              { label: 'Bruto', value: resumenFinanciero.subtotalBruto, tone: '#334155' },",
+          "migrated": "              { label: 'Bruto', value: resumenFinanciero.subtotalBruto, tone: documentSummaryTones.gross },",
+          "entries": [
+            {
+              "hex": "#334155",
+              "token": "documentSummaryTones.gross"
+            }
+          ]
+        },
+        "8604": {
+          "original": "                ? [{ label: 'Desc', value: -(resumenFinanciero.descuentoPartidas + resumenFinanciero.descuentoGlobal), tone: '#9a3412' }]",
+          "migrated": "                ? [{ label: 'Desc', value: -(resumenFinanciero.descuentoPartidas + resumenFinanciero.descuentoGlobal), tone: documentSummaryTones.discount }]",
+          "entries": [
+            {
+              "hex": "#9a3412",
+              "token": "documentSummaryTones.discount"
+            }
+          ]
+        },
+        "8606": {
+          "original": "              { label: 'Neto', value: resumenFinanciero.subtotalNeto, tone: '#1d4ed8' },",
+          "migrated": "              { label: 'Neto', value: resumenFinanciero.subtotalNeto, tone: documentSummaryTones.net },",
+          "entries": [
+            {
+              "hex": "#1d4ed8",
+              "token": "documentSummaryTones.net"
+            }
+          ]
+        },
+        "8608": {
+          "original": "                { label: 'IVA trasladado', value: resumenFinanciero.iva, tone: '#0f766e' },",
+          "migrated": "                { label: 'IVA trasladado', value: resumenFinanciero.iva, tone: documentSummaryTones.tax },",
+          "entries": [
+            {
+              "hex": "#0f766e",
+              "token": "documentSummaryTones.tax"
+            }
+          ]
+        },
+        "8609": {
+          "original": "                { label: 'Retenciones', value: -resumenFinanciero.retenciones, tone: '#b45309' },",
+          "migrated": "                { label: 'Retenciones', value: -resumenFinanciero.retenciones, tone: documentSummaryTones.withholding },",
+          "entries": [
+            {
+              "hex": "#b45309",
+              "token": "documentSummaryTones.withholding"
+            }
+          ]
+        },
+        "8611": {
+          "original": "              { label: 'Total', value: resumenFinanciero.total, tone: '#111827', strong: true },",
+          "migrated": "              { label: 'Total', value: resumenFinanciero.total, tone: documentSummaryTones.total, strong: true },",
+          "entries": [
+            {
+              "hex": "#111827",
+              "token": "documentSummaryTones.total"
+            }
+          ]
+        }
+      },
+      "snippets": {},
+      "keptLiteral": {}
+    }
+  }
+}

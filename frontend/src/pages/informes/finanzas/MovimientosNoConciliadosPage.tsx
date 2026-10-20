@@ -33,6 +33,7 @@ import {
   type MovimientoNoConciliado,
   type MovimientosNoConciliadosParams,
 } from '../../../services/reportesService';
+import { cashFlowColors, stalenessColors } from '../../../theme/functional';
 
 type CuentaOpcion   = { id: number; identificador: string; moneda?: string };
 type ContactoOpcion = { id: number; nombre: string; rfc?: string | null };
@@ -81,7 +82,7 @@ const COLUMNAS: GridColDef<MovimientoNoConciliado>[] = [
     width: 90,
     renderCell: (p: GridRenderCellParams<MovimientoNoConciliado, string>) => {
       const v = p.value ?? '';
-      const color = v === 'Deposito' ? 'success.main' : 'error.main';
+      const color = v === 'Deposito' ? cashFlowColors.inflow : cashFlowColors.outflow;
       return <Typography variant="body2" color={color}>{v}</Typography>;
     },
   },
@@ -162,7 +163,7 @@ const COLUMNAS: GridColDef<MovimientoNoConciliado>[] = [
     headerAlign: 'right',
     renderCell: (p: GridRenderCellParams<MovimientoNoConciliado, number>) => {
       const d = p.value ?? 0;
-      const color = d > 30 ? 'error.main' : d > 7 ? 'warning.main' : 'text.secondary';
+      const color = d > 30 ? stalenessColors.stale : d > 7 ? stalenessColors.aging : 'text.secondary';
       return <Typography variant="body2" color={color} fontWeight={d > 30 ? 700 : 400}>{d}</Typography>;
     },
   },
@@ -501,7 +502,7 @@ export default function MovimientosNoConciliadosPage() {
                   <Typography
                     variant="body2"
                     fontWeight={700}
-                    color={k.maxDias > 30 ? 'error.main' : k.maxDias > 7 ? 'warning.main' : 'text.primary'}
+                    color={k.maxDias > 30 ? stalenessColors.stale : k.maxDias > 7 ? stalenessColors.aging : 'text.primary'}
                   >
                     {k.maxDias} días
                   </Typography>

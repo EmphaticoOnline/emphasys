@@ -21,6 +21,7 @@ import {
 import { useTheme } from '@mui/material/styles';
 import { catalogoOutlinedButtonSx, catalogoPrimaryButtonSx } from './catalogo/catalogoSurfaces';
 import { WorkspaceRowContextMenu, type WorkspaceContextItem } from './documentos/WorkspaceRowContextMenu';
+import { activityAccents, categoricalPalettes } from '../theme/functional';
 
 export type ActividadResumen = {
   id: number;
@@ -36,23 +37,9 @@ export type ActividadResumen = {
   atrasada: boolean;
 };
 
-const LAVADOS_FILA = [
-  '#f5f3ee',
-  '#f0f4f0',
-  '#f7f2ea',
-  '#f3f1f6',
-  '#f3f4ee',
-  '#f0f3f6',
-] as const;
+const LAVADOS_FILA = categoricalPalettes.activityRows;
 
-const LAVADOS_FILA_HOVER = [
-  '#ece9e2',
-  '#e6ede6',
-  '#f0e8dc',
-  '#eae7ef',
-  '#e8ebe2',
-  '#e6ecf1',
-] as const;
+const LAVADOS_FILA_HOVER = categoricalPalettes.activityRowsHover;
 
 export type ActivityCardProps = {
   actividad: ActividadResumen;
@@ -165,13 +152,13 @@ export default function ActivityCard({ actividad, indice = 0, onCompletar, onRep
       ? tokens.content.muted
       : esHoy
         ? tokens.metric.applied.foreground
-        : '#6a5a86';
+        : activityAccents.upcoming;
   const colorIcono = actividad.tipo === 'llamada'
     ? tokens.action.info
     : actividad.tipo === 'whatsapp'
       ? tokens.metric.applied.foreground
       : actividad.tipo === 'visita'
-        ? '#8a5a32'
+        ? activityAccents.visit
         : tokens.content.secondary;
   const etiquetaFecha = useMemo(() => formatearFechaLegible(actividad.fecha_programada), [actividad.fecha_programada]);
   const etiquetaEstado = actividad.atrasada

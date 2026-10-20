@@ -13,6 +13,10 @@ import { getEstadoSeguimientoPresentation } from '../../modules/cotizaciones/est
 import type { CotizacionListado } from '../../types/cotizacion';
 import type { DocumentosMobileViewProps } from './DocumentosView.types';
 import DocumentoStatusIndicators from './indicadores/DocumentoStatusIndicators';
+import { neutralColors, onPrimaryColors, selectionColors, whiteSurfaces } from '../../theme/structural';
+import { activeBrand } from '../../theme/brand/active';
+import { balanceColors } from '../../theme/functional';
+import { brandElevation, elevation } from '../../theme/elevation';
 
 function hasValue(value?: string | number | null) {
   return value != null && String(value).trim() !== '';
@@ -81,10 +85,10 @@ export default function DocumentosMobileView({
   return (
     <Box sx={{ width: '100%', px: 2, py: 0, display: 'flex', justifyContent: 'center' }}>
       <Box sx={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 1.5, pb: 10 }}>
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25, position: 'sticky', top: 72, zIndex: 2, py: 1, backgroundColor: catalog ? theme.emphasys.canvas.page : '#eef1f4' }}>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25, position: 'sticky', top: 72, zIndex: 2, py: 1, backgroundColor: catalog ? theme.emphasys.canvas.page : neutralColors.steel.wash }}>
           <Box>
-            <Typography variant="h5" fontWeight={600} color={catalog ? theme.emphasys.content.foreground : '#1d2f68'}>{title}</Typography>
-            <Typography variant="body2" color={catalog ? theme.emphasys.content.secondary : '#4b5563'}>{description}</Typography>
+            <Typography variant="h5" fontWeight={600} color={catalog ? theme.emphasys.content.foreground : activeBrand.colors.blue.base}>{title}</Typography>
+            <Typography variant="body2" color={catalog ? theme.emphasys.content.secondary : neutralColors.gray[600]}>{description}</Typography>
           </Box>
 
           <TextField
@@ -118,10 +122,10 @@ export default function DocumentosMobileView({
               sx={catalog ? catalogoOutlinedButtonSx : {
                 textTransform: 'none',
                 fontWeight: 700,
-                borderColor: '#c7d2e5',
-                color: '#1d2f68',
-                backgroundColor: '#ffffff',
-                '&:hover': { borderColor: '#9db1ea', backgroundColor: '#f8fafc' },
+                borderColor: neutralColors.steel.outlineButtonBorder,
+                color: activeBrand.colors.blue.base,
+                backgroundColor: whiteSurfaces.outlineButton,
+                '&:hover': { borderColor: selectionColors.border, backgroundColor: neutralColors.slate[50] },
               }}
             >
               Filtros y Resumen
@@ -138,8 +142,8 @@ export default function DocumentosMobileView({
               <CircularProgress size={28} />
             </Box>
           ) : rows.length === 0 ? (
-            <Box sx={{ border: `1px solid ${catalog ? theme.emphasys.content.border : '#e5e7eb'}`, borderRadius: 2, backgroundColor: catalog ? theme.emphasys.content.card : '#fff', px: 2, py: 4, textAlign: 'center' }}>
-              <Typography variant="body2" color={catalog ? theme.emphasys.content.secondary : '#4b5563'}>No hay documentos registrados.</Typography>
+            <Box sx={{ border: `1px solid ${catalog ? theme.emphasys.content.border : neutralColors.gray[200]}`, borderRadius: 2, backgroundColor: catalog ? theme.emphasys.content.card : whiteSurfaces.mobileEmptyState, px: 2, py: 4, textAlign: 'center' }}>
+              <Typography variant="body2" color={catalog ? theme.emphasys.content.secondary : neutralColors.gray[600]}>No hay documentos registrados.</Typography>
             </Box>
           ) : (
             rows.map((row) => {
@@ -157,7 +161,7 @@ export default function DocumentosMobileView({
                   ? [{
                       label: 'Saldo',
                       value: currency.format(saldo),
-                      color: saldo === 0 ? 'success.main' : 'error.main',
+                      color: saldo === 0 ? balanceColors.settled : balanceColors.due,
                     }]
                   : []),
                 { label: 'Producto', value: row.producto_resumen },
@@ -169,21 +173,21 @@ export default function DocumentosMobileView({
                   variant="outlined"
                   sx={{
                     borderColor: isSelected
-                      ? (catalog ? theme.emphasys.content.foreground : '#9db1ea')
-                      : (catalog ? theme.emphasys.content.border : '#e5e7eb'),
+                      ? (catalog ? theme.emphasys.content.foreground : selectionColors.border)
+                      : (catalog ? theme.emphasys.content.border : neutralColors.gray[200]),
                     borderRadius: 2.5,
-                    backgroundColor: catalog ? theme.emphasys.content.card : '#ffffff',
-                    boxShadow: catalog ? 'none' : '0 8px 20px rgba(15, 23, 42, 0.05)',
+                    backgroundColor: catalog ? theme.emphasys.content.card : whiteSurfaces.mobileListCard,
+                    boxShadow: catalog ? 'none' : elevation.card,
                   }}
                 >
                   <CardContent sx={{ display: 'flex', flexDirection: 'column', gap: 1, p: 1.5, '&:last-child': { pb: 1.5 } }}>
                     <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1 }}>
                       <Box sx={{ minWidth: 0, flex: 1 }} onClick={() => onOpenDocumento(rowId)}>
-                        <Typography variant="subtitle1" fontWeight={700} color={catalog ? theme.emphasys.content.foreground : '#1d2f68'} sx={{ lineHeight: 1.2 }}>
+                        <Typography variant="subtitle1" fontWeight={700} color={catalog ? theme.emphasys.content.foreground : activeBrand.colors.blue.base} sx={{ lineHeight: 1.2 }}>
                           {formatFolio(row)}
                         </Typography>
                         {subtitle ? (
-                          <Typography variant="body2" color={catalog ? theme.emphasys.content.secondary : '#4b5563'} sx={{ mt: 0.25, wordBreak: 'break-word', lineHeight: 1.3 }}>
+                          <Typography variant="body2" color={catalog ? theme.emphasys.content.secondary : neutralColors.gray[600]} sx={{ mt: 0.25, wordBreak: 'break-word', lineHeight: 1.3 }}>
                             {subtitle}
                           </Typography>
                         ) : null}
@@ -238,12 +242,12 @@ export default function DocumentosMobileView({
                       <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 0.75 }}>
                         {detailItems.map((item) => (
                           <Box key={`${row.id}-${item.label}`} sx={{ minWidth: 0 }}>
-                            <Typography variant="caption" color={catalog ? theme.emphasys.content.muted : '#6b7280'} sx={{ display: 'block', lineHeight: 1.1 }}>
+                            <Typography variant="caption" color={catalog ? theme.emphasys.content.muted : neutralColors.gray[500]} sx={{ display: 'block', lineHeight: 1.1 }}>
                               {item.label}
                             </Typography>
                             <Typography
                               variant="body2"
-                              color={item.color ?? (catalog ? theme.emphasys.content.foreground : '#111827')}
+                              color={item.color ?? (catalog ? theme.emphasys.content.foreground : neutralColors.gray[900])}
                               fontWeight={item.color ? 600 : 400}
                               sx={{ lineHeight: 1.25, wordBreak: 'break-word' }}
                             >
@@ -270,16 +274,16 @@ export default function DocumentosMobileView({
             bottom: 20,
             backgroundColor: theme.emphasys.action.primary,
             color: theme.emphasys.action.primaryForeground,
-            boxShadow: '0 8px 18px rgba(44, 49, 56, 0.22)',
+            boxShadow: brandElevation.floatingStrong,
             '&:hover': { backgroundColor: theme.emphasys.action.primaryHover },
           } : {
             position: 'fixed',
             right: 20,
             bottom: 20,
-            backgroundColor: '#1d2f68',
-            color: '#ffffff',
-            boxShadow: '0 10px 24px rgba(29, 47, 104, 0.28)',
-            '&:hover': { backgroundColor: '#162551' },
+            backgroundColor: activeBrand.colors.blue.base,
+            color: onPrimaryColors.textLong,
+            boxShadow: brandElevation.primaryGlow,
+            '&:hover': { backgroundColor: activeBrand.colors.blue.hover },
           }}
         >
           <AddIcon />
@@ -300,15 +304,15 @@ export default function DocumentosMobileView({
         >
           <Box sx={{ px: 2, pt: 1.25, pb: 1, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
             <Box sx={{ display: 'flex', justifyContent: 'center' }}>
-              <Box sx={{ width: 44, height: 5, borderRadius: 999, backgroundColor: catalog ? theme.emphasys.content.border : '#cbd5e1' }} />
+              <Box sx={{ width: 44, height: 5, borderRadius: 999, backgroundColor: catalog ? theme.emphasys.content.border : neutralColors.slate[300] }} />
             </Box>
 
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
               <Box>
-                <Typography variant="subtitle1" fontWeight={800} color={catalog ? theme.emphasys.content.foreground : '#1d2f68'}>
+                <Typography variant="subtitle1" fontWeight={800} color={catalog ? theme.emphasys.content.foreground : activeBrand.colors.blue.base}>
                   Filtros y Resumen
                 </Typography>
-                <Typography variant="body2" color={catalog ? theme.emphasys.content.secondary : '#4b5563'}>
+                <Typography variant="body2" color={catalog ? theme.emphasys.content.secondary : neutralColors.gray[600]}>
                   Consulta filtros, totales y acciones auxiliares.
                 </Typography>
               </Box>
@@ -330,7 +334,7 @@ export default function DocumentosMobileView({
             <Divider />
 
             <Stack spacing={1.25}>
-              <Typography variant="subtitle2" fontWeight={800} color={catalog ? theme.emphasys.content.foreground : '#1f2937'}>
+              <Typography variant="subtitle2" fontWeight={800} color={catalog ? theme.emphasys.content.foreground : neutralColors.gray[800]}>
                 Filtros
               </Typography>
 
@@ -348,7 +352,7 @@ export default function DocumentosMobileView({
               <>
                 <Divider />
                 <Stack spacing={1.25}>
-                  <Typography variant="subtitle2" fontWeight={800} color={catalog ? theme.emphasys.content.foreground : '#1f2937'}>
+                  <Typography variant="subtitle2" fontWeight={800} color={catalog ? theme.emphasys.content.foreground : neutralColors.gray[800]}>
                     Resumen
                   </Typography>
                   {summaryContent}

@@ -42,6 +42,7 @@ import type {
   EstadoFolioXml,
   TipoSolicitudPolizas,
 } from '../../types/auxiliaresSat';
+import { accountingColors, alertColors } from '../../theme/functional';
 
 
 interface FilaProblema {
@@ -78,12 +79,12 @@ function TablaProblemas({ filas, color }: { filas: FilaProblema[]; color: string
 }
 
 const ESTADO_CONFIG: Record<EstadoFolioXml, { label: string; color: string; bg: string }> = {
-  correcto: { label: 'Correcto', color: '#166534', bg: '#f0fdf4' },
-  uuid_no_encontrado: { label: 'UUID no encontrado', color: '#92400e', bg: '#fffbeb' },
-  cfdi_cancelado: { label: 'CFDI cancelado', color: '#92400e', bg: '#fffbeb' },
-  rfc_no_coincide: { label: 'RFC no coincide', color: '#92400e', bg: '#fffbeb' },
-  uuid_sin_rfc: { label: 'UUID sin RFC', color: '#92400e', bg: '#fffbeb' },
-  error: { label: 'Error', color: '#b91c1c', bg: '#fef2f2' },
+  correcto: { label: 'Correcto', color: alertColors.success[800], bg: alertColors.success[50] },
+  uuid_no_encontrado: { label: 'UUID no encontrado', color: alertColors.warning[800], bg: alertColors.warning[50] },
+  cfdi_cancelado: { label: 'CFDI cancelado', color: alertColors.warning[800], bg: alertColors.warning[50] },
+  rfc_no_coincide: { label: 'RFC no coincide', color: alertColors.warning[800], bg: alertColors.warning[50] },
+  uuid_sin_rfc: { label: 'UUID sin RFC', color: alertColors.warning[800], bg: alertColors.warning[50] },
+  error: { label: 'Error', color: alertColors.error[700], bg: alertColors.error[50] },
 };
 
 function CeldaEstadoFolio({ value }: { value: EstadoFolioXml }) {
@@ -282,7 +283,7 @@ export default function AuxiliaresSatView({
         align: 'right',
         headerAlign: 'center',
         headerClassName: 'finanzas-header',
-        renderCell: ({ value }) => <span style={{ color: value < 0 ? '#b91c1c' : 'inherit' }}>{formatearImporte(value)}</span>,
+        renderCell: ({ value }) => <span style={{ color: value < 0 ? accountingColors.negativeAmount : 'inherit' }}>{formatearImporte(value)}</span>,
       },
       {
         field: 'saldo_fin',
@@ -291,7 +292,7 @@ export default function AuxiliaresSatView({
         align: 'right',
         headerAlign: 'center',
         headerClassName: 'finanzas-header',
-        renderCell: ({ value }) => <span style={{ color: value < 0 ? '#b91c1c' : 'inherit' }}>{formatearImporte(value)}</span>,
+        renderCell: ({ value }) => <span style={{ color: value < 0 ? accountingColors.negativeAmount : 'inherit' }}>{formatearImporte(value)}</span>,
       },
       {
         field: 'naturaleza_descripcion',
@@ -320,7 +321,7 @@ export default function AuxiliaresSatView({
           <Chip
             label={value === 'correcto' ? 'Correcto' : 'Error'}
             size="small"
-            sx={value === 'correcto' ? { bgcolor: '#f0fdf4', color: '#166534', fontWeight: 600, fontSize: 11 } : { bgcolor: '#fef2f2', color: '#b91c1c', fontWeight: 600, fontSize: 11 }}
+            sx={value === 'correcto' ? { bgcolor: alertColors.success[50], color: alertColors.success[800], fontWeight: 600, fontSize: 11 } : { bgcolor: alertColors.error[50], color: alertColors.error[700], fontWeight: 600, fontSize: 11 }}
           />
         ),
       },
@@ -487,10 +488,10 @@ export default function AuxiliaresSatView({
                   <Typography sx={{ fontSize: 13 }}>
                     <strong>UUID encontrados:</strong> {resultadoFolios.resumen.uuid_encontrados}
                   </Typography>
-                  <Typography sx={{ fontSize: 13, color: resultadoFolios.resumen.uuid_no_encontrados > 0 ? '#92400e' : 'inherit' }}>
+                  <Typography sx={{ fontSize: 13, color: resultadoFolios.resumen.uuid_no_encontrados > 0 ? alertColors.warning[800] : 'inherit' }}>
                     <strong>UUID no encontrados:</strong> {resultadoFolios.resumen.uuid_no_encontrados}
                   </Typography>
-                  <Typography sx={{ fontSize: 13, color: resultadoFolios.resumen.cfdi_cancelados > 0 ? '#92400e' : 'inherit' }}>
+                  <Typography sx={{ fontSize: 13, color: resultadoFolios.resumen.cfdi_cancelados > 0 ? alertColors.warning[800] : 'inherit' }}>
                     <strong>CFDI cancelados:</strong> {resultadoFolios.resumen.cfdi_cancelados}
                   </Typography>
                 </>
@@ -505,10 +506,10 @@ export default function AuxiliaresSatView({
                   </Typography>
                 </>
               )}
-              <Typography sx={{ fontSize: 13, color: resultado.resumen.errores > 0 ? '#b91c1c' : 'inherit' }}>
+              <Typography sx={{ fontSize: 13, color: resultado.resumen.errores > 0 ? alertColors.error[700] : 'inherit' }}>
                 <strong>Errores:</strong> {resultado.resumen.errores}
               </Typography>
-              <Typography sx={{ fontSize: 13, color: resultado.resumen.advertencias > 0 ? '#92400e' : 'inherit' }}>
+              <Typography sx={{ fontSize: 13, color: resultado.resumen.advertencias > 0 ? alertColors.warning[800] : 'inherit' }}>
                 <strong>Advertencias:</strong> {resultado.resumen.advertencias}
               </Typography>
               {resultado.ok ? (
@@ -522,7 +523,7 @@ export default function AuxiliaresSatView({
           {resultado.errores.length > 0 && (
             <Paper variant="outlined" sx={(theme) => panelEstadoSx(theme, 'error')}>
               <Stack direction="row" justifyContent="space-between" alignItems="center" flexWrap="wrap" sx={{ mb: 1 }}>
-                <Typography sx={{ fontSize: 13, fontWeight: 700, color: '#b91c1c' }}>
+                <Typography sx={{ fontSize: 13, fontWeight: 700, color: alertColors.error[700] }}>
                   Errores ({resultado.errores.length})
                 </Typography>
                 <Stack direction="row" spacing={1}>
@@ -534,14 +535,14 @@ export default function AuxiliaresSatView({
                   </Button>
                 </Stack>
               </Stack>
-              <TablaProblemas filas={resultado.errores} color="#b91c1c" />
+              <TablaProblemas filas={resultado.errores} color={alertColors.error[700]} />
             </Paper>
           )}
 
           {resultado.advertencias.length > 0 && (
             <Paper variant="outlined" sx={(theme) => panelEstadoSx(theme, 'warn')}>
               <Stack direction="row" justifyContent="space-between" alignItems="center" flexWrap="wrap" sx={{ mb: 1 }}>
-                <Typography sx={{ fontSize: 13, fontWeight: 700, color: '#92400e' }}>
+                <Typography sx={{ fontSize: 13, fontWeight: 700, color: alertColors.warning[800] }}>
                   Advertencias ({resultado.advertencias.length})
                 </Typography>
                 <Stack direction="row" spacing={1}>
@@ -553,7 +554,7 @@ export default function AuxiliaresSatView({
                   </Button>
                 </Stack>
               </Stack>
-              <TablaProblemas filas={resultado.advertencias} color="#92400e" />
+              <TablaProblemas filas={resultado.advertencias} color={alertColors.warning[800]} />
             </Paper>
           )}
 

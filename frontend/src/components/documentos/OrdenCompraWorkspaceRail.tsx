@@ -31,6 +31,8 @@ import type { StatusTone } from '../status/status.types';
 import { WorkspaceRowContextMenu } from './WorkspaceRowContextMenu';
 import { PopoverFiltroFacturas } from './facturas/FacturasWorkspaceView';
 import { workspaceRailContactNameSx } from './workspaceRailStyles';
+import { elevation } from '../../theme/elevation';
+import { overlayColors } from '../../theme/structural';
 
 type StatusOption = { value: string; label: string; color?: string; textColor?: string };
 type FiltroLista = {
@@ -229,7 +231,7 @@ export default function OrdenCompraWorkspaceRail({
                   height: 34,
                   bgcolor: tokens.navigation.control,
                   color: tokens.navigation.controlForeground,
-                  boxShadow: '0 1px 2px rgba(0,0,0,0.35)',
+                  boxShadow: elevation.railControl,
                   '&:hover': { bgcolor: tokens.content.elevated, color: tokens.content.foreground },
                 }}
               >
@@ -398,7 +400,7 @@ export default function OrdenCompraWorkspaceRail({
                 cursor: 'pointer',
                 bgcolor: selected ? tokens.navigation.selection : 'transparent',
                 color: selected ? tokens.navigation.selectionForeground : tokens.navigation.foreground,
-                boxShadow: selected ? '0 1px 2px rgba(0,0,0,0.18)' : 'none',
+                boxShadow: selected ? elevation.railSelection : 'none',
                 '&:hover': { bgcolor: selected ? tokens.navigation.selection : tokens.navigation.hover },
               }}
             >
@@ -436,7 +438,7 @@ export default function OrdenCompraWorkspaceRail({
                           height: 28,
                           p: 0.25,
                           color: 'inherit',
-                          '&:hover': { bgcolor: selected ? 'rgba(255,255,255,0.14)' : tokens.navigation.hover },
+                          '&:hover': { bgcolor: selected ? overlayColors.onDark.railSelectedHover : tokens.navigation.hover },
                         }}
                       >
                         <MoreVertIcon sx={{ fontSize: 18 }} />

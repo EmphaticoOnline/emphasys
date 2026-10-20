@@ -3,6 +3,7 @@ import { Autocomplete, Box, CircularProgress, FormControlLabel, MenuItem, Switch
 import type { Unidad } from '../../../services/unidadesService';
 import SeccionCard from './SeccionCard';
 import { apiFetch } from '../../../services/apiFetch';
+import { neutralColors } from '../../../theme/structural';
 
 export type ProductoServicioSatOption = { id: string; texto: string };
 type CartaPorteOption = { clave: string; descripcion: string; id?: number; material_peligroso?: string | null; clase_division?: string | null; nombre_tecnico?: string | null };
@@ -193,11 +194,11 @@ export default function SeccionFiscalUnidades({
         </Box>
 
         {existenciaLoading ? (
-          <Typography variant="caption" color="#6b7280" sx={{ display: 'block', mt: 1.25 }}>Cargando existencia actual…</Typography>
+          <Typography variant="caption" color={neutralColors.gray[500]} sx={{ display: 'block', mt: 1.25 }}>Cargando existencia actual…</Typography>
         ) : existenciaError ? (
           <Typography variant="caption" color="error" sx={{ display: 'block', mt: 1.25 }}>{existenciaError}</Typography>
         ) : existenciaActual !== undefined && existenciaActual !== null ? (
-          <Typography variant="caption" color="#6b7280" sx={{ display: 'block', mt: 1.25 }}>
+          <Typography variant="caption" color={neutralColors.gray[500]} sx={{ display: 'block', mt: 1.25 }}>
             Existencia actual: <strong>{existenciaActual.toLocaleString('es-MX')}</strong> (solo lectura)
           </Typography>
         ) : null}

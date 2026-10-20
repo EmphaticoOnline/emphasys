@@ -45,6 +45,9 @@ import DocumentosFormPage from '../../pages/DocumentosFormPage';
 import { DesaplicarPagoDialog } from './DesaplicarPagoDialog';
 import { loadSession } from '../../session/sessionStorage';
 import { esRolAdmin } from '../../session/rolScope';
+import { alertColors } from '../../theme/functional';
+import { neutralColors, rowStripeColors, selectionColors } from '../../theme/structural';
+import { activeBrand } from '../../theme/brand/active';
 
 const formatDateShort = (value?: string | null) => {
   if (!value) return '';
@@ -367,8 +370,8 @@ export function FacturaPagosDrawer({ open, onClose, documentoId, contactoId, sal
   };
 
   const headerCellSx = {
-    backgroundColor: '#1d2f68',
-    color: '#fff',
+    backgroundColor: activeBrand.colors.blue.base,
+    color: 'common.white',
     fontWeight: 600,
     fontSize: '14px',
     py: '6px',
@@ -377,10 +380,10 @@ export function FacturaPagosDrawer({ open, onClose, documentoId, contactoId, sal
   const bodyCellSx = {
     fontSize: '14px',
     py: '6px',
-    borderBottom: '1px solid #e5e7eb',
+    borderBottom: `1px solid ${neutralColors.gray[200]}`,
   };
 
-  const rowBaseSx = { height: 26, '&:hover': { backgroundColor: '#eef5ff' } };
+  const rowBaseSx = { height: 26, '&:hover': { backgroundColor: selectionColors.rowHover } };
 
   const headerTitle = esNotaCredito
     ? `${etiquetaDocumento} ${documentoMeta?.folio || ''}`.trim()
@@ -401,7 +404,7 @@ export function FacturaPagosDrawer({ open, onClose, documentoId, contactoId, sal
       <Box sx={{ p: 3, height: '100%', overflow: 'auto', display: 'flex', flexDirection: 'column', gap: 2 }}>
         <Stack direction="row" justifyContent="space-between" alignItems="center">
           <Box>
-            <Typography variant="h6" fontWeight={700} color="#1d2f68">
+            <Typography variant="h6" fontWeight={700} color={activeBrand.colors.blue.base}>
               {headerTitle}
             </Typography>
             {esNotaCredito ? (
@@ -435,13 +438,13 @@ export function FacturaPagosDrawer({ open, onClose, documentoId, contactoId, sal
           </IconButton>
         </Stack>
 
-        <Box sx={{ border: '1px solid #e5e7eb', borderRadius: 2, p: 2, backgroundColor: '#f8fafc' }}>
+        <Box sx={{ border: `1px solid ${neutralColors.gray[200]}`, borderRadius: 2, p: 2, backgroundColor: neutralColors.slate[50] }}>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
             <Box>
               <Typography variant="body2" color="text.secondary">
                 {esNotaCredito ? 'Saldo disponible' : 'Saldo pendiente'}
               </Typography>
-              <Typography variant="h6" fontWeight={700} color={effectiveSaldo > 0 ? '#b45309' : '#15803d'}>
+              <Typography variant="h6" fontWeight={700} color={effectiveSaldo > 0 ? alertColors.warning[700] : alertColors.success[700]}>
                 {formatter.format(effectiveSaldo)}
               </Typography>
             </Box>
@@ -449,7 +452,7 @@ export function FacturaPagosDrawer({ open, onClose, documentoId, contactoId, sal
               <Typography variant="body2" color="text.secondary">
                 {esNotaCredito ? 'Aplicaciones registradas' : 'Aplicaciones previas'}
               </Typography>
-              <Typography variant="h6" fontWeight={700} color="#1d2f68">
+              <Typography variant="h6" fontWeight={700} color={activeBrand.colors.blue.base}>
                 {aplicaciones.length}
               </Typography>
             </Box>
@@ -457,7 +460,7 @@ export function FacturaPagosDrawer({ open, onClose, documentoId, contactoId, sal
         </Box>
 
         <Stack spacing={1}>
-            <Typography variant="subtitle1" fontWeight={700} color="#1d2f68">
+            <Typography variant="subtitle1" fontWeight={700} color={activeBrand.colors.blue.base}>
               Aplicaciones previas
           </Typography>
           {esNotaCredito ? (
@@ -469,7 +472,7 @@ export function FacturaPagosDrawer({ open, onClose, documentoId, contactoId, sal
               Documentos de abono que ya fueron aplicados a este documento.
             </Typography>
           )}
-          <TableContainer sx={{ border: '1px solid #e5e7eb', borderRadius: 2 }}>
+          <TableContainer sx={{ border: `1px solid ${neutralColors.gray[200]}`, borderRadius: 2 }}>
             <Table size="small" aria-label={esNotaCredito ? 'Aplicaciones registradas' : 'Aplicaciones previas'}>
               <TableHead>
                 <TableRow>
@@ -535,7 +538,7 @@ export function FacturaPagosDrawer({ open, onClose, documentoId, contactoId, sal
             <Stack spacing={1} mt={1}>
               <Stack direction="row" justifyContent="space-between" alignItems="center">
                 <Box>
-                  <Typography variant="subtitle1" fontWeight={700} color="#1d2f68">
+                  <Typography variant="subtitle1" fontWeight={700} color={activeBrand.colors.blue.base}>
                     {encabezadoPendientes}
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
@@ -568,7 +571,7 @@ export function FacturaPagosDrawer({ open, onClose, documentoId, contactoId, sal
                 </Stack>
               </Stack>
               <Box sx={{ width: '100%', minWidth: 0, overflow: 'hidden' }}>
-                <TableContainer sx={{ border: '1px solid #e5e7eb', borderRadius: 2, maxHeight: 340, boxShadow: 'none' }}>
+                <TableContainer sx={{ border: `1px solid ${neutralColors.gray[200]}`, borderRadius: 2, maxHeight: 340, boxShadow: 'none' }}>
                   <Table size="small" stickyHeader aria-label={ariaPendientes} sx={{ width: '100%', minWidth: 0 }}>
                     <TableHead>
                       <TableRow>
@@ -585,7 +588,7 @@ export function FacturaPagosDrawer({ open, onClose, documentoId, contactoId, sal
                         <TableRow>
                           <TableCell colSpan={6} align="center" sx={{ py: 3, color: 'text.secondary' }}>
                             <Stack spacing={0.5} alignItems="center">
-                              <Typography variant="body1" fontWeight={600} color="#1f2937">
+                              <Typography variant="body1" fontWeight={600} color={neutralColors.gray[800]}>
                                 {emptyPendientes}
                               </Typography>
                               {!esNotaCredito && tipoNuevoAjuste && (
@@ -600,7 +603,7 @@ export function FacturaPagosDrawer({ open, onClose, documentoId, contactoId, sal
                       {documentosDisponibles.map((item, idx) => {
                         const folio = formatearFolioDocumento(item?.serie || '', item?.numero || 0);
                         const label = `${etiquetaTipo(item.tipo || 'documento')} ${folio}`.trim();
-                        const backgroundColor = idx % 2 === 0 ? '#f4faf4' : '#ffffff';
+                        const backgroundColor = idx % 2 === 0 ? rowStripeColors.treasuryDocuments : 'common.white';
                         return (
                           <TableRow key={item.id} sx={{ ...rowBaseSx, backgroundColor }}>
                             <TableCell sx={{ ...bodyCellSx, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', width: '24%' }}>
@@ -624,8 +627,8 @@ export function FacturaPagosDrawer({ open, onClose, documentoId, contactoId, sal
                                     px: 1,
                                     display: 'flex',
                                     alignItems: 'center',
-                                    backgroundColor: '#fff',
-                                    border: '1px solid #cbd5e1',
+                                    backgroundColor: 'common.white',
+                                    border: `1px solid ${neutralColors.slate[300]}`,
                                     borderRadius: 1,
                                   },
                                   '& .MuiInputBase-input': {

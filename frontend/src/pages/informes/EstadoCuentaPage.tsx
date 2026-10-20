@@ -34,6 +34,8 @@ import type {
   EstadoCuentaResult,
   MovimientoEstadoCuenta,
 } from '../../services/reportesService';
+import { accountingColors } from '../../theme/functional';
+import { neutralColors } from '../../theme/structural';
 
 export type EstadoCuentaPageConfig = {
   titulo: string;
@@ -74,10 +76,10 @@ const formatFecha = (iso: string): string => {
 };
 
 const colorSaldo = (v: number, cancelado = false) => {
-  if (cancelado) return '#9ca3af';
-  if (v > 0) return '#dc2626';
-  if (v < 0) return '#16a34a';
-  return '#111827';
+  if (cancelado) return accountingColors.cancelled;
+  if (v > 0) return accountingColors.debit;
+  if (v < 0) return accountingColors.credit;
+  return accountingColors.zero;
 };
 
 const hoy = () => {
@@ -133,7 +135,7 @@ function buildColumnsEstandar(): GridColDef<MovimientoEstadoCuenta>[] {
       headerName: 'Fecha',
       width: 100,
       renderCell: (p: GridRenderCellParams<MovimientoEstadoCuenta, string>) => (
-        <span style={p.row.cancelado ? { color: '#9ca3af', textDecoration: 'line-through' } : {}}>
+        <span style={p.row.cancelado ? { color: accountingColors.cancelled, textDecoration: 'line-through' } : {}}>
           {formatFecha(p.value ?? '')}
         </span>
       ),
@@ -143,7 +145,7 @@ function buildColumnsEstandar(): GridColDef<MovimientoEstadoCuenta>[] {
       headerName: 'Folio',
       width: 120,
       renderCell: (p: GridRenderCellParams<MovimientoEstadoCuenta, string>) => (
-        <span style={p.row.cancelado ? { color: '#9ca3af', textDecoration: 'line-through' } : {}}>
+        <span style={p.row.cancelado ? { color: accountingColors.cancelled, textDecoration: 'line-through' } : {}}>
           {p.value}
         </span>
       ),
@@ -154,7 +156,7 @@ function buildColumnsEstandar(): GridColDef<MovimientoEstadoCuenta>[] {
       width: 105,
       renderCell: (p: GridRenderCellParams<MovimientoEstadoCuenta, string>) =>
         p.row.cancelado ? (
-          <Chip label="Cancelado" size="small" sx={{ fontSize: 10, height: 18, color: '#9ca3af' }} variant="outlined" />
+          <Chip label="Cancelado" size="small" sx={{ fontSize: 10, height: 18, color: accountingColors.cancelled }} variant="outlined" />
         ) : (
           <span>{p.value}</span>
         ),
@@ -165,7 +167,7 @@ function buildColumnsEstandar(): GridColDef<MovimientoEstadoCuenta>[] {
       flex: 1,
       minWidth: 150,
       renderCell: (p: GridRenderCellParams<MovimientoEstadoCuenta, string>) => (
-        <span style={p.row.cancelado ? { color: '#9ca3af' } : {}}>{p.value}</span>
+        <span style={p.row.cancelado ? { color: accountingColors.cancelled } : {}}>{p.value}</span>
       ),
     },
     {
@@ -177,7 +179,7 @@ function buildColumnsEstandar(): GridColDef<MovimientoEstadoCuenta>[] {
       renderCell: (p: GridRenderCellParams<MovimientoEstadoCuenta, number>) => {
         const v = p.value ?? 0;
         return v > 0 ? (
-          <span style={p.row.cancelado ? { color: '#9ca3af' } : {}}>{formatMXN(v)}</span>
+          <span style={p.row.cancelado ? { color: accountingColors.cancelled } : {}}>{formatMXN(v)}</span>
         ) : null;
       },
     },
@@ -190,7 +192,7 @@ function buildColumnsEstandar(): GridColDef<MovimientoEstadoCuenta>[] {
       renderCell: (p: GridRenderCellParams<MovimientoEstadoCuenta, number>) => {
         const v = p.value ?? 0;
         return v > 0 ? (
-          <span style={p.row.cancelado ? { color: '#9ca3af' } : {}}>{formatMXN(v)}</span>
+          <span style={p.row.cancelado ? { color: accountingColors.cancelled } : {}}>{formatMXN(v)}</span>
         ) : null;
       },
     },
@@ -203,12 +205,12 @@ function buildColumnsEstandar(): GridColDef<MovimientoEstadoCuenta>[] {
       renderCell: (p: GridRenderCellParams<MovimientoEstadoCuenta, number>) => {
         const v = p.value ?? 0;
         const color = p.row.cancelado
-          ? '#9ca3af'
+          ? accountingColors.cancelled
           : v === 0
-          ? '#111827'
+          ? accountingColors.zero
           : p.row.es_cargo
-          ? '#dc2626'
-          : '#16a34a';
+          ? accountingColors.debit
+          : accountingColors.credit;
         return (
           <Typography variant="body2" fontWeight={600} color={color}>
             {formatMXN(v)}
@@ -220,7 +222,7 @@ function buildColumnsEstandar(): GridColDef<MovimientoEstadoCuenta>[] {
 }
 
 // Estilos base para texto en filas de aplicación (nivel 1)
-const APL_TEXT: React.CSSProperties = { color: '#4b5563', fontSize: '0.72rem' };
+const APL_TEXT: React.CSSProperties = { color: neutralColors.gray[600], fontSize: '0.72rem' };
 
 function buildColumnsDetalle(): GridColDef<FilaPlana>[] {
   return [
@@ -232,10 +234,10 @@ function buildColumnsDetalle(): GridColDef<FilaPlana>[] {
       renderCell: (p: GridRenderCellParams<FilaPlana, string>) => {
         if (!p.row) return null;
         if (p.row._nivel === 1) {
-          return <span style={{ ...APL_TEXT, color: '#9ca3af' }}>{formatFecha(p.value ?? '')}</span>;
+          return <span style={{ ...APL_TEXT, color: neutralColors.gray[400] }}>{formatFecha(p.value ?? '')}</span>;
         }
         return (
-          <span style={p.row.cancelado ? { color: '#9ca3af', textDecoration: 'line-through' } : {}}>
+          <span style={p.row.cancelado ? { color: accountingColors.cancelled, textDecoration: 'line-through' } : {}}>
             {formatFecha(p.value ?? '')}
           </span>
         );
@@ -249,7 +251,7 @@ function buildColumnsDetalle(): GridColDef<FilaPlana>[] {
       renderCell: (p: GridRenderCellParams<FilaPlana, string>) => {
         if (!p.row || p.row._nivel === 1) return null;
         return (
-          <span style={p.row.cancelado ? { color: '#9ca3af', textDecoration: 'line-through' } : {}}>
+          <span style={p.row.cancelado ? { color: accountingColors.cancelled, textDecoration: 'line-through' } : {}}>
             {p.value}
           </span>
         );
@@ -263,7 +265,7 @@ function buildColumnsDetalle(): GridColDef<FilaPlana>[] {
       renderCell: (p: GridRenderCellParams<FilaPlana, string>) => {
         if (!p.row || p.row._nivel === 1) return null;
         if (p.row.cancelado) {
-          return <Chip label="Cancelado" size="small" sx={{ fontSize: 10, height: 18, color: '#9ca3af' }} variant="outlined" />;
+          return <Chip label="Cancelado" size="small" sx={{ fontSize: 10, height: 18, color: accountingColors.cancelled }} variant="outlined" />;
         }
         return <span>{p.value}</span>;
       },
@@ -282,7 +284,7 @@ function buildColumnsDetalle(): GridColDef<FilaPlana>[] {
           const desc = `${p.row.tipo_etiqueta} ${p.row.folio} por ${formatMXN(p.row.aplicado)}`;
           return (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, pl: 1 }}>
-              <Typography component="span" sx={{ color: '#c0c9d6', fontSize: '0.72rem', lineHeight: 1, flexShrink: 0 }}>
+              <Typography component="span" sx={{ color: neutralColors.steel.treeConnector, fontSize: '0.72rem', lineHeight: 1, flexShrink: 0 }}>
                 ↳
               </Typography>
               <span style={APL_TEXT}>{desc}</span>
@@ -290,7 +292,7 @@ function buildColumnsDetalle(): GridColDef<FilaPlana>[] {
           );
         }
         return (
-          <span style={p.row.cancelado ? { color: '#9ca3af' } : {}}>
+          <span style={p.row.cancelado ? { color: accountingColors.cancelled } : {}}>
             {p.value}
           </span>
         );
@@ -307,7 +309,7 @@ function buildColumnsDetalle(): GridColDef<FilaPlana>[] {
         if (!p.row || p.row._nivel === 1) return null;
         const v = p.value ?? 0;
         return (
-          <span style={p.row.cancelado ? { color: '#9ca3af', textDecoration: 'line-through' } : {}}>
+          <span style={p.row.cancelado ? { color: accountingColors.cancelled, textDecoration: 'line-through' } : {}}>
             {v > 0 ? formatMXN(v) : '—'}
           </span>
         );
@@ -324,9 +326,9 @@ function buildColumnsDetalle(): GridColDef<FilaPlana>[] {
       renderCell: (p: GridRenderCellParams<FilaPlana, number>) => {
         if (!p.row || p.row._nivel === 1) return null;
         const v = p.value ?? 0;
-        if (v === 0) return <span style={{ color: '#9ca3af' }}>—</span>;
+        if (v === 0) return <span style={{ color: neutralColors.gray[400] }}>—</span>;
         return (
-          <span style={p.row.cancelado ? { color: '#9ca3af' } : {}}>
+          <span style={p.row.cancelado ? { color: accountingColors.cancelled } : {}}>
             {formatMXN(v)}
           </span>
         );
@@ -343,12 +345,12 @@ function buildColumnsDetalle(): GridColDef<FilaPlana>[] {
         if (!p.row || p.row._nivel === 1) return null;
         const v = p.value ?? 0;
         const color = p.row.cancelado
-          ? '#9ca3af'
+          ? accountingColors.cancelled
           : v === 0
-          ? '#111827'
+          ? accountingColors.zero
           : p.row._es_cargo
-          ? '#dc2626'
-          : '#16a34a';
+          ? accountingColors.debit
+          : accountingColors.credit;
         return (
           <Typography variant="body2" fontWeight={700} color={color}>
             {formatMXN(v)}
@@ -636,7 +638,7 @@ export default function EstadoCuentaPage({ config }: { config: EstadoCuentaPageC
               <Typography
                 variant="subtitle1"
                 fontWeight={700}
-                color={saldoFinal > 0 ? 'error.main' : saldoFinal < 0 ? 'success.main' : 'text.primary'}
+                color={saldoFinal > 0 ? accountingColors.debit : saldoFinal < 0 ? accountingColors.credit : 'text.primary'}
                 sx={{ lineHeight: 1.2 }}
               >
                 {formatMXN(saldoFinal)}
@@ -702,10 +704,10 @@ export default function EstadoCuentaPage({ config }: { config: EstadoCuentaPageC
                   border: '1px solid',
                   borderColor: 'divider',
                   '& .fila-aplicacion': {
-                    bgcolor: '#f8fafc',
-                    borderLeft: '3px solid #e2e8f0',
+                    bgcolor: neutralColors.slate[50],
+                    borderLeft: `3px solid ${neutralColors.slate[200]}`,
                     '& .MuiDataGrid-cell': {
-                      color: '#6b7280',
+                      color: neutralColors.gray[500],
                     },
                   },
                 },

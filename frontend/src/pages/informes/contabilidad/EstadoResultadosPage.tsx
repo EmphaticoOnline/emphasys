@@ -29,6 +29,8 @@ import {
 } from '../../../services/reportesContablesService';
 import type { EstadoResultadosResultado } from '../../../types/reportesContables';
 import { NOMBRES_MESES } from '../../../types/saldosCuentas';
+import { accountingColors } from '../../../theme/functional';
+import { neutralColors } from '../../../theme/structural';
 
 function formatMoneda(valor: number): string {
   return valor.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -45,7 +47,7 @@ function SeccionResultados({ titulo, cuentas, totalLabel, total }: {
   return (
     <>
       <TableRow>
-        <TableCell colSpan={2} sx={{ bgcolor: '#1d2f68', color: '#fff', fontWeight: 700 }}>{titulo}</TableCell>
+        <TableCell colSpan={2} sx={{ bgcolor: 'primary.main', color: 'common.white', fontWeight: 700 }}>{titulo}</TableCell>
       </TableRow>
       {cuentas.map((c) => (
         <TableRow key={c.id} hover>
@@ -53,7 +55,7 @@ function SeccionResultados({ titulo, cuentas, totalLabel, total }: {
           <TableCell align="right">{formatMoneda(c.importe)}</TableCell>
         </TableRow>
       ))}
-      <TableRow sx={{ bgcolor: '#f3f4f6' }}>
+      <TableRow sx={{ bgcolor: neutralColors.gray[100] }}>
         <TableCell sx={{ fontWeight: 700 }}>{totalLabel}</TableCell>
         <TableCell align="right" sx={{ fontWeight: 700 }}>{formatMoneda(total)}</TableCell>
       </TableRow>
@@ -223,11 +225,11 @@ export default function EstadoResultadosPage() {
           sx={{
             p: 1.5,
             borderRadius: 2,
-            bgcolor: esUtilidad ? '#ecfdf5' : '#fef2f2',
-            borderColor: esUtilidad ? '#166534' : '#b91c1c',
+            bgcolor: esUtilidad ? accountingColors.favorable.surface : accountingColors.unfavorable.surface,
+            borderColor: esUtilidad ? accountingColors.favorable.border : accountingColors.unfavorable.border,
           }}
         >
-          <Typography sx={{ fontWeight: 700, color: esUtilidad ? '#166534' : '#b91c1c' }}>
+          <Typography sx={{ fontWeight: 700, color: esUtilidad ? accountingColors.favorable.text : accountingColors.unfavorable.text }}>
             {esUtilidad ? 'UTILIDAD' : 'PÉRDIDA'} DEL PERIODO: {formatMoneda(Math.abs(resultado.utilidad_periodo))}
           </Typography>
         </Paper>

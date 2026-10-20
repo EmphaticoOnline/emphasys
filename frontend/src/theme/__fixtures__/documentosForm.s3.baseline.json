@@ -1,0 +1,136 @@
+{
+  "source": "HEAD f2dcd93, DocumentosFormPage subbloque s3",
+  "files": {
+    "pages/DocumentosFormPage.tsx": {
+      "headSha256": "8e04dfe37d626eb26e9bb31a6bd6abc2b9a89cd01ac3612316abbbb19378148d",
+      "addedImports": [],
+      "lines": {
+        "4889": {
+          "original": "                            <Box key={index} sx={{ borderBottom: '1px solid #eef0f4' }}>",
+          "migrated": "                            <Box key={index} sx={{ borderBottom: `1px solid ${neutralColors.steel.dividerSoft}` }}>",
+          "entries": [
+            {
+              "hex": "#eef0f4",
+              "token": "neutralColors.steel.dividerSoft"
+            }
+          ]
+        },
+        "4902": {
+          "original": "                                <Typography sx={{ fontSize: 11, color: '#a6adbd', fontFamily: 'monospace' }}>",
+          "migrated": "                                <Typography sx={{ fontSize: 11, color: neutralColors.steel.dot, fontFamily: 'monospace' }}>",
+          "entries": [
+            {
+              "hex": "#a6adbd",
+              "token": "neutralColors.steel.dot"
+            }
+          ]
+        },
+        "4947": {
+          "original": "                                      <Typography component=\"span\" fontWeight={700} sx={{ fontSize: 12, color: '#111827', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>",
+          "migrated": "                                      <Typography component=\"span\" fontWeight={700} sx={{ fontSize: 12, color: neutralColors.gray[900], whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>",
+          "entries": [
+            {
+              "hex": "#111827",
+              "token": "neutralColors.gray[900]"
+            }
+          ]
+        },
+        "4950": {
+          "original": "                                      <Typography component=\"span\" sx={{ fontSize: 12, color: '#374151', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>",
+          "migrated": "                                      <Typography component=\"span\" sx={{ fontSize: 12, color: neutralColors.gray[700], whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>",
+          "entries": [
+            {
+              "hex": "#374151",
+              "token": "neutralColors.gray[700]"
+            }
+          ]
+        },
+        "5201": {
+          "original": "                                        color: expanded ? 'primary.main' : '#5b6479',",
+          "migrated": "                                        color: expanded ? 'primary.main' : neutralColors.steel.text,",
+          "entries": [
+            {
+              "hex": "#5b6479",
+              "token": "neutralColors.steel.text"
+            }
+          ]
+        },
+        "5202": {
+          "original": "                                        bgcolor: expanded ? '#eef1f8' : 'transparent',",
+          "migrated": "                                        bgcolor: expanded ? neutralColors.steel.hoverAlt : 'transparent',",
+          "entries": [
+            {
+              "hex": "#eef1f8",
+              "token": "neutralColors.steel.hoverAlt"
+            }
+          ]
+        },
+        "5204": {
+          "original": "                                        borderColor: (theme) => (expanded ? theme.emphasys.action.disabled : '#d9dde6'),",
+          "migrated": "                                        borderColor: (theme) => (expanded ? theme.emphasys.action.disabled : neutralColors.steel.panelBorder),",
+          "entries": [
+            {
+              "hex": "#d9dde6",
+              "token": "neutralColors.steel.panelBorder"
+            }
+          ]
+        },
+        "5240": {
+          "original": "                            <Typography sx={{ fontSize: 12, color: '#8b93a7' }}>Agregar partida</Typography>",
+          "migrated": "                            <Typography sx={{ fontSize: 12, color: neutralColors.steel.label }}>Agregar partida</Typography>",
+          "entries": [
+            {
+              "hex": "#8b93a7",
+              "token": "neutralColors.steel.label"
+            }
+          ]
+        },
+        "5257": {
+          "original": "                              <Typography sx={{ fontSize: 11, color: '#a6adbd', fontFamily: 'monospace', flex: '0 0 20px' }}>",
+          "migrated": "                              <Typography sx={{ fontSize: 11, color: neutralColors.steel.dot, fontFamily: 'monospace', flex: '0 0 20px' }}>",
+          "entries": [
+            {
+              "hex": "#a6adbd",
+              "token": "neutralColors.steel.dot"
+            }
+          ]
+        },
+        "5302": {
+          "original": "                                    <Typography component=\"span\" fontWeight={700} sx={{ fontSize: 12, color: '#111827', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>",
+          "migrated": "                                    <Typography component=\"span\" fontWeight={700} sx={{ fontSize: 12, color: neutralColors.gray[900], whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>",
+          "entries": [
+            {
+              "hex": "#111827",
+              "token": "neutralColors.gray[900]"
+            }
+          ]
+        },
+        "5305": {
+          "original": "                                    <Typography component=\"span\" sx={{ fontSize: 12, color: '#374151', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>",
+          "migrated": "                                    <Typography component=\"span\" sx={{ fontSize: 12, color: neutralColors.gray[700], whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>",
+          "entries": [
+            {
+              "hex": "#374151",
+              "token": "neutralColors.gray[700]"
+            }
+          ]
+        },
+        "5486": {
+          "original": "                                <Typography sx={{ fontSize: 10, color: '#8b93a7' }}>Impuestos</Typography>",
+          "migrated": "                                <Typography sx={{ fontSize: 10, color: neutralColors.steel.label }}>Impuestos</Typography>",
+          "entries": [
+            {
+              "hex": "#8b93a7",
+              "token": "neutralColors.steel.label"
+            }
+          ]
+        }
+      },
+      "snippets": {},
+      "keptLiteral": {
+        "#111827": 7,
+        "#374151": 5
+      }
+    }
+  }
+}

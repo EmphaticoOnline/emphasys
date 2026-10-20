@@ -29,6 +29,9 @@ import {
 } from '../../../services/reportesContablesService';
 import type { BalanceGeneralResultado } from '../../../types/reportesContables';
 import { NOMBRES_MESES } from '../../../types/saldosCuentas';
+import { accountingColors } from '../../../theme/functional';
+import { neutralColors } from '../../../theme/structural';
+import { activeBrand } from '../../../theme/brand/active';
 
 function formatMoneda(valor: number): string {
   return valor.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -45,13 +48,13 @@ function SeccionBalance({ titulo, grupos, totalLabel, total }: {
   return (
     <>
       <TableRow>
-        <TableCell colSpan={2} sx={{ bgcolor: '#1d2f68', color: '#fff', fontWeight: 700 }}>{titulo}</TableCell>
+        <TableCell colSpan={2} sx={{ bgcolor: 'primary.main', color: 'common.white', fontWeight: 700 }}>{titulo}</TableCell>
       </TableRow>
       {grupos.map((g) => (
         <React.Fragment key={g.grupo}>
-          <TableRow sx={{ bgcolor: '#eef2ff' }}>
-            <TableCell sx={{ fontWeight: 700, color: '#1d2f68' }}>{g.grupo}</TableCell>
-            <TableCell align="right" sx={{ fontWeight: 700, color: '#1d2f68' }}>{formatMoneda(g.subtotal)}</TableCell>
+          <TableRow sx={{ bgcolor: activeBrand.colors.blue.tint }}>
+            <TableCell sx={{ fontWeight: 700, color: 'primary.main' }}>{g.grupo}</TableCell>
+            <TableCell align="right" sx={{ fontWeight: 700, color: 'primary.main' }}>{formatMoneda(g.subtotal)}</TableCell>
           </TableRow>
           {g.cuentas.map((c) => (
             <TableRow key={c.id} hover>
@@ -61,7 +64,7 @@ function SeccionBalance({ titulo, grupos, totalLabel, total }: {
           ))}
         </React.Fragment>
       ))}
-      <TableRow sx={{ bgcolor: '#f3f4f6' }}>
+      <TableRow sx={{ bgcolor: neutralColors.gray[100] }}>
         <TableCell sx={{ fontWeight: 700 }}>{totalLabel}</TableCell>
         <TableCell align="right" sx={{ fontWeight: 700 }}>{formatMoneda(total)}</TableCell>
       </TableRow>
@@ -198,7 +201,7 @@ export default function BalanceGeneralPage() {
                   <SeccionBalance titulo="ACTIVO" grupos={resultado.activo} totalLabel="TOTAL ACTIVO" total={resultado.total_activo} />
                   <SeccionBalance titulo="PASIVO" grupos={resultado.pasivo} totalLabel="TOTAL PASIVO" total={resultado.total_pasivo} />
                   <SeccionBalance titulo="CAPITAL" grupos={resultado.capital} totalLabel="TOTAL CAPITAL" total={resultado.total_capital} />
-                  <TableRow sx={{ bgcolor: '#e5e7eb' }}>
+                  <TableRow sx={{ bgcolor: neutralColors.gray[200] }}>
                     <TableCell sx={{ fontWeight: 700 }}>TOTAL PASIVO + CAPITAL</TableCell>
                     <TableCell align="right" sx={{ fontWeight: 700 }}>
                       {formatMoneda(resultado.total_pasivo + resultado.total_capital)}
@@ -217,11 +220,11 @@ export default function BalanceGeneralPage() {
           sx={{
             p: 1.5,
             borderRadius: 2,
-            bgcolor: resultado.cuadrado ? '#ecfdf5' : '#fef2f2',
-            borderColor: resultado.cuadrado ? '#166534' : '#b91c1c',
+            bgcolor: resultado.cuadrado ? accountingColors.favorable.surface : accountingColors.unfavorable.surface,
+            borderColor: resultado.cuadrado ? accountingColors.favorable.border : accountingColors.unfavorable.border,
           }}
         >
-          <Typography sx={{ fontWeight: 700, color: resultado.cuadrado ? '#166534' : '#b91c1c' }}>
+          <Typography sx={{ fontWeight: 700, color: resultado.cuadrado ? accountingColors.favorable.text : accountingColors.unfavorable.text }}>
             {resultado.cuadrado ? 'Balance cuadrado' : `Diferencia: ${formatMoneda(resultado.diferencia)}`}
           </Typography>
         </Paper>

@@ -85,6 +85,8 @@ import type {
   WhatsappEtiqueta,
 } from '../../pages/LeadsPage';
 import type { NavigateFunction } from 'react-router-dom';
+import { leadFilterChipColors, onStatusColors, thirdPartyColors } from '../../theme/functional';
+import { overlayColors } from '../../theme/structural';
 
 // SidebarLayout (mobile) envuelve el <Outlet/> en un Box con mt del AppBar
 // pero SIN height propio, así que un simple height: '100%' aquí no tiene
@@ -330,9 +332,9 @@ function renderStatusIcon(status?: 'sending' | 'sent' | 'delivered' | 'read' | '
     case 'sent':
       return <DoneIcon fontSize="small" />;
     case 'delivered':
-      return <DoneAllIcon fontSize="small" sx={{ color: '#9e9e9e' }} />;
+      return <DoneAllIcon fontSize="small" sx={{ color: thirdPartyColors.whatsappDelivered }} />;
     case 'read':
-      return <DoneAllIcon fontSize="small" sx={{ color: '#4fc3f7' }} />;
+      return <DoneAllIcon fontSize="small" sx={{ color: thirdPartyColors.whatsappRead }} />;
     case 'failed':
       return <ErrorOutlineIcon fontSize="small" color="error" />;
     default:
@@ -713,8 +715,8 @@ function MessageBubble({
             }}
             sx={{
               borderLeft: '3px solid',
-              borderColor: (theme) => isMine ? 'rgba(255,255,255,0.6)' : theme.emphasys.action.info,
-              bgcolor: isMine ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.04)',
+              borderColor: (theme) => isMine ? overlayColors.chat.ownBubbleBorder : theme.emphasys.action.info,
+              bgcolor: isMine ? overlayColors.chat.ownBubbleSurface : overlayColors.chat.otherBubbleSurface,
               borderRadius: 1,
               px: 1,
               py: 0.5,
@@ -1976,9 +1978,9 @@ export default function LeadsMobileView(props: LeadsMobileViewProps) {
                   onClick={() => setWhatsappWindowFilter(opt.key)}
                   sx={{
                     fontWeight: 700,
-                    color: whatsappWindowFilter === opt.key ? '#ffffff' : '#0f766e',
-                    backgroundColor: whatsappWindowFilter === opt.key ? '#0f766e' : '#f0fdfa',
-                    borderColor: '#99f6e4',
+                    color: whatsappWindowFilter === opt.key ? onStatusColors.leadFilterChip : leadFilterChipColors.foreground,
+                    backgroundColor: whatsappWindowFilter === opt.key ? leadFilterChipColors.activeBackground : leadFilterChipColors.surface,
+                    borderColor: leadFilterChipColors.border,
                   }}
                 />
               ))}
@@ -2006,9 +2008,9 @@ export default function LeadsMobileView(props: LeadsMobileViewProps) {
                   onClick={() => setOpportunityFilter(opt.key)}
                   sx={{
                     fontWeight: 700,
-                    color: opportunityFilter === opt.key ? '#ffffff' : '#0f766e',
-                    backgroundColor: opportunityFilter === opt.key ? '#0f766e' : '#f0fdfa',
-                    borderColor: '#99f6e4',
+                    color: opportunityFilter === opt.key ? onStatusColors.leadFilterChip : leadFilterChipColors.foreground,
+                    backgroundColor: opportunityFilter === opt.key ? leadFilterChipColors.activeBackground : leadFilterChipColors.surface,
+                    borderColor: leadFilterChipColors.border,
                   }}
                 />
               ))}
@@ -2017,7 +2019,7 @@ export default function LeadsMobileView(props: LeadsMobileViewProps) {
                 onClick={() => setVistaFinalizadas((prev) => !prev)}
                 sx={{
                   fontWeight: 700,
-                  color: vistaFinalizadas ? '#ffffff' : 'text.secondary',
+                  color: vistaFinalizadas ? onStatusColors.leadViewToggle : 'text.secondary',
                   backgroundColor: vistaFinalizadas ? 'text.secondary' : 'transparent',
                   border: '1px solid',
                   borderColor: 'divider',
@@ -2092,7 +2094,7 @@ export default function LeadsMobileView(props: LeadsMobileViewProps) {
                           {lead.lastMessage || 'Sin mensajes'}
                         </Typography>
                         {lead.unreadCount && lead.unreadCount > 0 ? (
-                          <Box sx={{ minWidth: 20, height: 20, px: 0.5, flexShrink: 0, borderRadius: '50%', bgcolor: '#25D366', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700 }}>{lead.unreadCount}</Box>
+                          <Box sx={{ minWidth: 20, height: 20, px: 0.5, flexShrink: 0, borderRadius: '50%', bgcolor: thirdPartyColors.whatsapp, color: onStatusColors.whatsapp, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700 }}>{lead.unreadCount}</Box>
                         ) : null}
                       </Stack>
                       {/* Línea 3 (secundaria, compacta): señal de atención

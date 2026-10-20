@@ -47,6 +47,8 @@ import {
   roundMoney,
   sugerirAplicacion,
 } from './aplicarSaldoNotaCredito.logic';
+import { alertColors, alertTints } from '../../theme/functional';
+import { neutralColors, whiteSurfaces } from '../../theme/structural';
 
 const headSx = {
   fontSize: 10,
@@ -106,10 +108,10 @@ function parseNumero(raw: string): number | null {
 }
 
 function CifraOperacion({ label, value, tono }: { label: string; value: string; tono: 'base' | 'activa' | 'vacia' | 'alerta' }) {
-  const color = tono === 'alerta' ? '#9a3412' : tono === 'activa' ? 'primary.main' : tono === 'vacia' ? '#94a3b8' : '#334155';
+  const color = tono === 'alerta' ? alertColors.caution[800] : tono === 'activa' ? 'primary.main' : tono === 'vacia' ? neutralColors.slate[400] : neutralColors.slate[700];
   return (
     <Box sx={{ flex: '1 1 0', minWidth: 0, px: { xs: 1.25, sm: 1.75 }, py: 1.15 }}>
-      <Typography sx={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: '#8b93a7', lineHeight: 1 }}>
+      <Typography sx={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: neutralColors.steel.label, lineHeight: 1 }}>
         {label}
       </Typography>
       <Typography noWrap sx={{ mt: 0.55, fontSize: 16, fontWeight: 700, color, fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.01em', lineHeight: 1.15 }}>
@@ -163,18 +165,18 @@ function CapturaImporte({
       inputProps={{ 'aria-label': ariaLabel, inputMode: 'decimal' }}
       InputProps={{
         startAdornment: (
-          <Box component="span" sx={{ fontSize: 12, fontWeight: 700, color: activo ? 'primary.main' : '#94a3b8', pl: 0.5 }}>$</Box>
+          <Box component="span" sx={{ fontSize: 12, fontWeight: 700, color: activo ? 'primary.main' : neutralColors.slate[400], pl: 0.5 }}>$</Box>
         ),
       }}
       sx={{
         width: 112,
         '& .MuiOutlinedInput-root': {
           height: 28,
-          bgcolor: '#fff',
+          bgcolor: whiteSurfaces.panel,
           borderRadius: '6px',
-          '& fieldset': { borderColor: invalido ? '#d97706' : activo ? 'primary.main' : '#d5dce6' },
-          '&:hover fieldset': { borderColor: invalido ? '#d97706' : 'primary.main' },
-          '&.Mui-focused fieldset': { borderWidth: 1.5, borderColor: invalido ? '#d97706' : 'primary.main' },
+          '& fieldset': { borderColor: invalido ? alertColors.warning[600] : activo ? 'primary.main' : neutralColors.steel.fieldBorder },
+          '&:hover fieldset': { borderColor: invalido ? alertColors.warning[600] : 'primary.main' },
+          '&.Mui-focused fieldset': { borderWidth: 1.5, borderColor: invalido ? alertColors.warning[600] : 'primary.main' },
         },
         '& .MuiOutlinedInput-input': {
           py: 0,
@@ -182,9 +184,9 @@ function CapturaImporte({
           textAlign: 'right',
           fontWeight: 700,
           fontSize: 13,
-          color: invalido ? '#9a3412' : activo ? 'primary.main' : '#64748b',
+          color: invalido ? alertColors.caution[800] : activo ? 'primary.main' : neutralColors.slate[500],
           fontVariantNumeric: 'tabular-nums',
-          '&::placeholder': { color: '#c5cdd8', opacity: 1, fontWeight: 600 },
+          '&::placeholder': { color: neutralColors.steel.placeholder, opacity: 1, fontWeight: 600 },
         },
       }}
     />
@@ -445,9 +447,9 @@ export function AplicarSaldoNotaCreditoDialog({
             <Typography sx={{ fontSize: 16, fontWeight: 700, color: 'primary.main', lineHeight: 1.2 }}>
               Aplicar saldo
             </Typography>
-            <Typography noWrap sx={{ mt: 0.45, fontSize: 13, fontWeight: 500, color: '#475569', lineHeight: 1.3 }}>
+            <Typography noWrap sx={{ mt: 0.45, fontSize: 13, fontWeight: 500, color: neutralColors.slate[600], lineHeight: 1.3 }}>
               {folio || `#${documentoId}`}
-              <Box component="span" sx={{ mx: 0.75, color: '#cbd5e1' }}>·</Box>
+              <Box component="span" sx={{ mx: 0.75, color: neutralColors.slate[300] }}>·</Box>
               {clienteNombre || 'Sin cliente'}
             </Typography>
           </Box>
@@ -461,20 +463,20 @@ export function AplicarSaldoNotaCreditoDialog({
           sx={{
             display: 'flex',
             alignItems: 'stretch',
-            border: '1px solid #e5eaf1',
+            border: `1px solid ${neutralColors.steel.divider}`,
             borderRadius: 1.5,
-            bgcolor: '#f8fafc',
+            bgcolor: neutralColors.slate[50],
             overflow: 'hidden',
           }}
         >
           <CifraOperacion label="Disponible" value={formatter.format(saldoOperable)} tono="base" />
-          <Box sx={{ width: '1px', bgcolor: '#e5eaf1', my: 1.15 }} />
+          <Box sx={{ width: '1px', bgcolor: neutralColors.steel.divider, my: 1.15 }} />
           <CifraOperacion
             label="A aplicar"
             value={formatter.format(resumen.totalAplicar)}
             tono={resumen.totalAplicar > 0 ? 'activa' : 'vacia'}
           />
-          <Box sx={{ width: '1px', bgcolor: '#e5eaf1', my: 1.15 }} />
+          <Box sx={{ width: '1px', bgcolor: neutralColors.steel.divider, my: 1.15 }} />
           <CifraOperacion
             label="Restante"
             value={formatter.format(resumen.saldoRestante)}
@@ -483,9 +485,9 @@ export function AplicarSaldoNotaCreditoDialog({
         </Box>}
 
         {aplicacionesPrevias.length > 0 && (
-          <Box sx={{ border: '1px solid #e5eaf1', borderRadius: 1.5, overflow: 'hidden' }}>
-            <Box sx={{ px: 1.5, py: 0.7, bgcolor: '#f8fafc', borderBottom: '1px solid #e5eaf1' }}>
-              <Typography sx={{ fontSize: 12, fontWeight: 600, color: '#64748b' }}>
+          <Box sx={{ border: `1px solid ${neutralColors.steel.divider}`, borderRadius: 1.5, overflow: 'hidden' }}>
+            <Box sx={{ px: 1.5, py: 0.7, bgcolor: neutralColors.slate[50], borderBottom: `1px solid ${neutralColors.steel.divider}` }}>
+              <Typography sx={{ fontSize: 12, fontWeight: 600, color: neutralColors.slate[500] }}>
                 Aplicaciones previas · {formatter.format(yaAplicadoVisible)} de {formatter.format(totalNota)}
               </Typography>
             </Box>
@@ -496,12 +498,12 @@ export function AplicarSaldoNotaCreditoDialog({
                     const folioFactura = formatearFolioDocumento(item.serie || '', item.numero || 0) || 'Factura';
                     const marcada = pendientesQuitar.has(item.id);
                     return (
-                      <TableRow key={item.id} sx={{ bgcolor: marcada ? '#f8fafc' : '#fff' }}>
-                        <TableCell sx={{ ...cellSx, color: marcada ? '#94a3b8' : '#334155', textDecoration: marcada ? 'line-through' : 'none' }}>{folioFactura}</TableCell>
-                        <TableCell sx={{ ...cellSx, color: marcada ? '#b45309' : '#64748b', fontWeight: marcada ? 700 : 500 }}>
+                      <TableRow key={item.id} sx={{ bgcolor: marcada ? neutralColors.slate[50] : whiteSurfaces.tableRow }}>
+                        <TableCell sx={{ ...cellSx, color: marcada ? neutralColors.slate[400] : neutralColors.slate[700], textDecoration: marcada ? 'line-through' : 'none' }}>{folioFactura}</TableCell>
+                        <TableCell sx={{ ...cellSx, color: marcada ? alertColors.warning[700] : neutralColors.slate[500], fontWeight: marcada ? 700 : 500 }}>
                           {marcada ? 'Se quitará al guardar' : formatDateShort(item.fecha_aplicacion || item.fecha_documento)}
                         </TableCell>
-                        <TableCell align="right" sx={{ ...cellSx, fontWeight: 700, color: marcada ? '#94a3b8' : '#334155', textDecoration: marcada ? 'line-through' : 'none' }}>{formatter.format(Number(item.monto_moneda_documento || item.monto || 0))}</TableCell>
+                        <TableCell align="right" sx={{ ...cellSx, fontWeight: 700, color: marcada ? neutralColors.slate[400] : neutralColors.slate[700], textDecoration: marcada ? 'line-through' : 'none' }}>{formatter.format(Number(item.monto_moneda_documento || item.monto || 0))}</TableCell>
                         <TableCell align="right" sx={{ ...cellSx, width: 44, px: 0.5, py: 0.15 }}>
                           <Tooltip title={marcada ? 'Conservar aplicación' : 'Desaplicar saldo'}>
                             <span>
@@ -513,8 +515,8 @@ export function AplicarSaldoNotaCreditoDialog({
                                 sx={{
                                   width: 28,
                                   height: 28,
-                                  color: marcada ? '#475569' : '#dc2626',
-                                  '&:hover': { color: marcada ? 'primary.main' : '#b91c1c', bgcolor: marcada ? (theme: Theme) => theme.emphasys.action.hoverTint : 'rgba(220, 38, 38, 0.08)' },
+                                  color: marcada ? neutralColors.slate[600] : alertColors.error[600],
+                                  '&:hover': { color: marcada ? 'primary.main' : alertColors.error[700], bgcolor: marcada ? (theme: Theme) => theme.emphasys.action.hoverTint : alertTints.errorHover },
                                 }}
                               >
                                 {marcada
@@ -542,7 +544,7 @@ export function AplicarSaldoNotaCreditoDialog({
             <Typography variant="body2" color="text.secondary">Cargando facturas pendientes…</Typography>
           </Stack>
         ) : cargaFallida ? null : (
-          <Box sx={{ border: '1px solid #e5eaf1', borderRadius: 1.5, overflow: 'auto', maxHeight: { xs: 'calc(100vh - 292px)', sm: 'min(460px, calc(100vh - 292px))' } }}>
+          <Box sx={{ border: `1px solid ${neutralColors.steel.divider}`, borderRadius: 1.5, overflow: 'auto', maxHeight: { xs: 'calc(100vh - 292px)', sm: 'min(460px, calc(100vh - 292px))' } }}>
             <Table size="small" stickyHeader>
               <TableHead>
                 <TableRow>
@@ -556,7 +558,7 @@ export function AplicarSaldoNotaCreditoDialog({
               <TableBody>
                 {facturasOperables.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={5} sx={{ ...cellSx, py: 3, textAlign: 'center', color: '#64748b' }}>
+                    <TableCell colSpan={5} sx={{ ...cellSx, py: 3, textAlign: 'center', color: neutralColors.slate[500] }}>
                       No hay facturas pendientes de este cliente en {moneda}.
                     </TableCell>
                   </TableRow>
@@ -566,10 +568,10 @@ export function AplicarSaldoNotaCreditoDialog({
                   const aplicar = Number(montos[factura.id] ?? 0);
                   const excede = aplicar - Number(factura.saldo ?? 0) > 0.000001;
                   return (
-                    <TableRow key={factura.id} sx={{ bgcolor: index % 2 === 0 ? '#fff' : '#f4f6f8' }}>
+                    <TableRow key={factura.id} sx={{ bgcolor: index % 2 === 0 ? whiteSurfaces.tableRow : neutralColors.steel.stripe }}>
                       <TableCell sx={{ ...cellSx, fontWeight: 700, color: 'primary.main' }}>{folioFactura}</TableCell>
-                      <TableCell sx={{ ...cellSx, color: '#64748b' }}>{formatDateShort(factura.fecha)}</TableCell>
-                      <TableCell align="right" sx={{ ...cellSx, color: '#475569' }}>{formatter.format(Number(factura.monto || 0))}</TableCell>
+                      <TableCell sx={{ ...cellSx, color: neutralColors.slate[500] }}>{formatDateShort(factura.fecha)}</TableCell>
+                      <TableCell align="right" sx={{ ...cellSx, color: neutralColors.slate[600] }}>{formatter.format(Number(factura.monto || 0))}</TableCell>
                       <TableCell align="right" sx={cellSx}>
                         <Box
                           component="button"
@@ -593,7 +595,7 @@ export function AplicarSaldoNotaCreditoDialog({
                             textAlign: 'right',
                             fontVariantNumeric: 'tabular-nums',
                             '&:hover': { textDecoration: 'underline' },
-                            '&:disabled': { color: '#94a3b8', cursor: 'default', textDecoration: 'none' },
+                            '&:disabled': { color: neutralColors.slate[400], cursor: 'default', textDecoration: 'none' },
                           }}
                         >
                           {formatter.format(Number(factura.saldo || 0))}
@@ -620,14 +622,14 @@ export function AplicarSaldoNotaCreditoDialog({
         sx={{
           px: 2.5,
           py: 1.25,
-          borderTop: '1px solid #e5eaf1',
+          borderTop: `1px solid ${neutralColors.steel.divider}`,
           display: 'flex',
           justifyContent: 'flex-end',
           gap: 1,
-          bgcolor: '#fff',
+          bgcolor: whiteSurfaces.panel,
         }}
       >
-        <Button onClick={onClose} disabled={guardando} sx={{ textTransform: 'none', fontWeight: 700, color: '#475569' }}>
+        <Button onClick={onClose} disabled={guardando} sx={{ textTransform: 'none', fontWeight: 700, color: neutralColors.slate[600] }}>
           Cancelar
         </Button>
         <Button
@@ -645,7 +647,7 @@ export function AplicarSaldoNotaCreditoDialog({
         Quitar aplicación
       </DialogTitle>
       <DialogContent>
-        <Typography sx={{ fontSize: 14, fontWeight: 500, color: '#334155', lineHeight: 1.5 }}>
+        <Typography sx={{ fontSize: 14, fontWeight: 500, color: neutralColors.slate[700], lineHeight: 1.5 }}>
           ¿Quitar la aplicación de {confirmacionImporte} a la factura {confirmacionFolio}? La nota de crédito y la factura se conservan. El cambio queda pendiente hasta Guardar.
         </Typography>
         <FormControlLabel
@@ -659,20 +661,20 @@ export function AplicarSaldoNotaCreditoDialog({
             />
           )}
           label={(
-            <Typography sx={{ fontSize: 13, fontWeight: 500, color: '#475569' }}>
+            <Typography sx={{ fontSize: 13, fontWeight: 500, color: neutralColors.slate[600] }}>
               No volver a mostrar esta ventana
             </Typography>
           )}
         />
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2, pt: 0.5, gap: 1 }}>
-        <Button onClick={rechazarQuitar} sx={{ textTransform: 'none', fontWeight: 700, color: '#475569' }}>
+        <Button onClick={rechazarQuitar} sx={{ textTransform: 'none', fontWeight: 700, color: neutralColors.slate[600] }}>
           No quitar aplicación
         </Button>
         <Button
           variant="contained"
           onClick={aceptarQuitar}
-          sx={{ textTransform: 'none', fontWeight: 700, bgcolor: '#dc2626', boxShadow: 'none', '&:hover': { bgcolor: '#b91c1c' } }}
+          sx={{ textTransform: 'none', fontWeight: 700, bgcolor: alertColors.error[600], boxShadow: 'none', '&:hover': { bgcolor: alertColors.error[700] } }}
         >
           Quitar aplicación
         </Button>

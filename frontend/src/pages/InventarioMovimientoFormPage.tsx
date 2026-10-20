@@ -27,6 +27,7 @@ import type { Contacto } from '../types/contactos.types';
 import type { Almacen, CrearMovimientoManualPayload, MovimientoPartidaPayload } from '../types/inventario';
 import InventarioMovimientoErrorDialog, { type InventarioMovimientoError } from '../components/inventario/InventarioMovimientoErrorDialog';
 import type { ApiFetchError } from '../services/apiFetch';
+import { amountSignColor, inflowColor, outflowColor } from '../theme/sign';
 
 type TipoMovimiento = 'entrada' | 'salida' | 'transferencia';
 
@@ -876,14 +877,14 @@ const ENCABEZADO_COMPACTO = 1240;
 
 function colorSentido(theme: Theme, tipo: TipoMovimiento) {
   const m = theme.emphasys.metric;
-  if (tipo === 'entrada') return { bg: m.applied.background, fg: m.applied.foreground };
-  if (tipo === 'salida') return { bg: m.blocked.background, fg: theme.emphasys.action.destructive };
+  if (tipo === 'entrada') return { bg: m.applied.background, fg: inflowColor(theme.emphasys) };
+  if (tipo === 'salida') return { bg: m.blocked.background, fg: outflowColor(theme.emphasys) };
   return { bg: m.available.background, fg: m.available.foreground };
 }
 
 function colorCantidad(theme: Theme, tipo: TipoMovimiento) {
-  if (tipo === 'entrada') return theme.emphasys.metric.applied.foreground;
-  if (tipo === 'salida') return theme.emphasys.action.destructive;
+  if (tipo === 'entrada') return inflowColor(theme.emphasys);
+  if (tipo === 'salida') return outflowColor(theme.emphasys);
   return theme.emphasys.grid.header;
 }
 
@@ -1494,7 +1495,7 @@ function ResumenOperativo({
             {efecto.map((a) => (
               <Box key={a.id} sx={{ display: 'grid', gridTemplateColumns: '1fr auto', columnGap: 1.25, rowGap: '2px' }}>
                 <Typography sx={(theme) => ({ fontSize: 13, color: theme.emphasys.content.secondary, minWidth: 0, overflowWrap: 'anywhere' })}>{a.nombre}</Typography>
-                <Typography sx={(theme) => ({ fontSize: 13, fontWeight: 600, textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: a.unidades >= 0 ? theme.emphasys.metric.applied.foreground : theme.emphasys.action.destructive })}>
+                <Typography sx={(theme) => ({ fontSize: 13, fontWeight: 600, textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: a.unidades >= 0 ? amountSignColor(theme.emphasys, 'positive') : amountSignColor(theme.emphasys, 'negative') })}>
                   {formatearUnidades(a.unidades, decimalesCantidad)} u
                 </Typography>
                 <Typography sx={(theme) => ({ gridColumn: '1 / -1', fontSize: 11, color: theme.emphasys.table.muted })}>

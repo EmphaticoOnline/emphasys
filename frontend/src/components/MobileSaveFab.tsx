@@ -1,5 +1,6 @@
 import { Box, CircularProgress, Fab } from '@mui/material';
 import SaveIcon from '@mui/icons-material/Save';
+import { brandElevation } from '../theme/elevation';
 
 type MobileSaveFabProps = {
   loading: boolean;
@@ -37,7 +38,7 @@ export default function MobileSaveFab({
         sx={(theme) => ({
           backgroundColor: theme.emphasys.action.primary,
           color: theme.emphasys.action.primaryForeground,
-          boxShadow: '0 16px 40px rgba(44, 49, 56, 0.18)',
+          boxShadow: brandElevation.floating,
           '&:hover': { backgroundColor: theme.emphasys.action.primaryHover },
         })}
       >

@@ -59,6 +59,11 @@ import { useGridPreferences } from '../hooks/useGridPreferences';
 import { useSeguimientoActividades } from '../hooks/useSeguimientoActividades';
 import ActividadSeguimientoDrawer from '../components/crm/ActividadSeguimientoDrawer';
 import { SeguimientoActividadCell } from '../components/crm/SeguimientoActividadCell';
+import { alertColors, crmAccents, opportunityBucketColors } from '../theme/functional';
+import { neutralColors, onPrimaryColors, overlayColors, whiteSurfaces } from '../theme/structural';
+import { activeBrand } from '../theme/brand/active';
+import { brandElevation, elevation, surfaceGradients } from '../theme/elevation';
+import { brandTints } from '../theme/tints';
 
 dayjs.locale('es');
 
@@ -321,19 +326,19 @@ function getStatusPresentation(estatus: string) {
   const normalized = normalizeStatus(estatus);
 
   if (normalized === 'convertida') {
-    return { label: OPORTUNIDAD_STATUS_LABELS.convertida, backgroundColor: '#dcfce7', textColor: '#166534', borderColor: '#86efac' };
+    return { label: OPORTUNIDAD_STATUS_LABELS.convertida, backgroundColor: alertColors.success[100], textColor: alertColors.success[800], borderColor: alertColors.success[300] };
   }
   if (normalized === 'perdida') {
-    return { label: OPORTUNIDAD_STATUS_LABELS.perdida, backgroundColor: '#fee2e2', textColor: '#b91c1c', borderColor: '#fecaca' };
+    return { label: OPORTUNIDAD_STATUS_LABELS.perdida, backgroundColor: alertColors.error[100], textColor: alertColors.error[700], borderColor: alertColors.error[200] };
   }
   if (normalized === 'pausada') {
-    return { label: OPORTUNIDAD_STATUS_LABELS.pausada, backgroundColor: '#ffedd5', textColor: '#c2410c', borderColor: '#fdba74' };
+    return { label: OPORTUNIDAD_STATUS_LABELS.pausada, backgroundColor: alertColors.caution[100], textColor: alertColors.caution[700], borderColor: alertColors.caution[300] };
   }
   if (normalized === 'cancelada') {
-    return { label: OPORTUNIDAD_STATUS_LABELS.cancelada, backgroundColor: '#f1f5f9', textColor: '#475569', borderColor: '#cbd5e1' };
+    return { label: OPORTUNIDAD_STATUS_LABELS.cancelada, backgroundColor: neutralColors.slate[100], textColor: neutralColors.slate[600], borderColor: neutralColors.slate[300] };
   }
 
-  return { label: OPORTUNIDAD_STATUS_LABELS.abierta, backgroundColor: '#eff6ff', textColor: '#1e40af', borderColor: '#bfdbfe' };
+  return { label: OPORTUNIDAD_STATUS_LABELS.abierta, backgroundColor: alertColors.info[50], textColor: alertColors.info[800], borderColor: alertColors.info[200] };
 }
 
 // Tipografía/proporciones compartida por los chips de "Estatus" y "Seguimiento",
@@ -357,11 +362,11 @@ function getStatusChipColor(estatus: string): 'primary' | 'warning' | 'success' 
 
 function getStatusIndicatorColor(estatus: string): string {
   const bucket = getQuickBucket(estatus);
-  if (bucket === 'convertidas') return '#2e7d32';
-  if (bucket === 'perdidas') return '#d32f2f';
-  if (bucket === 'pausadas') return '#ed6c02';
-  if (bucket === 'abiertas') return '#1976d2';
-  return '#94a3b8';
+  if (bucket === 'convertidas') return opportunityBucketColors.convertidas;
+  if (bucket === 'perdidas') return opportunityBucketColors.perdidas;
+  if (bucket === 'pausadas') return opportunityBucketColors.pausadas;
+  if (bucket === 'abiertas') return opportunityBucketColors.abiertas;
+  return neutralColors.slate[400];
 }
 
 function getAllowedTransitions(currentStatus: string, row: Oportunidad): OportunidadStatus[] {
@@ -1164,7 +1169,7 @@ export default function OportunidadesPage() {
       headerAlign: 'right',
       renderCell: (params: GridRenderCellParams<Oportunidad, number>) => (
         <Box sx={{ width: '100%', textAlign: 'right' }}>
-          <Typography variant="body2" fontWeight={700} sx={{ fontSize: 14.5, color: '#0f766e' }}>
+          <Typography variant="body2" fontWeight={700} sx={{ fontSize: 14.5, color: crmAccents.amount }}>
             {currencyFormatter.format(Number(params.value ?? 0))}
           </Typography>
         </Box>
@@ -1197,7 +1202,7 @@ export default function OportunidadesPage() {
           sx={{ width: '100%', justifyContent: 'flex-start', borderRadius: 1, px: 0.5, py: 0.25 }}
         >
           <Stack direction="row" spacing={0.75} alignItems="center" sx={{ minWidth: 0 }}>
-            {savingOperacionId === params.row.id ? <CircularProgress size={14} /> : <EditCalendarOutlinedIcon sx={{ fontSize: 16, color: '#64748b' }} />}
+            {savingOperacionId === params.row.id ? <CircularProgress size={14} /> : <EditCalendarOutlinedIcon sx={{ fontSize: 16, color: neutralColors.slate[500] }} />}
             <Typography variant="body2" sx={{ fontSize: 14.5 }}>
               {formatDate(params.value || '')}
             </Typography>
@@ -1217,7 +1222,7 @@ export default function OportunidadesPage() {
 
         if (!isPausada) {
           return (
-            <Typography variant="body2" sx={{ fontSize: 13.5, color: '#94a3b8' }}>
+            <Typography variant="body2" sx={{ fontSize: 13.5, color: neutralColors.slate[400] }}>
               No aplica
             </Typography>
           );
@@ -1230,7 +1235,7 @@ export default function OportunidadesPage() {
             sx={{ width: '100%', justifyContent: 'flex-start', borderRadius: 1, px: 0.5, py: 0.25 }}
           >
             <Stack direction="row" spacing={0.75} alignItems="center" sx={{ minWidth: 0 }}>
-              {savingOperacionId === params.row.id ? <CircularProgress size={14} /> : <EditCalendarOutlinedIcon sx={{ fontSize: 16, color: '#c2410c' }} />}
+              {savingOperacionId === params.row.id ? <CircularProgress size={14} /> : <EditCalendarOutlinedIcon sx={{ fontSize: 16, color: alertColors.caution[700] }} />}
               <Typography variant="body2" sx={{ fontSize: 14.5 }}>
                 {formatDate(params.value || '')}
               </Typography>
@@ -1266,8 +1271,8 @@ export default function OportunidadesPage() {
           sx={{ width: '100%', justifyContent: 'flex-start', borderRadius: 1, px: 0.5, py: 0.25 }}
         >
           <Stack direction="row" spacing={0.75} alignItems="center">
-            {savingOperacionId === params.row.id ? <CircularProgress size={14} /> : <EditNoteOutlinedIcon sx={{ fontSize: 16, color: '#64748b' }} />}
-            <Typography variant="body2" sx={{ fontSize: 13.5, color: params.row.observaciones ? '#0f172a' : '#94a3b8' }}>
+            {savingOperacionId === params.row.id ? <CircularProgress size={14} /> : <EditNoteOutlinedIcon sx={{ fontSize: 16, color: neutralColors.slate[500] }} />}
+            <Typography variant="body2" sx={{ fontSize: 13.5, color: params.row.observaciones ? neutralColors.slate[900] : neutralColors.slate[400] }}>
               {params.row.observaciones ? 'Editar nota' : 'Agregar nota'}
             </Typography>
           </Stack>
@@ -1358,18 +1363,18 @@ export default function OportunidadesPage() {
     <Container maxWidth={false} sx={{ py: 2 }}>
       <Stack spacing={2}>
         {loading ? (
-          <Paper variant="outlined" sx={{ p: 4, borderRadius: 2, borderColor: '#dbe3ee' }}>
+          <Paper variant="outlined" sx={{ p: 4, borderRadius: 2, borderColor: neutralColors.steel.cardBorder }}>
             <Stack spacing={1.5} alignItems="center" justifyContent="center">
               <CircularProgress size={30} />
-              <Typography sx={{ color: '#475569' }}>Cargando oportunidades...</Typography>
+              <Typography sx={{ color: neutralColors.slate[600] }}>Cargando oportunidades...</Typography>
             </Stack>
           </Paper>
         ) : null}
 
         {!loading && error ? (
-          <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, borderColor: '#fecaca', backgroundColor: '#fef2f2' }}>
-            <Typography sx={{ color: '#b91c1c', fontWeight: 600 }}>No se pudieron cargar las oportunidades.</Typography>
-            <Typography sx={{ color: '#7f1d1d', mt: 0.5 }}>{error}</Typography>
+          <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, borderColor: alertColors.error[200], backgroundColor: alertColors.error[50] }}>
+            <Typography sx={{ color: alertColors.error[700], fontWeight: 600 }}>No se pudieron cargar las oportunidades.</Typography>
+            <Typography sx={{ color: alertColors.error[900], mt: 0.5 }}>{error}</Typography>
           </Paper>
         ) : null}
 
@@ -1395,60 +1400,60 @@ export default function OportunidadesPage() {
                       label: 'Pipeline extendido',
                       monto: currencyFormatter.format(totals.pipelineExtendido.monto),
                       count: totals.pipelineExtendido.cantidad,
-                      backgroundColor: '#eff6ff',
-                      borderColor: '#bfdbfe',
-                      labelColor: '#1d4ed8',
-                      amountColor: '#1e3a8a',
+                      backgroundColor: alertColors.info[50],
+                      borderColor: alertColors.info[200],
+                      labelColor: alertColors.info[700],
+                      amountColor: alertColors.info[900],
                     },
                     {
                       value: 'abiertas' as const,
                       label: 'Abiertas',
                       monto: currencyFormatter.format(totals.abiertas.monto),
                       count: totals.abiertas.cantidad,
-                      backgroundColor: '#f8fafc',
-                      borderColor: '#cbd5e1',
-                      labelColor: '#475569',
-                      amountColor: '#1e40af',
+                      backgroundColor: neutralColors.slate[50],
+                      borderColor: neutralColors.slate[300],
+                      labelColor: neutralColors.slate[600],
+                      amountColor: alertColors.info[800],
                     },
                     {
                       value: 'pausadas' as const,
                       label: 'Pausadas',
                       monto: currencyFormatter.format(totals.pausadas.monto),
                       count: totals.pausadas.cantidad,
-                      backgroundColor: '#fff7ed',
-                      borderColor: '#fdba74',
-                      labelColor: '#c2410c',
-                      amountColor: '#9a3412',
+                      backgroundColor: alertColors.caution[50],
+                      borderColor: alertColors.caution[300],
+                      labelColor: alertColors.caution[700],
+                      amountColor: alertColors.caution[800],
                     },
                     {
                       value: 'convertidas' as const,
                       label: 'Convertidas',
                       monto: currencyFormatter.format(totals.convertidas.monto),
                       count: totals.convertidas.cantidad,
-                      backgroundColor: '#ecfdf5',
-                      borderColor: '#a7f3d0',
-                      labelColor: '#047857',
-                      amountColor: '#065f46',
+                      backgroundColor: alertColors.positive[50],
+                      borderColor: alertColors.positive[200],
+                      labelColor: alertColors.positive[700],
+                      amountColor: alertColors.positive[800],
                     },
                     {
                       value: 'perdidas' as const,
                       label: 'Perdidas',
                       monto: currencyFormatter.format(totals.perdidas.monto),
                       count: totals.perdidas.cantidad,
-                      backgroundColor: '#fef2f2',
-                      borderColor: '#fecaca',
-                      labelColor: '#b91c1c',
-                      amountColor: '#991b1b',
+                      backgroundColor: alertColors.error[50],
+                      borderColor: alertColors.error[200],
+                      labelColor: alertColors.error[700],
+                      amountColor: alertColors.error[800],
                     },
                     {
                       value: 'canceladas' as const,
                       label: 'Canceladas',
                       monto: currencyFormatter.format(totals.canceladas.monto),
                       count: totals.canceladas.cantidad,
-                      backgroundColor: '#f8fafc',
-                      borderColor: '#cbd5e1',
-                      labelColor: '#64748b',
-                      amountColor: '#334155',
+                      backgroundColor: neutralColors.slate[50],
+                      borderColor: neutralColors.slate[300],
+                      labelColor: neutralColors.slate[500],
+                      amountColor: neutralColors.slate[700],
                     },
                   ].map((item) => (
                     <Box
@@ -1463,7 +1468,7 @@ export default function OportunidadesPage() {
                         px: 0.75,
                         py: 0.3,
                         background: item.backgroundColor,
-                        boxShadow: filtroEstatus === item.value ? `0 0 0 1px ${item.labelColor} inset, 0 8px 18px rgba(15, 23, 42, 0.08)` : 'none',
+                        boxShadow: filtroEstatus === item.value ? `0 0 0 1px ${item.labelColor} inset, ${elevation.statusCard}` : 'none',
                         transform: filtroEstatus === item.value ? 'translateY(-1px)' : 'none',
                         textAlign: 'left',
                         cursor: 'pointer',
@@ -1473,7 +1478,7 @@ export default function OportunidadesPage() {
                         minWidth: 0,
                         '&:hover': {
                           borderColor: item.labelColor,
-                          boxShadow: `0 0 0 1px ${item.labelColor} inset, 0 8px 18px rgba(15, 23, 42, 0.06)`,
+                          boxShadow: `0 0 0 1px ${item.labelColor} inset, ${elevation.statusCardRest}`,
                         },
                       }}
                     >
@@ -1506,10 +1511,10 @@ export default function OportunidadesPage() {
                           ? '—'
                           : percentFormatter.format(commercialSummary.tasaCierre),
                       helper: 'basado en cierres',
-                      backgroundColor: '#fcfdff',
-                      borderColor: '#e2e8f0',
-                      labelColor: '#64748b',
-                      valueColor: '#0f172a',
+                      backgroundColor: neutralColors.steel.surfaceRaised,
+                      borderColor: neutralColors.slate[200],
+                      labelColor: neutralColors.slate[500],
+                      valueColor: neutralColors.slate[900],
                     },
                     {
                       label: 'Conversion $',
@@ -1518,28 +1523,28 @@ export default function OportunidadesPage() {
                           ? '—'
                           : percentFormatter.format(commercialSummary.conversionMonetaria),
                       helper: 'convertidas vs perdidas',
-                      backgroundColor: '#fcfdff',
-                      borderColor: '#e2e8f0',
-                      labelColor: '#64748b',
-                      valueColor: '#0f172a',
+                      backgroundColor: neutralColors.steel.surfaceRaised,
+                      borderColor: neutralColors.slate[200],
+                      labelColor: neutralColors.slate[500],
+                      valueColor: neutralColors.slate[900],
                     },
                     {
                       label: 'Ticket promedio convertido',
                       value: currencyFormatter.format(commercialSummary.ticketPromedioConvertida),
                       helper: 'ticket promedio',
-                      backgroundColor: '#fcfdff',
-                      borderColor: '#e2e8f0',
-                      labelColor: '#64748b',
-                      valueColor: '#0f172a',
+                      backgroundColor: neutralColors.steel.surfaceRaised,
+                      borderColor: neutralColors.slate[200],
+                      labelColor: neutralColors.slate[500],
+                      valueColor: neutralColors.slate[900],
                     },
                     {
                       label: 'Forecast esperado',
                       value: currencyFormatter.format(commercialSummary.forecastEsperado),
                       helper: 'sobre pipeline extendido',
-                      backgroundColor: '#eff6ff',
-                      borderColor: '#bfdbfe',
-                      labelColor: '#1d4ed8',
-                      valueColor: '#1e3a8a',
+                      backgroundColor: alertColors.info[50],
+                      borderColor: alertColors.info[200],
+                      labelColor: alertColors.info[700],
+                      valueColor: alertColors.info[900],
                     },
                   ].map((item) => (
                     <Box
@@ -1558,7 +1563,7 @@ export default function OportunidadesPage() {
                         <Typography sx={{ fontSize: 9, fontWeight: 800, color: item.labelColor, textTransform: 'uppercase', letterSpacing: 0.32, lineHeight: 1.15 }}>
                           {item.label}
                         </Typography>
-                        <Typography sx={{ fontSize: 9, color: '#94a3b8', fontWeight: 500, lineHeight: 1.15 }}>
+                        <Typography sx={{ fontSize: 9, color: neutralColors.slate[400], fontWeight: 500, lineHeight: 1.15 }}>
                           {item.helper}
                         </Typography>
                       </Box>
@@ -1608,7 +1613,7 @@ export default function OportunidadesPage() {
                       fontWeight: 700,
                       textTransform: 'none',
                       py: 0.75,
-                      boxShadow: filtersOpen || activeAdvancedFiltersCount > 0 ? '0 6px 16px rgba(29, 47, 104, 0.16)' : 'none',
+                      boxShadow: filtersOpen || activeAdvancedFiltersCount > 0 ? brandElevation.activeGlow : 'none',
                     }}
                   >
                     {activeAdvancedFiltersCount > 0 ? `Filtrar (${activeAdvancedFiltersCount})` : 'Filtrar'}
@@ -1618,16 +1623,16 @@ export default function OportunidadesPage() {
                 <Collapse in={filtersOpen} timeout="auto" unmountOnExit={false}>
                   <Box
                     sx={{
-                      border: '1px solid #dbe2f0',
+                      border: `1px solid ${neutralColors.steel.opportunityFiltersBorder}`,
                       borderRadius: 2,
                       px: { xs: 1.25, sm: 1.5 },
                       py: 1.25,
-                      background: 'linear-gradient(180deg, #fbfcff 0%, #f6f8fd 100%)',
+                      background: surfaceGradients.header,
                     }}
                   >
                     <Stack spacing={1.25}>
                       <Stack direction="row" alignItems="center" justifyContent="space-between">
-                        <Typography variant="subtitle2" sx={{ fontWeight: 800, color: '#1d2f68' }}>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 800, color: activeBrand.colors.blue.base }}>
                           Filtros avanzados
                         </Typography>
                         {activeAdvancedFiltersCount ? (
@@ -1830,7 +1835,7 @@ export default function OportunidadesPage() {
                         <Button variant="outlined" onClick={handleLimpiarFiltros}>
                           Limpiar
                         </Button>
-                        <Button variant="contained" onClick={handleAplicarFiltros} sx={{ backgroundColor: '#1d2f68', '&:hover': { backgroundColor: '#162551' } }}>
+                        <Button variant="contained" onClick={handleAplicarFiltros} sx={{ backgroundColor: activeBrand.colors.blue.base, '&:hover': { backgroundColor: activeBrand.colors.blue.hover } }}>
                           Aplicar filtros
                         </Button>
                       </Stack>
@@ -1883,30 +1888,30 @@ export default function OportunidadesPage() {
                     '& .MuiDataGrid-columnHeaders': {
                       fontSize: 12.5,
                       minHeight: 34,
-                      color: '#ffffff',
+                      color: onPrimaryColors.textLong,
                     },
                     '& .MuiDataGrid-columnHeader': {
-                      backgroundColor: '#1d2f68',
-                      color: '#ffffff',
+                      backgroundColor: activeBrand.colors.blue.base,
+                      color: onPrimaryColors.textLong,
                     },
                     '& .MuiDataGrid-columnHeaderTitle': {
                       fontWeight: 600,
-                      color: '#ffffff',
+                      color: onPrimaryColors.textLong,
                     },
                     '& .MuiDataGrid-sortIcon': {
-                      color: '#ffffff',
+                      color: onPrimaryColors.textLong,
                     },
                     '& .MuiDataGrid-menuIcon': {
-                      color: '#ffffff',
+                      color: onPrimaryColors.textLong,
                     },
                     '& .MuiDataGrid-iconButtonContainer .MuiSvgIcon-root': {
-                      color: '#ffffff',
+                      color: onPrimaryColors.textLong,
                     },
                     '& .MuiDataGrid-columnHeader .MuiSvgIcon-root': {
-                      color: '#ffffff',
+                      color: onPrimaryColors.textLong,
                     },
                     '& .MuiDataGrid-columnSeparator': {
-                      color: 'rgba(255,255,255,0.25)',
+                      color: overlayColors.onDark.gridHeaderSeparator,
                     },
                     '& .MuiDataGrid-cell': {
                       fontSize: 14.5,
@@ -1914,23 +1919,23 @@ export default function OportunidadesPage() {
                       alignItems: 'center',
                       py: 0.9,
                       px: 1,
-                      borderTop: '1px solid #f1f5f9',
+                      borderTop: `1px solid ${neutralColors.slate[100]}`,
                     },
                     '& .MuiDataGrid-row': {
                       minHeight: 40,
                       transition: 'all 0.2s ease',
                     },
                     '& .MuiDataGrid-row:nth-of-type(even)': {
-                      backgroundColor: 'rgba(0, 120, 70, 0.05)',
+                      backgroundColor: (theme) => theme.emphasys.grid.stripe,
                     },
                     '& .MuiDataGrid-row:hover': {
-                      backgroundColor: 'rgba(15, 23, 42, 0.04)',
+                      backgroundColor: overlayColors.hover.gridRow,
                     },
                     '& .MuiDataGrid-row.Mui-selected': {
-                      backgroundColor: 'rgba(29, 47, 104, 0.08)',
+                      backgroundColor: brandTints.gridRowSelected,
                     },
                     '& .MuiDataGrid-row.Mui-selected:hover': {
-                      backgroundColor: 'rgba(29, 47, 104, 0.12)',
+                      backgroundColor: brandTints.gridRowSelectedHover,
                     },
                   }}
                 />
@@ -1975,7 +1980,7 @@ export default function OportunidadesPage() {
               <DialogTitle>Cancelar oportunidad</DialogTitle>
               <DialogContent>
                 <Stack spacing={1.5} sx={{ pt: 1 }}>
-                  <Typography variant="body2" sx={{ color: '#475569' }}>
+                  <Typography variant="body2" sx={{ color: neutralColors.slate[600] }}>
                     Captura el motivo de cancelacion para registrar el cambio de estatus.
                   </Typography>
                   <TextField
@@ -2007,7 +2012,7 @@ export default function OportunidadesPage() {
             >
               <DialogTitle>{conversionLockDialog.title}</DialogTitle>
               <DialogContent>
-                <Typography variant="body1" sx={{ color: '#475569', pt: 1 }}>
+                <Typography variant="body1" sx={{ color: neutralColors.slate[600], pt: 1 }}>
                   {conversionLockDialog.message}
                 </Typography>
               </DialogContent>
@@ -2094,7 +2099,7 @@ export default function OportunidadesPage() {
                       Si tiene cotización asociada, también será eliminada.
                     </Alert>
                   ) : null}
-                  <Typography sx={{ color: '#b91c1c', fontWeight: 600 }}>
+                  <Typography sx={{ color: alertColors.error[700], fontWeight: 600 }}>
                     Esta acción no se puede deshacer.
                   </Typography>
                 </Stack>
@@ -2131,11 +2136,11 @@ function PaperCard({ children }: { children: ReactNode }) {
         width: '100%',
         position: 'relative',
         overflow: 'visible',
-        border: '1px solid #e5e7eb',
+        border: `1px solid ${neutralColors.gray[200]}`,
         borderRadius: 2,
         p: 1.5,
-        backgroundColor: '#fff',
-        boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+        backgroundColor: whiteSurfaces.panel,
+        boxShadow: elevation.hairlineBlack,
       }}
     >
       {children}

@@ -1,0 +1,316 @@
+{
+  "source": "HEAD 5f79a77, elevación bloque e3",
+  "files": {
+    "pages/DocumentosPage.tsx": {
+      "headSha256": "1285d9d6942ec889412f431d76099f861cfeefec9480c774314a268fd9f03ca5",
+      "addedImports": [
+        "import { elevation } from '../theme/elevation';"
+      ],
+      "lines": {
+        "3883": {
+          "original": "            boxShadow: '0 1px 2px rgba(15, 23, 42, 0.04)',",
+          "migrated": "            boxShadow: elevation.hairline,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'0 1px 2px rgba(15, 23, 42, 0.04)'",
+              "to": "elevation.hairline",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "pages/OportunidadesPage.tsx": {
+      "headSha256": "5d97b49cdf2d7149506dde9159a38946f9f23f98e735f948273dc136793e1c13",
+      "addedImports": [
+        "import { elevation } from '../theme/elevation';"
+      ],
+      "lines": {
+        "1469": {
+          "original": "                        boxShadow: filtroEstatus === item.value ? `0 0 0 1px ${item.labelColor} inset, 0 8px 18px rgba(15, 23, 42, 0.08)` : 'none',",
+          "migrated": "                        boxShadow: filtroEstatus === item.value ? `0 0 0 1px ${item.labelColor} inset, ${elevation.statusCard}` : 'none',",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "0 8px 18px rgba(15, 23, 42, 0.08)",
+              "to": "${elevation.statusCard}",
+              "times": 1
+            }
+          ]
+        },
+        "1479": {
+          "original": "                          boxShadow: `0 0 0 1px ${item.labelColor} inset, 0 8px 18px rgba(15, 23, 42, 0.06)`,",
+          "migrated": "                          boxShadow: `0 0 0 1px ${item.labelColor} inset, ${elevation.statusCardRest}`,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "0 8px 18px rgba(15, 23, 42, 0.06)",
+              "to": "${elevation.statusCardRest}",
+              "times": 1
+            }
+          ]
+        },
+        "2141": {
+          "original": "        boxShadow: '0 1px 2px rgba(0,0,0,0.04)',",
+          "migrated": "        boxShadow: elevation.hairlineBlack,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'0 1px 2px rgba(0,0,0,0.04)'",
+              "to": "elevation.hairlineBlack",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "components/contactos/ContactosMobileView.tsx": {
+      "headSha256": "45b10df402eca3a705a77001005727d361aa1453fb330d83779586845b10e074",
+      "addedImports": [],
+      "lines": {
+        "14": {
+          "original": "import { brandElevation } from '../../theme/elevation';",
+          "migrated": "import { brandElevation, elevation } from '../../theme/elevation';",
+          "entries": [],
+          "replacements": [],
+          "importMerge": true
+        },
+        "174": {
+          "original": "                    boxShadow: '0 8px 20px rgba(15, 23, 42, 0.05)',",
+          "migrated": "                    boxShadow: elevation.card,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'0 8px 20px rgba(15, 23, 42, 0.05)'",
+              "to": "elevation.card",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "components/documentos/DocumentosMobileView.tsx": {
+      "headSha256": "0e2120f081aeabf570487af8eb249bfcdb646623059984be7b0848c671e5d1c0",
+      "addedImports": [],
+      "lines": {
+        "19": {
+          "original": "import { brandElevation } from '../../theme/elevation';",
+          "migrated": "import { brandElevation, elevation } from '../../theme/elevation';",
+          "entries": [],
+          "replacements": [],
+          "importMerge": true
+        },
+        "180": {
+          "original": "                    boxShadow: catalog ? 'none' : '0 8px 20px rgba(15, 23, 42, 0.05)',",
+          "migrated": "                    boxShadow: catalog ? 'none' : elevation.card,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'0 8px 20px rgba(15, 23, 42, 0.05)'",
+              "to": "elevation.card",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "components/productos/ProductosMobileView.tsx": {
+      "headSha256": "800715870c8c14a5337a834ca3fa2e075795f7e3517a6a3f1e116ad0cc22bd1e",
+      "addedImports": [],
+      "lines": {
+        "11": {
+          "original": "import { brandElevation } from '../../theme/elevation';",
+          "migrated": "import { brandElevation, elevation } from '../../theme/elevation';",
+          "entries": [],
+          "replacements": [],
+          "importMerge": true
+        },
+        "128": {
+          "original": "                    boxShadow: '0 8px 20px rgba(15, 23, 42, 0.05)',",
+          "migrated": "                    boxShadow: elevation.card,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'0 8px 20px rgba(15, 23, 42, 0.05)'",
+              "to": "elevation.card",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "components/MobileBackIconButton.tsx": {
+      "headSha256": "9746aafd2e0fcb0dc672c42d8c6f1c15ad9ddc2c7dabdaa2c823fad7e87f642e",
+      "addedImports": [
+        "import { elevation } from '../theme/elevation';"
+      ],
+      "lines": {
+        "26": {
+          "original": "        boxShadow: '0 6px 18px rgba(15, 23, 42, 0.08)',",
+          "migrated": "        boxShadow: elevation.floatingButton,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'0 6px 18px rgba(15, 23, 42, 0.08)'",
+              "to": "elevation.floatingButton",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "components/grids/GridContextMenu.tsx": {
+      "headSha256": "ca419e0c83b34d651fb995f2035cacd0ce477e54ecc544b88ffa327950cdc090",
+      "addedImports": [
+        "import { elevation } from '../../theme/elevation';"
+      ],
+      "lines": {
+        "79": {
+          "original": "            boxShadow: '0 14px 34px rgba(15, 23, 42, 0.14)',",
+          "migrated": "            boxShadow: elevation.gridMenu,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'0 14px 34px rgba(15, 23, 42, 0.14)'",
+              "to": "elevation.gridMenu",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "pages/DocumentosFormPage.tsx": {
+      "headSha256": "3d4ad6daec16ef7c8a7f515e9db54771b0129c81f8d9074ff8fb399efb2aee34",
+      "addedImports": [
+        "import { elevation } from '../theme/elevation';"
+      ],
+      "lines": {
+        "8596": {
+          "original": "            boxShadow: '0 12px 30px rgba(15, 23, 42, 0.12)',",
+          "migrated": "            boxShadow: elevation.floatingSummary,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'0 12px 30px rgba(15, 23, 42, 0.12)'",
+              "to": "elevation.floatingSummary",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "components/documentos/facturas/FacturaResumenFlotante.tsx": {
+      "headSha256": "3647d4cbf3afa4d88dd0a5e40fd13279910bfa1b387ec8519ec3e1538cd7b060",
+      "addedImports": [
+        "import { elevation } from '../../../theme/elevation';"
+      ],
+      "lines": {
+        "196": {
+          "original": "        boxShadow: dragging ? '0 20px 46px rgba(15,22,38,0.30)' : '0 12px 32px rgba(15,22,38,0.18)',",
+          "migrated": "        boxShadow: dragging ? elevation.dragging : elevation.draggable,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'0 12px 32px rgba(15,22,38,0.18)'",
+              "to": "elevation.draggable",
+              "times": 1
+            },
+            {
+              "from": "'0 20px 46px rgba(15,22,38,0.30)'",
+              "to": "elevation.dragging",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "components/documentos/facturas/ResumenFlotanteMarco.tsx": {
+      "headSha256": "65ca24b77baf6baf87c5074f6e8a5cd1babe7a08b9d80b85b7e4093b99a1b66b",
+      "addedImports": [
+        "import { elevation } from '../../../theme/elevation';"
+      ],
+      "lines": {
+        "169": {
+          "original": "        boxShadow: dragging ? '0 20px 46px rgba(15,22,38,0.30)' : '0 12px 32px rgba(15,22,38,0.18)',",
+          "migrated": "        boxShadow: dragging ? elevation.dragging : elevation.draggable,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'0 12px 32px rgba(15,22,38,0.18)'",
+              "to": "elevation.draggable",
+              "times": 1
+            },
+            {
+              "from": "'0 20px 46px rgba(15,22,38,0.30)'",
+              "to": "elevation.dragging",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "components/VersionUpdateDrawer.tsx": {
+      "headSha256": "2a857e2f39e831d0cae9b58f1dff12454ba2e7b151ee5f35f6ea1df906eb669c",
+      "addedImports": [
+        "import { elevation } from '../theme/elevation';"
+      ],
+      "lines": {
+        "52": {
+          "original": "            boxShadow: '0 18px 48px rgba(15, 23, 42, 0.18)',",
+          "migrated": "            boxShadow: elevation.drawer,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'0 18px 48px rgba(15, 23, 42, 0.18)'",
+              "to": "elevation.drawer",
+              "times": 1
+            }
+          ]
+        },
+        "68": {
+          "original": "              boxShadow: '0 2px 8px rgba(15, 23, 42, 0.08)',",
+          "migrated": "              boxShadow: elevation.drawerButton,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'0 2px 8px rgba(15, 23, 42, 0.08)'",
+              "to": "elevation.drawerButton",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "components/documentos/nota-credito/NotasCreditoWorkspaceView.tsx": {
+      "headSha256": "fd26d88474c215fce1c3809519f7f50d6919bde669af1c487328cba2875f17b0",
+      "addedImports": [],
+      "lines": {
+        "1006": {
+          "original": "    <Box sx={{ flex: 1, alignSelf: 'stretch', border: `1px solid ${borde}`, borderRadius: 1.5, bgcolor: fondo, px: 1.4, py: 1.1, boxShadow: '0 1px 0 rgba(20,28,46,0.03)', width: '100%', boxSizing: 'border-box' }}>",
+          "migrated": "    <Box sx={{ flex: 1, alignSelf: 'stretch', border: `1px solid ${borde}`, borderRadius: 1.5, bgcolor: fondo, px: 1.4, py: 1.1, boxShadow: elevation.underline, width: '100%', boxSizing: 'border-box' }}>",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'0 1px 0 rgba(20,28,46,0.03)'",
+              "to": "elevation.underline",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    }
+  }
+}

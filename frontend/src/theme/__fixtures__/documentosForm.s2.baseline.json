@@ -1,0 +1,239 @@
+{
+  "source": "HEAD c70f228, DocumentosFormPage subbloque s2",
+  "files": {
+    "pages/DocumentosFormPage.tsx": {
+      "headSha256": "cb453467d50a5f100bdefa5e25ea2f9ef1d5a4580e54135c733cae9295a2248a",
+      "addedImports": [],
+      "lines": {
+        "4261": {
+          "original": "          <Box sx={{ px: 1.75, py: 1, borderBottom: '1px solid #eef0f4' }}>",
+          "migrated": "          <Box sx={{ px: 1.75, py: 1, borderBottom: `1px solid ${neutralColors.steel.dividerSoft}` }}>",
+          "entries": [
+            {
+              "hex": "#eef0f4",
+              "token": "neutralColors.steel.dividerSoft"
+            }
+          ]
+        },
+        "4262": {
+          "original": "            <Typography sx={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#8b93a7' }}>",
+          "migrated": "            <Typography sx={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: neutralColors.steel.label }}>",
+          "entries": [
+            {
+              "hex": "#8b93a7",
+              "token": "neutralColors.steel.label"
+            }
+          ]
+        },
+        "4280": {
+          "original": "                <Typography sx={{ fontSize: 12.5, color: '#5b6479' }}>{item.label}</Typography>",
+          "migrated": "                <Typography sx={{ fontSize: 12.5, color: neutralColors.steel.text }}>{item.label}</Typography>",
+          "entries": [
+            {
+              "hex": "#5b6479",
+              "token": "neutralColors.steel.text"
+            }
+          ]
+        },
+        "4281": {
+          "original": "                <Typography sx={{ fontSize: 13, color: '#3d4557', fontFamily: 'monospace', fontVariantNumeric: 'tabular-nums' }}>",
+          "migrated": "                <Typography sx={{ fontSize: 13, color: neutralColors.steel.strong, fontFamily: 'monospace', fontVariantNumeric: 'tabular-nums' }}>",
+          "entries": [
+            {
+              "hex": "#3d4557",
+              "token": "neutralColors.steel.strong"
+            }
+          ]
+        },
+        "4298": {
+          "original": "          <Box sx={{ px: 1.75, py: 1, borderBottom: '1px solid #eef0f4', display: 'flex', alignItems: 'center', gap: 1 }}>",
+          "migrated": "          <Box sx={{ px: 1.75, py: 1, borderBottom: `1px solid ${neutralColors.steel.dividerSoft}`, display: 'flex', alignItems: 'center', gap: 1 }}>",
+          "entries": [
+            {
+              "hex": "#eef0f4",
+              "token": "neutralColors.steel.dividerSoft"
+            }
+          ]
+        },
+        "4299": {
+          "original": "            <Typography sx={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#8b93a7' }}>",
+          "migrated": "            <Typography sx={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: neutralColors.steel.label }}>",
+          "entries": [
+            {
+              "hex": "#8b93a7",
+              "token": "neutralColors.steel.label"
+            }
+          ]
+        },
+        "4375": {
+          "original": "                sx={{ fontSize: 12, color: '#5b6479', textTransform: 'none', flexShrink: 0 }}",
+          "migrated": "                sx={{ fontSize: 12, color: neutralColors.steel.text, textTransform: 'none', flexShrink: 0 }}",
+          "entries": [
+            {
+              "hex": "#5b6479",
+              "token": "neutralColors.steel.text"
+            }
+          ]
+        },
+        "4572": {
+          "original": "                        borderColor: (theme) => (encabezadoDetalleAbierto ? theme.emphasys.action.disabled : '#d9dde6'),",
+          "migrated": "                        borderColor: (theme) => (encabezadoDetalleAbierto ? theme.emphasys.action.disabled : neutralColors.steel.panelBorder),",
+          "entries": [
+            {
+              "hex": "#d9dde6",
+              "token": "neutralColors.steel.panelBorder"
+            }
+          ]
+        },
+        "4573": {
+          "original": "                        bgcolor: encabezadoDetalleAbierto ? '#eef1f8' : 'transparent',",
+          "migrated": "                        bgcolor: encabezadoDetalleAbierto ? neutralColors.steel.hoverAlt : 'transparent',",
+          "entries": [
+            {
+              "hex": "#eef1f8",
+              "token": "neutralColors.steel.hoverAlt"
+            }
+          ]
+        },
+        "4574": {
+          "original": "                        color: encabezadoDetalleAbierto ? 'primary.main' : '#5b6479',",
+          "migrated": "                        color: encabezadoDetalleAbierto ? 'primary.main' : neutralColors.steel.text,",
+          "entries": [
+            {
+              "hex": "#5b6479",
+              "token": "neutralColors.steel.text"
+            }
+          ]
+        },
+        "4632": {
+          "original": "                        color: '#5b6479',",
+          "migrated": "                        color: neutralColors.steel.text,",
+          "entries": [
+            {
+              "hex": "#5b6479",
+              "token": "neutralColors.steel.text"
+            }
+          ]
+        },
+        "4633": {
+          "original": "                        bgcolor: '#f0f2f6',",
+          "migrated": "                        bgcolor: neutralColors.steel.hover,",
+          "entries": [
+            {
+              "hex": "#f0f2f6",
+              "token": "neutralColors.steel.hover"
+            }
+          ]
+        },
+        "4684": {
+          "original": "                      color: '#8b93a7',",
+          "migrated": "                      color: neutralColors.steel.label,",
+          "entries": [
+            {
+              "hex": "#8b93a7",
+              "token": "neutralColors.steel.label"
+            }
+          ]
+        },
+        "4690": {
+          "original": "                      '& .MuiInput-underline:hover:not(.Mui-disabled):before': { borderBottomColor: '#d9dde6' },",
+          "migrated": "                      '& .MuiInput-underline:hover:not(.Mui-disabled):before': { borderBottomColor: neutralColors.steel.panelBorder },",
+          "entries": [
+            {
+              "hex": "#d9dde6",
+              "token": "neutralColors.steel.panelBorder"
+            }
+          ]
+        },
+        "4701": {
+          "original": "                      <Box sx={{ bgcolor: '#fafbfd', borderTop: '1px solid #eef0f4', p: 1.5, display: 'flex', flexDirection: 'column', gap: 1.25 }}>",
+          "migrated": "                      <Box sx={{ bgcolor: '#fafbfd', borderTop: `1px solid ${neutralColors.steel.dividerSoft}`, p: 1.5, display: 'flex', flexDirection: 'column', gap: 1.25 }}>",
+          "entries": [
+            {
+              "hex": "#eef0f4",
+              "token": "neutralColors.steel.dividerSoft"
+            }
+          ]
+        },
+        "4722": {
+          "original": "                            border: '1px solid #eef0f4',",
+          "migrated": "                            border: `1px solid ${neutralColors.steel.dividerSoft}`,",
+          "entries": [
+            {
+              "hex": "#eef0f4",
+              "token": "neutralColors.steel.dividerSoft"
+            }
+          ]
+        },
+        "4741": {
+          "original": "                                <Typography sx={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: '#8b93a7' }}>",
+          "migrated": "                                <Typography sx={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: neutralColors.steel.label }}>",
+          "entries": [
+            {
+              "hex": "#8b93a7",
+              "token": "neutralColors.steel.label"
+            }
+          ]
+        },
+        "4750": {
+          "original": "                                    <Typography sx={{ fontSize: 12, color: row.strong ? '#0f1626' : '#5b6479', fontWeight: row.strong ? 700 : 400 }}>",
+          "migrated": "                                    <Typography sx={{ fontSize: 12, color: row.strong ? '#0f1626' : neutralColors.steel.text, fontWeight: row.strong ? 700 : 400 }}>",
+          "entries": [
+            {
+              "hex": "#5b6479",
+              "token": "neutralColors.steel.text"
+            }
+          ]
+        },
+        "4761": {
+          "original": "                                <Typography sx={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: '#8b93a7' }}>",
+          "migrated": "                                <Typography sx={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: neutralColors.steel.label }}>",
+          "entries": [
+            {
+              "hex": "#8b93a7",
+              "token": "neutralColors.steel.label"
+            }
+          ]
+        },
+        "4765": {
+          "original": "                                  <Typography sx={{ fontSize: 12, color: '#5b6479' }}>IVA trasladado</Typography>",
+          "migrated": "                                  <Typography sx={{ fontSize: 12, color: neutralColors.steel.text }}>IVA trasladado</Typography>",
+          "entries": [
+            {
+              "hex": "#5b6479",
+              "token": "neutralColors.steel.text"
+            }
+          ]
+        },
+        "4822": {
+          "original": "                            <Typography sx={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: '#8b93a7' }}>",
+          "migrated": "                            <Typography sx={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: neutralColors.steel.label }}>",
+          "entries": [
+            {
+              "hex": "#8b93a7",
+              "token": "neutralColors.steel.label"
+            }
+          ]
+        },
+        "4844": {
+          "original": "                          <Typography sx={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: '#8b93a7' }}>",
+          "migrated": "                          <Typography sx={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: neutralColors.steel.label }}>",
+          "entries": [
+            {
+              "hex": "#8b93a7",
+              "token": "neutralColors.steel.label"
+            }
+          ]
+        }
+      },
+      "snippets": {},
+      "keptLiteral": {
+        "#eef0f4": 1,
+        "#8b93a7": 2,
+        "#5b6479": 1,
+        "#d9dde6": 1,
+        "#eef1f8": 1
+      }
+    }
+  }
+}

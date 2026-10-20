@@ -17,6 +17,8 @@ import type { TipoDocumento } from '../../types/documentos.types';
 import { apiFetch } from '../../services/apiFetch';
 import type { WhatsappPlantillaOption } from '../../services/whatsappPlantillasService';
 import { fetchWhatsappPlantillas } from '../../services/whatsappPlantillasService';
+import { neutralColors } from '../../theme/structural';
+import { activeBrand } from '../../theme/brand/active';
 
 type DocumentoWhatsappResumen = {
   id: number;
@@ -233,9 +235,9 @@ export function DocumentoWhatsappDialog({
             <Alert severity={resultadoEnvio.severity}>{resultadoEnvio.message}</Alert>
           )}
 
-          <Paper variant="outlined" sx={{ borderColor: '#e5e7eb', borderRadius: 2, p: 2 }}>
+          <Paper variant="outlined" sx={{ borderColor: neutralColors.gray[200], borderRadius: 2, p: 2 }}>
             <Stack spacing={1.25}>
-              <Typography variant="subtitle2" sx={{ color: '#1d2f68', fontWeight: 700 }}>
+              <Typography variant="subtitle2" sx={{ color: activeBrand.colors.blue.base, fontWeight: 700 }}>
                 Documento
               </Typography>
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
@@ -273,7 +275,7 @@ export function DocumentoWhatsappDialog({
             helperText={telefonoVacio ? 'No se detectó un teléfono. Captura uno para continuar.' : ' '}
           />
 
-          <Paper sx={{ bgcolor: '#f8fafc', borderRadius: 2, p: 2, boxShadow: 'none' }}>
+          <Paper sx={{ bgcolor: neutralColors.slate[50], borderRadius: 2, p: 2, boxShadow: 'none' }}>
             <Typography variant="body2" color="text.secondary">
               {documento?.tipoDocumento === 'factura'
                 ? 'Se enviarán la plantilla, el PDF y el XML timbrado por WhatsApp.'

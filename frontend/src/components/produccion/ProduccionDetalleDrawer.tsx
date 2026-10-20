@@ -22,6 +22,9 @@ import {
   type ProduccionPartidaOperativa,
   type SeguimientoProduccionHistorialRow,
 } from '../../services/produccionService';
+import { alertColors, dataColorContrast } from '../../theme/functional';
+import { neutralColors, onMediaColors, overlayColors } from '../../theme/structural';
+import { activeBrand } from '../../theme/brand/active';
 
 const formatCivilDate = (value: string | null | undefined) => {
   const raw = String(value ?? '').trim();
@@ -66,7 +69,7 @@ function normalizeHexColor(color: string | null | undefined) {
 function getContrastingTextColor(color: string | null | undefined) {
   const hex = normalizeHexColor(color);
   if (!hex) {
-    return '#111827';
+    return neutralColors.gray[900];
   }
 
   const red = Number.parseInt(hex.slice(1, 3), 16) / 255;
@@ -79,7 +82,7 @@ function getContrastingTextColor(color: string | null | undefined) {
   const contrastWithWhite = 1.05 / (luminance + 0.05);
   const contrastWithDark = (luminance + 0.05) / 0.05;
 
-  return contrastWithWhite >= contrastWithDark ? '#ffffff' : '#111827';
+  return contrastWithWhite >= contrastWithDark ? dataColorContrast.stageLight : neutralColors.gray[900];
 }
 
 function formatCantidad(cantidad: number) {
@@ -117,7 +120,7 @@ function PartidaOperativaCard({ partida }: { partida: ProduccionPartidaOperativa
   const mostrarImagen = Boolean(partida.imagenUrl) && !imagenConError;
 
   return (
-    <Box sx={{ border: '1px solid #e5e7eb', borderRadius: 2, p: 1.5 }}>
+    <Box sx={{ border: `1px solid ${neutralColors.gray[200]}`, borderRadius: 2, p: 1.5 }}>
       <Stack direction="row" spacing={1.5} alignItems="flex-start">
         {mostrarImagen ? (
           <Box
@@ -133,7 +136,7 @@ function PartidaOperativaCard({ partida }: { partida: ProduccionPartidaOperativa
               height: 64,
               borderRadius: 1.5,
               overflow: 'hidden',
-              border: '1px solid #e5e7eb',
+              border: `1px solid ${neutralColors.gray[200]}`,
               display: 'block',
               '&:hover': { opacity: 0.85 },
             }}
@@ -153,20 +156,20 @@ function PartidaOperativaCard({ partida }: { partida: ProduccionPartidaOperativa
                 width: 18,
                 height: 18,
                 borderRadius: '50%',
-                backgroundColor: 'rgba(0,0,0,0.55)',
+                backgroundColor: overlayColors.media.imageBadge,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
               }}
             >
-              <OpenInNewIcon sx={{ fontSize: 11, color: '#fff' }} />
+              <OpenInNewIcon sx={{ fontSize: 11, color: onMediaColors.badgeIcon }} />
             </Box>
           </Box>
         ) : null}
 
         <Box sx={{ flex: 1, minWidth: 0 }}>
           <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1} useFlexGap flexWrap="wrap">
-            <Typography variant="body2" fontWeight={700} sx={{ color: '#111827' }}>
+            <Typography variant="body2" fontWeight={700} sx={{ color: neutralColors.gray[900] }}>
               #{partida.numeroPartida} · {titulo}
             </Typography>
             <Chip
@@ -188,7 +191,7 @@ function PartidaOperativaCard({ partida }: { partida: ProduccionPartidaOperativa
                 variant="body2"
                 sx={{
                   mt: 0.5,
-                  color: '#374151',
+                  color: neutralColors.gray[700],
                   whiteSpace: 'pre-wrap',
                   wordBreak: 'break-word',
                   ...(observacionesLargas && !observacionesExpandidas
@@ -217,13 +220,13 @@ function PartidaOperativaCard({ partida }: { partida: ProduccionPartidaOperativa
                   key={campo.campoId}
                   sx={{
                     ml: campo.campoPadreId ? 1.5 : 0,
-                    backgroundColor: '#f1f5f9',
+                    backgroundColor: neutralColors.slate[100],
                     borderRadius: 1,
                     px: 0.75,
                     py: 0.25,
                   }}
                 >
-                  <Typography variant="caption" sx={{ color: '#374151' }}>
+                  <Typography variant="caption" sx={{ color: neutralColors.gray[700] }}>
                     {campo.campoPadreId ? '↳ ' : ''}
                     {campo.nombre}: <strong>{campo.valor}</strong>
                   </Typography>
@@ -245,14 +248,14 @@ function ObservacionesCotizacion({ observaciones }: { observaciones: string | nu
   const esLargo = texto.length > TEXTO_LARGO_UMBRAL || texto.includes('\n');
 
   return (
-    <Box sx={{ border: '1px solid #e5e7eb', borderRadius: 2, backgroundColor: '#f8fafc', p: 1.5 }}>
-      <Typography variant="subtitle2" fontWeight={700} color="#1d2f68" sx={{ mb: 0.5 }}>
+    <Box sx={{ border: `1px solid ${neutralColors.gray[200]}`, borderRadius: 2, backgroundColor: neutralColors.slate[50], p: 1.5 }}>
+      <Typography variant="subtitle2" fontWeight={700} color={activeBrand.colors.blue.base} sx={{ mb: 0.5 }}>
         Observaciones de la cotización
       </Typography>
       <Typography
         variant="body2"
         sx={{
-          color: '#374151',
+          color: neutralColors.gray[700],
           whiteSpace: 'pre-wrap',
           wordBreak: 'break-word',
           ...(esLargo && !expandido
@@ -320,12 +323,12 @@ function HistorialAvancesList({ historial }: { historial: SeguimientoProduccionH
                   height: avance.activo ? 12 : 9,
                   borderRadius: '50%',
                   backgroundColor,
-                  boxShadow: avance.activo ? '0 0 0 2px #16a34a' : '0 0 0 1px #cbd5e1',
+                  boxShadow: avance.activo ? `0 0 0 2px ${alertColors.success[600]}` : `0 0 0 1px ${neutralColors.slate[300]}`,
                   flexShrink: 0,
                 }}
               />
               {!esUltimo ? (
-                <Box sx={{ width: 2, flexGrow: 1, minHeight: 28, backgroundColor: '#e2e8f0', mt: 0.5 }} />
+                <Box sx={{ width: 2, flexGrow: 1, minHeight: 28, backgroundColor: neutralColors.slate[200], mt: 0.5 }} />
               ) : null}
             </Stack>
 
@@ -343,7 +346,7 @@ function HistorialAvancesList({ historial }: { historial: SeguimientoProduccionH
                     }}
                   />
                   {avance.activo ? (
-                    <Typography variant="caption" sx={{ color: '#16a34a', fontWeight: 700 }}>
+                    <Typography variant="caption" sx={{ color: alertColors.success[600], fontWeight: 700 }}>
                       Actual
                     </Typography>
                   ) : null}
@@ -357,7 +360,7 @@ function HistorialAvancesList({ historial }: { historial: SeguimientoProduccionH
                 variant="body2"
                 sx={{
                   mt: 0.5,
-                  color: '#111827',
+                  color: neutralColors.gray[900],
                   whiteSpace: 'pre-wrap',
                   wordBreak: 'break-word',
                   ...(comentarioLargo && !comentarioExpandido
@@ -445,10 +448,10 @@ export default function ProduccionDetalleDrawer({ open, documentoId, onClose }: 
       <Box sx={{ p: 3, height: '100%', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 2 }}>
         <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={2}>
           <Box sx={{ minWidth: 0 }}>
-            <Typography variant="overline" sx={{ color: '#6b7280', letterSpacing: 0.8 }}>
+            <Typography variant="overline" sx={{ color: neutralColors.gray[500], letterSpacing: 0.8 }}>
               Producción
             </Typography>
-            <Typography variant="h6" fontWeight={700} color="#1d2f68" noWrap>
+            <Typography variant="h6" fontWeight={700} color={activeBrand.colors.blue.base} noWrap>
               {detalle?.contacto?.nombre || 'Sin cliente'}
             </Typography>
             <Typography variant="body2" color="text.secondary">
@@ -486,7 +489,7 @@ export default function ProduccionDetalleDrawer({ open, documentoId, onClose }: 
               spacing={1.5}
               useFlexGap
               flexWrap="wrap"
-              sx={{ border: '1px solid #e5e7eb', borderRadius: 2, backgroundColor: '#f8fafc', p: 1.5 }}
+              sx={{ border: `1px solid ${neutralColors.gray[200]}`, borderRadius: 2, backgroundColor: neutralColors.slate[50], p: 1.5 }}
             >
               <Chip
                 size="small"
@@ -507,7 +510,7 @@ export default function ProduccionDetalleDrawer({ open, documentoId, onClose }: 
               value={tab}
               onChange={(_e, value) => setTab(value)}
               variant="fullWidth"
-              sx={{ borderBottom: '1px solid #e5e7eb', minHeight: 36 }}
+              sx={{ borderBottom: `1px solid ${neutralColors.gray[200]}`, minHeight: 36 }}
             >
               <Tab label={`Avances en Producción (${historial.length})`} sx={{ minHeight: 36, textTransform: 'none' }} />
               <Tab label={`Partidas (${detalle.partidas.length})`} sx={{ minHeight: 36, textTransform: 'none' }} />

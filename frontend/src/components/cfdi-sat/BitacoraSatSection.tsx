@@ -26,6 +26,8 @@ import {
   type CfdiSatBitacoraEntrada,
   type CfdiSatBitacoraFiltros,
 } from '../../services/cfdiSatService';
+import { neutralColors } from '../../theme/structural';
+import { activeBrand } from '../../theme/brand/active';
 
 function formatFecha(raw?: string | null): string {
   if (!raw) return '—';
@@ -106,13 +108,13 @@ export default function BitacoraSatSection() {
   };
 
   return (
-    <Card variant="outlined" sx={{ borderRadius: 2, borderColor: '#dbe3f0' }}>
+    <Card variant="outlined" sx={{ borderRadius: 2, borderColor: neutralColors.steel.line }}>
       <CardContent sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 2 }}>
         <Stack spacing={0.5}>
-          <Typography variant="h6" fontWeight={700} color="#1d2f68">
+          <Typography variant="h6" fontWeight={700} color={activeBrand.colors.blue.base}>
             Bitácora
           </Typography>
-          <Typography variant="body2" color="#4b5563">
+          <Typography variant="body2" color={neutralColors.gray[600]}>
             Auditoría de todas las acciones del módulo. Nunca incluye contraseñas, contenido de certificados ni
             rutas físicas.
           </Typography>
@@ -211,7 +213,7 @@ export default function BitacoraSatSection() {
         </Box>
 
         <Stack direction="row" spacing={1.5}>
-          <Button variant="contained" onClick={handleBuscar} sx={{ textTransform: 'none', fontWeight: 700, backgroundColor: '#1d2f68' }}>
+          <Button variant="contained" onClick={handleBuscar} sx={{ textTransform: 'none', fontWeight: 700, backgroundColor: activeBrand.colors.blue.base }}>
             Buscar
           </Button>
           <Button variant="outlined" onClick={handleLimpiar} sx={{ textTransform: 'none' }}>

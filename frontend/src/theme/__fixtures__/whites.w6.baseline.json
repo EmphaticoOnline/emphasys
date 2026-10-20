@@ -1,0 +1,57 @@
+{
+  "source": "HEAD 7f4821e, whites bloque w6",
+  "files": {
+    "components/documentos/facturas/FacturaResumenFlotante.tsx": {
+      "headSha256": "b85467cf276cf88233e75d9e8c58e87648604e3cf6ee93ba78c4a1a685bf5149",
+      "addedImports": [],
+      "lines": {
+        "6": {
+          "original": "import { neutralColors, onPrimaryColors, overlayColors, whiteSurfaces } from '../../../theme/structural';",
+          "migrated": "import { neutralColors, onDisabledColors, onPrimaryColors, overlayColors, whiteSurfaces } from '../../../theme/structural';",
+          "entries": [],
+          "replacements": [],
+          "importMerge": true
+        },
+        "343": {
+          "original": "              sx={{ width: 30, height: 30, bgcolor: activeBrand.colors.blue.base, color: onPrimaryColors.text, borderRadius: 1, '&:hover': { bgcolor: activeBrand.colors.blue.hover }, '&.Mui-disabled': { bgcolor: neutralColors.steel.controlBorder, color: '#fff' } }}",
+          "migrated": "              sx={{ width: 30, height: 30, bgcolor: activeBrand.colors.blue.base, color: onPrimaryColors.text, borderRadius: 1, '&:hover': { bgcolor: activeBrand.colors.blue.hover }, '&.Mui-disabled': { bgcolor: neutralColors.steel.controlBorder, color: onDisabledColors.text } }}",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "controlBorder, color: '#fff' }",
+              "to": "controlBorder, color: onDisabledColors.text }",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "pages/finanzas/ConciliacionBancariaPage.tsx": {
+      "headSha256": "4a62908491f4fe3b26a7fbe045d9a0ba68704f42abaa33ce68ff4c5ee4c801a8",
+      "addedImports": [],
+      "lines": {
+        "52": {
+          "original": "import { cashFlowColors } from '../../theme/functional';",
+          "migrated": "import { cashFlowColors, onStatusColors } from '../../theme/functional';",
+          "entries": [],
+          "replacements": [],
+          "importMerge": true
+        },
+        "879": {
+          "original": "              ? <CircularProgress size={18} sx={{ color: 'white' }} />",
+          "migrated": "              ? <CircularProgress size={18} sx={{ color: onStatusColors.warningProgress }} />",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "sx={{ color: 'white' }}",
+              "to": "sx={{ color: onStatusColors.warningProgress }}",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    }
+  }
+}

@@ -1,6 +1,6 @@
-import './augmentation';
-import { createEmphasysTheme } from './createEmphasysTheme';
-import { classicTokens, experimentalTokens } from './tokens';
+import './augmentation.ts';
+import { createEmphasysTheme } from './createEmphasysTheme.ts';
+import { classicTokens, experimentalTokens } from './tokens.ts';
 
 export const classicTheme = createEmphasysTheme(classicTokens, {
   editorialFigures: false,

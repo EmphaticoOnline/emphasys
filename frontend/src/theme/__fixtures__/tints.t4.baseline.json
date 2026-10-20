@@ -1,0 +1,91 @@
+{
+  "source": "HEAD b3218ee, tintes alfa bloque t4",
+  "files": {
+    "pages/DocumentosFormPage.tsx": {
+      "headSha256": "2aec1d576be0385ddc7a7ced0681f04a1b1e4329bc546bf92ded35586c9c2aec",
+      "addedImports": [],
+      "lines": {
+        "134": {
+          "original": "import { neutralColors, selectionColors } from '../theme/structural';",
+          "migrated": "import { neutralColors, overlayColors, selectionColors } from '../theme/structural';",
+          "entries": [],
+          "replacements": [],
+          "importMerge": true
+        },
+        "4291": {
+          "original": "            <Typography sx={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', letterSpacing: '0.06em', textTransform: 'uppercase', fontWeight: 600 }}>",
+          "migrated": "            <Typography sx={{ fontSize: 12, color: overlayColors.onDark.mutedLabel, letterSpacing: '0.06em', textTransform: 'uppercase', fontWeight: 600 }}>",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'rgba(255,255,255,0.7)'",
+              "to": "overlayColors.onDark.mutedLabel",
+              "times": 1
+            }
+          ]
+        },
+        "8491": {
+          "original": "            borderColor: 'rgba(148,163,184,0.35)',",
+          "migrated": "            borderColor: overlayColors.receptionPanel.border,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'rgba(148,163,184,0.35)'",
+              "to": "overlayColors.receptionPanel.border",
+              "times": 1
+            }
+          ]
+        },
+        "8500": {
+          "original": "            sx={{ px: 2, py: 1.25, bgcolor: neutralColors.slate[50], borderBottom: '1px solid', borderColor: 'rgba(148,163,184,0.25)' }}",
+          "migrated": "            sx={{ px: 2, py: 1.25, bgcolor: neutralColors.slate[50], borderBottom: '1px solid', borderColor: overlayColors.receptionPanel.headerDivider }}",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'rgba(148,163,184,0.25)'",
+              "to": "overlayColors.receptionPanel.headerDivider",
+              "times": 1
+            }
+          ]
+        },
+        "8561": {
+          "original": "                  <TableRow sx={{ bgcolor: neutralColors.slate[50], '& td': { fontWeight: 700, fontSize: '0.8rem', borderTop: '2px solid', borderColor: 'rgba(148,163,184,0.4)' } }}>",
+          "migrated": "                  <TableRow sx={{ bgcolor: neutralColors.slate[50], '& td': { fontWeight: 700, fontSize: '0.8rem', borderTop: '2px solid', borderColor: overlayColors.receptionPanel.totalBorder } }}>",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'rgba(148,163,184,0.4)'",
+              "to": "overlayColors.receptionPanel.totalBorder",
+              "times": 1
+            }
+          ]
+        },
+        "8594": {
+          "original": "            borderColor: 'rgba(148, 163, 184, 0.35)',",
+          "migrated": "            borderColor: overlayColors.floatingSummary.border,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'rgba(148, 163, 184, 0.35)'",
+              "to": "overlayColors.floatingSummary.border",
+              "times": 1
+            }
+          ]
+        },
+        "8595": {
+          "original": "            bgcolor: 'rgba(255, 255, 255, 0.96)',",
+          "migrated": "            bgcolor: overlayColors.floatingSummary.surface,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'rgba(255, 255, 255, 0.96)'",
+              "to": "overlayColors.floatingSummary.surface",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    }
+  }
+}

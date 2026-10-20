@@ -1,0 +1,242 @@
+{
+  "source": "HEAD 8754565, fuentes de signo bloque b2",
+  "files": {
+    "pages/informes/EstadoCuentaPage.tsx": {
+      "headSha256": "3a956ac0508d0c55913a5681206f9d5d12c16d91dd7631361347f57e92475644",
+      "addedImports": [],
+      "lines": {
+        "37": {
+          "original": "import { accountingColors } from '../../theme/functional';",
+          "migrated": "import { accountingColors, balanceColors } from '../../theme/functional';",
+          "entries": [],
+          "replacements": [],
+          "importMerge": true
+        },
+        "641": {
+          "original": "                color={saldoFinal > 0 ? 'error.main' : saldoFinal < 0 ? 'success.main' : 'text.primary'}",
+          "migrated": "                color={saldoFinal > 0 ? balanceColors.due : saldoFinal < 0 ? balanceColors.inFavor : 'text.primary'}",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'error.main'",
+              "to": "balanceColors.due",
+              "times": 1
+            },
+            {
+              "from": "'success.main'",
+              "to": "balanceColors.inFavor",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "pages/informes/finanzas/PosicionTesoreriaPage.tsx": {
+      "headSha256": "d97aa031f4cc39ae96af495a243abbc5078b5d7060bb36697364e8b17b752378",
+      "addedImports": [
+        "import { balanceColors } from '../../../theme/functional';"
+      ],
+      "lines": {
+        "57": {
+          "original": "      <Typography variant=\"body2\" fontWeight={700} color={(p.value ?? 0) < 0 ? 'error.main' : 'text.primary'}>",
+          "migrated": "      <Typography variant=\"body2\" fontWeight={700} color={(p.value ?? 0) < 0 ? balanceColors.negative : 'text.primary'}>",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'error.main'",
+              "to": "balanceColors.negative",
+              "times": 1
+            }
+          ]
+        },
+        "192": {
+          "original": "                <Typography variant=\"h6\" fontWeight={700} color={t.saldo < 0 ? 'error.main' : 'text.primary'}>",
+          "migrated": "                <Typography variant=\"h6\" fontWeight={700} color={t.saldo < 0 ? balanceColors.negative : 'text.primary'}>",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'error.main'",
+              "to": "balanceColors.negative",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "pages/DocumentosPage.tsx": {
+      "headSha256": "1f9691a9d3948eaeeb70ba60f131af11a5e541d2d14f404b5ef5b345a2f2e9ae",
+      "addedImports": [],
+      "lines": {
+        "169": {
+          "original": "import { alertColors } from '../theme/functional';",
+          "migrated": "import { alertColors, balanceColors } from '../theme/functional';",
+          "entries": [],
+          "replacements": [],
+          "importMerge": true
+        },
+        "2327": {
+          "original": "                      color: suspended ? 'warning.main' : Number(params.value ?? 0) === 0 ? 'success.main' : 'error.main',",
+          "migrated": "                      color: suspended ? balanceColors.onHold : Number(params.value ?? 0) === 0 ? balanceColors.settled : balanceColors.due,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'warning.main'",
+              "to": "balanceColors.onHold",
+              "times": 1
+            },
+            {
+              "from": "'success.main'",
+              "to": "balanceColors.settled",
+              "times": 1
+            },
+            {
+              "from": "'error.main'",
+              "to": "balanceColors.due",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "components/documentos/DocumentosMobileView.tsx": {
+      "headSha256": "aedb62a7c686ff29013aaf5f6c48e32f8ddacef275bb1c3b11ad377ff2c203e1",
+      "addedImports": [
+        "import { balanceColors } from '../../theme/functional';"
+      ],
+      "lines": {
+        "162": {
+          "original": "                      color: saldo === 0 ? 'success.main' : 'error.main',",
+          "migrated": "                      color: saldo === 0 ? balanceColors.settled : balanceColors.due,",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'success.main'",
+              "to": "balanceColors.settled",
+              "times": 1
+            },
+            {
+              "from": "'error.main'",
+              "to": "balanceColors.due",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "modules/contabilidad/SaldosInicialesView.tsx": {
+      "headSha256": "c0847e347d6f941ff65710903629af2b5769f1b346aa3ba5abcfa73275624fde",
+      "addedImports": [
+        "import { balanceColors } from '../../theme/functional';"
+      ],
+      "lines": {
+        "130": {
+          "original": "        '& .MuiInputBase-input': { color: negativo ? 'error.main' : 'inherit' },",
+          "migrated": "        '& .MuiInputBase-input': { color: negativo ? balanceColors.negative : 'inherit' },",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'error.main'",
+              "to": "balanceColors.negative",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "pages/DocumentosFormPage.tsx": {
+      "headSha256": "bb7206e33f706f07f61ee109e63615be7ccc7110330d6e85bc63481eafde1b01",
+      "addedImports": [],
+      "lines": {
+        "135": {
+          "original": "import { advanceBoxColors, alertColors, attachmentIndicatorColors, documentSummaryTones, fiscalStatusColors, moduleAccents } from '../theme/functional';",
+          "migrated": "import { advanceBoxColors, alertColors, attachmentIndicatorColors, balanceColors, documentSummaryTones, fiscalStatusColors, moduleAccents } from '../theme/functional';",
+          "entries": [],
+          "replacements": [],
+          "importMerge": true
+        },
+        "6050": {
+          "original": "          <Typography variant=\"body2\" color={Number(form.total || 0) < totalAnticipadoRegistrado ? 'error.main' : 'text.primary'}>",
+          "migrated": "          <Typography variant=\"body2\" color={Number(form.total || 0) < totalAnticipadoRegistrado ? balanceColors.negative : 'text.primary'}>",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'error.main'",
+              "to": "balanceColors.negative",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "pages/informes/OCPendientesPage.tsx": {
+      "headSha256": "f9fb12f73671de96684ebae467140da50e417775d340e5046fb0aab27bd15743",
+      "addedImports": [
+        "import { balanceColors } from '../../theme/functional';"
+      ],
+      "lines": {
+        "132": {
+          "original": "          <Typography variant=\"body2\" fontWeight={700} color={v > 0 ? 'error.main' : 'text.primary'}>",
+          "migrated": "          <Typography variant=\"body2\" fontWeight={700} color={v > 0 ? balanceColors.outstanding : 'text.primary'}>",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'error.main'",
+              "to": "balanceColors.outstanding",
+              "times": 1
+            }
+          ]
+        },
+        "248": {
+          "original": "          <Typography variant=\"body2\" fontWeight={bold ? 700 : 400} color={v > 0 ? 'error.main' : 'text.primary'}>",
+          "migrated": "          <Typography variant=\"body2\" fontWeight={bold ? 700 : 400} color={v > 0 ? balanceColors.outstanding : 'text.primary'}>",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'error.main'",
+              "to": "balanceColors.outstanding",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "pages/informes/inventario/ExistenciasPorAlmacenPage.tsx": {
+      "headSha256": "ffa38b94a03c212c1be1e20ac5c8c068c27d622aabca5a7cae8a0d65dc588d90",
+      "addedImports": [],
+      "lines": {
+        "38": {
+          "original": "import { moduleAccents } from '../../../theme/functional';",
+          "migrated": "import { balanceColors, moduleAccents } from '../../../theme/functional';",
+          "entries": [],
+          "replacements": [],
+          "importMerge": true
+        },
+        "102": {
+          "original": "          <Typography variant=\"body2\" color={v < 0 ? 'error.main' : 'success.main'}>",
+          "migrated": "          <Typography variant=\"body2\" color={v < 0 ? balanceColors.negative : balanceColors.positive}>",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'error.main'",
+              "to": "balanceColors.negative",
+              "times": 1
+            },
+            {
+              "from": "'success.main'",
+              "to": "balanceColors.positive",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    }
+  }
+}

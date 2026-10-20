@@ -18,8 +18,9 @@ import {
   type VentaVendedorRow,
   type VentasPorVendedorResult,
 } from '../../../services/reportesService';
+import { categoricalPalettes } from '../../../theme/functional';
 
-const COLORES = ['#3d5f86', '#3f6b52', '#8a6232', '#5c5348', '#4e6f78', '#6a7354', '#7a5648', '#3c4149'];
+const COLORES = categoricalPalettes.series;
 const money = (v: number) => v.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const pct = (v: number) => `${v.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`;
 const formatFecha = (iso: string) => {

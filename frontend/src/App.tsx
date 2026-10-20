@@ -101,12 +101,29 @@ import {
   HoyView, IdeasView, RealFrenteDetailView, RealFrentesView, RevisionSemanalView, TareasView,
 } from './compass/CompassModule';
 import { isCompassHostname } from './routing/appHostname';
-import LiquidacionFacturaOrigenMockupPage from './dev-mockups/LiquidacionFacturaOrigenMockupPage';
-import NotaCreditoMockupPage from './dev-mockups/nota-credito/NotaCreditoMockupPage';
-import NotasCreditoWorkspaceMockupPage from './dev-mockups/notas-credito-workspace/NotasCreditoWorkspaceMockupPage';
-import NotasCreditoWorkspacePropuesta2 from './dev-mockups/notas-credito-workspace/NotasCreditoWorkspacePropuesta2';
-import IdentidadErpMockupPage from './dev-mockups/identidad-erp/IdentidadErpMockupPage';
-import AlmacenesPrototipoPage from './dev-mockups/almacenes/AlmacenesPrototipoPage';
+
+/**
+ * Mockups de diseño (`src/dev-mockups/`): solo en desarrollo. En producción Vite
+ * reemplaza `import.meta.env.DEV` por `false`, así que las rutas no se montan y
+ * sus chunks no entran al bundle (conservan la identidad Emphasys; ver
+ * docs/white-label-validacion-final.md, H3).
+ */
+const devMockups = import.meta.env.DEV
+  ? {
+      LiquidacionFacturaOrigen: React.lazy(() => import('./dev-mockups/LiquidacionFacturaOrigenMockupPage')),
+      NotaCredito: React.lazy(() => import('./dev-mockups/nota-credito/NotaCreditoMockupPage')),
+      NotasCreditoWorkspace: React.lazy(() => import('./dev-mockups/notas-credito-workspace/NotasCreditoWorkspaceMockupPage')),
+      NotasCreditoWorkspacePropuesta2: React.lazy(() => import('./dev-mockups/notas-credito-workspace/NotasCreditoWorkspacePropuesta2')),
+      IdentidadErp: React.lazy(() => import('./dev-mockups/identidad-erp/IdentidadErpMockupPage')),
+      AlmacenesPrototipo: React.lazy(() => import('./dev-mockups/almacenes/AlmacenesPrototipoPage')),
+    }
+  : null;
+
+const devMockup = (Page: React.ComponentType) => (
+  <React.Suspense fallback={null}>
+    <Page />
+  </React.Suspense>
+);
 
 export default function App() {
   const compassHost = isCompassHostname(window.location.hostname);
@@ -117,16 +134,20 @@ export default function App() {
         <Route element={<AppThemeGate />}>
           <Route path="/login" element={<LoginPage />} />
         </Route>
-        <Route path="/dev/mockups/liquidacion-factura-origen" element={<LiquidacionFacturaOrigenMockupPage />} />
-        <Route path="/dev/mockups/nota-credito" element={<NotaCreditoMockupPage />} />
-        <Route path="/dev/mockups/notas-credito" element={<NotasCreditoWorkspaceMockupPage />} />
-        <Route path="/dev/mockups/notas-credito-2" element={<NotasCreditoWorkspacePropuesta2 />} />
-        <Route path="/dev/mockups/identidad" element={<IdentidadErpMockupPage />} />
-        <Route path="/dev/mockups/almacenes" element={<AlmacenesPrototipoPage />}>
-          <Route index element={null} />
-          <Route path="nuevo" element={null} />
-          <Route path=":id" element={null} />
-        </Route>
+        {devMockups && (
+          <>
+            <Route path="/dev/mockups/liquidacion-factura-origen" element={devMockup(devMockups.LiquidacionFacturaOrigen)} />
+            <Route path="/dev/mockups/nota-credito" element={devMockup(devMockups.NotaCredito)} />
+            <Route path="/dev/mockups/notas-credito" element={devMockup(devMockups.NotasCreditoWorkspace)} />
+            <Route path="/dev/mockups/notas-credito-2" element={devMockup(devMockups.NotasCreditoWorkspacePropuesta2)} />
+            <Route path="/dev/mockups/identidad" element={devMockup(devMockups.IdentidadErp)} />
+            <Route path="/dev/mockups/almacenes" element={devMockup(devMockups.AlmacenesPrototipo)}>
+              <Route index element={null} />
+              <Route path="nuevo" element={null} />
+              <Route path=":id" element={null} />
+            </Route>
+          </>
+        )}
 
         <Route element={<RequireAuth />}>
           <Route path="/compass" element={<CompassLayout />}>

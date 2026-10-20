@@ -1,0 +1,269 @@
+{
+  "source": "HEAD cf8c61e, fuentes de signo bloque b3",
+  "files": {
+    "pages/finanzas/ConciliacionBancariaPage.tsx": {
+      "headSha256": "1d6c845c5e40f7a0f7702c76f2a8a4b7516843858e3d194e8a656880bce47ea1",
+      "addedImports": [
+        "import { cashFlowColors } from '../../theme/functional';"
+      ],
+      "lines": {
+        "397": {
+          "original": "            color={row.tipo_movimiento === 'Deposito' ? 'success.main' : 'error.main'}",
+          "migrated": "            color={row.tipo_movimiento === 'Deposito' ? cashFlowColors.inflow : cashFlowColors.outflow}",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'success.main'",
+              "to": "cashFlowColors.inflow",
+              "times": 1
+            },
+            {
+              "from": "'error.main'",
+              "to": "cashFlowColors.outflow",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "pages/informes/finanzas/MovimientosNoConciliadosPage.tsx": {
+      "headSha256": "e9134eb152ca1f99bea519d65d4711ce3f51f5ca1eeb581bcfc34b998159d658",
+      "addedImports": [
+        "import { cashFlowColors } from '../../../theme/functional';"
+      ],
+      "lines": {
+        "84": {
+          "original": "      const color = v === 'Deposito' ? 'success.main' : 'error.main';",
+          "migrated": "      const color = v === 'Deposito' ? cashFlowColors.inflow : cashFlowColors.outflow;",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'success.main'",
+              "to": "cashFlowColors.inflow",
+              "times": 1
+            },
+            {
+              "from": "'error.main'",
+              "to": "cashFlowColors.outflow",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "pages/informes/inventario/MovimientosInventarioPage.tsx": {
+      "headSha256": "2bcadf99b07cb22d3f2be960062312cdafcaa1d41de86d4582243e94785c19d7",
+      "addedImports": [],
+      "lines": {
+        "39": {
+          "original": "import { inventoryFlowColors, moduleAccents } from '../../../theme/functional';",
+          "migrated": "import { cashFlowColors, inventoryFlowColors, moduleAccents } from '../../../theme/functional';",
+          "entries": [],
+          "replacements": [],
+          "importMerge": true
+        },
+        "97": {
+          "original": "          <Typography variant=\"body2\" fontWeight={700} color={esEntrada ? 'success.main' : 'error.main'}>",
+          "migrated": "          <Typography variant=\"body2\" fontWeight={700} color={esEntrada ? cashFlowColors.inflow : cashFlowColors.outflow}>",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'success.main'",
+              "to": "cashFlowColors.inflow",
+              "times": 1
+            },
+            {
+              "from": "'error.main'",
+              "to": "cashFlowColors.outflow",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "pages/informes/finanzas/VencimientosClientesPage.tsx": {
+      "headSha256": "e7e36f7467b5cea5d5237e380ddd4f29efc560c32acb2f42bb10e72866ccde7e",
+      "addedImports": [],
+      "lines": {
+        "37": {
+          "original": "import { alertColors } from '../../../theme/functional';",
+          "migrated": "import { alertColors, dueDateColors } from '../../../theme/functional';",
+          "entries": [],
+          "replacements": [],
+          "importMerge": true
+        },
+        "71": {
+          "original": "        const color = v < 0 ? 'error.main' : v === 0 ? 'warning.main' : 'text.primary';",
+          "migrated": "        const color = v < 0 ? dueDateColors.overdue : v === 0 ? dueDateColors.dueToday : 'text.primary';",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'error.main'",
+              "to": "dueDateColors.overdue",
+              "times": 1
+            },
+            {
+              "from": "'warning.main'",
+              "to": "dueDateColors.dueToday",
+              "times": 1
+            }
+          ]
+        },
+        "98": {
+          "original": "          <Typography variant=\"body2\" fontWeight={700} color={row.dias < 0 ? 'error.main' : 'text.primary'}>",
+          "migrated": "          <Typography variant=\"body2\" fontWeight={700} color={row.dias < 0 ? dueDateColors.overdue : 'text.primary'}>",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'error.main'",
+              "to": "dueDateColors.overdue",
+              "times": 1
+            }
+          ]
+        },
+        "214": {
+          "original": "    { label: 'Vencido',         valor: totalVencido,   color: 'error.main'   },",
+          "migrated": "    { label: 'Vencido',         valor: totalVencido,   color: dueDateColors.overdue   },",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'error.main'",
+              "to": "dueDateColors.overdue",
+              "times": 1
+            }
+          ]
+        },
+        "215": {
+          "original": "    { label: 'Vence hoy',       valor: totalHoy,       color: 'warning.main' },",
+          "migrated": "    { label: 'Vence hoy',       valor: totalHoy,       color: dueDateColors.dueToday },",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'warning.main'",
+              "to": "dueDateColors.dueToday",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "pages/informes/finanzas/VencimientosProveedoresPage.tsx": {
+      "headSha256": "b5923c015e059bdafad8d253cc3d3f11642d5dee8efe3b9604564d0bac5caddf",
+      "addedImports": [],
+      "lines": {
+        "41": {
+          "original": "import { alertColors } from '../../../theme/functional';",
+          "migrated": "import { alertColors, dueDateColors } from '../../../theme/functional';",
+          "entries": [],
+          "replacements": [],
+          "importMerge": true
+        },
+        "92": {
+          "original": "        const color = v < 0 ? 'error.main' : v === 0 ? 'warning.main' : 'text.primary';",
+          "migrated": "        const color = v < 0 ? dueDateColors.overdue : v === 0 ? dueDateColors.dueToday : 'text.primary';",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'error.main'",
+              "to": "dueDateColors.overdue",
+              "times": 1
+            },
+            {
+              "from": "'warning.main'",
+              "to": "dueDateColors.dueToday",
+              "times": 1
+            }
+          ]
+        },
+        "139": {
+          "original": "          <Typography variant=\"body2\" fontWeight={700} color={row.dias < 0 ? 'error.main' : 'text.primary'}>",
+          "migrated": "          <Typography variant=\"body2\" fontWeight={700} color={row.dias < 0 ? dueDateColors.overdue : 'text.primary'}>",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'error.main'",
+              "to": "dueDateColors.overdue",
+              "times": 1
+            }
+          ]
+        },
+        "280": {
+          "original": "    { label: 'Vencido',        valor: totalVencido,  color: 'error.main'   },",
+          "migrated": "    { label: 'Vencido',        valor: totalVencido,  color: dueDateColors.overdue   },",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'error.main'",
+              "to": "dueDateColors.overdue",
+              "times": 1
+            }
+          ]
+        },
+        "281": {
+          "original": "    { label: 'Vence hoy',      valor: totalHoy,      color: 'warning.main' },",
+          "migrated": "    { label: 'Vence hoy',      valor: totalHoy,      color: dueDateColors.dueToday },",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'warning.main'",
+              "to": "dueDateColors.dueToday",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "pages/finanzas/ProgramacionPagosPage.tsx": {
+      "headSha256": "1efd1e93b079caf014cfcfd834ff520a5bc4d4598fd5bcba584ccc36a1ee310e",
+      "addedImports": [
+        "import { dueDateColors } from '../../theme/functional';"
+      ],
+      "lines": {
+        "123": {
+          "original": "        const color = dias < 0 ? 'error.main' : dias === 0 ? 'warning.main' : 'text.secondary';",
+          "migrated": "        const color = dias < 0 ? dueDateColors.overdue : dias === 0 ? dueDateColors.dueToday : 'text.secondary';",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'error.main'",
+              "to": "dueDateColors.overdue",
+              "times": 1
+            },
+            {
+              "from": "'warning.main'",
+              "to": "dueDateColors.dueToday",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "modules/finanzas/ProgramacionMasivaDrawer.tsx": {
+      "headSha256": "59c28c548eb2e68a0846019fac89c2e9b9d7c02a4daaa331d8223d88564cb658",
+      "addedImports": [
+        "import { dueDateColors } from '../../theme/functional';"
+      ],
+      "lines": {
+        "314": {
+          "original": "          <Typography sx={{ fontSize: 13 }} color={vencida ? 'error.main' : 'text.secondary'}>",
+          "migrated": "          <Typography sx={{ fontSize: 13 }} color={vencida ? dueDateColors.overdue : 'text.secondary'}>",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'error.main'",
+              "to": "dueDateColors.overdue",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    }
+  }
+}

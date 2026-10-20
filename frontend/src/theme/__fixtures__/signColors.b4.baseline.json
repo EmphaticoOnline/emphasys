@@ -1,0 +1,139 @@
+{
+  "source": "HEAD 1a00837, fuentes de signo bloque b4",
+  "files": {
+    "pages/informes/ventas/HistorialPreciosVentaPage.tsx": {
+      "headSha256": "452c122d53210abbb13607f2a79c090736c4f89ac09afeb9b7b7f48027192395",
+      "addedImports": [
+        "import { priceVarianceColors } from '../../../theme/functional';"
+      ],
+      "lines": {
+        "254": {
+          "original": "  const varColor    = varPct === null ? 'text.secondary' : varPct > 0 ? 'error.main' : varPct < 0 ? 'success.main' : 'text.primary';",
+          "migrated": "  const varColor    = varPct === null ? 'text.secondary' : varPct > 0 ? priceVarianceColors.up : varPct < 0 ? priceVarianceColors.down : 'text.primary';",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'error.main'",
+              "to": "priceVarianceColors.up",
+              "times": 1
+            },
+            {
+              "from": "'success.main'",
+              "to": "priceVarianceColors.down",
+              "times": 1
+            }
+          ]
+        },
+        "256": {
+          "original": "  const varIconColor = varPct === null ? 'text.secondary' : varPct > 0 ? 'error.main' : varPct < 0 ? 'success.main' : 'text.secondary';",
+          "migrated": "  const varIconColor = varPct === null ? 'text.secondary' : varPct > 0 ? priceVarianceColors.up : varPct < 0 ? priceVarianceColors.down : 'text.secondary';",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'error.main'",
+              "to": "priceVarianceColors.up",
+              "times": 1
+            },
+            {
+              "from": "'success.main'",
+              "to": "priceVarianceColors.down",
+              "times": 1
+            }
+          ]
+        },
+        "376": {
+          "original": "            { label: 'Precio mínimo',    valor: formatMXN(resumen.costo_min),      color: 'success.main', bold: false },",
+          "migrated": "            { label: 'Precio mínimo',    valor: formatMXN(resumen.costo_min),      color: priceVarianceColors.min, bold: false },",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'success.main'",
+              "to": "priceVarianceColors.min",
+              "times": 1
+            }
+          ]
+        },
+        "377": {
+          "original": "            { label: 'Precio máximo',    valor: formatMXN(resumen.costo_max),      color: 'error.main', bold: false },",
+          "migrated": "            { label: 'Precio máximo',    valor: formatMXN(resumen.costo_max),      color: priceVarianceColors.max, bold: false },",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'error.main'",
+              "to": "priceVarianceColors.max",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    },
+    "pages/informes/compras/HistorialPreciosCompraPage.tsx": {
+      "headSha256": "40334da0fd614c15c7599e80b5ce57ad65bbeaf598ca2750ddd4dbad21f875de",
+      "addedImports": [
+        "import { priceVarianceColors } from '../../../theme/functional';"
+      ],
+      "lines": {
+        "254": {
+          "original": "  const varColor    = varPct === null ? 'text.secondary' : varPct > 0 ? 'error.main' : varPct < 0 ? 'success.main' : 'text.primary';",
+          "migrated": "  const varColor    = varPct === null ? 'text.secondary' : varPct > 0 ? priceVarianceColors.up : varPct < 0 ? priceVarianceColors.down : 'text.primary';",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'error.main'",
+              "to": "priceVarianceColors.up",
+              "times": 1
+            },
+            {
+              "from": "'success.main'",
+              "to": "priceVarianceColors.down",
+              "times": 1
+            }
+          ]
+        },
+        "256": {
+          "original": "  const varIconColor = varPct === null ? 'text.secondary' : varPct > 0 ? 'error.main' : varPct < 0 ? 'success.main' : 'text.secondary';",
+          "migrated": "  const varIconColor = varPct === null ? 'text.secondary' : varPct > 0 ? priceVarianceColors.up : varPct < 0 ? priceVarianceColors.down : 'text.secondary';",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'error.main'",
+              "to": "priceVarianceColors.up",
+              "times": 1
+            },
+            {
+              "from": "'success.main'",
+              "to": "priceVarianceColors.down",
+              "times": 1
+            }
+          ]
+        },
+        "376": {
+          "original": "            { label: 'Costo mínimo',    valor: formatMXN(resumen.costo_min),      color: 'success.main', bold: false },",
+          "migrated": "            { label: 'Costo mínimo',    valor: formatMXN(resumen.costo_min),      color: priceVarianceColors.min, bold: false },",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'success.main'",
+              "to": "priceVarianceColors.min",
+              "times": 1
+            }
+          ]
+        },
+        "377": {
+          "original": "            { label: 'Costo máximo',    valor: formatMXN(resumen.costo_max),      color: 'error.main', bold: false },",
+          "migrated": "            { label: 'Costo máximo',    valor: formatMXN(resumen.costo_max),      color: priceVarianceColors.max, bold: false },",
+          "entries": [],
+          "replacements": [
+            {
+              "from": "'error.main'",
+              "to": "priceVarianceColors.max",
+              "times": 1
+            }
+          ]
+        }
+      },
+      "snippets": {}
+    }
+  }
+}

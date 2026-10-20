@@ -29,6 +29,10 @@ import {
   type SatMaterialPeligroso,
 } from '../../../services/satCatalogos.api';
 import type { Producto } from '../../../types/producto';
+import { neutralColors } from '../../../theme/structural';
+import { activeBrand } from '../../../theme/brand/active';
+import { brandElevation } from '../../../theme/elevation';
+import { cartaPorteSectionColors } from '../../../theme/functional';
 
 type Props = {
   open: boolean;
@@ -40,7 +44,7 @@ type Props = {
   onFirstSave?: () => void;
 };
 
-const AZUL = '#1d2f68';
+const AZUL = activeBrand.colors.blue.base;
 
 const pad = (n: number) => String(n).padStart(2, '0');
 const formatLocalDateTime = (d: Date): string =>
@@ -76,11 +80,11 @@ const partirFechaHora = (value: string): { fecha: string; hora: string; minuto: 
   return { fecha, hora, minuto: minutoRaw.slice(0, 2) };
 };
 const FONDO_SECCION_MODAL: Partial<Record<CartaPorteIssueSection, string>> = {
-  ruta: '#e4eef6',
-  unidad: '#e5f0e8',
-  operador: '#f8efe4',
-  generales: '#f3ecf6',
-  mercancias: '#e8f2f0',
+  ruta: cartaPorteSectionColors.ruta,
+  unidad: cartaPorteSectionColors.unidad,
+  operador: cartaPorteSectionColors.operador,
+  generales: cartaPorteSectionColors.generales,
+  mercancias: cartaPorteSectionColors.mercancias,
 };
 const numStr = (v: unknown): string => (v === null || v === undefined || v === '' ? '' : String(v));
 const aDosDecimales = (v: unknown): string => {
@@ -194,7 +198,7 @@ const adornosLista = (tokens: { content: { card: string; border: string } }) => 
     sx: {
       bgcolor: tokens.content.card,
       border: `1px solid ${tokens.content.border}`,
-      boxShadow: '0 10px 28px rgba(62, 52, 40, 0.08)',
+      boxShadow: brandElevation.panel,
     },
   },
   listbox: {
@@ -676,7 +680,7 @@ function CampoUbicacion({
           sx: {
             bgcolor: tokens.content.card,
             border: `1px solid ${tokens.content.border}`,
-            boxShadow: '0 10px 28px rgba(62, 52, 40, 0.08)',
+            boxShadow: brandElevation.panel,
           },
         },
         listbox: {
@@ -1319,7 +1323,7 @@ export default function CartaPorteViajeEditor({ open, documentoId, folio, tipoDo
     );
     if (!modal) {
       return (
-        <Box key={f.key} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1.5, p: 1, bgcolor: '#fbfcfe' }}>
+        <Box key={f.key} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1.5, p: 1, bgcolor: neutralColors.steel.surface }}>
           {encabezado}
           <Stack spacing={1}>
             <Autocomplete
@@ -1728,7 +1732,7 @@ export default function CartaPorteViajeEditor({ open, documentoId, folio, tipoDo
             />
           )}
           {operadorSel && !modal && (
-            <Box sx={{ bgcolor: modal ? tokens.content.well : '#f8fafc', borderRadius: 1.5, p: 1 }}>
+            <Box sx={{ bgcolor: modal ? tokens.content.well : neutralColors.slate[50], borderRadius: 1.5, p: 1 }}>
               <Typography variant="caption" display="block" color="text.secondary">
                 RFC: {operadorSel.rfc ?? '—'} · CURP: {operadorSel.curp ?? '—'}
               </Typography>

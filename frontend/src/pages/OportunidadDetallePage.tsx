@@ -18,6 +18,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { getCotizacion } from '../services/cotizacionesService';
 import { apiFetch } from '../services/apiFetch';
 import type { CotizacionPartida } from '../types/cotizacion';
+import { neutralColors } from '../theme/structural';
 
 type OportunidadDetalle = {
   id: number;
@@ -65,10 +66,10 @@ async function fetchOportunidad(id: string) {
 function DetailRow({ label, value }: { label: string; value: string }) {
   return (
     <Stack spacing={0.35}>
-      <Typography variant="caption" sx={{ color: '#64748b', fontWeight: 700, letterSpacing: 0.25 }}>
+      <Typography variant="caption" sx={{ color: neutralColors.slate[500], fontWeight: 700, letterSpacing: 0.25 }}>
         {label}
       </Typography>
-      <Typography sx={{ color: '#0f172a', fontWeight: 600 }}>{value}</Typography>
+      <Typography sx={{ color: neutralColors.slate[900], fontWeight: 600 }}>{value}</Typography>
     </Stack>
   );
 }
@@ -119,10 +120,10 @@ export default function OportunidadDetallePage() {
   if (loading) {
     return (
       <Box sx={{ p: { xs: 2, md: 3 }, maxWidth: 'md', mx: 'auto' }}>
-        <Paper variant="outlined" sx={{ p: 4, borderRadius: 3, borderColor: '#dbe3ee' }}>
+        <Paper variant="outlined" sx={{ p: 4, borderRadius: 3, borderColor: neutralColors.steel.cardBorder }}>
           <Stack spacing={1.5} alignItems="center" justifyContent="center">
             <CircularProgress size={30} />
-            <Typography sx={{ color: '#475569' }}>Cargando oportunidad...</Typography>
+            <Typography sx={{ color: neutralColors.slate[600] }}>Cargando oportunidad...</Typography>
           </Stack>
         </Paper>
       </Box>
@@ -134,10 +135,10 @@ export default function OportunidadDetallePage() {
       <Stack spacing={2}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2, alignItems: 'flex-start', flexWrap: 'wrap' }}>
           <Box>
-            <Typography variant="h4" sx={{ fontWeight: 700, color: '#0f172a' }}>
+            <Typography variant="h4" sx={{ fontWeight: 700, color: neutralColors.slate[900] }}>
               Detalle de oportunidad
             </Typography>
-            <Typography sx={{ color: '#475569', mt: 0.35 }}>
+            <Typography sx={{ color: neutralColors.slate[600], mt: 0.35 }}>
               Consulta la cotización relacionada en modo lectura.
             </Typography>
           </Box>
@@ -150,7 +151,7 @@ export default function OportunidadDetallePage() {
 
         {oportunidad ? (
           <Stack spacing={1.5}>
-            <Paper variant="outlined" sx={{ p: 2.5, borderRadius: 3, borderColor: '#dbe3ee' }}>
+            <Paper variant="outlined" sx={{ p: 2.5, borderRadius: 3, borderColor: neutralColors.steel.cardBorder }}>
               <Stack spacing={2}>
               <DetailRow label="Folio" value={oportunidad.folio || 'Sin folio'} />
               <DetailRow label="Cliente" value={oportunidad.contacto_nombre || 'Sin cliente'} />
@@ -165,9 +166,9 @@ export default function OportunidadDetallePage() {
               </Stack>
             </Paper>
 
-            <Paper variant="outlined" sx={{ p: 2.5, borderRadius: 3, borderColor: '#dbe3ee' }}>
+            <Paper variant="outlined" sx={{ p: 2.5, borderRadius: 3, borderColor: neutralColors.steel.cardBorder }}>
               <Stack spacing={1.5}>
-                <Typography variant="h6" sx={{ fontWeight: 700, color: '#0f172a' }}>
+                <Typography variant="h6" sx={{ fontWeight: 700, color: neutralColors.slate[900] }}>
                   Partidas de la cotización
                 </Typography>
 
@@ -197,7 +198,7 @@ export default function OportunidadDetallePage() {
                     </Table>
                   </TableContainer>
                 ) : (
-                  <Typography sx={{ color: '#64748b' }}>
+                  <Typography sx={{ color: neutralColors.slate[500] }}>
                     Esta cotización no tiene partidas registradas.
                   </Typography>
                 )}
