@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { obtenerEmpresaActivaDeUsuario } from "../modules/auth/auth.service";
 import { obtenerEmpresaPorId } from "../services/empresasService";
+import { analizarLogoEmpresa } from "../services/empresasIdentidadVisualAnalisisService";
 import {
   aRespuesta,
   guardarColoresIdentidad,
@@ -75,6 +76,30 @@ export async function obtenerIdentidadVisualController(req: Request, res: Respon
     return res.json(aRespuesta(empresaId, row, auth.esSuperadmin));
   } catch (error) {
     console.error("Error al obtener identidad visual de empresa:", error);
+    return res.status(500).json({ message: "Error interno del servidor" });
+  }
+}
+
+/** POST …/identidad-visual/analizar: vuelve a analizar el logo y guarda solo la propuesta. */
+export async function analizarIdentidadVisualController(req: Request, res: Response) {
+  try {
+    const auth = req.auth;
+    if (!auth) return res.status(401).json({ message: "No autenticado" });
+    if (!auth.esSuperadmin) {
+      return res.status(403).json({ message: "Solo un superadmin puede analizar el logotipo" });
+    }
+
+    const empresaId = leerEmpresaId(req);
+    if (!empresaId) return res.status(400).json({ message: "empresa_id inválido" });
+
+    const empresa = await obtenerEmpresaPorId(empresaId);
+    if (!empresa) return res.status(404).json({ message: "Empresa no encontrada" });
+
+    const resultado = await analizarLogoEmpresa(empresaId);
+    if (!resultado.ok) return res.status(404).json({ message: "La empresa no tiene logotipo (logo_default)" });
+    return res.json(aRespuesta(empresaId, resultado.identidad, true));
+  } catch (error) {
+    console.error("Error al analizar el logotipo de la empresa:", error);
     return res.status(500).json({ message: "Error interno del servidor" });
   }
 }

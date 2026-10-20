@@ -10,6 +10,7 @@ import {
 } from "../services/empresasService";
 import { crearEmpresaAsset, obtenerEmpresaAssetPorTipo } from "../services/empresasAssetsService";
 import { removeFileIfExists, saveEmpresaFile } from "../services/fileStorage.service";
+import { analizarLogoEmpresa } from "../services/empresasIdentidadVisualAnalisisService";
 
 function validarRequeridos(body: any) {
   const faltantes: string[] = [];
@@ -193,6 +194,14 @@ export async function subirAssetEmpresaController(req: Request, res: Response) {
         mime_type: saved.mimeType,
         tamano_bytes: saved.size,
       });
+
+      if (tipo === "logo_default") {
+        // Propuesta de identidad visual en segundo plano: no bloquea ni hace fallar la subida,
+        // y solo escribe la propuesta (nunca los colores aprobados).
+        void analizarLogoEmpresa(empresaId).catch((error) =>
+          console.error("No se pudo analizar el logotipo de la empresa:", error)
+        );
+      }
 
       return res.status(201).json(asset);
     } catch (dbError) {

@@ -12,6 +12,7 @@ import {
 } from "../controllers/empresasController";
 import {
   actualizarIdentidadVisualController,
+  analizarIdentidadVisualController,
   obtenerIdentidadVisualController,
 } from "../controllers/empresasIdentidadVisualController";
 
@@ -47,5 +48,6 @@ router.get("/:empresa_id/assets/:tipo", requireAuth, obtenerAssetEmpresaControll
 router.post("/:empresa_id/assets", requireAuth, manejarUploadAsset, subirAssetEmpresaController);
 router.get("/:empresa_id/identidad-visual", requireAuth, obtenerIdentidadVisualController);
 router.put("/:empresa_id/identidad-visual", requireAuth, actualizarIdentidadVisualController);
+router.post("/:empresa_id/identidad-visual/analizar", requireAuth, analizarIdentidadVisualController);
 
 export default router;
