@@ -40,6 +40,7 @@ import ShoppingCartIcon from '@mui/icons-material/ShoppingCart';
 import WarehouseIcon from '@mui/icons-material/Warehouse';
 import { useBrand } from '../../theme/brand/useBrand';
 import { brandLogos } from '../../theme/brand/logos';
+import { useEmpresaLogo } from '../../theme/brand/useEmpresaLogo';
 import EmpresaSelector from '../EmpresaSelector';
 import RuntimeEnvironmentIndicator from '../RuntimeEnvironmentIndicator';
 import { MOBILE_APPBAR_HEIGHT, SIDEBAR_COLLAPSED_WIDTH, SIDEBAR_WIDTH, TOPBAR_HEIGHT } from '../layoutConstants';
@@ -167,6 +168,7 @@ interface SidebarNavProps {
   onLogout: () => void;
   onChangePassword: () => void;
   onOpenNotifications: () => void;
+  logo: string;
 }
 
 function SidebarNav({
@@ -180,6 +182,7 @@ function SidebarNav({
   onLogout,
   onChangePassword,
   onOpenNotifications,
+  logo,
 }: SidebarNavProps) {
   const { activeBrand } = useBrand();
   const frame = useTheme().emphasys.frame;
@@ -211,15 +214,15 @@ function SidebarNav({
         {collapsed ? (
           // Isotipo dedicado — sin recortes, sin overflow hidden
           <img
-            src={brandLogos.logoMark}
+            src={logo}
             alt={activeBrand.name}
-            style={{ height: COLIBRI_HEIGHT, width: 'auto', filter: frame.logoFilter }}
+            style={{ height: 'auto', maxHeight: COLIBRI_HEIGHT, maxWidth: `calc(${SIDEBAR_COLLAPSED_WIDTH}px - 16px)`, width: 'auto', objectFit: 'contain', filter: frame.logoFilter }}
           />
         ) : (
           <>
             <Box sx={{ flex: 1, overflow: 'hidden', display: 'flex', alignItems: 'center', pl: 0.5 }}>
               <img
-                src={brandLogos.logo}
+                src={logo}
                 alt={activeBrand.name}
                 style={{ height: LOGO_HEIGHT, width: 'auto', maxWidth: '100%', filter: frame.logoFilter }}
               />
@@ -381,6 +384,7 @@ export default function SidebarLayout() {
   const userName = session.user?.nombre || 'Usuario';
   const breadcrumbs = getBreadcrumbs(location.pathname);
   const empresaId = session.empresaActivaId;
+  const logo = useEmpresaLogo(empresaId, brandLogos.logo);
 
   const [ventasTabs, setVentasTabs] = React.useState<DocumentoTabDef[]>([]);
   const [comprasTabs, setComprasTabs] = React.useState<DocumentoTabDef[]>([]);
@@ -574,6 +578,7 @@ export default function SidebarLayout() {
     onLogout: handleLogout,
     onChangePassword: () => setChangePasswordOpen(true),
     onOpenNotifications: () => setNotificationsOpen(true),
+    logo,
   };
 
   if (isMobile) {
@@ -584,7 +589,7 @@ export default function SidebarLayout() {
             <IconButton color="inherit" edge="start" onClick={() => setMobileOpen(true)} sx={{ p: 0.75 }} aria-label="Abrir menú">
               <MenuIcon sx={{ fontSize: 22 }} />
             </IconButton>
-            <Box sx={{ display: 'flex', alignItems: 'center' }}><img src={brandLogos.logo} alt={activeBrand.name} style={{ height: 16, width: 'auto', filter: frame.logoFilter }} /></Box>
+            <Box sx={{ display: 'flex', alignItems: 'center', minWidth: 0 }}><img src={logo} alt={activeBrand.name} style={{ height: 16, maxWidth: '100%', width: 'auto', objectFit: 'contain', filter: frame.logoFilter }} /></Box>
             <Box sx={{ flex: 1 }} />
             <EmpresaSelector compact />
           </Toolbar>
