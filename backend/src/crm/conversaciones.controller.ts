@@ -1558,20 +1558,25 @@ export const marcarConversacionLeidaWhatsapp = async (req: Request, res: Respons
   const usuarioId = Number(req.auth?.userId);
   const conversacionId = Number(req.params.id);
   if (!Number.isFinite(conversacionId)) return res.status(400).json({ message: "Conversación inválida" });
-  const { esAdmin, vendedorContactoId } = await resolverContextoScopeComercial(
+  // Solo el vendedor asignado marca como leído, tenga o no rol Administrador:
+  // es la misma regla con la que listarConversacionesWhatsapp muestra el
+  // contador (ct.vendedor_id = vendedor_contacto_id). Un administrador que no
+  // es el vendedor asignado no coincide aquí y no altera los contadores.
+  const { vendedorContactoId } = await resolverContextoScopeComercial(
     empresaId,
     usuarioId,
     req.auth?.esSuperadmin
   );
+  if (!vendedorContactoId) return res.json({ marked: false });
   const result = await pool.query(
     `INSERT INTO crm.conversaciones_lecturas (empresa_id, usuario_id, conversacion_id, ultima_lectura_en)
      SELECT $1, $2, c.id, now() FROM crm.conversaciones c
      JOIN public.contactos ct ON ct.id = c.contacto_id
      WHERE c.id = $3 AND c.empresa_id = $1
-       AND $4 = false AND ct.vendedor_id = $5
+       AND ct.vendedor_id = $4
      ON CONFLICT (empresa_id, usuario_id, conversacion_id)
      DO UPDATE SET ultima_lectura_en = EXCLUDED.ultima_lectura_en, actualizado_en = now()
-     RETURNING conversacion_id`, [empresaId, usuarioId, conversacionId, esAdmin, vendedorContactoId]
+     RETURNING conversacion_id`, [empresaId, usuarioId, conversacionId, vendedorContactoId]
   );
   return res.json({ marked: (result.rowCount ?? 0) > 0 });
 };

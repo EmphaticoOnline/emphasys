@@ -1138,6 +1138,14 @@ export default function LeadsMobileView(props: LeadsMobileViewProps) {
     setManuallyBackToInbox(true);
   };
 
+  // Tocar en la bandeja la conversación que ya estaba seleccionada no cambia
+  // selectedLeadId, así que el efecto de arriba no reabre el chat: se reabre
+  // aquí. La recarga de mensajes y la lectura las resuelve onSelectLead.
+  const handleOpenLead = (id: string) => {
+    setManuallyBackToInbox(false);
+    onSelectLead(id);
+  };
+
   const showChat = Boolean(selectedLeadId) && Boolean(selectedLead) && !manuallyBackToInbox;
 
   // La vista móvil es dueña del nodo que realmente tiene overflow. La
@@ -2027,7 +2035,7 @@ export default function LeadsMobileView(props: LeadsMobileViewProps) {
               return (
                 <React.Fragment key={lead.id}>
                   <ListItemButton
-                    onClick={() => onSelectLead(lead.id)}
+                    onClick={() => handleOpenLead(lead.id)}
                     selected={lead.id === selectedLeadId}
                     sx={{
                       alignItems: 'flex-start',

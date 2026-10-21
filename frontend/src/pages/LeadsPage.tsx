@@ -55,6 +55,7 @@ import { SendWhatsappTemplateDialog } from '../components/SendWhatsappTemplateDi
 import { ForwardMessageDialog, type ForwardableMessage } from '../components/ForwardMessageDialog';
 import LeadsDesktopView from '../components/leads/LeadsDesktopView';
 import LeadsMobileView from '../components/leads/LeadsMobileView';
+import { esReaperturaMismaConversacion } from '../components/leads/reaperturaMovil';
 import TemperaturaScoreButton from '../components/leads/TemperaturaScoreButton';
 import { fetchContactos } from '../services/contactosService';
 import type { Contacto } from '../types/contactos.types';
@@ -3078,6 +3079,16 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
   // nueva, solo se reutiliza para la tarjeta de la bandeja móvil.
   const handleSelectLeadMobile = handleSelectLead;
 
+  // Solo para la bandeja móvil: al reabrir la conversación que ya estaba
+  // seleccionada, selectedLeadId no cambia, así que se fuerza la carga inicial
+  // (la misma que hace el efecto de selección, incluida la lectura).
+  const handleOpenLeadMobile = React.useCallback((id: string) => {
+    if (esReaperturaMismaConversacion(id, selectedLeadIdRef.current)) {
+      void loadMessages(id);
+    }
+    handleSelectLeadMobile(id);
+  }, [handleSelectLeadMobile, loadMessages]);
+
   const handleResendAttachment = React.useCallback((message: ForwardableMessage) => {
     if (!selectedLead || !message.mediaUrl) return;
     void apiFetch('/api/whatsapp/enviar', {
@@ -3093,7 +3104,7 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
         leadsRecientes={leadsRecientes}
         selectedLeadId={selectedLeadId}
         selectedLead={selectedLead}
-        onSelectLead={handleSelectLeadMobile}
+        onSelectLead={handleOpenLeadMobile}
         isLoadingConversations={isLoadingConversations}
         isLoadingMessages={isLoadingMessages}
         searchTerm={searchTerm}
