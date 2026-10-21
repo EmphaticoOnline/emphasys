@@ -581,9 +581,11 @@ export default function MovimientosPorPeriodoPage({ config }: { config: Movimien
     '&:focus-within': { borderColor: tokens.action.info },
   };
   const fechaInputSx: SxProps<Theme> = {
-    flex: '0 1 auto', width: 140, minWidth: 0,
+    // Ancho ajustado al texto (dd/mm/aaaa) para que el ícono de calendario quede junto a su fecha
+    flex: '0 0 auto', width: 'auto', minWidth: 0,
     '& .MuiInputBase-root': { font: 'inherit', fontSize: 13, color: tokens.content.foreground, fontVariantNumeric: 'tabular-nums' },
-    '& .MuiInputBase-input': { p: 0 },
+    '& .MuiInputBase-input': { p: 0, width: '10ch' },
+    '& .MuiInputAdornment-positionEnd': { ml: 0.25 },
     '& .MuiIconButton-root': { p: 0.25, opacity: 0.55 },
   };
   const exportBtnSx: SxProps<Theme> = {
@@ -642,7 +644,6 @@ export default function MovimientosPorPeriodoPage({ config }: { config: Movimien
             '@container (max-width: 640px)': {
               '& .vp-when': { flexWrap: 'wrap' },
               '& .vp-range': { flex: '1 1 100%' },
-              '& .vp-range input': { flex: '1 1 0', width: 'auto' },
               '& .vp-agrupacion': { flex: '1 1 auto' },
               '& .vp-agrupacion button': { flex: 1 },
               '& .vp-spacer': { display: 'none' },
@@ -657,7 +658,7 @@ export default function MovimientosPorPeriodoPage({ config }: { config: Movimien
                 <Box className="vp-range" sx={{ ...campoCompactoBoxSx, cursor: 'text' }}>
                   <FiltroLabel color={tokens.content.muted}>Período</FiltroLabel>
                   <FechaInput value={fechaInicio} onChange={(value) => setFechaInicio(value ?? '')} slotProps={{ textField: { variant: 'standard', size: 'small', inputProps: { 'aria-label': 'Fecha inicial' }, InputProps: { disableUnderline: true }, sx: fechaInputSx } }} />
-                  <Box component="span" aria-hidden sx={{ color: tokens.content.muted, fontSize: 12 }}>→</Box>
+                  <Box component="span" aria-hidden sx={{ color: tokens.content.muted, fontSize: 12, px: 0.5 }}>→</Box>
                   <FechaInput value={fechaFin} onChange={(value) => setFechaFin(value ?? '')} slotProps={{ textField: { variant: 'standard', size: 'small', inputProps: { 'aria-label': 'Fecha final' }, InputProps: { disableUnderline: true }, sx: fechaInputSx } }} />
                 </Box>
 

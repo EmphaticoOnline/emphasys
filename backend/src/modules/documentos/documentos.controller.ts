@@ -561,6 +561,15 @@ const buildListarHandler = (tipoPorDefecto: TipoDocumento, forzarTipo = false) =
         : [];
       const aplicacionRaw = typeof req.query.aplicacion === 'string' ? req.query.aplicacion.trim().toLowerCase() : '';
       const aplicacion = aplicacionRaw === 'pendiente' || aplicacionRaw === 'aplicada' ? aplicacionRaw : null;
+      const sortFieldRaw = typeof req.query.sort_field === 'string' ? req.query.sort_field : null;
+      const sortDirectionRaw = typeof req.query.sort_direction === 'string' ? req.query.sort_direction.toLowerCase() : null;
+      const sortField = sortFieldRaw === 'numero'
+        || sortFieldRaw === 'fecha_documento'
+        || sortFieldRaw === 'subtotal'
+        || sortFieldRaw === 'total'
+        ? sortFieldRaw
+        : null;
+      const sortDirection = sortDirectionRaw === 'asc' || sortDirectionRaw === 'desc' ? sortDirectionRaw : null;
 
       const result = await listarDocumentosRepositoryPaginado(
         tipo,
@@ -579,6 +588,8 @@ const buildListarHandler = (tipoPorDefecto: TipoDocumento, forzarTipo = false) =
           estatus,
           motivos,
           aplicacion,
+          sortField,
+          sortDirection,
         },
         aplicaScopeVentas ? scope.agenteId : null
       );

@@ -369,6 +369,8 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
   const [isLoadingMessages, setIsLoadingMessages] = React.useState(false);
   const [initialMessagesLoad, setInitialMessagesLoad] = React.useState<InitialMessagesLoadState>({ conversationId: null, phase: 'idle', token: 0 });
   const [quickReply, setQuickReply] = React.useState('');
+  const [composerClearSignal, setComposerClearSignal] = React.useState(0);
+  const composerValueRef = React.useRef('');
   // Los borradores pertenecen a la conversación (selectedLeadId es el
   // conversationId estable en este módulo), no al contacto ni al componente
   // visual. Así desktop y mobile comparten una única fuente de verdad.
@@ -1301,6 +1303,28 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
     }
   }, [buildLeadFromConversation, debouncedSearchTerm, isAdmin, leadScope, reglasSeguimiento, selectedLeadId, selectedTagIds, vendedorContactoId, vendedorFilterId, vistaFinalizadas]);
 
+  const markConversationAsRead = React.useCallback(async (conversationId: string) => {
+    // La lectura se solicita solo después de cargar correctamente el chat.
+    // El backend sigue siendo la autoridad para decidir si el usuario es el
+    // vendedor asignado; aquí nunca se limpia el contador optimistamente.
+    if (selectedLeadIdRef.current !== conversationId) return;
+
+    try {
+      const response = await apiFetch(`/api/whatsapp/conversaciones/${encodeURIComponent(conversationId)}/leer`, { method: 'POST' });
+      if (!response.ok || selectedLeadIdRef.current !== conversationId) return;
+
+      const result = await response.json() as { marked?: boolean };
+      if (!result.marked || selectedLeadIdRef.current !== conversationId) return;
+
+      setLeads((prev) => prev.map((lead) => lead.id === conversationId ? { ...lead, unreadCount: 0 } : lead));
+      setConversations((prev) => prev.map((conversation) => conversation.id === conversationId
+        ? { ...conversation, unreadCount: 0 }
+        : conversation));
+    } catch (error) {
+      console.error('Error marcando conversación como leída:', error);
+    }
+  }, []);
+
   const loadMessages = React.useCallback(async (
     conversationId: string,
     opts?: { since?: string | null; append?: boolean; silent?: boolean }
@@ -1395,6 +1419,10 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
       setConversations((prev) => prev.map((c) => (c.id === conversationId && lastSentAt
         ? { ...c, ultimoMensaje: lastMessageText, ultimoMensajeEn: lastSentAt }
         : c)));
+
+      if (isInitialLoad) {
+        await markConversationAsRead(conversationId);
+      }
     } catch (error) {
       console.error('Error cargando mensajes:', error);
       if (!silent) {
@@ -1408,7 +1436,7 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
         setInitialMessagesLoad({ conversationId, phase: 'loaded', token: loadToken });
       }
     }
-  }, [reglasSeguimiento]);
+  }, [markConversationAsRead, reglasSeguimiento]);
 
   const focusReplyInput = () => {
     requestAnimationFrame(() => quickReplyRef.current?.focus());
@@ -1441,6 +1469,18 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
     });
   }, [selectedLeadId]);
 
+  const handleComposerDraftPersist = React.useCallback((conversationId: string, value: string) => {
+    setDraftsByConversation((drafts) => {
+      if (!value) {
+        if (!(conversationId in drafts)) return drafts;
+        const { [conversationId]: _removed, ...rest } = drafts;
+        return rest;
+      }
+      if (drafts[conversationId] === value) return drafts;
+      return { ...drafts, [conversationId]: value };
+    });
+  }, []);
+
   const handleSelectLead = React.useCallback((id: string) => {
     setSelectedLeadId(id);
     persistSelectedLeadId(id);
@@ -1451,35 +1491,6 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
     clearPendingAttachment();
     setUploadError(null);
   }, [draftsByConversation, persistSelectedLeadId]);
-
-  React.useEffect(() => {
-    if (!selectedLeadId) return;
-
-    const conversationId = selectedLeadId;
-    const timeoutId = window.setTimeout(async () => {
-      // El cleanup cancela el timeout al cambiar de chat; esta guarda cubre
-      // además cualquier callback que ya estuviera encolado.
-      if (selectedLeadId !== conversationId) return;
-
-      try {
-        const response = await apiFetch(`/api/whatsapp/conversaciones/${encodeURIComponent(conversationId)}/leer`, { method: 'POST' });
-        if (!response.ok || selectedLeadId !== conversationId) return;
-        const result = await response.json() as { marked?: boolean };
-        // El backend es la autoridad: un usuario no responsable no limpia
-        // el contador que corresponde al responsable.
-        if (!result.marked || selectedLeadId !== conversationId) return;
-
-        setLeads((prev) => prev.map((lead) => lead.id === conversationId ? { ...lead, unreadCount: 0 } : lead));
-        setConversations((prev) => prev.map((conversation) => conversation.id === conversationId
-          ? { ...conversation, unreadCount: 0 }
-          : conversation));
-      } catch (error) {
-        console.error('Error marcando conversación como leída:', error);
-      }
-    }, 2000);
-
-    return () => window.clearTimeout(timeoutId);
-  }, [selectedLeadId]);
 
   const handleGenerarCotizacion = () => {
     if (!selectedContactoId || !selectedLead) return;
@@ -2296,6 +2307,7 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
 
       updateMessageStatus(leadId, tempId, 'sent');
       setQuickReply('');
+      setComposerClearSignal((signal) => signal + 1);
       setDraftsByConversation((drafts) => {
         const { [leadId]: _removed, ...rest } = drafts;
         return rest;
@@ -2315,7 +2327,7 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
     }
   };
 
-  const handleSendWhatsapp = async (event?: React.FormEvent<HTMLFormElement>) => {
+  const handleSendWhatsapp = async (event?: React.FormEvent<HTMLFormElement>, messageOverride?: string) => {
     event?.preventDefault();
     // Guard contra doble envío: cubre tanto el click del botón (que ya queda
     // disabled) como el atajo de Enter en el textarea, que no pasaba por el
@@ -2332,7 +2344,7 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
       return;
     }
 
-    const trimmedMessage = quickReply.trim();
+    const trimmedMessage = (messageOverride ?? composerValueRef.current).trim();
     const attachmentFile = pendingAttachmentFile;
     const fileType = uploadFileType;
 
@@ -3102,6 +3114,11 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
         initialMessagesLoad={initialMessagesLoad}
         quickReply={quickReply}
         setQuickReply={handleQuickReplyChange}
+        composerInitialDraft={draftsByConversation[selectedLeadId] ?? ''}
+        composerClearSignal={composerClearSignal}
+        onComposerDraftPersist={handleComposerDraftPersist}
+        onComposerSend={(value) => { void handleSendWhatsapp(undefined, value); }}
+        composerValueRef={composerValueRef}
         quickReplyRef={quickReplyRef}
         handleSendWhatsapp={handleSendWhatsapp}
         isSending={isSending}
@@ -3359,6 +3376,11 @@ export default function LeadsPage({ onMobileConversationOpenChange }: LeadsPageP
       handleToggleRecording={handleToggleRecording}
       quickReply={quickReply}
       setQuickReply={handleQuickReplyChange}
+      composerInitialDraft={draftsByConversation[selectedLeadId] ?? ''}
+      composerClearSignal={composerClearSignal}
+      onComposerDraftPersist={handleComposerDraftPersist}
+      onComposerSend={(value) => { void handleSendWhatsapp(undefined, value); }}
+      composerValueRef={composerValueRef}
       quickReplyRef={quickReplyRef}
       handleQuickReplyPaste={handleQuickReplyPaste}
       isUploadingImage={isUploadingImage}

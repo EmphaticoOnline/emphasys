@@ -68,6 +68,7 @@ import {
 import { NOTIFICATION_TONE_OPTIONS, type NotificationTone } from '../../utils/notificationSound';
 import { computeListContinuation } from '../../utils/messageListContinuation';
 import { useMessageHighlight } from '../../hooks/useMessageHighlight';
+import { MessageComposer } from './MessageComposer';
 import { MOBILE_APPBAR_HEIGHT } from '../layoutConstants';
 import type { Contacto } from '../../types/contactos.types';
 import type {
@@ -142,6 +143,11 @@ export interface LeadsMobileViewProps {
   initialMessagesLoad: { conversationId: string | null; phase: 'idle' | 'loading' | 'loaded'; token: number };
   quickReply: string;
   setQuickReply: React.Dispatch<React.SetStateAction<string>>;
+  composerInitialDraft: string;
+  composerClearSignal: number;
+  onComposerDraftPersist: (conversationId: string, value: string) => void;
+  onComposerSend: (value: string) => void;
+  composerValueRef: React.MutableRefObject<string>;
   quickReplyRef: React.RefObject<HTMLInputElement | null>;
   handleSendWhatsapp: (event?: React.FormEvent<HTMLFormElement>) => void;
   isSending: boolean;
@@ -909,6 +915,11 @@ export default function LeadsMobileView(props: LeadsMobileViewProps) {
     initialMessagesLoad,
     quickReply,
     setQuickReply,
+    composerInitialDraft,
+    composerClearSignal,
+    onComposerDraftPersist,
+    onComposerSend,
+    composerValueRef,
     quickReplyRef,
     handleSendWhatsapp,
     isSending,
@@ -1719,42 +1730,7 @@ export default function LeadsMobileView(props: LeadsMobileViewProps) {
                 >
                   <MicIcon />
                 </IconButton>
-                <TextField
-                  fullWidth
-                  size="small"
-                  multiline
-                  minRows={1}
-                  maxRows={4}
-                  placeholder="Escribe un mensaje"
-                  value={quickReply}
-                  onChange={(e) => setQuickReply(e.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter' && !event.shiftKey) {
-                      event.preventDefault();
-                      if (isSending) return;
-                      handleSendWhatsapp();
-                      return;
-                    }
-                    if (event.key === 'Enter' && event.shiftKey) {
-                      const el = quickReplyRef.current;
-                      if (!el) return;
-                      const result = computeListContinuation(
-                        quickReply,
-                        el.selectionStart ?? quickReply.length,
-                        el.selectionEnd ?? quickReply.length
-                      );
-                      if (!result) return; // no es una línea de lista: deja el salto de línea normal
-                      event.preventDefault();
-                      setQuickReply(result.text);
-                      requestAnimationFrame(() => {
-                        el.selectionStart = result.cursorPos;
-                        el.selectionEnd = result.cursorPos;
-                      });
-                    }
-                  }}
-                  inputRef={quickReplyRef}
-                  sx={{ '& .MuiInputBase-root': { alignItems: 'flex-end' } }}
-                />
+                <MessageComposer conversationId={selectedLead.id} initialDraft={composerInitialDraft} clearSignal={composerClearSignal} disabled={isSending || isUploadingImage} placeholder="Escribe un mensaje" inputRef={quickReplyRef} onDraftPersist={onComposerDraftPersist} onSend={onComposerSend} valueRef={composerValueRef} maxRows={4} sx={{ '& .MuiInputBase-root': { alignItems: 'flex-end' } }} />
                 <IconButton
                   color="primary"
                   aria-label="Enviar"

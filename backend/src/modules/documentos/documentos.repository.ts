@@ -1196,7 +1196,31 @@ type DocumentosAdditionalFilters = {
   estatus?: string[] | null;
   motivos?: string[] | null;
   aplicacion?: 'pendiente' | 'aplicada' | null;
+  sortField?: 'numero' | 'fecha_documento' | 'subtotal' | 'total' | null;
+  sortDirection?: 'asc' | 'desc' | null;
 };
+
+const COTIZACIONES_SORT_COLUMNS: Record<NonNullable<DocumentosAdditionalFilters['sortField']>, string> = {
+  numero: 'd.numero',
+  fecha_documento: 'd.fecha_documento',
+  subtotal: 'd.subtotal',
+  total: 'd.total',
+};
+
+export function resolverOrdenDocumentos(
+  tipoDocumento: TipoDocumento,
+  sortField?: DocumentosAdditionalFilters['sortField'],
+  sortDirection?: DocumentosAdditionalFilters['sortDirection'],
+): string {
+  if (tipoDocumento.toLowerCase() !== 'cotizacion' || !sortField || !sortDirection) {
+    return 'd.fecha_documento DESC, d.id DESC';
+  }
+
+  const column = COTIZACIONES_SORT_COLUMNS[sortField];
+  const direction = sortDirection === 'asc' ? 'ASC' : sortDirection === 'desc' ? 'DESC' : null;
+  if (!column || !direction) return 'd.fecha_documento DESC, d.id DESC';
+  return `${column} ${direction}, d.id ${direction}`;
+}
 
 export async function listarDocumentosRepositoryPaginado(
   tipoDocumento: TipoDocumento,
@@ -1577,7 +1601,7 @@ export async function listarDocumentosRepositoryPaginado(
     LEFT JOIN contactos_datos_fiscales cdf ON cdf.contacto_id = c.id
     LEFT JOIN conceptos con ON con.id = d.concepto_id AND con.empresa_id = d.empresa_id
     WHERE ${whereClauses.join(' AND ')}
-    ORDER BY d.fecha_documento DESC, d.id DESC
+    ORDER BY ${resolverOrdenDocumentos(tipoDocumento, additionalFilters?.sortField, additionalFilters?.sortDirection)}
     LIMIT $${limitIdx} OFFSET $${offsetIdx}
   `;
 

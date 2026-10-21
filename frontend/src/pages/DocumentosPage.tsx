@@ -1741,6 +1741,17 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
           montoMin: filtrosCotizacion.montoMin || null,
           montoMax: filtrosCotizacion.montoMax || null,
         }),
+        ...(esCotizacion ? {
+          sortField: sortModel[0]?.field === 'numero'
+            || sortModel[0]?.field === 'fecha_documento'
+            || sortModel[0]?.field === 'subtotal'
+            || sortModel[0]?.field === 'total'
+            ? sortModel[0].field
+            : null,
+          sortDirection: sortModel[0]?.sort === 'asc' || sortModel[0]?.sort === 'desc'
+            ? sortModel[0].sort
+            : null,
+        } : {}),
       });
       setRows(result.data);
       setRowCount(result.total);
@@ -1771,6 +1782,8 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
 
 const formatFecha = (value: any) => formatCivilDate(value);
 
+  const sortModelCotizacionKey = esCotizacion ? JSON.stringify(sortModel) : '';
+
 const compareNumericGridValues = (value1: unknown, value2: unknown) => {
   const numericValue1 = Number(value1 ?? 0);
   const numericValue2 = Number(value2 ?? 0);
@@ -1794,9 +1807,13 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
   }, [tipoDocumento, debouncedSearch, soloPendientes, quickFilter, filtrosCotizacion]);
 
   useEffect(() => {
+    if (esCotizacion) setPage(0);
+  }, [esCotizacion, sortModel]);
+
+  useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tipoDocumento, page, pageSize, debouncedSearch, soloPendientes, quickFilter, filtrosCotizacion, filtrosNotas, loadingPreferences]);
+  }, [tipoDocumento, page, pageSize, debouncedSearch, soloPendientes, quickFilter, filtrosCotizacion, filtrosNotas, loadingPreferences, sortModelCotizacionKey]);
 
   // Estado contable de la contabilización de ventas: se resuelve aparte con
   // un endpoint "barato" (sin resolver cuentas contables) para no multiplicar
@@ -4299,7 +4316,10 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
       mostrarAgente={showAgentFilter}
       etiquetaContacto={contactoLabel}
       sortModel={sortModel}
-      onSortModelChange={setSortModel}
+      onSortModelChange={(model) => {
+        setSortModel(model);
+        setPage(0);
+      }}
       extraActionsContent={extraActionsContent}
       onCreateDocumento={() => navigate(`${basePath}/nuevo`)}
       selectionContent={selectionContent}

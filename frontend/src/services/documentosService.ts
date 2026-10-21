@@ -107,6 +107,8 @@ export function getDocumentosPaginados(
     estatus?: string[] | null;
     motivos?: string[] | null;
     aplicacion?: 'pendiente' | 'aplicada' | null;
+    sortField?: 'numero' | 'fecha_documento' | 'subtotal' | 'total' | null;
+    sortDirection?: 'asc' | 'desc' | null;
   }
 ): Promise<DocumentosPaginadosResponse> {
   const base = getBasePath(tipo);
@@ -130,6 +132,8 @@ export function getDocumentosPaginados(
   if (options.estatus && options.estatus.length > 0) params.set('estatus', options.estatus.join(','));
   if (options.motivos && options.motivos.length > 0) params.set('motivo_nc', options.motivos.join(','));
   if (options.aplicacion) params.set('aplicacion', options.aplicacion);
+  if (options.sortField) params.set('sort_field', options.sortField);
+  if (options.sortDirection) params.set('sort_direction', options.sortDirection);
 
   return apiFetch(`${base}?${params.toString()}`);
 }

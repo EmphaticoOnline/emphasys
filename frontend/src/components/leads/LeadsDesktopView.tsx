@@ -64,6 +64,7 @@ import { LeadTagsManager } from './LeadTagsManager';
 import { linkifyMessageText } from '../LinkifiedText';
 import { computeListContinuation } from '../../utils/messageListContinuation';
 import { useMessageHighlight } from '../../hooks/useMessageHighlight';
+import { MessageComposer } from './MessageComposer';
 import {
   REACTION_EMOJIS,
   buildLeadOwnerLabel,
@@ -258,6 +259,11 @@ export interface LeadsDesktopViewProps {
   handleToggleRecording: () => void;
   quickReply: string;
   setQuickReply: React.Dispatch<React.SetStateAction<string>>;
+  composerInitialDraft: string;
+  composerClearSignal: number;
+  onComposerDraftPersist: (conversationId: string, value: string) => void;
+  onComposerSend: (value: string) => void;
+  composerValueRef: React.MutableRefObject<string>;
   quickReplyRef: React.RefObject<HTMLInputElement | null>;
   handleQuickReplyPaste: (event: React.ClipboardEvent<HTMLInputElement | HTMLTextAreaElement>) => void;
   isUploadingImage: boolean;
@@ -619,6 +625,11 @@ export default function LeadsDesktopView(props: LeadsDesktopViewProps) {
     handleToggleRecording,
     quickReply,
     setQuickReply,
+    composerInitialDraft,
+    composerClearSignal,
+    onComposerDraftPersist,
+    onComposerSend,
+    composerValueRef,
     quickReplyRef,
     handleQuickReplyPaste,
     isUploadingImage,
@@ -2393,42 +2404,7 @@ export default function LeadsDesktopView(props: LeadsDesktopViewProps) {
                         </IconButton>
                       </span>
                     </Tooltip>
-                    <TextField
-                      fullWidth
-                      size="small"
-                      multiline
-                      minRows={1}
-                      maxRows={5}
-                      placeholder="Escribe una respuesta rápida"
-                      value={quickReply}
-                      onChange={(e) => setQuickReply(e.target.value)}
-                      onKeyDown={(event) => {
-                        if (event.key === 'Enter' && !event.shiftKey) {
-                          event.preventDefault();
-                          if (isSending) return;
-                          handleSendWhatsapp();
-                          return;
-                        }
-                        if (event.key === 'Enter' && event.shiftKey) {
-                          const el = quickReplyRef.current;
-                          if (!el) return;
-                          const result = computeListContinuation(
-                            quickReply,
-                            el.selectionStart ?? quickReply.length,
-                            el.selectionEnd ?? quickReply.length
-                          );
-                          if (!result) return; // no es una línea de lista: deja el salto de línea normal
-                          event.preventDefault();
-                          setQuickReply(result.text);
-                          requestAnimationFrame(() => {
-                            el.selectionStart = result.cursorPos;
-                            el.selectionEnd = result.cursorPos;
-                          });
-                        }
-                      }}
-                      inputRef={quickReplyRef}
-                      inputProps={{ onPaste: handleQuickReplyPaste }}
-                    />
+                    <MessageComposer conversationId={selectedLead.id} initialDraft={composerInitialDraft} clearSignal={composerClearSignal} disabled={isSending} placeholder="Escribe una respuesta rápida" inputRef={quickReplyRef} onDraftPersist={onComposerDraftPersist} onSend={onComposerSend} valueRef={composerValueRef} onPaste={handleQuickReplyPaste} maxRows={5} />
                     <Tooltip
                       arrow
                       disableHoverListener={!selectedLead.requiresTemplate}
