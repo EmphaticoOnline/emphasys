@@ -616,16 +616,18 @@ export default function MovimientosPorPeriodoPage({ config }: { config: Movimien
             </Typography>
           </Box>
 
-          {/* Filtros: una línea en contenedores amplios, dos líneas (cuándo / quién-qué) en medianos, apilados en móvil */}
+          {/* Filtros: una línea en contenedores amplios, dos líneas (cuándo / quién-qué) en medianos, apilados en móvil.
+              El layout vive en .vp-filtros (hijo del contenedor): un contenedor no puede consultarse a sí mismo con @container. */}
           <Paper elevation={0} sx={{
             position: 'relative', overflow: 'hidden', p: 0.75, borderRadius: 2.5,
             border: `1px solid ${tokens.content.border}`, bgcolor: tokens.content.elevated, boxShadow: 'none',
-            display: 'flex', flexDirection: 'column', gap: 0.75, containerType: 'inline-size',
+            containerType: 'inline-size',
+            '& .vp-filtros': { display: 'flex', flexDirection: 'column', gap: 0.75, minWidth: 0 },
             '& .vp-when': { display: 'flex', alignItems: 'center', gap: 0.75, minWidth: 0 },
             '& .vp-dims': { display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 0.75 },
             '& .vp-spacer': { flex: 1 },
             '@container (min-width: 1340px)': {
-              flexDirection: 'row', alignItems: 'center',
+              '& .vp-filtros': { flexDirection: 'row', alignItems: 'center' },
               '& .vp-when, & .vp-dims': { display: 'contents' },
               '& .vp-spacer': { display: 'none' },
               '& .vp-range': { order: 1 },
@@ -650,122 +652,124 @@ export default function MovimientosPorPeriodoPage({ config }: { config: Movimien
           }}>
             {loading && <LinearProgress sx={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, bgcolor: tokens.metric.track, '& .MuiLinearProgress-bar': { bgcolor: tokens.action.info } }} />}
 
-            <Box className="vp-when">
-              <Box className="vp-range" sx={{ ...campoCompactoBoxSx, cursor: 'text' }}>
-                <FiltroLabel color={tokens.content.muted}>Período</FiltroLabel>
-                <FechaInput value={fechaInicio} onChange={(value) => setFechaInicio(value ?? '')} slotProps={{ textField: { variant: 'standard', size: 'small', inputProps: { 'aria-label': 'Fecha inicial' }, InputProps: { disableUnderline: true }, sx: fechaInputSx } }} />
-                <Box component="span" aria-hidden sx={{ color: tokens.content.muted, fontSize: 12 }}>→</Box>
-                <FechaInput value={fechaFin} onChange={(value) => setFechaFin(value ?? '')} slotProps={{ textField: { variant: 'standard', size: 'small', inputProps: { 'aria-label': 'Fecha final' }, InputProps: { disableUnderline: true }, sx: fechaInputSx } }} />
+            <Box className="vp-filtros">
+              <Box className="vp-when">
+                <Box className="vp-range" sx={{ ...campoCompactoBoxSx, cursor: 'text' }}>
+                  <FiltroLabel color={tokens.content.muted}>Período</FiltroLabel>
+                  <FechaInput value={fechaInicio} onChange={(value) => setFechaInicio(value ?? '')} slotProps={{ textField: { variant: 'standard', size: 'small', inputProps: { 'aria-label': 'Fecha inicial' }, InputProps: { disableUnderline: true }, sx: fechaInputSx } }} />
+                  <Box component="span" aria-hidden sx={{ color: tokens.content.muted, fontSize: 12 }}>→</Box>
+                  <FechaInput value={fechaFin} onChange={(value) => setFechaFin(value ?? '')} slotProps={{ textField: { variant: 'standard', size: 'small', inputProps: { 'aria-label': 'Fecha final' }, InputProps: { disableUnderline: true }, sx: fechaInputSx } }} />
+                </Box>
+
+                <Box className="vp-spacer" />
+
+                <Box className="vp-agrupacion" role="radiogroup" aria-label="Agrupación" sx={{ ...campoCompactoBoxSx, px: 0.25, gap: 0.25, alignItems: 'stretch', py: 0.25, flexShrink: 0 }}>
+                  <FiltroLabel color={tokens.content.muted} sx={{ alignSelf: 'center', px: 0.75 }}>Agrupar</FiltroLabel>
+                  {AGRUPACIONES.map((a) => {
+                    const activo = a.value === agrupacion;
+                    return (
+                      <Box key={a.value} component="button" type="button" role="radio" aria-checked={activo} onClick={() => setAgrupacion(a.value)}
+                        sx={{ font: 'inherit', fontSize: 12.5, fontWeight: 500, border: 0, borderRadius: 1.5, px: 1.1, cursor: 'pointer', bgcolor: activo ? tokens.action.primary : 'transparent', color: activo ? tokens.action.primaryForeground : tokens.content.secondary, '&:hover': activo ? undefined : { bgcolor: tokens.content.hover }, '&:focus-visible': { outline: `2px solid ${tokens.action.info}`, outlineOffset: 1 } }}>
+                        {a.label}
+                      </Box>
+                    );
+                  })}
+                </Box>
+
+                <Stack className="vp-export" direction="row" spacing={0.5} sx={{ flexShrink: 0 }}>
+                  <Button
+                    size="small" variant="contained" disableElevation
+                    disabled={!resultado || !!exportando}
+                    startIcon={exportando === 'pdf' ? <CircularProgress size={13} color="inherit" /> : <FileDownloadIcon sx={{ fontSize: '15px !important' }} />}
+                    onClick={() => void handleExportar('pdf')}
+                    sx={{ ...exportBtnSx, bgcolor: PDF_NARANJA, '&:hover': { bgcolor: PDF_NARANJA_HOVER } }}
+                  >
+                    PDF
+                  </Button>
+                  <Button
+                    size="small" variant="contained" disableElevation
+                    disabled={!resultado || !!exportando}
+                    startIcon={exportando === 'excel' ? <CircularProgress size={13} color="inherit" /> : <FileDownloadIcon sx={{ fontSize: '15px !important' }} />}
+                    onClick={() => void handleExportar('excel')}
+                    sx={{ ...exportBtnSx, bgcolor: EXCEL_VERDE, '&:hover': { bgcolor: EXCEL_VERDE_HOVER } }}
+                  >
+                    Excel
+                  </Button>
+                </Stack>
               </Box>
 
-              <Box className="vp-spacer" />
-
-              <Box className="vp-agrupacion" role="radiogroup" aria-label="Agrupación" sx={{ ...campoCompactoBoxSx, px: 0.25, gap: 0.25, alignItems: 'stretch', py: 0.25, flexShrink: 0 }}>
-                <FiltroLabel color={tokens.content.muted} sx={{ alignSelf: 'center', px: 0.75 }}>Agrupar</FiltroLabel>
-                {AGRUPACIONES.map((a) => {
-                  const activo = a.value === agrupacion;
-                  return (
-                    <Box key={a.value} component="button" type="button" role="radio" aria-checked={activo} onClick={() => setAgrupacion(a.value)}
-                      sx={{ font: 'inherit', fontSize: 12.5, fontWeight: 500, border: 0, borderRadius: 1.5, px: 1.1, cursor: 'pointer', bgcolor: activo ? tokens.action.primary : 'transparent', color: activo ? tokens.action.primaryForeground : tokens.content.secondary, '&:hover': activo ? undefined : { bgcolor: tokens.content.hover }, '&:focus-visible': { outline: `2px solid ${tokens.action.info}`, outlineOffset: 1 } }}>
-                      {a.label}
-                    </Box>
-                  );
-                })}
-              </Box>
-
-              <Stack className="vp-export" direction="row" spacing={0.5} sx={{ flexShrink: 0 }}>
-                <Button
-                  size="small" variant="contained" disableElevation
-                  disabled={!resultado || !!exportando}
-                  startIcon={exportando === 'pdf' ? <CircularProgress size={13} color="inherit" /> : <FileDownloadIcon sx={{ fontSize: '15px !important' }} />}
-                  onClick={() => void handleExportar('pdf')}
-                  sx={{ ...exportBtnSx, bgcolor: PDF_NARANJA, '&:hover': { bgcolor: PDF_NARANJA_HOVER } }}
-                >
-                  PDF
-                </Button>
-                <Button
-                  size="small" variant="contained" disableElevation
-                  disabled={!resultado || !!exportando}
-                  startIcon={exportando === 'excel' ? <CircularProgress size={13} color="inherit" /> : <FileDownloadIcon sx={{ fontSize: '15px !important' }} />}
-                  onClick={() => void handleExportar('excel')}
-                  sx={{ ...exportBtnSx, bgcolor: EXCEL_VERDE, '&:hover': { bgcolor: EXCEL_VERDE_HOVER } }}
-                >
-                  Excel
-                </Button>
-              </Stack>
-            </Box>
-
-            <Box className="vp-dims">
-              <Autocomplete<ContactoOpcion>
-                className="vp-cliente"
-                options={opcionesProveedor}
-                loading={buscandoProveedor}
-                value={proveedor}
-                onChange={(_, val) => setProveedor(val)}
-                onInputChange={(_, input) => buscarProveedores(input)}
-                onOpen={() => { if (!opcionesProveedor.length) buscarProveedores(''); }}
-                getOptionLabel={(o) => o.nombre}
-                getOptionKey={(o) => o.id}
-                isOptionEqualToValue={(a, b) => a.id === b.id}
-                sx={{ minWidth: 0, ...campoCompactoSx(!!proveedor) }}
-                renderOption={(props, o) => (
-                  <li {...props} key={o.id}>
-                    <Box>
-                      <Typography variant="body2">{o.nombre}</Typography>
-                      {o.rfc && <Typography variant="caption" color="text.secondary">{o.rfc}</Typography>}
-                    </Box>
-                  </li>
-                )}
-                renderInput={(p) => <FiltroCompactoInput params={p} label={config.contactoLabel} color={tokens.content.muted} />}
-              />
-
-              {/* Vendedor / agente que realizó la venta (documentos.agente_id) */}
-              <Box className="vp-vendedor" sx={{ minWidth: 0 }}>
-                <Autocomplete<Contacto>
-                  options={vendedores}
-                  value={vendedor}
-                  onChange={(_, val) => setVendedor(val)}
+              <Box className="vp-dims">
+                <Autocomplete<ContactoOpcion>
+                  className="vp-cliente"
+                  options={opcionesProveedor}
+                  loading={buscandoProveedor}
+                  value={proveedor}
+                  onChange={(_, val) => setProveedor(val)}
+                  onInputChange={(_, input) => buscarProveedores(input)}
+                  onOpen={() => { if (!opcionesProveedor.length) buscarProveedores(''); }}
                   getOptionLabel={(o) => o.nombre}
                   getOptionKey={(o) => o.id}
                   isOptionEqualToValue={(a, b) => a.id === b.id}
-                  sx={{ minWidth: 0, ...campoCompactoSx(!!vendedor) }}
-                  renderInput={(p) => <FiltroCompactoInput params={p} label="Vendedor" color={tokens.content.muted} />}
+                  sx={{ minWidth: 0, ...campoCompactoSx(!!proveedor) }}
+                  renderOption={(props, o) => (
+                    <li {...props} key={o.id}>
+                      <Box>
+                        <Typography variant="body2">{o.nombre}</Typography>
+                        {o.rfc && <Typography variant="caption" color="text.secondary">{o.rfc}</Typography>}
+                      </Box>
+                    </li>
+                  )}
+                  renderInput={(p) => <FiltroCompactoInput params={p} label={config.contactoLabel} color={tokens.content.muted} />}
                 />
-              </Box>
 
-              <Autocomplete<ProductoOpcion>
-                className="vp-producto"
-                options={opcionesProducto}
-                loading={buscandoProducto}
-                value={producto}
-                onChange={(_, val) => setProducto(val)}
-                onInputChange={(_, input) => buscarProductos(input)}
-                onOpen={() => { if (!opcionesProducto.length) buscarProductos(''); }}
-                getOptionLabel={(o) => `${o.clave} — ${o.descripcion}`}
-                getOptionKey={(o) => o.id}
-                isOptionEqualToValue={(a, b) => a.id === b.id}
-                sx={{ minWidth: 0, ...campoCompactoSx(!!producto) }}
-                renderOption={(props, o) => (
-                  <li {...props} key={o.id}>
-                    <Box>
-                      <Typography variant="body2" fontWeight={600}>{o.clave}</Typography>
-                      <Typography variant="caption" color="text.secondary">{o.descripcion}</Typography>
-                    </Box>
-                  </li>
-                )}
-                renderInput={(p) => <FiltroCompactoInput params={p} label="Producto" color={tokens.content.muted} />}
-              />
+                {/* Vendedor / agente que realizó la venta (documentos.agente_id) */}
+                <Box className="vp-vendedor" sx={{ minWidth: 0 }}>
+                  <Autocomplete<Contacto>
+                    options={vendedores}
+                    value={vendedor}
+                    onChange={(_, val) => setVendedor(val)}
+                    getOptionLabel={(o) => o.nombre}
+                    getOptionKey={(o) => o.id}
+                    isOptionEqualToValue={(a, b) => a.id === b.id}
+                    sx={{ minWidth: 0, ...campoCompactoSx(!!vendedor) }}
+                    renderInput={(p) => <FiltroCompactoInput params={p} label="Vendedor" color={tokens.content.muted} />}
+                  />
+                </Box>
 
-              <Tooltip title="Origen de contacto" placement="top" enterDelay={600}>
-                <Autocomplete<OrigenContacto>
-                  className="vp-origen"
-                  options={origenes} value={origen} onChange={(_, val) => setOrigen(val)}
-                  getOptionLabel={(o) => o.descripcion} getOptionKey={(o) => o.id}
+                <Autocomplete<ProductoOpcion>
+                  className="vp-producto"
+                  options={opcionesProducto}
+                  loading={buscandoProducto}
+                  value={producto}
+                  onChange={(_, val) => setProducto(val)}
+                  onInputChange={(_, input) => buscarProductos(input)}
+                  onOpen={() => { if (!opcionesProducto.length) buscarProductos(''); }}
+                  getOptionLabel={(o) => `${o.clave} — ${o.descripcion}`}
+                  getOptionKey={(o) => o.id}
                   isOptionEqualToValue={(a, b) => a.id === b.id}
-                  sx={{ minWidth: 0, ...campoCompactoSx(!!origen) }}
-                  renderInput={(p) => <FiltroCompactoInput params={p} label="Origen" color={tokens.content.muted} />}
+                  sx={{ minWidth: 0, ...campoCompactoSx(!!producto) }}
+                  renderOption={(props, o) => (
+                    <li {...props} key={o.id}>
+                      <Box>
+                        <Typography variant="body2" fontWeight={600}>{o.clave}</Typography>
+                        <Typography variant="caption" color="text.secondary">{o.descripcion}</Typography>
+                      </Box>
+                    </li>
+                  )}
+                  renderInput={(p) => <FiltroCompactoInput params={p} label="Producto" color={tokens.content.muted} />}
                 />
-              </Tooltip>
+
+                <Tooltip title="Origen de contacto" placement="top" enterDelay={600}>
+                  <Autocomplete<OrigenContacto>
+                    className="vp-origen"
+                    options={origenes} value={origen} onChange={(_, val) => setOrigen(val)}
+                    getOptionLabel={(o) => o.descripcion} getOptionKey={(o) => o.id}
+                    isOptionEqualToValue={(a, b) => a.id === b.id}
+                    sx={{ minWidth: 0, ...campoCompactoSx(!!origen) }}
+                    renderInput={(p) => <FiltroCompactoInput params={p} label="Origen" color={tokens.content.muted} />}
+                  />
+                </Tooltip>
+              </Box>
             </Box>
           </Paper>
         </Box>
