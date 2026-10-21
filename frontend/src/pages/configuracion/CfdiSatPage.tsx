@@ -60,6 +60,7 @@ import type { ApiFetchError } from '../../services/apiFetch';
 import { ConfigPageFrame, ConfigPageHeader } from '../../components/configuracion/configVisual';
 import type { Theme } from '@mui/material/styles';
 import { PatternDialogHeader, Section, dialogContentSx, dialogPaperSx, dialogTitleSx, editorialTableSx, fieldsOnIvorySx, formWellSx, innerDestructiveButtonSx, innerOutlinedButtonSx, innerPrimaryButtonSx } from '../../components/transporte/transporteVisual';
+import { FechaInput } from '../../shared/dates/DateFields';
 
 const mutedSx = (theme: Theme) => ({ color: theme.emphasys.content.muted });
 
@@ -605,25 +606,9 @@ export default function CfdiSatPage() {
               <MenuItem value="cancelados">Cancelados</MenuItem>
             </TextField>
 
-            <TextField
-              label="Fecha inicio"
-              type="date"
-              size="small"
-              InputLabelProps={{ shrink: true }}
-              value={fechaInicio}
-              onChange={(e) => setFechaInicio(e.target.value)}
-              disabled={!puedeCrearSolicitud}
-            />
+            <FechaInput label="Fecha inicio" value={fechaInicio} onChange={(value) => setFechaInicio((value ?? ''))} disabled={!puedeCrearSolicitud} slotProps={{ textField: { size: 'small' } }} />
 
-            <TextField
-              label="Fecha fin"
-              type="date"
-              size="small"
-              InputLabelProps={{ shrink: true }}
-              value={fechaFin}
-              onChange={(e) => setFechaFin(e.target.value)}
-              disabled={!puedeCrearSolicitud}
-            />
+            <FechaInput label="Fecha fin" value={fechaFin} onChange={(value) => setFechaFin((value ?? ''))} disabled={!puedeCrearSolicitud} slotProps={{ textField: { size: 'small' } }} />
 
             <TextField
               label="Contraseña e.firma"

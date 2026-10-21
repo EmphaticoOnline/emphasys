@@ -35,6 +35,7 @@ import {
   type VencimientosClientesResult,
 } from '../../../services/reportesService';
 import { alertColors, alertRowColors, dueDateColors } from '../../../theme/functional';
+import { FechaInput } from '../../../shared/dates/DateFields';
 
 type ContactoOpcion = { id: number; nombre: string; rfc?: string | null };
 
@@ -241,15 +242,7 @@ export default function VencimientosClientesPage() {
       <Paper sx={{ px: 2, py: 1, position: 'relative', overflow: 'hidden' }}>
         {loading && <LinearProgress sx={{ position: 'absolute', top: 0, left: 0, right: 0 }} />}
         <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center', flexWrap: 'wrap' }}>
-          <TextField
-            label="Fecha de corte"
-            type="date"
-            size="small"
-            value={fechaCorte}
-            onChange={(e) => setFechaCorte(e.target.value)}
-            InputLabelProps={{ shrink: true }}
-            sx={{ width: 155 }}
-          />
+          <FechaInput label="Fecha de corte" value={fechaCorte} onChange={(value) => setFechaCorte((value ?? ''))} slotProps={{ textField: { size: 'small', sx: { width: 155 } } }} />
           <Autocomplete<ContactoOpcion>
             options={opciones}
             loading={buscando}

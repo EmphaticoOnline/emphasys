@@ -51,6 +51,7 @@ import type { Contacto } from '../../types/contactos.types';
 import { categoricalPalettes, thirdPartyColors } from '../../theme/functional';
 import { neutralColors } from '../../theme/structural';
 import { useBrand } from '../../theme/brand/useBrand';
+import { FechaInput } from '../../shared/dates/DateFields';
 
 // ── Configuración del reporte (inyectada desde el wrapper) ────────────────────
 
@@ -580,10 +581,10 @@ export default function MovimientosPorPeriodoPage({ config }: { config: Movimien
     '&:focus-within': { borderColor: tokens.action.info },
   };
   const fechaInputSx: SxProps<Theme> = {
-    flex: '0 1 auto', width: 118, minWidth: 0, border: 0, outline: 0, p: 0, bgcolor: 'transparent',
-    font: 'inherit', fontSize: 13, color: tokens.content.foreground, fontVariantNumeric: 'tabular-nums',
-    colorScheme: 'inherit',
-    '&::-webkit-calendar-picker-indicator': { opacity: 0.55, cursor: 'pointer' },
+    flex: '0 1 auto', width: 140, minWidth: 0,
+    '& .MuiInputBase-root': { font: 'inherit', fontSize: 13, color: tokens.content.foreground, fontVariantNumeric: 'tabular-nums' },
+    '& .MuiInputBase-input': { p: 0 },
+    '& .MuiIconButton-root': { p: 0.25, opacity: 0.55 },
   };
   const exportBtnSx: SxProps<Theme> = {
     height: 32, px: 1.4, minWidth: 0, borderRadius: 2, textTransform: 'none', fontSize: 12.5, fontWeight: 600,
@@ -650,11 +651,11 @@ export default function MovimientosPorPeriodoPage({ config }: { config: Movimien
             {loading && <LinearProgress sx={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, bgcolor: tokens.metric.track, '& .MuiLinearProgress-bar': { bgcolor: tokens.action.info } }} />}
 
             <Box className="vp-when">
-              <Box component="label" className="vp-range" sx={{ ...campoCompactoBoxSx, cursor: 'text' }}>
+              <Box className="vp-range" sx={{ ...campoCompactoBoxSx, cursor: 'text' }}>
                 <FiltroLabel color={tokens.content.muted}>Período</FiltroLabel>
-                <Box component="input" type="date" aria-label="Fecha inicial" value={fechaInicio} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFechaInicio(e.target.value)} sx={fechaInputSx} />
+                <FechaInput value={fechaInicio} onChange={(value) => setFechaInicio(value ?? '')} slotProps={{ textField: { variant: 'standard', size: 'small', inputProps: { 'aria-label': 'Fecha inicial' }, InputProps: { disableUnderline: true }, sx: fechaInputSx } }} />
                 <Box component="span" aria-hidden sx={{ color: tokens.content.muted, fontSize: 12 }}>→</Box>
-                <Box component="input" type="date" aria-label="Fecha final" value={fechaFin} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFechaFin(e.target.value)} sx={fechaInputSx} />
+                <FechaInput value={fechaFin} onChange={(value) => setFechaFin(value ?? '')} slotProps={{ textField: { variant: 'standard', size: 'small', inputProps: { 'aria-label': 'Fecha final' }, InputProps: { disableUnderline: true }, sx: fechaInputSx } }} />
               </Box>
 
               <Box className="vp-spacer" />
@@ -789,16 +790,8 @@ export default function MovimientosPorPeriodoPage({ config }: { config: Movimien
           <Paper elevation={0} sx={{ px: 2, py: 1, position: 'relative', overflow: 'hidden' }}>
             {loading && <LinearProgress sx={{ position: 'absolute', top: 0, left: 0, right: 0 }} />}
             <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center', flexWrap: 'wrap' }}>
-              <TextField
-                label="Fecha inicial" type="date" size="small"
-                value={fechaInicio} onChange={(e) => setFechaInicio(e.target.value)}
-                slotProps={{ inputLabel: { shrink: true } }} sx={{ width: 155 }}
-              />
-              <TextField
-                label="Fecha final" type="date" size="small"
-                value={fechaFin} onChange={(e) => setFechaFin(e.target.value)}
-                slotProps={{ inputLabel: { shrink: true } }} sx={{ width: 155 }}
-              />
+              <FechaInput label="Fecha inicial" value={fechaInicio} onChange={(value) => setFechaInicio((value ?? ''))} slotProps={{ textField: { size: 'small', sx: { width: 155 } } }} />
+              <FechaInput label="Fecha final" value={fechaFin} onChange={(value) => setFechaFin((value ?? ''))} slotProps={{ textField: { size: 'small', sx: { width: 155 } } }} />
 
               <Autocomplete<ContactoOpcion>
                 options={opcionesProveedor}

@@ -29,6 +29,7 @@ import ActividadFormPage from '../../pages/ActividadFormPage';
 import type { Usuario } from '../../types/usuario';
 import { elevation } from '../../theme/elevation';
 import { activityRailTones } from '../../theme/functional';
+import { FechaHoraInput } from '../../shared/dates/DateFields';
 
 export type GrupoWorkspace = {
   key: string;
@@ -488,14 +489,11 @@ export default function ActividadesWorkspaceView({
           <Typography variant="body2" sx={{ fontWeight: 700, color: tokens.content.foreground }}>
             Reprogramar actividad
           </Typography>
-          <TextField
+          <FechaHoraInput
             label="Nueva fecha"
-            type="datetime-local"
-            size="small"
-            value={fechaReprogramada}
-            onChange={(evento) => setFechaReprogramada(evento.target.value)}
-            slotProps={{ inputLabel: { shrink: true } }}
-            fullWidth
+            value={fechaReprogramada || null}
+            onChange={(valor) => setFechaReprogramada(valor ?? '')}
+            slotProps={{ textField: { size: 'small', fullWidth: true } }}
           />
           <Stack direction="row" justifyContent="flex-end" spacing={1}>
             <Button size="small" onClick={() => setReprogramarPos(null)} sx={catalogoOutlinedButtonSx}>Cancelar</Button>

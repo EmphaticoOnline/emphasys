@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { fechaHoraLocalAISOString, formatFechaHora, formatHora } from "@/lib/format"
 import { useRealWork } from "@/lib/real-work-store"
 import type { Actividad, ActividadEstado } from "../../../services/compassService"
+import { DateTimeInput } from "@/components/ui/date-input"
 
 type Modo = "cerrar" | "reprogramar" | "siguiente"
 const estados: Exclude<ActividadEstado, "programada">[] = ["realizada", "parcial", "no_realizada", "cancelada"]
@@ -78,7 +79,7 @@ export function CerrarActividadDrawer({ actividad, open, onOpenChange, onSaved, 
           <Field><FieldLabel>Resultado o comentario</FieldLabel><Textarea value={resultado} onChange={(event) => setResultado(event.target.value)} className="rounded-xl border-border bg-card px-3.5 py-3 focus-visible:border-ring/70 focus-visible:ring-2 focus-visible:ring-ring/20" /></Field>
         </>
       ) : (
-        <Field><FieldLabel>Nueva fecha y hora</FieldLabel><input type="datetime-local" value={nuevoInicio} onChange={(event) => setNuevoInicio(event.target.value)} className="h-9 w-full rounded-lg border border-border bg-card px-3 text-sm outline-none focus-visible:border-ring/70 focus-visible:ring-2 focus-visible:ring-ring/20" /></Field>
+        <Field><FieldLabel>Nueva fecha y hora</FieldLabel><DateTimeInput value={nuevoInicio} onChange={setNuevoInicio} aria-label="Nueva fecha y hora" /></Field>
       )}
     </ResponsiveOperationOverlay>
   )

@@ -1642,8 +1642,8 @@ export default function OportunidadesPage() {
 
                       <Grid container spacing={1.25}>
                         <Grid size={{ xs: 12, sm: 6, lg: 3 }}>
-                          <LocalizationProvider dateAdapter={AdapterDayjs}>
-                            <DatePicker
+                          <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale="es">
+                            <DatePicker format="DD/MM/YYYY"
                               label="Creación desde"
                               value={draftFilters.fecha_creacion_desde ? dayjs(draftFilters.fecha_creacion_desde) : null}
                               onChange={(val) => setDraftFilters((prev) => ({ ...prev, fecha_creacion_desde: val ? val.format('YYYY-MM-DD') : '' }))}
@@ -1664,8 +1664,8 @@ export default function OportunidadesPage() {
                           </LocalizationProvider>
                         </Grid>
                         <Grid size={{ xs: 12, sm: 6, lg: 3 }}>
-                          <LocalizationProvider dateAdapter={AdapterDayjs}>
-                            <DatePicker
+                          <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale="es">
+                            <DatePicker format="DD/MM/YYYY"
                               label="Creación hasta"
                               value={draftFilters.fecha_creacion_hasta ? dayjs(draftFilters.fecha_creacion_hasta) : null}
                               onChange={(val) => setDraftFilters((prev) => ({ ...prev, fecha_creacion_hasta: val ? val.format('YYYY-MM-DD') : '' }))}
@@ -1686,8 +1686,8 @@ export default function OportunidadesPage() {
                           </LocalizationProvider>
                         </Grid>
                         <Grid size={{ xs: 12, sm: 6, lg: 3 }}>
-                          <LocalizationProvider dateAdapter={AdapterDayjs}>
-                            <DatePicker
+                          <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale="es">
+                            <DatePicker format="DD/MM/YYYY"
                               label="Cierre desde"
                               value={draftFilters.fecha_cierre_desde ? dayjs(draftFilters.fecha_cierre_desde) : null}
                               onChange={(val) => setDraftFilters((prev) => ({ ...prev, fecha_cierre_desde: val ? val.format('YYYY-MM-DD') : '' }))}
@@ -1708,8 +1708,8 @@ export default function OportunidadesPage() {
                           </LocalizationProvider>
                         </Grid>
                         <Grid size={{ xs: 12, sm: 6, lg: 3 }}>
-                          <LocalizationProvider dateAdapter={AdapterDayjs}>
-                            <DatePicker
+                          <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale="es">
+                            <DatePicker format="DD/MM/YYYY"
                               label="Cierre hasta"
                               value={draftFilters.fecha_cierre_hasta ? dayjs(draftFilters.fecha_cierre_hasta) : null}
                               onChange={(val) => setDraftFilters((prev) => ({ ...prev, fecha_cierre_hasta: val ? val.format('YYYY-MM-DD') : '' }))}
@@ -2033,8 +2033,8 @@ export default function OportunidadesPage() {
               <DialogTitle>{dateDialog.label}</DialogTitle>
               <DialogContent>
                 <Stack spacing={1.5} sx={{ pt: 1 }}>
-                  <LocalizationProvider dateAdapter={AdapterDayjs}>
-                    <DatePicker
+                  <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale="es">
+                    <DatePicker format="DD/MM/YYYY"
                       label={dateDialog.label}
                       value={dateDialog.value ? dayjs(dateDialog.value) : null}
                       onChange={(value) => setDateDialog((prev) => ({ ...prev, value: value ? value.format('YYYY-MM-DD') : '' }))}

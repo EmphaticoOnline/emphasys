@@ -28,6 +28,7 @@ import {
 } from '../../services/cfdiSatService';
 import { neutralColors } from '../../theme/structural';
 import { useBrand } from '../../theme/brand/useBrand';
+import { FechaInput } from '../../shared/dates/DateFields';
 
 function formatFecha(raw?: string | null): string {
   if (!raw) return '—';
@@ -130,22 +131,8 @@ export default function BitacoraSatSection() {
             gap: 1.5,
           }}
         >
-          <TextField
-            label="Fecha inicio"
-            type="date"
-            size="small"
-            InputLabelProps={{ shrink: true }}
-            value={filtrosForm.fecha_inicio}
-            onChange={(e) => handleFiltroChange('fecha_inicio', e.target.value)}
-          />
-          <TextField
-            label="Fecha fin"
-            type="date"
-            size="small"
-            InputLabelProps={{ shrink: true }}
-            value={filtrosForm.fecha_fin}
-            onChange={(e) => handleFiltroChange('fecha_fin', e.target.value)}
-          />
+          <FechaInput label="Fecha inicio" value={filtrosForm.fecha_inicio ?? null} onChange={(value) => handleFiltroChange('fecha_inicio', (value ?? ''))} slotProps={{ textField: { size: 'small' } }} />
+          <FechaInput label="Fecha fin" value={filtrosForm.fecha_fin ?? null} onChange={(value) => handleFiltroChange('fecha_fin', (value ?? ''))} slotProps={{ textField: { size: 'small' } }} />
           <TextField
             select
             label="Acción"

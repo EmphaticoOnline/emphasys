@@ -40,6 +40,7 @@ import type {
 } from '../../types/finanzas';
 import { dueDateColors } from '../../theme/functional';
 import { overlayColors } from '../../theme/structural';
+import { FechaInput } from '../../shared/dates/DateFields';
 
 type ContactoOpcion = { id: number; nombre: string; rfc?: string | null };
 
@@ -505,15 +506,7 @@ export default function ProgramacionMasivaDrawer({ open, onClose, onSaved }: Pro
         {/* ── Cabecera compartida ──────────────────────────────────────── */}
         <Typography variant="subtitle2" fontWeight={700}>Datos del pago</Typography>
         <Stack direction="row" spacing={2} flexWrap="wrap" useFlexGap>
-          <TextField
-            label="Fecha programada"
-            type="date"
-            size="small"
-            value={fechaProgramada}
-            onChange={(e) => setFechaProgramada(e.target.value)}
-            InputLabelProps={{ shrink: true }}
-            sx={{ width: 200 }}
-          />
+          <FechaInput label="Fecha programada" value={fechaProgramada} onChange={(value) => setFechaProgramada((value ?? ''))} slotProps={{ textField: { size: 'small', sx: { width: 200 } } }} />
           <FormControl size="small" sx={{ width: 220 }}>
             <InputLabel id="cuenta-origen-masiva-label">Cuenta de origen</InputLabel>
             <Select

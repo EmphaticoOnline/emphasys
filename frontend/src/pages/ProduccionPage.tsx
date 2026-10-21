@@ -489,8 +489,8 @@ export default function ProduccionPage() {
             ))}
           </TextField>
 
-          <LocalizationProvider dateAdapter={AdapterDayjs}>
-            <DatePicker
+          <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale="es">
+            <DatePicker format="DD/MM/YYYY"
               label="Fecha compromiso"
               value={advanceDialog.fechaPromesa ? dayjs(advanceDialog.fechaPromesa) : null}
               onChange={(value) => {

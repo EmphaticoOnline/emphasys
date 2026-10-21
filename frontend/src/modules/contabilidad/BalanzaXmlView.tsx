@@ -31,6 +31,7 @@ import { fetchBalanzaXmlPreview, descargarBalanzaXml } from '../../services/eCon
 import type { BalanzaComprobacionXmlResultado, CuentaBalanzaXml, TipoEnvioBalanza } from '../../types/balanzaXml';
 import { botonPrimarioSx, chipEstadoSx, encabezadoTablaSx, iconoAccionSx, iconoPeligroSx, panelEstadoSx, textoEstadoSx, tonoDeClave } from './contabilidadVisual';
 import { accountingColors, alertColors } from '../../theme/functional';
+import { FechaInput } from '../../shared/dates/DateFields';
 
 
 interface FilaProblema {
@@ -241,17 +242,7 @@ export default function BalanzaXmlView({
           </FormControl>
 
           {tipoEnvio === 'C' && (
-            <TextField
-              size="small"
-              type="date"
-              label="Fecha de modificación"
-              InputLabelProps={{ shrink: true }}
-              value={fechaModificacion}
-              onChange={(e) => setFechaModificacion(e.target.value)}
-              error={fechaRequeridaYFaltante}
-              helperText={fechaRequeridaYFaltante ? 'Requerida en Complementaria' : ' '}
-              sx={{ minWidth: 170 }}
-            />
+            <FechaInput label="Fecha de modificación" value={fechaModificacion} onChange={(value) => setFechaModificacion((value ?? ''))} error={fechaRequeridaYFaltante} helperText={fechaRequeridaYFaltante ? 'Requerida en Complementaria' : ' '} slotProps={{ textField: { size: 'small', sx: { minWidth: 170 } } }} />
           )}
 
           <Button

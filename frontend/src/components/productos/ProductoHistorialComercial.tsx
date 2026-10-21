@@ -1,4 +1,5 @@
 import * as React from 'react';
+import { FechaInput } from '../../shared/dates/DateFields';
 import { Box, IconButton, Tooltip, Typography, useMediaQuery } from '@mui/material';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
@@ -317,32 +318,13 @@ function CifraPeriodo({
 }
 
 function CampoFecha({ etiqueta, value, onChange }: { etiqueta: string; value: string; onChange: (valor: string) => void }) {
-  const id = React.useId();
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25 }}>
-      <Typography component="label" htmlFor={id} sx={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: (theme) => theme.emphasys.content.muted }}>
-        {etiqueta}
-      </Typography>
-      <Box
-        component="input"
-        id={id}
-        type="date"
-        aria-label={etiqueta}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        sx={(theme) => ({
-          height: 28,
-          border: `1px solid ${theme.emphasys.content.border}`,
-          borderRadius: '8px',
-          backgroundColor: theme.emphasys.content.elevated,
-          color: theme.emphasys.content.foreground,
-          font: 'inherit',
-          fontSize: 12,
-          px: 0.75,
-          colorScheme: 'light',
-        })}
-      />
-    </Box>
+    <FechaInput
+      label={etiqueta}
+      value={value}
+      onChange={(valor) => onChange(valor ?? '')}
+      slotProps={{ textField: { size: 'small', sx: { width: 150, '& .MuiInputBase-root': { height: 32, fontSize: 12, borderRadius: '8px' } } } }}
+    />
   );
 }
 

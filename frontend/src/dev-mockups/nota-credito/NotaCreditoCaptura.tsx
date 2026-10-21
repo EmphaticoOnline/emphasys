@@ -46,6 +46,7 @@ import {
   type Motivo,
   type PartidaMock,
 } from './datos';
+import { FechaInput } from '../../shared/dates/DateFields';
 
 const NAVY = '#1d2f68';
 const TASA_IVA = 0.16;
@@ -571,17 +572,10 @@ export default function NotaCreditoCaptura({ escena }: { escena: Escena }) {
               '& .MuiInputBase-input.Mui-disabled': { WebkitTextFillColor: '#1e293b' },
             }}
           />
-          <TextField
-            label="Fecha"
-            type="date"
-            size="small"
-            value={fecha}
-            onChange={(event) => {
-              setFecha(event.target.value);
+          <FechaInput label="Fecha" value={fecha} onChange={(value) => {
+              setFecha((value ?? ''));
               setDirty(true);
-            }}
-            InputLabelProps={{ shrink: true }}
-          />
+            }} slotProps={{ textField: { size: 'small' } }} />
           <TextField
             select
             label="Motivo"
@@ -652,17 +646,10 @@ export default function NotaCreditoCaptura({ escena }: { escena: Escena }) {
                 '& .MuiInputBase-input.Mui-disabled': { WebkitTextFillColor: '#1e293b' },
               }}
             />
-            <TextField
-              label="Fecha"
-              type="date"
-              size="small"
-              value={fecha}
-              onChange={(event) => {
-                setFecha(event.target.value);
+            <FechaInput label="Fecha" value={fecha} onChange={(value) => {
+                setFecha((value ?? ''));
                 setDirty(true);
-              }}
-              InputLabelProps={{ shrink: true }}
-            />
+              }} slotProps={{ textField: { size: 'small' } }} />
             <TextField
               select
               label="Motivo"

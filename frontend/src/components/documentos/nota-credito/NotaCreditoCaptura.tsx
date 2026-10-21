@@ -37,6 +37,7 @@ import type { Concepto } from '../../../types/finanzas';
 import type { PrepararGeneracionResponse } from '../../../services/documentGenerationService';
 import { alertColors, alertTints } from '../../../theme/functional';
 import { neutralColors, onPrimaryColors, whiteSurfaces } from '../../../theme/structural';
+import { FechaInput } from '../../../shared/dates/DateFields';
 
 const MENSAJE_PARTIDAS_INCOMPATIBLES = 'Solo pueden combinarse partidas compatibles en la misma nota.';
 
@@ -512,15 +513,7 @@ export default function NotaCreditoCaptura({
           />
         )}
       />
-      <TextField
-        label="Fecha"
-        type="date"
-        size="small"
-        value={fecha}
-        disabled={soloLectura}
-        onChange={(event) => onFecha(event.target.value)}
-        InputLabelProps={{ shrink: true }}
-      />
+      <FechaInput label="Fecha" value={fecha} onChange={(value) => onFecha((value ?? ''))} disabled={soloLectura} slotProps={{ textField: { size: 'small' } }} />
       <TextField
         select
         label="Motivo"

@@ -9,6 +9,7 @@ import { useNavigate } from 'react-router-dom';
 import { apiFetch } from '../../../api/apiClient';
 import { buildVentasPorOrigenExportUrl, fetchOrigenesContacto, fetchVentasPorOrigen, fetchDetalleVentasPorOrigen, type OrigenContacto, type VentasPorOrigenResult, type MovimientosPorPeriodoParams, type Agrupacion } from '../../../services/reportesService';
 import { categoricalPalettes } from '../../../theme/functional';
+import { FechaInput } from '../../../shared/dates/DateFields';
 
 const money = (v: number) => v.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const formatDate = (v: string) => {
@@ -107,8 +108,8 @@ export default function VentasPorOrigenContactoPage() {
 
       <Box sx={{ position: 'relative', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1, p: 1.25, borderRadius: 2, border: `1px solid ${tokens.content.border}`, bgcolor: tokens.content.elevated, overflow: 'hidden' }}>
         {loading && <LinearProgress sx={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, bgcolor: tokens.metric.track, '& .MuiLinearProgress-bar': { bgcolor: tokens.action.info } }} />}
-        <TextField label="Fecha inicial" type="date" size="small" value={desde} onChange={e => setDesde(e.target.value)} slotProps={{ inputLabel: { shrink: true } }} sx={{ width: { xs: '100%', sm: 158 }, ...campoSx }} />
-        <TextField label="Fecha final" type="date" size="small" value={hasta} onChange={e => setHasta(e.target.value)} slotProps={{ inputLabel: { shrink: true } }} sx={{ width: { xs: '100%', sm: 158 }, ...campoSx }} />
+        <FechaInput label="Fecha inicial" value={desde} onChange={(value) => setDesde(value ?? '')} slotProps={{ textField: { size: 'small', sx: { width: { xs: '100%', sm: 158 }, ...campoSx } } }} />
+        <FechaInput label="Fecha final" value={hasta} onChange={(value) => setHasta(value ?? '')} slotProps={{ textField: { size: 'small', sx: { width: { xs: '100%', sm: 158 }, ...campoSx } } }} />
         <Autocomplete options={clientes} value={cliente} onChange={(_, v) => setCliente(v)} onInputChange={(_, v) => search('c', v).then(setClientes)} getOptionLabel={o => o.nombre ?? ''} isOptionEqualToValue={(a, b) => a.id === b.id} sx={{ width: { xs: '100%', sm: 210 }, ...campoSx }} renderInput={p => <TextField {...p} label="Cliente (todos)" size="small" />} />
         <Autocomplete options={productos} value={producto} onChange={(_, v) => setProducto(v)} onInputChange={(_, v) => search('p', v).then(setProductos)} getOptionLabel={o => `${o.clave ?? ''} — ${o.descripcion ?? ''}`} isOptionEqualToValue={(a, b) => a.id === b.id} sx={{ width: { xs: '100%', sm: 230 }, ...campoSx }} renderInput={p => <TextField {...p} label="Producto (todos)" size="small" />} />
         <Autocomplete options={origenes} value={origen} onChange={(_, v) => setOrigen(v)} getOptionLabel={o => o.descripcion} isOptionEqualToValue={(a, b) => a.id === b.id} sx={{ width: { xs: '100%', sm: 210 }, ...campoSx }} renderInput={p => <TextField {...p} label="Origen de contacto (todos)" size="small" />} />

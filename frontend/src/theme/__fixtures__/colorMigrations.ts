@@ -60,7 +60,12 @@ export const MERGE_ORDER = ['merges.main-8761927.baseline.json'] as const;
  * `useBrand()`. No cambian colores; se revierten con un parche exacto de líneas.
  */
 export const BRAND_HOOK_ORDER = ['brandHook.e2.baseline.json'] as const;
-const LATER_CHAIN = [...NEUTRAL_ORDER, MINOR_FIXTURE, REST_FIXTURE, ...DOCUMENTOS_FORM_ORDER, ...SIGN_ORDER, ...ELEVATION_ORDER, ...TINT_ORDER, ...LEFTOVER_ORDER, ...WHITE_ORDER, ...DECISION_ORDER, ...MERGE_ORDER, ...BRAND_HOOK_ORDER] as const;
+/**
+ * Estandarización de fechas (DD/MM/YYYY): los campos de fecha pasan a `FechaInput`/`FechaHoraInput`.
+ * No cambia colores; se revierte con un parche exacto de líneas sobre el contenido previo.
+ */
+export const DATES_ORDER = ['dates.d1.baseline.json'] as const;
+const LATER_CHAIN = [...NEUTRAL_ORDER, MINOR_FIXTURE, REST_FIXTURE, ...DOCUMENTOS_FORM_ORDER, ...SIGN_ORDER, ...ELEVATION_ORDER, ...TINT_ORDER, ...LEFTOVER_ORDER, ...WHITE_ORDER, ...DECISION_ORDER, ...MERGE_ORDER, ...BRAND_HOOK_ORDER, ...DATES_ORDER] as const;
 /** Todos los fixtures de la cadena, en orden: las pruebas cargan esta lista, no una copia. */
 export const LATER_FIXTURES: readonly string[] = LATER_CHAIN;
 
@@ -298,7 +303,7 @@ export function revertLater(after: string | null, file: string, source: string, 
     if (!entry) continue;
     // Los neutrales revierten por familia de token; los merges de main, por contenido; E2, por parche; el resto, por línea.
     if ((MERGE_ORDER as readonly string[]).includes(name)) out = revertMerge(out, file, entry as MergeFileFixture);
-    else if ((BRAND_HOOK_ORDER as readonly string[]).includes(name)) out = revertLinePatch(out, file, entry as LinePatchFileFixture);
+    else if ((BRAND_HOOK_ORDER as readonly string[]).includes(name) || (DATES_ORDER as readonly string[]).includes(name)) out = revertLinePatch(out, file, entry as LinePatchFileFixture);
     else if ((NEUTRAL_ORDER as readonly string[]).includes(name)) out = revertNeutral(out, (entry as NeutralFixture['files'][string]).addedImports);
     else out = revertMinor(out, entry as MinorFileFixture);
   }

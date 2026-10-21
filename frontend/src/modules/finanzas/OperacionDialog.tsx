@@ -39,6 +39,7 @@ import {
   validarTransferencia,
   type OpcionContactoTesoreria,
 } from './transferenciaLogica';
+import { FechaInput } from '../../shared/dates/DateFields';
 
 const toCivilDate = (date = new Date()) => {
   const y = date.getFullYear();
@@ -487,15 +488,7 @@ export function OperacionDialog({
           </FormControl>
 
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-            <TextField
-              label="Fecha"
-              type="date"
-              size="small"
-              value={fecha}
-              onChange={(e) => setFecha(e.target.value)}
-              InputLabelProps={{ shrink: true }}
-              fullWidth
-            />
+            <FechaInput label="Fecha" value={fecha} onChange={(value) => setFecha((value ?? ''))} slotProps={{ textField: { size: 'small', fullWidth: true } }} />
             <FormControl size="small" fullWidth>
               <InputLabel id="tipo-label">Tipo</InputLabel>
               <Select

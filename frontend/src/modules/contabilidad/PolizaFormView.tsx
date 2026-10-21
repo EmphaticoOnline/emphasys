@@ -46,6 +46,7 @@ import {
   tablaCapturaSx,
   tituloVistaSx,
 } from './contabilidadVisual';
+import { FechaInput } from '../../shared/dates/DateFields';
 
 // Fecha civil de "hoy" sin pasar por toISOString() (que se calcula en UTC y
 // puede desfasar un día según la zona horaria del navegador). Mismo patrón
@@ -466,15 +467,10 @@ export default function PolizaFormView({
             </CampoBanda>
 
             <CampoBanda label="Fecha" width={120}>
-              <TextField
-                variant="standard"
-                type="date"
-                fullWidth
-                required
+              <FechaInput
                 value={form.fecha}
-                onChange={(e) => handleChangeForm('fecha', e.target.value)}
-                InputProps={{ disableUnderline: true }}
-                sx={bandaInputSx}
+                onChange={(valor) => handleChangeForm('fecha', valor ?? '')}
+                slotProps={{ textField: { variant: 'standard', fullWidth: true, required: true, InputProps: { disableUnderline: true }, sx: bandaInputSx } }}
               />
             </CampoBanda>
 

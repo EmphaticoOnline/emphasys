@@ -28,6 +28,7 @@ import type { Almacen, CrearMovimientoManualPayload, MovimientoPartidaPayload } 
 import InventarioMovimientoErrorDialog, { type InventarioMovimientoError } from '../components/inventario/InventarioMovimientoErrorDialog';
 import type { ApiFetchError } from '../services/apiFetch';
 import { amountSignColor, inflowColor, outflowColor } from '../theme/sign';
+import { FechaInput } from '../shared/dates/DateFields';
 
 type TipoMovimiento = 'entrada' | 'salida' | 'transferencia';
 
@@ -1913,7 +1914,7 @@ function enterDebeContinuarCaptura(event: React.KeyboardEvent) {
   const target = event.target as HTMLElement | null;
   if (!target) return false;
   if (target.closest('button, a, [role="button"]')) return false;
-  if ((target as HTMLInputElement).type === 'date') return false;
+  if ((target as HTMLInputElement).type === 'date' || target.hasAttribute('data-fecha-operativa')) return false;
   if (target.getAttribute('aria-expanded') === 'true' || target.closest('[aria-expanded="true"]')) return false;
   if (document.querySelector('[role="listbox"]')) return false;
   if (target.getAttribute('role') === 'combobox' && target.tagName !== 'INPUT') return false;
@@ -1923,57 +1924,41 @@ function enterDebeContinuarCaptura(event: React.KeyboardEvent) {
 function CampoFechaOperativa({ value, onChange, enfocarAlMontar = false }: { value: string; onChange: (valor: string) => void; enfocarAlMontar?: boolean }) {
   const ref = useRef<HTMLInputElement>(null);
   const yaEnfoco = useRef(false);
+  const [abierto, setAbierto] = useState(false);
   useEffect(() => {
     if (!enfocarAlMontar || yaEnfoco.current) return;
     const input = ref.current;
     if (!input) return;
     yaEnfoco.current = true;
     input.focus({ preventScroll: true });
-    try {
-      input.showPicker();
-    } catch {
-      // Algunos navegadores solo abren el calendario tras un gesto del usuario.
-    }
+    setAbierto(true);
   }, [enfocarAlMontar]);
   return (
-    <Box
-      component="input"
-      ref={ref}
-      type="date"
-      aria-label="Fecha operativa"
-      data-fecha-operativa="true"
+    <FechaInput
       value={value}
-      onChange={(event) => onChange(fechaCivilGuadalajara(event.target.value))}
-      onKeyDown={(event) => {
-        if (event.key === 'Enter') event.stopPropagation();
+      // Una fecha parcial o inválida (null) no se propaga: el estado conserva la última fecha civil válida.
+      onChange={(valor) => { if (valor) onChange(fechaCivilGuadalajara(valor)); }}
+      inputRef={ref}
+      open={abierto}
+      onOpen={() => setAbierto(true)}
+      onClose={() => setAbierto(false)}
+      slotProps={{
+        textField: {
+          variant: 'standard',
+          inputProps: { 'aria-label': 'Fecha operativa', 'data-fecha-operativa': 'true' },
+          onKeyDown: (event: React.KeyboardEvent) => {
+            if (event.key === 'Enter') event.stopPropagation();
+          },
+          sx: (theme: Theme) => ({
+            width: '100%',
+            maxWidth: 150,
+            '& .MuiInputBase-root': { height: 29, fontSize: 14, color: theme.emphasys.content.foreground },
+            '& .MuiInput-underline:before': { borderBottomColor: theme.emphasys.content.border },
+            '& .MuiInput-underline:hover:not(.Mui-disabled):before': { borderBottomColor: theme.emphasys.content.foreground },
+            '& .MuiInput-underline:after': { borderBottomColor: theme.emphasys.content.foreground },
+          }),
+        },
       }}
-      onClick={(event) => {
-        const input = event.currentTarget;
-        try {
-          input.showPicker();
-        } catch {
-          input.focus();
-        }
-      }}
-      sx={(theme) => ({
-        width: '100%',
-        maxWidth: 150,
-        height: 29,
-        margin: 0,
-        padding: 0,
-        border: 0,
-        borderBottom: `1px solid ${theme.emphasys.content.border}`,
-        borderRadius: 0,
-        background: 'transparent',
-        color: theme.emphasys.content.foreground,
-        font: 'inherit',
-        fontSize: 14,
-        lineHeight: '28px',
-        outline: 'none',
-        colorScheme: 'light',
-        boxSizing: 'border-box',
-        '&:focus': { borderBottomColor: theme.emphasys.content.foreground },
-      })}
     />
   );
 }

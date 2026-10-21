@@ -3,6 +3,7 @@ import type { CampoConfiguracion, CampoValorPayload, CatalogoValor } from '../ty
 import { useMemo, useState } from 'react';
 import { HexColorPicker } from 'react-colorful';
 import { neutralColors } from '../theme/structural';
+import { FechaInput } from '../shared/dates/DateFields';
 
 type PropsCampos = {
   campo: CampoConfiguracion;
@@ -233,12 +234,12 @@ export function DynamicFieldControl(props: Props) {
 
   if (campo.tipo_dato === 'fecha') {
     return (
-      <TextField
-        {...commonProps}
-        type="date"
-        value={currentValue.valor_fecha || ''}
-        onChange={(e) => onChange({ campo_id: campo.id, valor_fecha: e.target.value || null })}
-        InputLabelProps={{ shrink: true }}
+      <FechaInput
+        label={commonProps.label}
+        disabled={commonProps.disabled}
+        value={currentValue.valor_fecha || null}
+        onChange={(valor) => onChange({ campo_id: campo.id, valor_fecha: valor || null })}
+        slotProps={{ textField: { required: commonProps.required, fullWidth: true, variant: 'outlined', size: 'small' } }}
       />
     );
   }

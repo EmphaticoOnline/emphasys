@@ -19,6 +19,7 @@ import { apiFetch } from "../services/apiFetch";
 import { ConfigPageFrame, ConfigPageHeader } from "../components/configuracion/configVisual";
 import { catalogoOutlinedButtonSx, catalogoPrimaryButtonSx, catalogoSearchSx } from "../components/catalogo/catalogoSurfaces";
 import { ColHead, Section, actionIconSx, panelBarSx, rowIconSx, wellSx } from "../components/transporte/transporteVisual";
+import { FechaInput } from '../shared/dates/DateFields';
 import {
   actualizarOperador,
   cambiarEstadoOperador,
@@ -478,15 +479,7 @@ export default function OperadoresPage() {
             >
               {field("numero_licencia", "Número de licencia")}
               {field("tipo_licencia", "Tipo de licencia")}
-              <TextField
-                size="small"
-                type="date"
-                label="Vigencia de licencia"
-                InputLabelProps={{ shrink: true }}
-                value={form.vigencia_licencia}
-                onChange={(e) => set("vigencia_licencia", e.target.value)}
-                sx={catalogoSearchSx}
-              />
+              <FechaInput label="Vigencia de licencia" value={form.vigencia_licencia} onChange={(value) => set("vigencia_licencia", (value ?? ''))} slotProps={{ textField: { size: 'small', sx: catalogoSearchSx } }} />
             </Box>
           </Section>
           {warning && (

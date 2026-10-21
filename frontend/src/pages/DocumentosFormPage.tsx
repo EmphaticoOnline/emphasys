@@ -78,6 +78,7 @@ import {
   guardarFacturaCapturaVistaPreferencia,
   type VistaCapturaFactura,
 } from '../modules/documentos/facturaCapturaVistaFlag';
+import { FechaInput } from '../shared/dates/DateFields';
 
 import type {
   CotizacionDetalle,
@@ -4519,31 +4520,23 @@ export default function DocumentosFormPage({
                       />
                     )}
                   />
-                  <TextField
+                  <FechaInput
                     label="Fecha documento"
-                    type="date"
                     value={form.fecha_documento}
-                    onChange={(e) => setForm((prev) => ({ ...prev, fecha_documento: e.target.value }))}
+                    onChange={(valor) => setForm((prev) => ({ ...prev, fecha_documento: valor ?? '' }))}
                     disabled={lockedFechaDocumento || trazabilidadActiva}
-                    InputLabelProps={{ shrink: true, sx: { fontSize: 12.5 } }}
-                    inputProps={{ style: { fontSize: 12.5 } }}
-                    size="small"
-                    sx={{ flex: '0 0 138px' }}
+                    slotProps={{ textField: { InputLabelProps: { shrink: true, sx: { fontSize: 12.5 } }, inputProps: { style: { fontSize: 12.5 } }, size: 'small', sx: { flex: '0 0 150px' } } }}
                   />
                   {TIPOS_CON_VENCIMIENTO.has(tipoDocumento) && (
-                    <TextField
+                    <FechaInput
                       label="Vencimiento"
-                      type="date"
-                      value={form.fecha_vencimiento ?? ''}
-                      onChange={(e) => {
+                      value={form.fecha_vencimiento ?? null}
+                      onChange={(valor) => {
                         fechaVencimientoManualRef.current = true;
-                        setForm((prev) => ({ ...prev, fecha_vencimiento: e.target.value || null }));
+                        setForm((prev) => ({ ...prev, fecha_vencimiento: valor || null }));
                       }}
                       disabled={trazabilidadActiva && !edicionFacturaTimbradaRestringida}
-                      InputLabelProps={{ shrink: true, sx: { fontSize: 12.5 } }}
-                      inputProps={{ style: { fontSize: 12.5 } }}
-                      size="small"
-                      sx={{ flex: '0 0 138px' }}
+                      slotProps={{ textField: { InputLabelProps: { shrink: true, sx: { fontSize: 12.5 } }, inputProps: { style: { fontSize: 12.5 } }, size: 'small', sx: { flex: '0 0 150px' } } }}
                     />
                   )}
                   {vendedorVisible && (
@@ -6273,17 +6266,7 @@ export default function DocumentosFormPage({
                     )}
                     {!usaCapturaEspecialNotaCredito && (
                       <Grid size={{ xs: 12, md: 3 }}>
-                        <TextField
-                          label="Fecha documento"
-                          type="date"
-                          value={form.fecha_documento}
-                          onChange={(e) => setForm((prev) => ({ ...prev, fecha_documento: e.target.value }))}
-                          disabled={lockedFechaDocumento || trazabilidadActiva}
-                          InputLabelProps={{ shrink: true, sx: { fontSize: 13 } }}
-                          sx={pagoCampoSx}
-                          fullWidth
-                          size="small"
-                        />
+                        <FechaInput label="Fecha documento" value={form.fecha_documento} onChange={(value) => setForm((prev) => ({ ...prev, fecha_documento: (value ?? '') }))} disabled={lockedFechaDocumento || trazabilidadActiva} slotProps={{ textField: { size: 'small', fullWidth: true, sx: pagoCampoSx } }} />
                       </Grid>
                     )}
                     <Grid size={{ xs: 12, md: 3 }}>
@@ -6543,34 +6526,26 @@ export default function DocumentosFormPage({
                 )}
                 {!usaCapturaEspecialNotaCredito && (
                 <Grid size={{ xs: 12, md: 2 }}>
-                  <TextField
+                  <FechaInput
                     label="Fecha documento"
-                    type="date"
                     value={form.fecha_documento}
-                    onChange={(e) => setForm((prev) => ({ ...prev, fecha_documento: e.target.value }))}
+                    onChange={(valor) => setForm((prev) => ({ ...prev, fecha_documento: valor ?? '' }))}
                     disabled={lockedFechaDocumento || trazabilidadActiva}
-                    InputLabelProps={{ shrink: true, sx: { fontSize: 13 } }}
-                    inputProps={{ style: { fontSize: 13 } }}
-                    fullWidth
-                    size="small"
+                    slotProps={{ textField: { InputLabelProps: { shrink: true, sx: { fontSize: 13 } }, inputProps: { style: { fontSize: 13 } }, fullWidth: true, size: 'small' } }}
                   />
                 </Grid>
                 )}
                 {!usaCapturaEspecialNotaCredito && TIPOS_CON_VENCIMIENTO.has(tipoDocumento) && (
                 <Grid size={{ xs: 12, md: 2 }}>
-                  <TextField
+                  <FechaInput
                     label="Fecha de vencimiento"
-                    type="date"
-                    value={form.fecha_vencimiento ?? ''}
-                    onChange={(e) => {
+                    value={form.fecha_vencimiento ?? null}
+                    onChange={(valor) => {
                       fechaVencimientoManualRef.current = true;
-                      setForm((prev) => ({ ...prev, fecha_vencimiento: e.target.value || null }));
+                      setForm((prev) => ({ ...prev, fecha_vencimiento: valor || null }));
                     }}
                     disabled={trazabilidadActiva}
-                    InputLabelProps={{ shrink: true, sx: { fontSize: 13 } }}
-                    inputProps={{ style: { fontSize: 13 } }}
-                    fullWidth
-                    size="small"
+                    slotProps={{ textField: { InputLabelProps: { shrink: true, sx: { fontSize: 13 } }, inputProps: { style: { fontSize: 13 } }, fullWidth: true, size: 'small' } }}
                   />
                 </Grid>
                 )}

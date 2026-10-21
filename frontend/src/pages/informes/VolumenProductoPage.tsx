@@ -48,6 +48,7 @@ import type {
 import { categoricalPalettes } from '../../theme/functional';
 import { neutralColors } from '../../theme/structural';
 import { useBrand } from '../../theme/brand/useBrand';
+import { FechaInput } from '../../shared/dates/DateFields';
 
 export type VolumenProductoPageConfig = {
   titulo: string;
@@ -590,24 +591,8 @@ export default function VolumenProductoPage({ config }: { config: VolumenProduct
         : { px: 2, py: 1, position: 'relative', overflow: 'hidden' }}>
         {loading && <LinearProgress sx={esVentas ? { position: 'absolute', top: 0, left: 0, right: 0, height: 2, bgcolor: tokens.metric.track, '& .MuiLinearProgress-bar': { bgcolor: tokens.action.info } } : { position: 'absolute', top: 0, left: 0, right: 0 }} />}
         <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center', flexWrap: 'wrap' }}>
-          <TextField
-            label="Fecha inicial"
-            type="date"
-            size="small"
-            value={fechaInicio}
-            onChange={(e) => setFechaInicio(e.target.value)}
-            slotProps={{ inputLabel: { shrink: true } }}
-            sx={{ width: esVentas ? { xs: '100%', sm: 155 } : 155, ...campoSx }}
-          />
-          <TextField
-            label="Fecha final"
-            type="date"
-            size="small"
-            value={fechaFin}
-            onChange={(e) => setFechaFin(e.target.value)}
-            slotProps={{ inputLabel: { shrink: true } }}
-            sx={{ width: esVentas ? { xs: '100%', sm: 155 } : 155, ...campoSx }}
-          />
+          <FechaInput label="Fecha inicial" value={fechaInicio} onChange={(value) => setFechaInicio(value ?? '')} slotProps={{ textField: { size: 'small', sx: { width: esVentas ? { xs: '100%', sm: 155 } : 155, ...campoSx } } }} />
+          <FechaInput label="Fecha final" value={fechaFin} onChange={(value) => setFechaFin(value ?? '')} slotProps={{ textField: { size: 'small', sx: { width: esVentas ? { xs: '100%', sm: 155 } : 155, ...campoSx } } }} />
 
           {/* Autocomplete de producto */}
           <Autocomplete<ProductoOpcion>

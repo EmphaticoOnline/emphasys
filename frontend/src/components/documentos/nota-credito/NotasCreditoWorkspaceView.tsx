@@ -45,6 +45,7 @@ import { estadoVisualDocumento } from '../estadoVisualDocumento';
 import { getStatusToneColor } from '../../status/status.semantics';
 import { elevation } from '../../../theme/elevation';
 import { useBrand } from '../../../theme/brand/useBrand';
+import { FechaInput } from '../../../shared/dates/DateFields';
 
 type Props = {
   rows: CotizacionListado[];
@@ -1218,24 +1219,8 @@ function PopoverFiltroNotas({
             Fecha
           </Typography>
           <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0.8 }}>
-            <TextField
-              label="Desde"
-              type="date"
-              size="small"
-              value={filtro.desde}
-              onChange={(event) => cambiar({ desde: event.target.value })}
-              InputLabelProps={{ shrink: true }}
-              sx={campoFechaSx(tokens.content.foreground, tokens.content.border)}
-            />
-            <TextField
-              label="Hasta"
-              type="date"
-              size="small"
-              value={filtro.hasta}
-              onChange={(event) => cambiar({ hasta: event.target.value })}
-              InputLabelProps={{ shrink: true }}
-              sx={campoFechaSx(tokens.content.foreground, tokens.content.border)}
-            />
+            <FechaInput label="Desde" value={filtro.desde} onChange={(value) => cambiar({ desde: (value ?? '') })} slotProps={{ textField: { size: 'small', sx: campoFechaSx(tokens.content.foreground, tokens.content.border) } }} />
+            <FechaInput label="Hasta" value={filtro.hasta} onChange={(value) => cambiar({ hasta: (value ?? '') })} slotProps={{ textField: { size: 'small', sx: campoFechaSx(tokens.content.foreground, tokens.content.border) } }} />
           </Box>
         </Box>
       </Box>

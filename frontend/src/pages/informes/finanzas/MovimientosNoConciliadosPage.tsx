@@ -34,6 +34,7 @@ import {
   type MovimientosNoConciliadosParams,
 } from '../../../services/reportesService';
 import { cashFlowColors, stalenessColors } from '../../../theme/functional';
+import { FechaInput } from '../../../shared/dates/DateFields';
 
 type CuentaOpcion   = { id: number; identificador: string; moneda?: string };
 type ContactoOpcion = { id: number; nombre: string; rfc?: string | null };
@@ -355,24 +356,8 @@ export default function MovimientosNoConciliadosPage() {
       <Paper sx={{ px: 2, py: 1, position: 'relative', overflow: 'hidden' }}>
         {loading && <LinearProgress sx={{ position: 'absolute', top: 0, left: 0, right: 0 }} />}
         <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center', flexWrap: 'wrap' }}>
-          <TextField
-            label="Desde"
-            type="date"
-            size="small"
-            value={fechaInicio}
-            onChange={(e) => setFechaInicio(e.target.value)}
-            InputLabelProps={{ shrink: true }}
-            sx={{ width: 150 }}
-          />
-          <TextField
-            label="Hasta"
-            type="date"
-            size="small"
-            value={fechaFin}
-            onChange={(e) => setFechaFin(e.target.value)}
-            InputLabelProps={{ shrink: true }}
-            sx={{ width: 150 }}
-          />
+          <FechaInput label="Desde" value={fechaInicio} onChange={(value) => setFechaInicio((value ?? ''))} slotProps={{ textField: { size: 'small', sx: { width: 150 } } }} />
+          <FechaInput label="Hasta" value={fechaFin} onChange={(value) => setFechaFin((value ?? ''))} slotProps={{ textField: { size: 'small', sx: { width: 150 } } }} />
           <Autocomplete<CuentaOpcion>
             options={cuentas}
             value={cuenta}

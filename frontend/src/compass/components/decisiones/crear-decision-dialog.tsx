@@ -9,6 +9,7 @@ import { colorVarDeFrente } from "@/lib/frente-color"
 import { hoyLocal } from "@/lib/format"
 import { cn } from "@/lib/utils"
 import type { DecisionCreate, Frente } from "../../../services/compassService"
+import { DateInput } from "@/components/ui/date-input"
 
 export function CrearDecisionDialog({ frentes, onClose, onCreate }: { frentes: Frente[]; onClose: () => void; onCreate: (payload: DecisionCreate) => Promise<unknown> }) {
   const [titulo, setTitulo] = useState("")
@@ -59,7 +60,7 @@ export function CrearDecisionDialog({ frentes, onClose, onCreate }: { frentes: F
 
         <Field className="w-44">
           <FieldLabel htmlFor="decision-fecha">Fecha</FieldLabel>
-          <Input id="decision-fecha" type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} />
+          <DateInput id="decision-fecha" value={fecha} onChange={setFecha} />
         </Field>
 
         <Field>

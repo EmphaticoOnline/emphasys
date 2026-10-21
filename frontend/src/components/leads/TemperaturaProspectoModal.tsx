@@ -146,7 +146,7 @@ export default function TemperaturaProspectoModal({ open, lead, onClose, onUpdat
           <Box><Typography variant="subtitle2">Información faltante</Typography>{current.riesgo_informacion_faltante.length ? <Box component="ul" sx={{ mt: 0.5, mb: 0, pl: 2.5 }}>{current.riesgo_informacion_faltante.map((item) => <li key={item}><Typography variant="body2">{item}</Typography></li>)}</Box> : <Typography variant="body2" color="text.secondary">No especificada.</Typography>}</Box>
           <Box><Typography variant="subtitle2">Siguiente acción</Typography><Typography variant="body2">{current.siguiente_accion_recomendada || 'Sin acción recomendada.'}</Typography></Box>
           {puedeProgramar && <Button variant="contained" startIcon={<EventAvailableOutlinedIcon />} onClick={() => { setActividadOpen(true); onClose(); }}>Programar actividad</Button>}
-          <Typography variant="caption" color="text.secondary">Analizado: {current.creado_en ? new Date(current.creado_en).toLocaleString() : '—'}</Typography>
+          <Typography variant="caption" color="text.secondary">Analizado: {current.creado_en ? new Date(current.creado_en).toLocaleString('es-MX') : '—'}</Typography>
         </Stack>}
         {eligible && !loading && !current && !error && <Typography color="text.secondary">Aún no existe un análisis para esta conversación.</Typography>}
       </DialogContent>

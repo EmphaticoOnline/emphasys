@@ -41,6 +41,7 @@ import RichTextEditor from '../RichTextEditor';
 import { activityTypeChipColors, alertColors, crmAccents } from '../../theme/functional';
 import { neutralColors, whiteSurfaces } from '../../theme/structural';
 import { useBrand } from '../../theme/brand/useBrand';
+import { FechaHoraInput } from '../../shared/dates/DateFields';
 
 dayjs.locale('es');
 
@@ -806,14 +807,11 @@ export default function ActividadSeguimientoDrawer({ open, onClose, target, init
           <Typography variant="body2" sx={{ fontWeight: 700, color: neutralColors.slate[900] }}>
             Reagendar actividad
           </Typography>
-          <TextField
+          <FechaHoraInput
             label="Nueva fecha"
-            type="datetime-local"
-            size="small"
-            value={nuevaFechaReagendar}
-            onChange={(event) => setNuevaFechaReagendar(event.target.value)}
-            InputLabelProps={{ shrink: true }}
-            fullWidth
+            value={nuevaFechaReagendar || null}
+            onChange={(valor) => setNuevaFechaReagendar(valor ?? '')}
+            slotProps={{ textField: { size: 'small', fullWidth: true } }}
           />
           <Stack direction="row" justifyContent="flex-end" spacing={1}>
             <Button size="small" color="inherit" onClick={handleCloseReagendar} disabled={savingReagendar}>

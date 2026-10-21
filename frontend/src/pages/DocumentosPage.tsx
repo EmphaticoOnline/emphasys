@@ -78,6 +78,7 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import FilterAltOutlinedIcon from '@mui/icons-material/FilterAltOutlined';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
+import { FechaInput } from '../shared/dates/DateFields';
 import CalculateIcon from '@mui/icons-material/Calculate';
 import ModeEditOutlineOutlinedIcon from '@mui/icons-material/ModeEditOutlineOutlined';
 import PrintOutlinedIcon from '@mui/icons-material/PrintOutlined';
@@ -3634,8 +3635,8 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
 
             <Grid container spacing={1.25}>
               <Grid size={{ xs: 12, sm: 6, md: 4, xl: 2 }}>
-                <LocalizationProvider dateAdapter={AdapterDayjs}>
-                  <DatePicker
+                <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale="es">
+                  <DatePicker format="DD/MM/YYYY"
                     label="Fecha desde"
                     value={filtrosCotizacion.fechaDesde ? dayjs(filtrosCotizacion.fechaDesde) : null}
                     onChange={(value) => setFiltrosCotizacion((prev) => ({ ...prev, fechaDesde: value ? value.format('YYYY-MM-DD') : '' }))}
@@ -3661,8 +3662,8 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
               </Grid>
 
               <Grid size={{ xs: 12, sm: 6, md: 4, xl: 2 }}>
-                <LocalizationProvider dateAdapter={AdapterDayjs}>
-                  <DatePicker
+                <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale="es">
+                  <DatePicker format="DD/MM/YYYY"
                     label="Fecha hasta"
                     value={filtrosCotizacion.fechaHasta ? dayjs(filtrosCotizacion.fechaHasta) : null}
                     onChange={(value) => setFiltrosCotizacion((prev) => ({ ...prev, fechaHasta: value ? value.format('YYYY-MM-DD') : '' }))}
@@ -4902,8 +4903,9 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
                   ))}
                 </TextField>
               ) : null}
-              <LocalizationProvider dateAdapter={AdapterDayjs}>
+              <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale="es">
                 <DatePicker
+                  format="DD/MM/YYYY"
                   label="Fecha del documento"
                   value={generacionDialog.fechaDocumento ? dayjs(generacionDialog.fechaDocumento) : null}
                   onChange={(value) => setGeneracionDialog((prev) => ({
@@ -5528,16 +5530,12 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
             <DialogContentText>
               Crea el seguimiento operativo en Producción para esta cotización usando la primera etapa activa disponible.
             </DialogContentText>
-            <TextField
+            <FechaInput
               autoFocus
-              fullWidth
               label="Fecha compromiso"
-              type="date"
               value={produccionDialog.fechaPromesa}
-              onChange={(e) => setProduccionDialog((prev) => ({ ...prev, fechaPromesa: e.target.value, error: null }))}
-              error={Boolean(produccionDialog.error)}
-              helperText={produccionDialog.error || ' '}
-              InputLabelProps={{ shrink: true }}
+              onChange={(valor) => setProduccionDialog((prev) => ({ ...prev, fechaPromesa: valor ?? '', error: null }))}
+              slotProps={{ textField: { fullWidth: true, error: Boolean(produccionDialog.error), helperText: produccionDialog.error || ' ' } }}
             />
             <TextField
               fullWidth

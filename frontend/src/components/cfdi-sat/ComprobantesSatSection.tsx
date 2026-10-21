@@ -38,6 +38,7 @@ import VincularDocumentoDialog from './VincularDocumentoDialog';
 import { ESTADO_IMPORTACION_INFO, POSIBLE_DUPLICADO_LABEL } from './estadoImportacion';
 import { neutralColors } from '../../theme/structural';
 import { useBrand } from '../../theme/brand/useBrand';
+import { FechaInput } from '../../shared/dates/DateFields';
 
 function formatFecha(raw?: string | null): string {
   if (!raw) return '—';
@@ -389,23 +390,9 @@ export default function ComprobantesSatSection({
             <MenuItem value="false">No importados</MenuItem>
           </TextField>
 
-          <TextField
-            label="Fecha inicio"
-            type="date"
-            size="small"
-            InputLabelProps={{ shrink: true }}
-            value={filtrosForm.fecha_inicio}
-            onChange={(e) => handleFiltroChange('fecha_inicio', e.target.value)}
-          />
+          <FechaInput label="Fecha inicio" value={filtrosForm.fecha_inicio ?? null} onChange={(value) => handleFiltroChange('fecha_inicio', (value ?? ''))} slotProps={{ textField: { size: 'small' } }} />
 
-          <TextField
-            label="Fecha fin"
-            type="date"
-            size="small"
-            InputLabelProps={{ shrink: true }}
-            value={filtrosForm.fecha_fin}
-            onChange={(e) => handleFiltroChange('fecha_fin', e.target.value)}
-          />
+          <FechaInput label="Fecha fin" value={filtrosForm.fecha_fin ?? null} onChange={(value) => handleFiltroChange('fecha_fin', (value ?? ''))} slotProps={{ textField: { size: 'small' } }} />
         </Box>
 
         <Stack direction="row" spacing={1.5} alignItems="center" flexWrap="wrap" useFlexGap>

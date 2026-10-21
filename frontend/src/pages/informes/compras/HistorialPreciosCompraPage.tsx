@@ -36,6 +36,7 @@ import {
   type HistorialPreciosResult,
 } from '../../../services/reportesService';
 import { priceVarianceColors } from '../../../theme/functional';
+import { FechaInput } from '../../../shared/dates/DateFields';
 
 type ContactoOpcion = { id: number; nombre: string; rfc?: string | null };
 type ProductoOpcion = { id: number; clave: string; descripcion: string };
@@ -281,24 +282,8 @@ export default function HistorialPreciosCompraPage() {
       <Paper sx={{ px: 2, py: 1, position: 'relative', overflow: 'hidden' }}>
         {loading && <LinearProgress sx={{ position: 'absolute', top: 0, left: 0, right: 0 }} />}
         <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center', flexWrap: 'wrap' }}>
-          <TextField
-            label="Fecha inicial"
-            type="date"
-            size="small"
-            value={fechaInicio}
-            onChange={(e) => setFechaInicio(e.target.value)}
-            InputLabelProps={{ shrink: true }}
-            sx={{ width: 155 }}
-          />
-          <TextField
-            label="Fecha final"
-            type="date"
-            size="small"
-            value={fechaFin}
-            onChange={(e) => setFechaFin(e.target.value)}
-            InputLabelProps={{ shrink: true }}
-            sx={{ width: 155 }}
-          />
+          <FechaInput label="Fecha inicial" value={fechaInicio} onChange={(value) => setFechaInicio((value ?? ''))} slotProps={{ textField: { size: 'small', sx: { width: 155 } } }} />
+          <FechaInput label="Fecha final" value={fechaFin} onChange={(value) => setFechaFin((value ?? ''))} slotProps={{ textField: { size: 'small', sx: { width: 155 } } }} />
           <Autocomplete<ProductoOpcion>
             options={opcionesProducto}
             loading={buscandoProducto}

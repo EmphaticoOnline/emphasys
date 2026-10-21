@@ -23,6 +23,7 @@ import {
 import { fetchTiposPoliza } from '../../services/tiposPolizaService';
 import { fetchConfiguracionTiposAutomaticos } from '../../services/contabilidadService';
 import { botonPrimarioSx, tituloVistaSx } from './contabilidadVisual';
+import { FechaInput } from '../../shared/dates/DateFields';
 
 interface ContabilizarFacturasVentaLoteDialogProps {
   open: boolean;
@@ -157,26 +158,8 @@ export default function ContabilizarFacturasVentaLoteDialog({
 
           {modo === 'rango' && (
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-              <TextField
-                label="Fecha desde"
-                type="date"
-                size="small"
-                fullWidth
-                InputLabelProps={{ shrink: true }}
-                value={fechaDesde}
-                onChange={(e) => setFechaDesde(e.target.value)}
-                disabled={procesando}
-              />
-              <TextField
-                label="Fecha hasta"
-                type="date"
-                size="small"
-                fullWidth
-                InputLabelProps={{ shrink: true }}
-                value={fechaHasta}
-                onChange={(e) => setFechaHasta(e.target.value)}
-                disabled={procesando}
-              />
+              <FechaInput label="Fecha desde" value={fechaDesde} onChange={(value) => setFechaDesde((value ?? ''))} disabled={procesando} slotProps={{ textField: { size: 'small', fullWidth: true } }} />
+              <FechaInput label="Fecha hasta" value={fechaHasta} onChange={(value) => setFechaHasta((value ?? ''))} disabled={procesando} slotProps={{ textField: { size: 'small', fullWidth: true } }} />
             </Stack>
           )}
 

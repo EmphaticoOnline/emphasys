@@ -39,6 +39,7 @@ import {
   fetchCuentas,
 } from '../../services/finanzasService';
 import { apiFetch } from '../../api/apiClient';
+import { FechaInput } from '../../shared/dates/DateFields';
 
 const toCivilDate = (date = new Date()) => {
   const y = date.getFullYear();
@@ -535,15 +536,7 @@ export default function ProgramacionPagoDialog({
           )}
 
           {/* ── Fecha ─────────────────────────────────────────────────────── */}
-          <TextField
-            label="Fecha programada"
-            type="date"
-            size="small"
-            value={fechaProgramada}
-            onChange={(e) => setFechaProgramada(e.target.value)}
-            InputLabelProps={{ shrink: true }}
-            fullWidth
-          />
+          <FechaInput label="Fecha programada" value={fechaProgramada} onChange={(value) => setFechaProgramada((value ?? ''))} slotProps={{ textField: { size: 'small', fullWidth: true } }} />
 
           {/* ── Cuenta origen ─────────────────────────────────────────────── */}
           <FormControl size="small" fullWidth>

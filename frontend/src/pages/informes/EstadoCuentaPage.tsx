@@ -36,6 +36,7 @@ import type {
 } from '../../services/reportesService';
 import { accountingColors } from '../../theme/functional';
 import { neutralColors } from '../../theme/structural';
+import { FechaInput } from '../../shared/dates/DateFields';
 
 export type EstadoCuentaPageConfig = {
   titulo: string;
@@ -559,15 +560,7 @@ export default function EstadoCuentaPage({ config }: { config: EstadoCuentaPageC
               <TextField {...(inputProps as any)} label={`${config.contactoLabel} *`} size="small" />
             )}
           />
-          <TextField
-            label="Fecha de corte"
-            type="date"
-            size="small"
-            value={fechaCorte}
-            onChange={(e) => setFechaCorte(e.target.value)}
-            InputLabelProps={{ shrink: true }}
-            sx={{ width: 155 }}
-          />
+          <FechaInput label="Fecha de corte" value={fechaCorte} onChange={(value) => setFechaCorte(value ?? '')} slotProps={{ textField: { size: 'small', sx: { width: 155 } } }} />
           <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
           <FormControlLabel
             sx={{ mr: 0 }}

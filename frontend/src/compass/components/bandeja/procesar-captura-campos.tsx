@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils"
 import { esFechaHoraPasada, fechaYHoraLocalAISOString } from "@/lib/format"
 import type { Captura, FrenteCategoria } from "../../../services/compassService"
 import type { Destino } from "./use-procesar-captura"
+import { DateInput } from "@/components/ui/date-input"
 
 const OPCIONES: { value: Destino; label: string; icon: typeof ListChecks }[] = [
   { value: "tarea", label: "Tarea", icon: ListChecks },
@@ -79,7 +80,7 @@ export function ProcesarCapturaCampos({
         <div className="flex gap-3">
           <Field className="flex-1">
             <FieldLabel htmlFor="captura-fecha">Fecha</FieldLabel>
-            <Input id="captura-fecha" type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} className="h-10" />
+            <DateInput id="captura-fecha" value={fecha} onChange={setFecha} className="[&_input]:h-10" />
           </Field>
           <Field className="flex-1">
             <FieldLabel htmlFor="captura-hora">Hora</FieldLabel>

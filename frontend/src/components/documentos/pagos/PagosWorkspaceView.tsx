@@ -44,6 +44,7 @@ import type { CotizacionDocumento, CotizacionListado } from '../../../types/coti
 import type { TipoDocumento } from '../../../types/documentos.types';
 import { elevation } from '../../../theme/elevation';
 import { useBrand } from '../../../theme/brand/useBrand';
+import { FechaInput } from '../../../shared/dates/DateFields';
 
 export type FiltroPagos = {
   fechaDesde: string;
@@ -1146,24 +1147,8 @@ function PopoverFiltroPagos({
             );
           })}
         </Box>
-        <TextField
-          size="small"
-          type="date"
-          label="Fecha desde"
-          value={filtro.fechaDesde}
-          onChange={(event) => onChange({ ...filtro, fechaDesde: event.target.value })}
-          InputLabelProps={{ shrink: true }}
-          sx={campoSx}
-        />
-        <TextField
-          size="small"
-          type="date"
-          label="Fecha hasta"
-          value={filtro.fechaHasta}
-          onChange={(event) => onChange({ ...filtro, fechaHasta: event.target.value })}
-          InputLabelProps={{ shrink: true }}
-          sx={campoSx}
-        />
+        <FechaInput label="Fecha desde" value={filtro.fechaDesde} onChange={(value) => onChange({ ...filtro, fechaDesde: (value ?? '') })} slotProps={{ textField: { size: 'small', sx: campoSx } }} />
+        <FechaInput label="Fecha hasta" value={filtro.fechaHasta} onChange={(value) => onChange({ ...filtro, fechaHasta: (value ?? '') })} slotProps={{ textField: { size: 'small', sx: campoSx } }} />
         <Autocomplete
           size="small"
           options={contactos}

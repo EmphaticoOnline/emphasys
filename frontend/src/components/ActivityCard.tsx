@@ -22,6 +22,7 @@ import { useTheme } from '@mui/material/styles';
 import { catalogoOutlinedButtonSx, catalogoPrimaryButtonSx } from './catalogo/catalogoSurfaces';
 import { WorkspaceRowContextMenu, type WorkspaceContextItem } from './documentos/WorkspaceRowContextMenu';
 import { activityAccents, categoricalPalettes } from '../theme/functional';
+import { FechaHoraInput } from '../shared/dates/DateFields';
 
 export type ActividadResumen = {
   id: number;
@@ -403,18 +404,20 @@ export default function ActivityCard({ actividad, indice = 0, onCompletar, onRep
           <Typography variant="body2" sx={{ fontWeight: 700, color: tokens.content.foreground }}>
             Reprogramar actividad
           </Typography>
-          <TextField
+          <FechaHoraInput
             label="Nueva fecha"
-            type="datetime-local"
-            size="small"
-            value={fechaReprogramada}
-            onChange={(evento) => setFechaReprogramada(evento.target.value)}
-            slotProps={{ inputLabel: { shrink: true } }}
-            fullWidth
-            sx={{
-              '& .MuiOutlinedInput-root': {
-                backgroundColor: tokens.content.well,
-                '& fieldset': { borderColor: tokens.content.border },
+            value={fechaReprogramada || null}
+            onChange={(valor) => setFechaReprogramada(valor ?? '')}
+            slotProps={{
+              textField: {
+                size: 'small',
+                fullWidth: true,
+                sx: {
+                  '& .MuiOutlinedInput-root': {
+                    backgroundColor: tokens.content.well,
+                    '& fieldset': { borderColor: tokens.content.border },
+                  },
+                },
               },
             }}
           />

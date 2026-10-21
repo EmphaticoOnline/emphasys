@@ -10,6 +10,7 @@ import { useRealWork } from "@/lib/real-work-store"
 import { colorVarDeFrente } from "@/lib/frente-color"
 import { cn } from "@/lib/utils"
 import type { Frente, IntencionPrioridad, Tarea, TareaCreate, TareaEstado } from "../../../services/compassService"
+import { DateInput } from "@/components/ui/date-input"
 
 const filtros = ["Pendientes", "Todas"] as const
 type Filtro = (typeof filtros)[number]
@@ -210,7 +211,7 @@ function NuevaTarea({ open, close, frentes, crear }: { open: boolean; close: () 
           </Field>
           <Field>
             <FieldLabel htmlFor="tarea-fecha">Fecha límite (opcional)</FieldLabel>
-            <Input id="tarea-fecha" type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} />
+            <DateInput id="tarea-fecha" value={fecha} onChange={setFecha} />
           </Field>
         </div>
 

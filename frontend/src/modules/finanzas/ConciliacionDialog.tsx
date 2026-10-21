@@ -11,6 +11,7 @@ import {
 } from '@mui/material';
 import { crearConciliacion } from '../../services/finanzasService';
 import type { ConciliacionPayload } from '../../types/finanzas';
+import { FechaInput } from '../../shared/dates/DateFields';
 
 const toCivilDate = (date = new Date()) => {
   const y = date.getFullYear();
@@ -71,15 +72,7 @@ export function ConciliacionDialog({ open, cuentaId, onClose, onSaved }: Concili
       <DialogTitle>Conciliar cuenta</DialogTitle>
       <DialogContent sx={{ pt: 1 }}>
         <Stack spacing={2} mt={1}>
-          <TextField
-            label="Fecha de corte"
-            type="date"
-            size="small"
-            value={fechaCorte}
-            onChange={(e) => setFechaCorte(e.target.value)}
-            InputLabelProps={{ shrink: true }}
-            fullWidth
-          />
+          <FechaInput label="Fecha de corte" value={fechaCorte} onChange={(value) => setFechaCorte((value ?? ''))} slotProps={{ textField: { size: 'small', fullWidth: true } }} />
 
           <TextField
             label="Saldo banco"

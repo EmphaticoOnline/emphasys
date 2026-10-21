@@ -19,6 +19,7 @@ import {
   type VentasPorVendedorResult,
 } from '../../../services/reportesService';
 import { categoricalPalettes } from '../../../theme/functional';
+import { FechaInput } from '../../../shared/dates/DateFields';
 
 const COLORES = categoricalPalettes.series;
 const money = (v: number) => v.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -223,8 +224,8 @@ export default function VentasPorVendedorPage() {
 
       <Box sx={{ position: 'relative', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1, p: 1.25, borderRadius: 2, border: `1px solid ${tokens.content.border}`, bgcolor: tokens.content.elevated, overflow: 'hidden' }}>
         {loading && <LinearProgress sx={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, bgcolor: tokens.metric.track, '& .MuiLinearProgress-bar': { bgcolor: tokens.action.info } }} />}
-        <TextField label="Fecha inicial" type="date" size="small" value={fechaInicio} onChange={(e) => setFechaInicio(e.target.value)} slotProps={{ inputLabel: { shrink: true } }} sx={{ width: { xs: '100%', sm: 155 }, ...campoSx }} />
-        <TextField label="Fecha final" type="date" size="small" value={fechaFin} onChange={(e) => setFechaFin(e.target.value)} slotProps={{ inputLabel: { shrink: true } }} sx={{ width: { xs: '100%', sm: 155 }, ...campoSx }} />
+        <FechaInput label="Fecha inicial" value={fechaInicio} onChange={(value) => setFechaInicio(value ?? '')} slotProps={{ textField: { size: 'small', sx: { width: { xs: '100%', sm: 155 }, ...campoSx } } }} />
+        <FechaInput label="Fecha final" value={fechaFin} onChange={(value) => setFechaFin(value ?? '')} slotProps={{ textField: { size: 'small', sx: { width: { xs: '100%', sm: 155 }, ...campoSx } } }} />
         <Autocomplete options={vendedoresCat} value={vendedor} onChange={(_, value) => setVendedor(value)} getOptionLabel={(o) => o.nombre} isOptionEqualToValue={(a, b) => a.id === b.id} sx={{ width: { xs: '100%', sm: 220 }, ...campoSx }} renderInput={(params) => <TextField {...params} label="Vendedor (todos)" size="small" />} />
         <Autocomplete options={clientes} loading={buscando} value={cliente} onChange={(_, value) => setCliente(value)} onInputChange={(_, input) => buscarClientes(input)} onOpen={() => { if (!clientes.length) buscarClientes(''); }} getOptionLabel={(o) => o.nombre} isOptionEqualToValue={(a, b) => a.id === b.id} sx={{ width: { xs: '100%', sm: 220 }, ...campoSx }} renderInput={(params) => <TextField {...params} label="Cliente (todos)" size="small" />} />
         <FormControlLabel sx={{ mr: 0 }} control={<Checkbox size="small" checked={mostrarDetalle} onChange={(e) => setMostrarDetalle(e.target.checked)} />} label={<Typography sx={{ fontSize: 13, color: tokens.content.secondary }}>Mostrar detalle</Typography>} />

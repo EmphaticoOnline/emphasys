@@ -43,6 +43,7 @@ import ProgramacionPagoDialog from '../../modules/finanzas/ProgramacionPagoDialo
 import ProgramacionMasivaDrawer from '../../modules/finanzas/ProgramacionMasivaDrawer';
 import { overdueColor } from '../../theme/sign';
 import { dueDateColors } from '../../theme/functional';
+import { FechaInput } from '../../shared/dates/DateFields';
 
 type ContactoOpcion = { id: number; nombre: string; rfc?: string | null };
 
@@ -419,24 +420,8 @@ export default function ProgramacionPagosPage() {
           '& .MuiInputLabel-root': { fontSize: 13 },
           '& .MuiSelect-select': { fontSize: 13 },
         }}>
-          <TextField
-            label="Desde"
-            type="date"
-            size="small"
-            value={fechaInicio}
-            onChange={(e) => setFechaInicio(e.target.value)}
-            InputLabelProps={{ shrink: true }}
-            sx={{ width: 150 }}
-          />
-          <TextField
-            label="Hasta"
-            type="date"
-            size="small"
-            value={fechaFin}
-            onChange={(e) => setFechaFin(e.target.value)}
-            InputLabelProps={{ shrink: true }}
-            sx={{ width: 150 }}
-          />
+          <FechaInput label="Desde" value={fechaInicio} onChange={(value) => setFechaInicio((value ?? ''))} slotProps={{ textField: { size: 'small', sx: { width: 150 } } }} />
+          <FechaInput label="Hasta" value={fechaFin} onChange={(value) => setFechaFin((value ?? ''))} slotProps={{ textField: { size: 'small', sx: { width: 150 } } }} />
           <Autocomplete<ContactoOpcion>
             options={opciones}
             loading={buscando}

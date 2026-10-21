@@ -36,6 +36,7 @@ import {
   type CarteraVencidaParams,
 } from '../../../services/reportesService';
 import { agingBucketColors } from '../../../theme/functional';
+import { FechaInput } from '../../../shared/dates/DateFields';
 
 const formatNum = (v: number) =>
   v.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -245,15 +246,7 @@ export default function CarteraVencidaPage() {
       <Paper sx={{ px: 2, py: 1, position: 'relative', overflow: 'hidden' }}>
         {loading && <LinearProgress sx={{ position: 'absolute', top: 0, left: 0, right: 0 }} />}
         <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center', flexWrap: 'wrap' }}>
-          <TextField
-            label="Fecha base"
-            type="date"
-            size="small"
-            value={fechaBase}
-            onChange={(e) => setFechaBase(e.target.value)}
-            InputLabelProps={{ shrink: true }}
-            sx={{ width: 155 }}
-          />
+          <FechaInput label="Fecha base" value={fechaBase} onChange={(value) => setFechaBase((value ?? ''))} slotProps={{ textField: { size: 'small', sx: { width: 155 } } }} />
           <TextField
             label="Tipo de documento"
             size="small"

@@ -75,6 +75,7 @@ import {
 } from '../DocumentoDetalleContent';
 import { elevation } from '../../../theme/elevation';
 import { useBrand } from '../../../theme/brand/useBrand';
+import { FechaInput } from '../../../shared/dates/DateFields';
 
 type StatusOption = { value: string; label: string; color?: string; textColor?: string };
 type FiltroFacturas = {
@@ -1296,8 +1297,8 @@ export function PopoverFiltroFacturas({
             );
           })}
         </Box>
-        <TextField size="small" type="date" label="Fecha desde" value={filtro.fechaDesde} onChange={(event) => onChange({ ...filtro, fechaDesde: event.target.value })} InputLabelProps={{ shrink: true }} sx={campoSx} />
-        <TextField size="small" type="date" label="Fecha hasta" value={filtro.fechaHasta} onChange={(event) => onChange({ ...filtro, fechaHasta: event.target.value })} InputLabelProps={{ shrink: true }} sx={campoSx} />
+        <FechaInput label="Fecha desde" value={filtro.fechaDesde} onChange={(value) => onChange({ ...filtro, fechaDesde: (value ?? '') })} slotProps={{ textField: { size: 'small', sx: campoSx } }} />
+        <FechaInput label="Fecha hasta" value={filtro.fechaHasta} onChange={(value) => onChange({ ...filtro, fechaHasta: (value ?? '') })} slotProps={{ textField: { size: 'small', sx: campoSx } }} />
         <Autocomplete
           size="small"
           options={contactos}

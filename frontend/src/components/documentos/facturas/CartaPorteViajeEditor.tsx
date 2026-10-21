@@ -33,6 +33,8 @@ import { neutralColors } from '../../../theme/structural';
 import { useBrand } from '../../../theme/brand/useBrand';
 import type { Theme } from '@mui/material/styles';
 import { cartaPorteSectionColors } from '../../../theme/functional';
+import { FechaInput } from '../../../shared/dates/DateFields';
+import { FechaHoraInput } from '../../../shared/dates/DateFields';
 
 type Props = {
   open: boolean;
@@ -1221,11 +1223,11 @@ export default function CartaPorteViajeEditor({ open, documentoId, folio, tipoDo
   };
 
   const dtField = (label: string, value: string, onChange: (v: string) => void) => (
-    <TextField
-      type="datetime-local" label={label} value={value} size="small" fullWidth
-      onChange={(e) => { touch(); onChange(e.target.value); }}
-      InputLabelProps={{ shrink: true }}
+    <FechaHoraInput
+      label={label} value={value || null}
+      onChange={(valor) => { touch(); onChange(valor ?? ''); }}
       disabled={readOnly}
+      slotProps={{ textField: { size: 'small', fullWidth: true } }}
     />
   );
 
@@ -1245,16 +1247,7 @@ export default function CartaPorteViajeEditor({ open, documentoId, folio, tipoDo
           {label}
         </Typography>
         <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap" alignItems="flex-start">
-          <TextField
-            type="date"
-            label="Fecha"
-            value={partes.fecha}
-            size="small"
-            disabled={readOnly}
-            onChange={(e) => escribir(e.target.value, partes.hora, partes.minuto)}
-            InputLabelProps={{ shrink: true }}
-            sx={{ flex: '1 1 150px' }}
-          />
+          <FechaInput label="Fecha" value={partes.fecha} onChange={(value) => escribir((value ?? ''), partes.hora, partes.minuto)} disabled={readOnly} slotProps={{ textField: { size: 'small', sx: { flex: '1 1 150px' } } }} />
           <TextField
             select
             label="Hora"

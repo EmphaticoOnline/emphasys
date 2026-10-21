@@ -19,6 +19,7 @@ import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
 import { DataGrid } from '@mui/x-data-grid';
 import { esES } from '@mui/x-data-grid/locales';
 import type { GridColDef, GridRenderCellParams } from '@mui/x-data-grid';
+import { FechaInput } from '../../shared/dates/DateFields';
 import { useNavigate } from 'react-router-dom';
 import { apiFetch } from '../../api/apiClient';
 import {
@@ -256,24 +257,8 @@ export default function PendientesFacturarPage({ config }: { config: PendientesF
       <Paper sx={{ px: 2, py: 1, position: 'relative', overflow: 'hidden' }}>
         {loading && <LinearProgress sx={{ position: 'absolute', top: 0, left: 0, right: 0 }} />}
         <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center', flexWrap: 'wrap' }}>
-          <TextField
-            label="Fecha inicial"
-            type="date"
-            size="small"
-            value={fechaInicio}
-            onChange={(e) => setFechaInicio(e.target.value)}
-            InputLabelProps={{ shrink: true }}
-            sx={{ width: 155 }}
-          />
-          <TextField
-            label="Fecha final"
-            type="date"
-            size="small"
-            value={fechaFin}
-            onChange={(e) => setFechaFin(e.target.value)}
-            InputLabelProps={{ shrink: true }}
-            sx={{ width: 155 }}
-          />
+          <FechaInput label="Fecha inicial" value={fechaInicio} onChange={(value) => setFechaInicio(value ?? '')} slotProps={{ textField: { size: 'small', sx: { width: 155 } } }} />
+          <FechaInput label="Fecha final" value={fechaFin} onChange={(value) => setFechaFin(value ?? '')} slotProps={{ textField: { size: 'small', sx: { width: 155 } } }} />
           <Autocomplete<ContactoOpcion>
             options={opciones}
             loading={buscando}

@@ -16,6 +16,7 @@ import {
   fieldLabelSx,
   formaPagoFieldSx,
 } from './liquidacionDocumento.styles';
+import { FechaInput } from '../../../shared/dates/DateFields';
 
 type Props = LiquidacionDocumentoParams & {
   onCancel: () => void;
@@ -193,14 +194,10 @@ export default function LiquidacionDocumentoView({ onCancel, onSaved, ...params 
       <Grid container spacing={1.25}>
         <Grid size={{ xs: 12, sm: 6 }}>
           <FieldLabel>Fecha</FieldLabel>
-          <TextField
-            hiddenLabel
-            type="date"
+          <FechaInput
             value={liquidacion.fechaDocumento}
-            onChange={(e) => liquidacion.setFechaDocumento(e.target.value)}
-            fullWidth
-            size="small"
-            sx={captureFieldSx}
+            onChange={(valor) => liquidacion.setFechaDocumento(valor ?? '')}
+            slotProps={{ textField: { hiddenLabel: true, fullWidth: true, size: 'small', sx: captureFieldSx } }}
           />
         </Grid>
         <Grid size={{ xs: 12, sm: 6 }}>

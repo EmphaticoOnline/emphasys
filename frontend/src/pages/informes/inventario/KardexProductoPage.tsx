@@ -32,6 +32,7 @@ import {
 } from '../../../services/reportesService';
 import { inventoryFlowColors, moduleAccents } from '../../../theme/functional';
 import { rowStripeColors } from '../../../theme/structural';
+import { FechaInput } from '../../../shared/dates/DateFields';
 
 const COLOR = moduleAccents.inventoryReports;
 const fmt = (v: number) => v.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -206,10 +207,8 @@ export default function KardexProductoPage() {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             renderInput={(inputProps) => <TextField {...(inputProps as any)} label="Producto *" size="small" />}
           />
-          <TextField label="Fecha inicial" type="date" size="small" value={fechaInicio}
-            onChange={(e) => setFechaInicio(e.target.value)} InputLabelProps={{ shrink: true }} sx={{ width: 155 }} />
-          <TextField label="Fecha final" type="date" size="small" value={fechaFin}
-            onChange={(e) => setFechaFin(e.target.value)} InputLabelProps={{ shrink: true }} sx={{ width: 155 }} />
+          <FechaInput label="Fecha inicial" value={fechaInicio} onChange={(value) => setFechaInicio((value ?? ''))} slotProps={{ textField: { size: 'small', sx: { width: 155 } } }} />
+          <FechaInput label="Fecha final" value={fechaFin} onChange={(value) => setFechaFin((value ?? ''))} slotProps={{ textField: { size: 'small', sx: { width: 155 } } }} />
           <Box
             component="select"
             value={almacen?.id ?? ''}

@@ -35,6 +35,7 @@ import type { TipoSolicitudPolizas } from '../../types/polizasXml';
 import { botonPrimarioSx, chipEstadoSx, encabezadoTablaSx, iconoAccionSx, iconoPeligroSx, panelEstadoSx, textoEstadoSx, tonoDeClave } from './contabilidadVisual';
 import { alertColors } from '../../theme/functional';
 import { neutralColors } from '../../theme/structural';
+import { FechaInput } from '../../shared/dates/DateFields';
 
 
 type EstadoFila = 'listo' | 'con_advertencias' | 'con_errores' | 'no_seleccionado';
@@ -266,17 +267,7 @@ export default function PaqueteZipView({
                     </Select>
                   </FormControl>
                   {tipoEnvioBalanza === 'C' && (
-                    <TextField
-                      size="small"
-                      type="date"
-                      label="Fecha de modificación"
-                      InputLabelProps={{ shrink: true }}
-                      value={fechaModBalanza}
-                      onChange={(e) => setFechaModBalanza(e.target.value)}
-                      error={!fechaModBalanza.trim()}
-                      helperText={!fechaModBalanza.trim() ? 'Requerida' : ' '}
-                      sx={{ minWidth: 170 }}
-                    />
+                    <FechaInput label="Fecha de modificación" value={fechaModBalanza} onChange={(value) => setFechaModBalanza((value ?? ''))} error={!fechaModBalanza.trim()} helperText={!fechaModBalanza.trim() ? 'Requerida' : ' '} slotProps={{ textField: { size: 'small', sx: { minWidth: 170 } } }} />
                   )}
                 </>
               )}

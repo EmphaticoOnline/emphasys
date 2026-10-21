@@ -17,6 +17,7 @@ import { FrenteRevisionCard } from "./frente-revision-card"
 import { IntencionSiguienteCard, type SiguienteIntencion } from "./intencion-siguiente-card"
 import { ReflexionPreguntas } from "./reflexion-preguntas"
 import { RevisionHistorica } from "./revision-historica"
+import { DateInput } from "@/components/ui/date-input"
 
 const CICLO = ["Claridad", "Prioridad", "Ejecución", "Medición", "Reflexión", "Ajuste"]
 const CICLO_ACTIVO = new Set(["Reflexión", "Ajuste"])
@@ -144,11 +145,11 @@ export function RevisionSemanalView() {
               <Button variant="outline" size="icon" aria-label="Semana anterior" onClick={() => setWeek((w) => sumarDias(w, -7))}>
                 <ChevronLeft />
               </Button>
-              <input
-                type="date"
+              <DateInput
                 value={week}
-                onChange={(e) => { if (e.target.value) setWeek(inicioDeSemana(e.target.value)) }}
-                className="h-9 rounded-md border border-input bg-transparent px-2.5 font-mono-compass text-xs"
+                onChange={(valor) => { if (valor) setWeek(inicioDeSemana(valor)) }}
+                aria-label="Semana de revisión"
+                className="w-40 [&_input]:h-9 [&_input]:font-mono-compass [&_input]:text-xs"
               />
               <Button variant="outline" size="icon" aria-label="Semana siguiente" onClick={() => setWeek((w) => sumarDias(w, 7))}>
                 <ChevronRight />

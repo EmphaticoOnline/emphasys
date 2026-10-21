@@ -37,6 +37,7 @@ import type {
 import { useBrand } from '../../theme/brand/useBrand';
 import { selectionColors } from '../../theme/structural';
 import { balanceColors } from '../../theme/functional';
+import { FechaInput } from '../../shared/dates/DateFields';
 
 export type OCPendientesPageConfig = {
   titulo: string;
@@ -412,15 +413,7 @@ export default function OCPendientesPage({ config }: { config: OCPendientesPageC
       <Paper sx={{ px: 2, py: 1, position: 'relative', overflow: 'hidden' }}>
         {loading && <LinearProgress sx={{ position: 'absolute', top: 0, left: 0, right: 0 }} />}
         <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center', flexWrap: 'wrap' }}>
-          <TextField
-            label="Fecha de corte"
-            type="date"
-            size="small"
-            value={fechaCorte}
-            onChange={(e) => setFechaCorte(e.target.value)}
-            InputLabelProps={{ shrink: true }}
-            sx={{ width: 155 }}
-          />
+          <FechaInput label="Fecha de corte" value={fechaCorte} onChange={(value) => setFechaCorte((value ?? ''))} slotProps={{ textField: { size: 'small', sx: { width: 155 } } }} />
           <Autocomplete<ContactoOpcion>
             options={opciones}
             loading={buscando}

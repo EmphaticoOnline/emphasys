@@ -71,7 +71,7 @@ import { construirResumenEjecutivo, interpretarResumenEjecutivo } from './resume
 const fmtFechaMX = (iso: string): string => {
   if (!iso || iso.length < 10) return iso;
   const [yr, mo, da] = iso.slice(0, 10).split('-');
-  return `${da}-${mo}-${yr}`;
+  return `${da}/${mo}/${yr}`;
 };
 
 export async function getResumenEjecutivo(req: Request, res: Response) {

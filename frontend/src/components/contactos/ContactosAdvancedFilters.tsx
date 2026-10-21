@@ -249,8 +249,8 @@ export default function ContactosAdvancedFilters({
                 <MenuItem value="inactivos">Inactivos</MenuItem>
               </TextField>
 
-              <LocalizationProvider dateAdapter={AdapterDayjs}>
-                <DatePicker
+              <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale="es">
+                <DatePicker format="DD/MM/YYYY"
                   label="Fecha de alta desde"
                   value={filters.fechaAltaDesde ? dayjs(filters.fechaAltaDesde) : null}
                   onChange={(value) => onFechaAltaDesdeChange(value ? value.format('YYYY-MM-DD') : '')}
@@ -276,8 +276,8 @@ export default function ContactosAdvancedFilters({
                 />
               </LocalizationProvider>
 
-              <LocalizationProvider dateAdapter={AdapterDayjs}>
-                <DatePicker
+              <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale="es">
+                <DatePicker format="DD/MM/YYYY"
                   label="Fecha de alta hasta"
                   value={filters.fechaAltaHasta ? dayjs(filters.fechaAltaHasta) : null}
                   onChange={(value) => onFechaAltaHastaChange(value ? value.format('YYYY-MM-DD') : '')}

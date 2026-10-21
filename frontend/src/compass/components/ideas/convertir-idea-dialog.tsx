@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input"
 import { esFechaHoraPasada, fechaYHoraLocalAISOString } from "@/lib/format"
 import { cn } from "@/lib/utils"
 import { convertIdea, type ConvertirIdea, type Idea } from "../../../services/compassService"
+import { DateInput } from "@/components/ui/date-input"
 
 type Destino = "tarea" | "actividad" | "frente"
 const DESTINOS: { value: Destino; label: string }[] = [
@@ -85,7 +86,7 @@ export function ConvertirIdeaDialog({ idea, onClose, onConverted }: { idea: Idea
           <div className="flex gap-3">
             <Field className="flex-1">
               <FieldLabel htmlFor="convertir-fecha">Fecha</FieldLabel>
-              <Input id="convertir-fecha" type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} />
+              <DateInput id="convertir-fecha" value={fecha} onChange={setFecha} />
             </Field>
             <Field className="flex-1">
               <FieldLabel htmlFor="convertir-hora">Hora</FieldLabel>

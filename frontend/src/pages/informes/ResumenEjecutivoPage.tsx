@@ -14,6 +14,7 @@ import TrendingDownIcon from '@mui/icons-material/TrendingDown';
 import TrendingFlatIcon from '@mui/icons-material/TrendingFlat';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import { apiFetch } from '../../api/apiClient';
+import { FechaInput } from '../../shared/dates/DateFields';
 
 type Indicador = Record<string, unknown>;
 
@@ -227,27 +228,11 @@ export default function ResumenEjecutivoPage() {
         <Typography sx={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', color: tokens.content.muted, mr: { sm: 0.5 } }}>
           PERIODO
         </Typography>
-        <TextField
-          label="Fecha inicial"
-          type="date"
-          size="small"
-          value={inicio}
-          onChange={(e) => setInicio(e.target.value)}
-          slotProps={{ inputLabel: { shrink: true } }}
-          sx={campoFechaSx}
-        />
+        <FechaInput label="Fecha inicial" value={inicio} onChange={(value) => setInicio(value ?? '')} slotProps={{ textField: { size: 'small', sx: campoFechaSx } }} />
         <Typography sx={{ display: { xs: 'none', sm: 'block' }, color: tokens.content.muted, px: 0.25, lineHeight: 1 }}>
           —
         </Typography>
-        <TextField
-          label="Fecha final"
-          type="date"
-          size="small"
-          value={fin}
-          onChange={(e) => setFin(e.target.value)}
-          slotProps={{ inputLabel: { shrink: true } }}
-          sx={campoFechaSx}
-        />
+        <FechaInput label="Fecha final" value={fin} onChange={(value) => setFin(value ?? '')} slotProps={{ textField: { size: 'small', sx: campoFechaSx } }} />
         <Button
           variant="contained"
           onClick={() => void generar()}

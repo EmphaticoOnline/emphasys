@@ -39,6 +39,7 @@ import type { CotizacionDocumento, CotizacionListado } from '../../../types/coti
 import type { TipoDocumento } from '../../../types/documentos.types';
 import { elevation } from '../../../theme/elevation';
 import { useBrand } from '../../../theme/brand/useBrand';
+import { FechaInput } from '../../../shared/dates/DateFields';
 
 type FiltroAjustes = {
   fechaDesde: string;
@@ -660,8 +661,8 @@ function PopoverFiltroAjustes({
             );
           })}
         </Box>
-        <TextField size="small" type="date" label="Fecha desde" value={filtro.fechaDesde} onChange={(event) => onChange({ ...filtro, fechaDesde: event.target.value })} InputLabelProps={{ shrink: true }} sx={campoSx} />
-        <TextField size="small" type="date" label="Fecha hasta" value={filtro.fechaHasta} onChange={(event) => onChange({ ...filtro, fechaHasta: event.target.value })} InputLabelProps={{ shrink: true }} sx={campoSx} />
+        <FechaInput label="Fecha desde" value={filtro.fechaDesde} onChange={(value) => onChange({ ...filtro, fechaDesde: (value ?? '') })} slotProps={{ textField: { size: 'small', sx: campoSx } }} />
+        <FechaInput label="Fecha hasta" value={filtro.fechaHasta} onChange={(value) => onChange({ ...filtro, fechaHasta: (value ?? '') })} slotProps={{ textField: { size: 'small', sx: campoSx } }} />
         <Autocomplete size="small" options={contactos} value={contacto} onChange={(_, value) => onChange({ ...filtro, clienteId: value?.id ?? null })} getOptionLabel={(option) => option.nombre || ''} isOptionEqualToValue={(option, value) => option.id === value.id} renderInput={(params) => <TextField {...(params as object)} label={etiquetaContacto} placeholder="Todos" sx={campoSx} />} />
         <TextField size="small" type="number" label="Monto mínimo" value={filtro.montoMin} onChange={(event) => onChange({ ...filtro, montoMin: event.target.value })} inputProps={{ min: 0, step: 0.01 }} sx={campoSx} />
         <TextField size="small" type="number" label="Monto máximo" value={filtro.montoMax} onChange={(event) => onChange({ ...filtro, montoMax: event.target.value })} inputProps={{ min: 0, step: 0.01 }} sx={campoSx} />

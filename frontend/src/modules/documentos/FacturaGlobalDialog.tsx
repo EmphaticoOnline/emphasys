@@ -1,4 +1,5 @@
 import * as React from 'react';
+import { FechaInput } from '../../shared/dates/DateFields';
 import { useState, useCallback } from 'react';
 import {
   Alert,
@@ -174,24 +175,8 @@ export default function FacturaGlobalDialog({ open, onClose, onGenerado }: Props
               Rango de fechas de las ventas
             </Typography>
             <Stack direction="row" spacing={1.5}>
-              <TextField
-                label="Desde"
-                type="date"
-                size="small"
-                value={fechaDesde}
-                onChange={(e) => { setFechaDesde(e.target.value); setPreview(null); }}
-                InputLabelProps={{ shrink: true }}
-                fullWidth
-              />
-              <TextField
-                label="Hasta"
-                type="date"
-                size="small"
-                value={fechaHasta}
-                onChange={(e) => { setFechaHasta(e.target.value); setPreview(null); }}
-                InputLabelProps={{ shrink: true }}
-                fullWidth
-              />
+              <FechaInput label="Desde" value={fechaDesde} onChange={(value) => { setFechaDesde(value ?? ''); setPreview(null); }} slotProps={{ textField: { size: 'small', fullWidth: true } }} />
+              <FechaInput label="Hasta" value={fechaHasta} onChange={(value) => { setFechaHasta(value ?? ''); setPreview(null); }} slotProps={{ textField: { size: 'small', fullWidth: true } }} />
             </Stack>
           </Box>
 

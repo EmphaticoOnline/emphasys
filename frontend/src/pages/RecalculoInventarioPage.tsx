@@ -1,4 +1,5 @@
 import React from 'react';
+import { FechaInput } from '../shared/dates/DateFields';
 import {
   Alert,
   Box,
@@ -225,18 +226,14 @@ export default function RecalculoInventarioPage() {
               </Select>
             </FormControl>
           )}
-          <TextField
-            size="small"
-            type="date"
+          <FechaInput
             label="Mostrar diferencias desde"
             value={desde}
-            onChange={(event) => {
-              setDesde(event.target.value);
+            onChange={(value) => {
+              setDesde(value ?? '');
               invalidar();
             }}
-            InputLabelProps={{ shrink: true, sx: etiquetaProps.sx }}
-            inputProps={textoProps}
-            sx={{ flex: '1 1 190px', minWidth: 180 }}
+            slotProps={{ textField: { size: 'small', InputLabelProps: { sx: etiquetaProps.sx }, inputProps: textoProps, sx: { flex: '1 1 190px', minWidth: 180 } } }}
           />
           <Button
             variant="outlined"

@@ -4,6 +4,7 @@ import { CssBaseline } from '@mui/material';
 import App from './App';
 import BrandThemeProvider from './theme/BrandThemeProvider';
 import { SessionProvider } from './session/SessionContext';
+import DateLocalizationProvider from './shared/dates/DateLocalizationProvider';
 
 import '@fontsource/roboto/300.css';
 import '@fontsource/roboto/400.css';
@@ -18,9 +19,11 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <BrandThemeProvider themeId="classic">
       <CssBaseline />
-      <SessionProvider>
-        <App />
-      </SessionProvider>
+      <DateLocalizationProvider>
+        <SessionProvider>
+          <App />
+        </SessionProvider>
+      </DateLocalizationProvider>
     </BrandThemeProvider>
   </React.StrictMode>
 );

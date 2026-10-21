@@ -17,6 +17,7 @@ import {
 import type { FinanzasCuenta, TransferenciaUpdatePayload } from '../../types/finanzas';
 import { crearTransferencia, actualizarTransferencia } from '../../services/finanzasService';
 import { sanitizarMontoTransferencia, validarTransferencia } from './transferenciaLogica';
+import { FechaInput } from '../../shared/dates/DateFields';
 
 const toCivilDate = (date = new Date()) => {
   const y = date.getFullYear();
@@ -145,15 +146,7 @@ export function TransferenciaDialog({ open, cuentas, defaultOrigenId, transferen
           </Stack>
 
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-            <TextField
-              label="Fecha"
-              type="date"
-              size="small"
-              value={fecha}
-              onChange={(e) => setFecha(e.target.value)}
-              InputLabelProps={{ shrink: true }}
-              fullWidth
-            />
+            <FechaInput label="Fecha" value={fecha} onChange={(value) => setFecha((value ?? ''))} slotProps={{ textField: { size: 'small', fullWidth: true } }} />
             <TextField
               label="Monto"
               size="small"

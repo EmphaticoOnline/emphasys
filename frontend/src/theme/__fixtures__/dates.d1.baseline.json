@@ -1,0 +1,1650 @@
+{
+ "source": "Estandarización de fechas (DD/MM/YYYY): parche de líneas sobre HEAD",
+ "files": {
+  "components/ActivityCard.tsx": {
+   "beforeSha256": "9409944537051b00377e9ec927049e7844bf4db0b4f59eee895ae4fc35acc426",
+   "migratedSha256": "a708da00c20218ff1c2e14f3926e12a3a32df53a820ab665a9985ddeea504431",
+   "hunks": [
+    {
+     "at": 24,
+     "migrated": [
+      "import { FechaHoraInput } from '../shared/dates/DateFields';"
+     ],
+     "original": []
+    },
+    {
+     "at": 406,
+     "migrated": [
+      "          <FechaHoraInput"
+     ],
+     "original": [
+      "          <TextField"
+     ]
+    },
+    {
+     "at": 408,
+     "migrated": [
+      "            value={fechaReprogramada || null}",
+      "            onChange={(valor) => setFechaReprogramada(valor ?? '')}",
+      "            slotProps={{",
+      "              textField: {",
+      "                size: 'small',",
+      "                fullWidth: true,",
+      "                sx: {",
+      "                  '& .MuiOutlinedInput-root': {",
+      "                    backgroundColor: tokens.content.well,",
+      "                    '& fieldset': { borderColor: tokens.content.border },",
+      "                  },",
+      "                },"
+     ],
+     "original": [
+      "            type=\"datetime-local\"",
+      "            size=\"small\"",
+      "            value={fechaReprogramada}",
+      "            onChange={(evento) => setFechaReprogramada(evento.target.value)}",
+      "            slotProps={{ inputLabel: { shrink: true } }}",
+      "            fullWidth",
+      "            sx={{",
+      "              '& .MuiOutlinedInput-root': {",
+      "                backgroundColor: tokens.content.well,",
+      "                '& fieldset': { borderColor: tokens.content.border },"
+     ]
+    }
+   ]
+  },
+  "components/DynamicFieldControl.tsx": {
+   "beforeSha256": "f45a6d72c1b6087872b880d33fb78dbcb6f3fb6a34d762fe18a60ad06dabcfb9",
+   "migratedSha256": "3ea92f53a26365226ab5c7f2664b84766c9075be722d22f295cc706e4904e1c4",
+   "hunks": [
+    {
+     "at": 5,
+     "migrated": [
+      "import { FechaInput } from '../shared/dates/DateFields';"
+     ],
+     "original": []
+    },
+    {
+     "at": 236,
+     "migrated": [
+      "      <FechaInput",
+      "        label={commonProps.label}",
+      "        disabled={commonProps.disabled}",
+      "        value={currentValue.valor_fecha || null}",
+      "        onChange={(valor) => onChange({ campo_id: campo.id, valor_fecha: valor || null })}",
+      "        slotProps={{ textField: { required: commonProps.required, fullWidth: true, variant: 'outlined', size: 'small' } }}"
+     ],
+     "original": [
+      "      <TextField",
+      "        {...commonProps}",
+      "        type=\"date\"",
+      "        value={currentValue.valor_fecha || ''}",
+      "        onChange={(e) => onChange({ campo_id: campo.id, valor_fecha: e.target.value || null })}",
+      "        InputLabelProps={{ shrink: true }}"
+     ]
+    }
+   ]
+  },
+  "components/cfdi-sat/BitacoraSatSection.tsx": {
+   "beforeSha256": "b5692ce4a23a78405adcce154d0174e2869d3182ae6b4a5366b51a7004b55534",
+   "migratedSha256": "a29852f9949496133d3ffdb0c9f1bd3fdfa235f212ddb3c35c03d6289bb92c1f",
+   "hunks": [
+    {
+     "at": 30,
+     "migrated": [
+      "import { FechaInput } from '../../shared/dates/DateFields';"
+     ],
+     "original": []
+    },
+    {
+     "at": 133,
+     "migrated": [
+      "          <FechaInput label=\"Fecha inicio\" value={filtrosForm.fecha_inicio ?? null} onChange={(value) => handleFiltroChange('fecha_inicio', (value ?? ''))} slotProps={{ textField: { size: 'small' } }} />",
+      "          <FechaInput label=\"Fecha fin\" value={filtrosForm.fecha_fin ?? null} onChange={(value) => handleFiltroChange('fecha_fin', (value ?? ''))} slotProps={{ textField: { size: 'small' } }} />"
+     ],
+     "original": [
+      "          <TextField",
+      "            label=\"Fecha inicio\"",
+      "            type=\"date\"",
+      "            size=\"small\"",
+      "            InputLabelProps={{ shrink: true }}",
+      "            value={filtrosForm.fecha_inicio}",
+      "            onChange={(e) => handleFiltroChange('fecha_inicio', e.target.value)}",
+      "          />",
+      "          <TextField",
+      "            label=\"Fecha fin\"",
+      "            type=\"date\"",
+      "            size=\"small\"",
+      "            InputLabelProps={{ shrink: true }}",
+      "            value={filtrosForm.fecha_fin}",
+      "            onChange={(e) => handleFiltroChange('fecha_fin', e.target.value)}",
+      "          />"
+     ]
+    }
+   ]
+  },
+  "components/cfdi-sat/ComprobantesSatSection.tsx": {
+   "beforeSha256": "4602cc58598c105550df40360375be6ebf039dc7a3b04b95eb4df54d4cb31c83",
+   "migratedSha256": "2a3d8abe7b48fb6eb918c90aa0f03b72c6cdfc1868907471c89c326baf308c3a",
+   "hunks": [
+    {
+     "at": 40,
+     "migrated": [
+      "import { FechaInput } from '../../shared/dates/DateFields';"
+     ],
+     "original": []
+    },
+    {
+     "at": 392,
+     "migrated": [
+      "          <FechaInput label=\"Fecha inicio\" value={filtrosForm.fecha_inicio ?? null} onChange={(value) => handleFiltroChange('fecha_inicio', (value ?? ''))} slotProps={{ textField: { size: 'small' } }} />"
+     ],
+     "original": [
+      "          <TextField",
+      "            label=\"Fecha inicio\"",
+      "            type=\"date\"",
+      "            size=\"small\"",
+      "            InputLabelProps={{ shrink: true }}",
+      "            value={filtrosForm.fecha_inicio}",
+      "            onChange={(e) => handleFiltroChange('fecha_inicio', e.target.value)}",
+      "          />"
+     ]
+    },
+    {
+     "at": 394,
+     "migrated": [
+      "          <FechaInput label=\"Fecha fin\" value={filtrosForm.fecha_fin ?? null} onChange={(value) => handleFiltroChange('fecha_fin', (value ?? ''))} slotProps={{ textField: { size: 'small' } }} />"
+     ],
+     "original": [
+      "          <TextField",
+      "            label=\"Fecha fin\"",
+      "            type=\"date\"",
+      "            size=\"small\"",
+      "            InputLabelProps={{ shrink: true }}",
+      "            value={filtrosForm.fecha_fin}",
+      "            onChange={(e) => handleFiltroChange('fecha_fin', e.target.value)}",
+      "          />"
+     ]
+    }
+   ]
+  },
+  "components/crm/ActividadSeguimientoDrawer.tsx": {
+   "beforeSha256": "10c1b6545bba3ecabf84abc47308298dc49f287b0ee8874eb90cc186fd9b1031",
+   "migratedSha256": "d4bfb71417360b0736bf2a350e457c4bef57b015ba447d6fd5c92d2ecfce562e",
+   "hunks": [
+    {
+     "at": 43,
+     "migrated": [
+      "import { FechaHoraInput } from '../../shared/dates/DateFields';"
+     ],
+     "original": []
+    },
+    {
+     "at": 809,
+     "migrated": [
+      "          <FechaHoraInput"
+     ],
+     "original": [
+      "          <TextField"
+     ]
+    },
+    {
+     "at": 811,
+     "migrated": [
+      "            value={nuevaFechaReagendar || null}",
+      "            onChange={(valor) => setNuevaFechaReagendar(valor ?? '')}",
+      "            slotProps={{ textField: { size: 'small', fullWidth: true } }}"
+     ],
+     "original": [
+      "            type=\"datetime-local\"",
+      "            size=\"small\"",
+      "            value={nuevaFechaReagendar}",
+      "            onChange={(event) => setNuevaFechaReagendar(event.target.value)}",
+      "            InputLabelProps={{ shrink: true }}",
+      "            fullWidth"
+     ]
+    }
+   ]
+  },
+  "components/crm/ActividadesWorkspaceView.tsx": {
+   "beforeSha256": "93d4dab527e60848c612b2784f5d5575867473571d68bb8e57e0c33484c57024",
+   "migratedSha256": "65d55f7a7f12bf805092fcacbc202cfa927c6f3e9696ddaade4b8f66b8c5944e",
+   "hunks": [
+    {
+     "at": 31,
+     "migrated": [
+      "import { FechaHoraInput } from '../../shared/dates/DateFields';"
+     ],
+     "original": []
+    },
+    {
+     "at": 491,
+     "migrated": [
+      "          <FechaHoraInput"
+     ],
+     "original": [
+      "          <TextField"
+     ]
+    },
+    {
+     "at": 493,
+     "migrated": [
+      "            value={fechaReprogramada || null}",
+      "            onChange={(valor) => setFechaReprogramada(valor ?? '')}",
+      "            slotProps={{ textField: { size: 'small', fullWidth: true } }}"
+     ],
+     "original": [
+      "            type=\"datetime-local\"",
+      "            size=\"small\"",
+      "            value={fechaReprogramada}",
+      "            onChange={(evento) => setFechaReprogramada(evento.target.value)}",
+      "            slotProps={{ inputLabel: { shrink: true } }}",
+      "            fullWidth"
+     ]
+    }
+   ]
+  },
+  "components/documentos/ajustes-saldo/AjustesSaldoWorkspaceView.tsx": {
+   "beforeSha256": "b94f2b190f3735fd99b503fd188db8bc9b635a91d0db8bdee957dc4da8d3d338",
+   "migratedSha256": "45db6baefa7f19ca652a45f864d19a6fbf91d3534a10005ffd27a58329e48624",
+   "hunks": [
+    {
+     "at": 41,
+     "migrated": [
+      "import { FechaInput } from '../../../shared/dates/DateFields';"
+     ],
+     "original": []
+    },
+    {
+     "at": 663,
+     "migrated": [
+      "        <FechaInput label=\"Fecha desde\" value={filtro.fechaDesde} onChange={(value) => onChange({ ...filtro, fechaDesde: (value ?? '') })} slotProps={{ textField: { size: 'small', sx: campoSx } }} />",
+      "        <FechaInput label=\"Fecha hasta\" value={filtro.fechaHasta} onChange={(value) => onChange({ ...filtro, fechaHasta: (value ?? '') })} slotProps={{ textField: { size: 'small', sx: campoSx } }} />"
+     ],
+     "original": [
+      "        <TextField size=\"small\" type=\"date\" label=\"Fecha desde\" value={filtro.fechaDesde} onChange={(event) => onChange({ ...filtro, fechaDesde: event.target.value })} InputLabelProps={{ shrink: true }} sx={campoSx} />",
+      "        <TextField size=\"small\" type=\"date\" label=\"Fecha hasta\" value={filtro.fechaHasta} onChange={(event) => onChange({ ...filtro, fechaHasta: event.target.value })} InputLabelProps={{ shrink: true }} sx={campoSx} />"
+     ]
+    }
+   ]
+  },
+  "components/documentos/facturas/CartaPorteViajeEditor.tsx": {
+   "beforeSha256": "1ad6dbf9d927d78cff5467781bc5fc6c0dcbcd6ad2c58a190539715c10b8c1b2",
+   "migratedSha256": "c413db596597ffef137ca37995106c39d3c1bc6dd16c9058440f7320e356cffa",
+   "hunks": [
+    {
+     "at": 35,
+     "migrated": [
+      "import { FechaInput } from '../../../shared/dates/DateFields';",
+      "import { FechaHoraInput } from '../../../shared/dates/DateFields';"
+     ],
+     "original": []
+    },
+    {
+     "at": 1225,
+     "migrated": [
+      "    <FechaHoraInput",
+      "      label={label} value={value || null}",
+      "      onChange={(valor) => { touch(); onChange(valor ?? ''); }}"
+     ],
+     "original": [
+      "    <TextField",
+      "      type=\"datetime-local\" label={label} value={value} size=\"small\" fullWidth",
+      "      onChange={(e) => { touch(); onChange(e.target.value); }}",
+      "      InputLabelProps={{ shrink: true }}"
+     ]
+    },
+    {
+     "at": 1229,
+     "migrated": [
+      "      slotProps={{ textField: { size: 'small', fullWidth: true } }}"
+     ],
+     "original": []
+    },
+    {
+     "at": 1249,
+     "migrated": [
+      "          <FechaInput label=\"Fecha\" value={partes.fecha} onChange={(value) => escribir((value ?? ''), partes.hora, partes.minuto)} disabled={readOnly} slotProps={{ textField: { size: 'small', sx: { flex: '1 1 150px' } } }} />"
+     ],
+     "original": [
+      "          <TextField",
+      "            type=\"date\"",
+      "            label=\"Fecha\"",
+      "            value={partes.fecha}",
+      "            size=\"small\"",
+      "            disabled={readOnly}",
+      "            onChange={(e) => escribir(e.target.value, partes.hora, partes.minuto)}",
+      "            InputLabelProps={{ shrink: true }}",
+      "            sx={{ flex: '1 1 150px' }}",
+      "          />"
+     ]
+    }
+   ]
+  },
+  "components/documentos/facturas/FacturasWorkspaceView.tsx": {
+   "beforeSha256": "a127eb97637ca85363e70d0e9c8e3611a8d2c79beac701c66de76e26ad449790",
+   "migratedSha256": "fa4093f2ef8fc839bbe436a3ef639410633717697959c50b5c808dba026db307",
+   "hunks": [
+    {
+     "at": 77,
+     "migrated": [
+      "import { FechaInput } from '../../../shared/dates/DateFields';"
+     ],
+     "original": []
+    },
+    {
+     "at": 1299,
+     "migrated": [
+      "        <FechaInput label=\"Fecha desde\" value={filtro.fechaDesde} onChange={(value) => onChange({ ...filtro, fechaDesde: (value ?? '') })} slotProps={{ textField: { size: 'small', sx: campoSx } }} />",
+      "        <FechaInput label=\"Fecha hasta\" value={filtro.fechaHasta} onChange={(value) => onChange({ ...filtro, fechaHasta: (value ?? '') })} slotProps={{ textField: { size: 'small', sx: campoSx } }} />"
+     ],
+     "original": [
+      "        <TextField size=\"small\" type=\"date\" label=\"Fecha desde\" value={filtro.fechaDesde} onChange={(event) => onChange({ ...filtro, fechaDesde: event.target.value })} InputLabelProps={{ shrink: true }} sx={campoSx} />",
+      "        <TextField size=\"small\" type=\"date\" label=\"Fecha hasta\" value={filtro.fechaHasta} onChange={(event) => onChange({ ...filtro, fechaHasta: event.target.value })} InputLabelProps={{ shrink: true }} sx={campoSx} />"
+     ]
+    }
+   ]
+  },
+  "components/documentos/nota-credito/NotaCreditoCaptura.tsx": {
+   "beforeSha256": "353084df291b67fbbcaf08750e26c9238faf40dac151d6c21d6144671e6d054b",
+   "migratedSha256": "bad5c8460a176bb60aa030402dc7e095035e024c7e21cfa2d2a5b0ac29de30a0",
+   "hunks": [
+    {
+     "at": 39,
+     "migrated": [
+      "import { FechaInput } from '../../../shared/dates/DateFields';"
+     ],
+     "original": []
+    },
+    {
+     "at": 515,
+     "migrated": [
+      "      <FechaInput label=\"Fecha\" value={fecha} onChange={(value) => onFecha((value ?? ''))} disabled={soloLectura} slotProps={{ textField: { size: 'small' } }} />"
+     ],
+     "original": [
+      "      <TextField",
+      "        label=\"Fecha\"",
+      "        type=\"date\"",
+      "        size=\"small\"",
+      "        value={fecha}",
+      "        disabled={soloLectura}",
+      "        onChange={(event) => onFecha(event.target.value)}",
+      "        InputLabelProps={{ shrink: true }}",
+      "      />"
+     ]
+    }
+   ]
+  },
+  "components/documentos/nota-credito/NotasCreditoWorkspaceView.tsx": {
+   "beforeSha256": "08675091d23570919fe627ee627e61a1c85231fd2a13d496d6ddc93f0588fb70",
+   "migratedSha256": "448960da0747574db747be29dc46a90e3143341de3d82a1744ef3dd299746f6b",
+   "hunks": [
+    {
+     "at": 47,
+     "migrated": [
+      "import { FechaInput } from '../../../shared/dates/DateFields';"
+     ],
+     "original": []
+    },
+    {
+     "at": 1221,
+     "migrated": [
+      "            <FechaInput label=\"Desde\" value={filtro.desde} onChange={(value) => cambiar({ desde: (value ?? '') })} slotProps={{ textField: { size: 'small', sx: campoFechaSx(tokens.content.foreground, tokens.content.border) } }} />",
+      "            <FechaInput label=\"Hasta\" value={filtro.hasta} onChange={(value) => cambiar({ hasta: (value ?? '') })} slotProps={{ textField: { size: 'small', sx: campoFechaSx(tokens.content.foreground, tokens.content.border) } }} />"
+     ],
+     "original": [
+      "            <TextField",
+      "              label=\"Desde\"",
+      "              type=\"date\"",
+      "              size=\"small\"",
+      "              value={filtro.desde}",
+      "              onChange={(event) => cambiar({ desde: event.target.value })}",
+      "              InputLabelProps={{ shrink: true }}",
+      "              sx={campoFechaSx(tokens.content.foreground, tokens.content.border)}",
+      "            />",
+      "            <TextField",
+      "              label=\"Hasta\"",
+      "              type=\"date\"",
+      "              size=\"small\"",
+      "              value={filtro.hasta}",
+      "              onChange={(event) => cambiar({ hasta: event.target.value })}",
+      "              InputLabelProps={{ shrink: true }}",
+      "              sx={campoFechaSx(tokens.content.foreground, tokens.content.border)}",
+      "            />"
+     ]
+    }
+   ]
+  },
+  "components/documentos/pagos/PagosWorkspaceView.tsx": {
+   "beforeSha256": "e7dccb1423b724bfdceb6a0b7d5bb1fd6eac225ba0e614875bfa55034a7066b0",
+   "migratedSha256": "6d39d04dd776b0dedd9f6e4167100fe883a1be9564de5fc5d8cfbf2f67e281fb",
+   "hunks": [
+    {
+     "at": 46,
+     "migrated": [
+      "import { FechaInput } from '../../../shared/dates/DateFields';"
+     ],
+     "original": []
+    },
+    {
+     "at": 1149,
+     "migrated": [
+      "        <FechaInput label=\"Fecha desde\" value={filtro.fechaDesde} onChange={(value) => onChange({ ...filtro, fechaDesde: (value ?? '') })} slotProps={{ textField: { size: 'small', sx: campoSx } }} />",
+      "        <FechaInput label=\"Fecha hasta\" value={filtro.fechaHasta} onChange={(value) => onChange({ ...filtro, fechaHasta: (value ?? '') })} slotProps={{ textField: { size: 'small', sx: campoSx } }} />"
+     ],
+     "original": [
+      "        <TextField",
+      "          size=\"small\"",
+      "          type=\"date\"",
+      "          label=\"Fecha desde\"",
+      "          value={filtro.fechaDesde}",
+      "          onChange={(event) => onChange({ ...filtro, fechaDesde: event.target.value })}",
+      "          InputLabelProps={{ shrink: true }}",
+      "          sx={campoSx}",
+      "        />",
+      "        <TextField",
+      "          size=\"small\"",
+      "          type=\"date\"",
+      "          label=\"Fecha hasta\"",
+      "          value={filtro.fechaHasta}",
+      "          onChange={(event) => onChange({ ...filtro, fechaHasta: event.target.value })}",
+      "          InputLabelProps={{ shrink: true }}",
+      "          sx={campoSx}",
+      "        />"
+     ]
+    }
+   ]
+  },
+  "components/leads/LeadsDesktopView.tsx": {
+   "beforeSha256": "bef63b4116d5473a35f82f60f4a3cce20d19aa0376618893d5ec72ca0c2c6ae6",
+   "migratedSha256": "aa660b534a31c662ebb148d1cac6eaeedb7a6543fc32e6955f757c6129fc3925",
+   "hunks": [
+    {
+     "at": 1474,
+     "migrated": [
+      "                    const timeLabel = validStamp ? (sameDay ? stamp!.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }) : stamp!.toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit' })) : '';"
+     ],
+     "original": [
+      "                    const timeLabel = validStamp ? (sameDay ? stamp!.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : stamp!.toLocaleDateString([], { day: '2-digit', month: '2-digit' })) : '';"
+     ]
+    },
+    {
+     "at": 1868,
+     "migrated": [
+      "                            <DescriptionIcon fontSize=\"small\" /><Typography variant=\"body2\" noWrap>{filename}</Typography><Typography variant=\"caption\" color=\"text.secondary\">{message.mimeType || ''}</Typography><Typography variant=\"caption\" color=\"text.secondary\" sx={{ ml: 'auto', flexShrink: 0 }}>{message.sentAt ? new Date(message.sentAt).toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit' }) : ''}</Typography><IconButton size=\"small\" onClick={(event) => { event.preventDefault(); setAttachmentMenu({ anchor: event.currentTarget, message: { id: message.id, tipoContenido: message.tipoContenido!, text: message.text || '', caption: message.caption, mediaUrl: message.mediaUrl } }); }} aria-label=\"Acciones del archivo\"><MoreVertIcon fontSize=\"small\" /></IconButton>"
+     ],
+     "original": [
+      "                            <DescriptionIcon fontSize=\"small\" /><Typography variant=\"body2\" noWrap>{filename}</Typography><Typography variant=\"caption\" color=\"text.secondary\">{message.mimeType || ''}</Typography><Typography variant=\"caption\" color=\"text.secondary\" sx={{ ml: 'auto', flexShrink: 0 }}>{message.sentAt ? new Date(message.sentAt).toLocaleDateString([], { day: '2-digit', month: '2-digit' }) : ''}</Typography><IconButton size=\"small\" onClick={(event) => { event.preventDefault(); setAttachmentMenu({ anchor: event.currentTarget, message: { id: message.id, tipoContenido: message.tipoContenido!, text: message.text || '', caption: message.caption, mediaUrl: message.mediaUrl } }); }} aria-label=\"Acciones del archivo\"><MoreVertIcon fontSize=\"small\" /></IconButton>"
+     ]
+    }
+   ]
+  },
+  "components/leads/TemperaturaProspectoModal.tsx": {
+   "beforeSha256": "13ae3a3859c78b1e3e1a7d2de3fcc8945f7ed0c4bd2e2472bb85c336e655e186",
+   "migratedSha256": "0923447bf7b5175a7ca79f8c4809c3447180c1bf747db0b89da4371d43f663f6",
+   "hunks": [
+    {
+     "at": 148,
+     "migrated": [
+      "          <Typography variant=\"caption\" color=\"text.secondary\">Analizado: {current.creado_en ? new Date(current.creado_en).toLocaleString('es-MX') : '—'}</Typography>"
+     ],
+     "original": [
+      "          <Typography variant=\"caption\" color=\"text.secondary\">Analizado: {current.creado_en ? new Date(current.creado_en).toLocaleString() : '—'}</Typography>"
+     ]
+    }
+   ]
+  },
+  "components/productos/ProductoHistorialComercial.tsx": {
+   "beforeSha256": "f9c1a2c87371cd813cc0dd099f04c14d131783bba36869333179a32fc77eef97",
+   "migratedSha256": "06ecb0e09284703051fe35f370e32ad9f1a00f4ddfd94ea59663464b72cb39f5",
+   "hunks": [
+    {
+     "at": 1,
+     "migrated": [
+      "import { FechaInput } from '../../shared/dates/DateFields';"
+     ],
+     "original": []
+    },
+    {
+     "at": 320,
+     "migrated": [],
+     "original": [
+      "  const id = React.useId();"
+     ]
+    },
+    {
+     "at": 321,
+     "migrated": [
+      "    <FechaInput",
+      "      label={etiqueta}",
+      "      value={value}",
+      "      onChange={(valor) => onChange(valor ?? '')}",
+      "      slotProps={{ textField: { size: 'small', sx: { width: 150, '& .MuiInputBase-root': { height: 32, fontSize: 12, borderRadius: '8px' } } } }}",
+      "    />"
+     ],
+     "original": [
+      "    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25 }}>",
+      "      <Typography component=\"label\" htmlFor={id} sx={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: (theme) => theme.emphasys.content.muted }}>",
+      "        {etiqueta}",
+      "      </Typography>",
+      "      <Box",
+      "        component=\"input\"",
+      "        id={id}",
+      "        type=\"date\"",
+      "        aria-label={etiqueta}",
+      "        value={value}",
+      "        onChange={(event) => onChange(event.target.value)}",
+      "        sx={(theme) => ({",
+      "          height: 28,",
+      "          border: `1px solid ${theme.emphasys.content.border}`,",
+      "          borderRadius: '8px',",
+      "          backgroundColor: theme.emphasys.content.elevated,",
+      "          color: theme.emphasys.content.foreground,",
+      "          font: 'inherit',",
+      "          fontSize: 12,",
+      "          px: 0.75,",
+      "          colorScheme: 'light',",
+      "        })}",
+      "      />",
+      "    </Box>"
+     ]
+    }
+   ]
+  },
+  "modules/contabilidad/BalanzaXmlView.tsx": {
+   "beforeSha256": "e95605d47b9f4b6e70aa7b8301b2d717d223c1a00dfd26038def19232032b603",
+   "migratedSha256": "f9b6f5c2c9c487a13ac9c8adf9208b1b47881e53c34379cf7f29e5e4f80f3bce",
+   "hunks": [
+    {
+     "at": 33,
+     "migrated": [
+      "import { FechaInput } from '../../shared/dates/DateFields';"
+     ],
+     "original": []
+    },
+    {
+     "at": 244,
+     "migrated": [
+      "            <FechaInput label=\"Fecha de modificación\" value={fechaModificacion} onChange={(value) => setFechaModificacion((value ?? ''))} error={fechaRequeridaYFaltante} helperText={fechaRequeridaYFaltante ? 'Requerida en Complementaria' : ' '} slotProps={{ textField: { size: 'small', sx: { minWidth: 170 } } }} />"
+     ],
+     "original": [
+      "            <TextField",
+      "              size=\"small\"",
+      "              type=\"date\"",
+      "              label=\"Fecha de modificación\"",
+      "              InputLabelProps={{ shrink: true }}",
+      "              value={fechaModificacion}",
+      "              onChange={(e) => setFechaModificacion(e.target.value)}",
+      "              error={fechaRequeridaYFaltante}",
+      "              helperText={fechaRequeridaYFaltante ? 'Requerida en Complementaria' : ' '}",
+      "              sx={{ minWidth: 170 }}",
+      "            />"
+     ]
+    }
+   ]
+  },
+  "modules/contabilidad/PaqueteZipView.tsx": {
+   "beforeSha256": "4de24a45322d46e55288f760aa673228ef5d07f9cadb4feb79e48deed64a9810",
+   "migratedSha256": "3071445d4ffe8a7ee6e2220b5d8f611840db0ad06d36515f8a323101eb98c1d0",
+   "hunks": [
+    {
+     "at": 37,
+     "migrated": [
+      "import { FechaInput } from '../../shared/dates/DateFields';"
+     ],
+     "original": []
+    },
+    {
+     "at": 269,
+     "migrated": [
+      "                    <FechaInput label=\"Fecha de modificación\" value={fechaModBalanza} onChange={(value) => setFechaModBalanza((value ?? ''))} error={!fechaModBalanza.trim()} helperText={!fechaModBalanza.trim() ? 'Requerida' : ' '} slotProps={{ textField: { size: 'small', sx: { minWidth: 170 } } }} />"
+     ],
+     "original": [
+      "                    <TextField",
+      "                      size=\"small\"",
+      "                      type=\"date\"",
+      "                      label=\"Fecha de modificación\"",
+      "                      InputLabelProps={{ shrink: true }}",
+      "                      value={fechaModBalanza}",
+      "                      onChange={(e) => setFechaModBalanza(e.target.value)}",
+      "                      error={!fechaModBalanza.trim()}",
+      "                      helperText={!fechaModBalanza.trim() ? 'Requerida' : ' '}",
+      "                      sx={{ minWidth: 170 }}",
+      "                    />"
+     ]
+    }
+   ]
+  },
+  "modules/documentos/FacturaGlobalDialog.tsx": {
+   "beforeSha256": "9efb5a6632ceae557a96b3f75bebf25fd7865970473e1615c498186957dfa4b2",
+   "migratedSha256": "0c6a762e78d61598c21d4e03c6a677dd4b09a16d3abbcf87956c637aa844742e",
+   "hunks": [
+    {
+     "at": 1,
+     "migrated": [
+      "import { FechaInput } from '../../shared/dates/DateFields';"
+     ],
+     "original": []
+    },
+    {
+     "at": 177,
+     "migrated": [
+      "              <FechaInput label=\"Desde\" value={fechaDesde} onChange={(value) => { setFechaDesde(value ?? ''); setPreview(null); }} slotProps={{ textField: { size: 'small', fullWidth: true } }} />",
+      "              <FechaInput label=\"Hasta\" value={fechaHasta} onChange={(value) => { setFechaHasta(value ?? ''); setPreview(null); }} slotProps={{ textField: { size: 'small', fullWidth: true } }} />"
+     ],
+     "original": [
+      "              <TextField",
+      "                label=\"Desde\"",
+      "                type=\"date\"",
+      "                size=\"small\"",
+      "                value={fechaDesde}",
+      "                onChange={(e) => { setFechaDesde(e.target.value); setPreview(null); }}",
+      "                InputLabelProps={{ shrink: true }}",
+      "                fullWidth",
+      "              />",
+      "              <TextField",
+      "                label=\"Hasta\"",
+      "                type=\"date\"",
+      "                size=\"small\"",
+      "                value={fechaHasta}",
+      "                onChange={(e) => { setFechaHasta(e.target.value); setPreview(null); }}",
+      "                InputLabelProps={{ shrink: true }}",
+      "                fullWidth",
+      "              />"
+     ]
+    }
+   ]
+  },
+  "modules/finanzas/ProgramacionMasivaDrawer.tsx": {
+   "beforeSha256": "6ec6273261e8294611aa713a82f96a8beb4afe95a8c58aed7ef2d39cc6f33c44",
+   "migratedSha256": "6d67cb9578c30a14d9f11443403a874f8cce68b1d00e3f68845ef2a889225b12",
+   "hunks": [
+    {
+     "at": 42,
+     "migrated": [
+      "import { FechaInput } from '../../shared/dates/DateFields';"
+     ],
+     "original": []
+    },
+    {
+     "at": 508,
+     "migrated": [
+      "          <FechaInput label=\"Fecha programada\" value={fechaProgramada} onChange={(value) => setFechaProgramada((value ?? ''))} slotProps={{ textField: { size: 'small', sx: { width: 200 } } }} />"
+     ],
+     "original": [
+      "          <TextField",
+      "            label=\"Fecha programada\"",
+      "            type=\"date\"",
+      "            size=\"small\"",
+      "            value={fechaProgramada}",
+      "            onChange={(e) => setFechaProgramada(e.target.value)}",
+      "            InputLabelProps={{ shrink: true }}",
+      "            sx={{ width: 200 }}",
+      "          />"
+     ]
+    }
+   ]
+  },
+  "pages/DocumentosFormPage.tsx": {
+   "beforeSha256": "d6c6b64783831d04cf7018398f93ae43dd8c7b214b299c5df05a1d47576d3cd2",
+   "migratedSha256": "2379ce6bc1106053cb46e8559006144f425bf3153f8821675803c0a4f43868a2",
+   "hunks": [
+    {
+     "at": 80,
+     "migrated": [
+      "import { FechaInput } from '../shared/dates/DateFields';"
+     ],
+     "original": []
+    },
+    {
+     "at": 4522,
+     "migrated": [
+      "                  <FechaInput"
+     ],
+     "original": [
+      "                  <TextField"
+     ]
+    },
+    {
+     "at": 4524,
+     "migrated": [],
+     "original": [
+      "                    type=\"date\""
+     ]
+    },
+    {
+     "at": 4525,
+     "migrated": [
+      "                    onChange={(valor) => setForm((prev) => ({ ...prev, fecha_documento: valor ?? '' }))}"
+     ],
+     "original": [
+      "                    onChange={(e) => setForm((prev) => ({ ...prev, fecha_documento: e.target.value }))}"
+     ]
+    },
+    {
+     "at": 4527,
+     "migrated": [
+      "                    slotProps={{ textField: { InputLabelProps: { shrink: true, sx: { fontSize: 12.5 } }, inputProps: { style: { fontSize: 12.5 } }, size: 'small', sx: { flex: '0 0 150px' } } }}"
+     ],
+     "original": [
+      "                    InputLabelProps={{ shrink: true, sx: { fontSize: 12.5 } }}",
+      "                    inputProps={{ style: { fontSize: 12.5 } }}",
+      "                    size=\"small\"",
+      "                    sx={{ flex: '0 0 138px' }}"
+     ]
+    },
+    {
+     "at": 4530,
+     "migrated": [
+      "                    <FechaInput"
+     ],
+     "original": [
+      "                    <TextField"
+     ]
+    },
+    {
+     "at": 4532,
+     "migrated": [
+      "                      value={form.fecha_vencimiento ?? null}",
+      "                      onChange={(valor) => {"
+     ],
+     "original": [
+      "                      type=\"date\"",
+      "                      value={form.fecha_vencimiento ?? ''}",
+      "                      onChange={(e) => {"
+     ]
+    },
+    {
+     "at": 4535,
+     "migrated": [
+      "                        setForm((prev) => ({ ...prev, fecha_vencimiento: valor || null }));"
+     ],
+     "original": [
+      "                        setForm((prev) => ({ ...prev, fecha_vencimiento: e.target.value || null }));"
+     ]
+    },
+    {
+     "at": 4538,
+     "migrated": [
+      "                      slotProps={{ textField: { InputLabelProps: { shrink: true, sx: { fontSize: 12.5 } }, inputProps: { style: { fontSize: 12.5 } }, size: 'small', sx: { flex: '0 0 150px' } } }}"
+     ],
+     "original": [
+      "                      InputLabelProps={{ shrink: true, sx: { fontSize: 12.5 } }}",
+      "                      inputProps={{ style: { fontSize: 12.5 } }}",
+      "                      size=\"small\"",
+      "                      sx={{ flex: '0 0 138px' }}"
+     ]
+    },
+    {
+     "at": 6268,
+     "migrated": [
+      "                        <FechaInput label=\"Fecha documento\" value={form.fecha_documento} onChange={(value) => setForm((prev) => ({ ...prev, fecha_documento: (value ?? '') }))} disabled={lockedFechaDocumento || trazabilidadActiva} slotProps={{ textField: { size: 'small', fullWidth: true, sx: pagoCampoSx } }} />"
+     ],
+     "original": [
+      "                        <TextField",
+      "                          label=\"Fecha documento\"",
+      "                          type=\"date\"",
+      "                          value={form.fecha_documento}",
+      "                          onChange={(e) => setForm((prev) => ({ ...prev, fecha_documento: e.target.value }))}",
+      "                          disabled={lockedFechaDocumento || trazabilidadActiva}",
+      "                          InputLabelProps={{ shrink: true, sx: { fontSize: 13 } }}",
+      "                          sx={pagoCampoSx}",
+      "                          fullWidth",
+      "                          size=\"small\"",
+      "                        />"
+     ]
+    },
+    {
+     "at": 6528,
+     "migrated": [
+      "                  <FechaInput"
+     ],
+     "original": [
+      "                  <TextField"
+     ]
+    },
+    {
+     "at": 6530,
+     "migrated": [],
+     "original": [
+      "                    type=\"date\""
+     ]
+    },
+    {
+     "at": 6531,
+     "migrated": [
+      "                    onChange={(valor) => setForm((prev) => ({ ...prev, fecha_documento: valor ?? '' }))}"
+     ],
+     "original": [
+      "                    onChange={(e) => setForm((prev) => ({ ...prev, fecha_documento: e.target.value }))}"
+     ]
+    },
+    {
+     "at": 6533,
+     "migrated": [
+      "                    slotProps={{ textField: { InputLabelProps: { shrink: true, sx: { fontSize: 13 } }, inputProps: { style: { fontSize: 13 } }, fullWidth: true, size: 'small' } }}"
+     ],
+     "original": [
+      "                    InputLabelProps={{ shrink: true, sx: { fontSize: 13 } }}",
+      "                    inputProps={{ style: { fontSize: 13 } }}",
+      "                    fullWidth",
+      "                    size=\"small\""
+     ]
+    },
+    {
+     "at": 6539,
+     "migrated": [
+      "                  <FechaInput"
+     ],
+     "original": [
+      "                  <TextField"
+     ]
+    },
+    {
+     "at": 6541,
+     "migrated": [
+      "                    value={form.fecha_vencimiento ?? null}",
+      "                    onChange={(valor) => {"
+     ],
+     "original": [
+      "                    type=\"date\"",
+      "                    value={form.fecha_vencimiento ?? ''}",
+      "                    onChange={(e) => {"
+     ]
+    },
+    {
+     "at": 6544,
+     "migrated": [
+      "                      setForm((prev) => ({ ...prev, fecha_vencimiento: valor || null }));"
+     ],
+     "original": [
+      "                      setForm((prev) => ({ ...prev, fecha_vencimiento: e.target.value || null }));"
+     ]
+    },
+    {
+     "at": 6547,
+     "migrated": [
+      "                    slotProps={{ textField: { InputLabelProps: { shrink: true, sx: { fontSize: 13 } }, inputProps: { style: { fontSize: 13 } }, fullWidth: true, size: 'small' } }}"
+     ],
+     "original": [
+      "                    InputLabelProps={{ shrink: true, sx: { fontSize: 13 } }}",
+      "                    inputProps={{ style: { fontSize: 13 } }}",
+      "                    fullWidth",
+      "                    size=\"small\""
+     ]
+    }
+   ]
+  },
+  "pages/DocumentosPage.tsx": {
+   "beforeSha256": "19a9c941bea79a13d70bb0f403f94feaf84c9acd3ba8252268451097cfa403b2",
+   "migratedSha256": "eee207e776dc2d11c280f1b1b0d089e67da52274dab6281acb2281ce5246c871",
+   "hunks": [
+    {
+     "at": 80,
+     "migrated": [
+      "import { FechaInput } from '../shared/dates/DateFields';"
+     ],
+     "original": []
+    },
+    {
+     "at": 3637,
+     "migrated": [
+      "                <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale=\"es\">",
+      "                  <DatePicker format=\"DD/MM/YYYY\""
+     ],
+     "original": [
+      "                <LocalizationProvider dateAdapter={AdapterDayjs}>",
+      "                  <DatePicker"
+     ]
+    },
+    {
+     "at": 3664,
+     "migrated": [
+      "                <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale=\"es\">",
+      "                  <DatePicker format=\"DD/MM/YYYY\""
+     ],
+     "original": [
+      "                <LocalizationProvider dateAdapter={AdapterDayjs}>",
+      "                  <DatePicker"
+     ]
+    },
+    {
+     "at": 4905,
+     "migrated": [
+      "              <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale=\"es\">"
+     ],
+     "original": [
+      "              <LocalizationProvider dateAdapter={AdapterDayjs}>"
+     ]
+    },
+    {
+     "at": 4907,
+     "migrated": [
+      "                  format=\"DD/MM/YYYY\""
+     ],
+     "original": []
+    },
+    {
+     "at": 5532,
+     "migrated": [
+      "            <FechaInput"
+     ],
+     "original": [
+      "            <TextField"
+     ]
+    },
+    {
+     "at": 5534,
+     "migrated": [],
+     "original": [
+      "              fullWidth"
+     ]
+    },
+    {
+     "at": 5535,
+     "migrated": [],
+     "original": [
+      "              type=\"date\""
+     ]
+    },
+    {
+     "at": 5536,
+     "migrated": [
+      "              onChange={(valor) => setProduccionDialog((prev) => ({ ...prev, fechaPromesa: valor ?? '', error: null }))}",
+      "              slotProps={{ textField: { fullWidth: true, error: Boolean(produccionDialog.error), helperText: produccionDialog.error || ' ' } }}"
+     ],
+     "original": [
+      "              onChange={(e) => setProduccionDialog((prev) => ({ ...prev, fechaPromesa: e.target.value, error: null }))}",
+      "              error={Boolean(produccionDialog.error)}",
+      "              helperText={produccionDialog.error || ' '}",
+      "              InputLabelProps={{ shrink: true }}"
+     ]
+    }
+   ]
+  },
+  "pages/InventarioMovimientoFormPage.tsx": {
+   "beforeSha256": "95aa5666f4693ed9faf88df51a1c72875b38ef82ff241ea1b0bd139256ad76ef",
+   "migratedSha256": "dae21b666b334eca6ef66013561b6b431c8585d835cb1b3d6f1e1944f3146890",
+   "hunks": [
+    {
+     "at": 30,
+     "migrated": [
+      "import { FechaInput } from '../shared/dates/DateFields';"
+     ],
+     "original": []
+    },
+    {
+     "at": 1916,
+     "migrated": [
+      "  if ((target as HTMLInputElement).type === 'date' || target.hasAttribute('data-fecha-operativa')) return false;"
+     ],
+     "original": [
+      "  if ((target as HTMLInputElement).type === 'date') return false;"
+     ]
+    },
+    {
+     "at": 1926,
+     "migrated": [
+      "  const [abierto, setAbierto] = useState(false);"
+     ],
+     "original": []
+    },
+    {
+     "at": 1933,
+     "migrated": [
+      "    setAbierto(true);"
+     ],
+     "original": [
+      "    try {",
+      "      input.showPicker();",
+      "    } catch {",
+      "      // Algunos navegadores solo abren el calendario tras un gesto del usuario.",
+      "    }"
+     ]
+    },
+    {
+     "at": 1936,
+     "migrated": [
+      "    <FechaInput"
+     ],
+     "original": [
+      "    <Box",
+      "      component=\"input\"",
+      "      ref={ref}",
+      "      type=\"date\"",
+      "      aria-label=\"Fecha operativa\"",
+      "      data-fecha-operativa=\"true\""
+     ]
+    },
+    {
+     "at": 1938,
+     "migrated": [
+      "      // Una fecha parcial o inválida (null) no se propaga: el estado conserva la última fecha civil válida.",
+      "      onChange={(valor) => { if (valor) onChange(fechaCivilGuadalajara(valor)); }}",
+      "      inputRef={ref}",
+      "      open={abierto}",
+      "      onOpen={() => setAbierto(true)}",
+      "      onClose={() => setAbierto(false)}",
+      "      slotProps={{",
+      "        textField: {",
+      "          variant: 'standard',",
+      "          inputProps: { 'aria-label': 'Fecha operativa', 'data-fecha-operativa': 'true' },",
+      "          onKeyDown: (event: React.KeyboardEvent) => {",
+      "            if (event.key === 'Enter') event.stopPropagation();",
+      "          },",
+      "          sx: (theme: Theme) => ({",
+      "            width: '100%',",
+      "            maxWidth: 150,",
+      "            '& .MuiInputBase-root': { height: 29, fontSize: 14, color: theme.emphasys.content.foreground },",
+      "            '& .MuiInput-underline:before': { borderBottomColor: theme.emphasys.content.border },",
+      "            '& .MuiInput-underline:hover:not(.Mui-disabled):before': { borderBottomColor: theme.emphasys.content.foreground },",
+      "            '& .MuiInput-underline:after': { borderBottomColor: theme.emphasys.content.foreground },",
+      "          }),",
+      "        },"
+     ],
+     "original": [
+      "      onChange={(event) => onChange(fechaCivilGuadalajara(event.target.value))}",
+      "      onKeyDown={(event) => {",
+      "        if (event.key === 'Enter') event.stopPropagation();"
+     ]
+    },
+    {
+     "at": 1961,
+     "migrated": [],
+     "original": [
+      "      onClick={(event) => {",
+      "        const input = event.currentTarget;",
+      "        try {",
+      "          input.showPicker();",
+      "        } catch {",
+      "          input.focus();",
+      "        }",
+      "      }}",
+      "      sx={(theme) => ({",
+      "        width: '100%',",
+      "        maxWidth: 150,",
+      "        height: 29,",
+      "        margin: 0,",
+      "        padding: 0,",
+      "        border: 0,",
+      "        borderBottom: `1px solid ${theme.emphasys.content.border}`,",
+      "        borderRadius: 0,",
+      "        background: 'transparent',",
+      "        color: theme.emphasys.content.foreground,",
+      "        font: 'inherit',",
+      "        fontSize: 14,",
+      "        lineHeight: '28px',",
+      "        outline: 'none',",
+      "        colorScheme: 'light',",
+      "        boxSizing: 'border-box',",
+      "        '&:focus': { borderBottomColor: theme.emphasys.content.foreground },",
+      "      })}"
+     ]
+    }
+   ]
+  },
+  "pages/OportunidadesPage.tsx": {
+   "beforeSha256": "03461e47b827f72eab2c6268e5bed9698d6c95e933b4ab17cae703cc601519ec",
+   "migratedSha256": "61a8f06700d7a8130fe1fce8bbd0cfe6283562b8ca5d597dcc3f7c9f0b472d8b",
+   "hunks": [
+    {
+     "at": 1644,
+     "migrated": [
+      "                          <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale=\"es\">",
+      "                            <DatePicker format=\"DD/MM/YYYY\""
+     ],
+     "original": [
+      "                          <LocalizationProvider dateAdapter={AdapterDayjs}>",
+      "                            <DatePicker"
+     ]
+    },
+    {
+     "at": 1666,
+     "migrated": [
+      "                          <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale=\"es\">",
+      "                            <DatePicker format=\"DD/MM/YYYY\""
+     ],
+     "original": [
+      "                          <LocalizationProvider dateAdapter={AdapterDayjs}>",
+      "                            <DatePicker"
+     ]
+    },
+    {
+     "at": 1688,
+     "migrated": [
+      "                          <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale=\"es\">",
+      "                            <DatePicker format=\"DD/MM/YYYY\""
+     ],
+     "original": [
+      "                          <LocalizationProvider dateAdapter={AdapterDayjs}>",
+      "                            <DatePicker"
+     ]
+    },
+    {
+     "at": 1710,
+     "migrated": [
+      "                          <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale=\"es\">",
+      "                            <DatePicker format=\"DD/MM/YYYY\""
+     ],
+     "original": [
+      "                          <LocalizationProvider dateAdapter={AdapterDayjs}>",
+      "                            <DatePicker"
+     ]
+    },
+    {
+     "at": 2035,
+     "migrated": [
+      "                  <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale=\"es\">",
+      "                    <DatePicker format=\"DD/MM/YYYY\""
+     ],
+     "original": [
+      "                  <LocalizationProvider dateAdapter={AdapterDayjs}>",
+      "                    <DatePicker"
+     ]
+    }
+   ]
+  },
+  "pages/ProduccionPage.tsx": {
+   "beforeSha256": "d451c5d55c9947e674e9a35c7efd6a9293d3d5716ebd064ab56e69da8ddf3596",
+   "migratedSha256": "2b0179a93baf357ac0b43fa387710e9c8ea2d1af0ca568775cd3ebc721bcd8f3",
+   "hunks": [
+    {
+     "at": 491,
+     "migrated": [
+      "          <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale=\"es\">",
+      "            <DatePicker format=\"DD/MM/YYYY\""
+     ],
+     "original": [
+      "          <LocalizationProvider dateAdapter={AdapterDayjs}>",
+      "            <DatePicker"
+     ]
+    }
+   ]
+  },
+  "pages/finanzas/ProgramacionPagosPage.tsx": {
+   "beforeSha256": "d4f079fe390669ceda9da91888bf5a56966db080749ec3072c51fa5afca2460d",
+   "migratedSha256": "f0fd2220c2ef94f01d6265d2e0eea24876585ff08a2f9cdbe449b9d8cb9a65b8",
+   "hunks": [
+    {
+     "at": 45,
+     "migrated": [
+      "import { FechaInput } from '../../shared/dates/DateFields';"
+     ],
+     "original": []
+    },
+    {
+     "at": 422,
+     "migrated": [
+      "          <FechaInput label=\"Desde\" value={fechaInicio} onChange={(value) => setFechaInicio((value ?? ''))} slotProps={{ textField: { size: 'small', sx: { width: 150 } } }} />",
+      "          <FechaInput label=\"Hasta\" value={fechaFin} onChange={(value) => setFechaFin((value ?? ''))} slotProps={{ textField: { size: 'small', sx: { width: 150 } } }} />"
+     ],
+     "original": [
+      "          <TextField",
+      "            label=\"Desde\"",
+      "            type=\"date\"",
+      "            size=\"small\"",
+      "            value={fechaInicio}",
+      "            onChange={(e) => setFechaInicio(e.target.value)}",
+      "            InputLabelProps={{ shrink: true }}",
+      "            sx={{ width: 150 }}",
+      "          />",
+      "          <TextField",
+      "            label=\"Hasta\"",
+      "            type=\"date\"",
+      "            size=\"small\"",
+      "            value={fechaFin}",
+      "            onChange={(e) => setFechaFin(e.target.value)}",
+      "            InputLabelProps={{ shrink: true }}",
+      "            sx={{ width: 150 }}",
+      "          />"
+     ]
+    }
+   ]
+  },
+  "pages/informes/EstadoCuentaPage.tsx": {
+   "beforeSha256": "7702aa760bc0ca069f3a086eb37bd348e95f786d5f3e75a0cba61c5fe6e4526f",
+   "migratedSha256": "f5881009f772f94ab7e8880e11bd6c52621322ff84a2442d3cbd74f81cd2ba8d",
+   "hunks": [
+    {
+     "at": 38,
+     "migrated": [
+      "import { FechaInput } from '../../shared/dates/DateFields';"
+     ],
+     "original": []
+    },
+    {
+     "at": 562,
+     "migrated": [
+      "          <FechaInput label=\"Fecha de corte\" value={fechaCorte} onChange={(value) => setFechaCorte(value ?? '')} slotProps={{ textField: { size: 'small', sx: { width: 155 } } }} />"
+     ],
+     "original": [
+      "          <TextField",
+      "            label=\"Fecha de corte\"",
+      "            type=\"date\"",
+      "            size=\"small\"",
+      "            value={fechaCorte}",
+      "            onChange={(e) => setFechaCorte(e.target.value)}",
+      "            InputLabelProps={{ shrink: true }}",
+      "            sx={{ width: 155 }}",
+      "          />"
+     ]
+    }
+   ]
+  },
+  "pages/informes/MovimientosPorPeriodoPage.tsx": {
+   "beforeSha256": "ffa00061bb472c879db5898c3edebf63d97f9b938f1edef983fa0ed33df05bfa",
+   "migratedSha256": "90a5d4e75955450015017271899bc249ba59352487b006c00882572ed898c6d9",
+   "hunks": [
+    {
+     "at": 53,
+     "migrated": [
+      "import { FechaInput } from '../../shared/dates/DateFields';"
+     ],
+     "original": []
+    },
+    {
+     "at": 583,
+     "migrated": [
+      "    flex: '0 1 auto', width: 140, minWidth: 0,",
+      "    '& .MuiInputBase-root': { font: 'inherit', fontSize: 13, color: tokens.content.foreground, fontVariantNumeric: 'tabular-nums' },",
+      "    '& .MuiInputBase-input': { p: 0 },",
+      "    '& .MuiIconButton-root': { p: 0.25, opacity: 0.55 },"
+     ],
+     "original": [
+      "    flex: '0 1 auto', width: 118, minWidth: 0, border: 0, outline: 0, p: 0, bgcolor: 'transparent',",
+      "    font: 'inherit', fontSize: 13, color: tokens.content.foreground, fontVariantNumeric: 'tabular-nums',",
+      "    colorScheme: 'inherit',",
+      "    '&::-webkit-calendar-picker-indicator': { opacity: 0.55, cursor: 'pointer' },"
+     ]
+    },
+    {
+     "at": 653,
+     "migrated": [
+      "              <Box className=\"vp-range\" sx={{ ...campoCompactoBoxSx, cursor: 'text' }}>"
+     ],
+     "original": [
+      "              <Box component=\"label\" className=\"vp-range\" sx={{ ...campoCompactoBoxSx, cursor: 'text' }}>"
+     ]
+    },
+    {
+     "at": 655,
+     "migrated": [
+      "                <FechaInput value={fechaInicio} onChange={(value) => setFechaInicio(value ?? '')} slotProps={{ textField: { variant: 'standard', size: 'small', inputProps: { 'aria-label': 'Fecha inicial' }, InputProps: { disableUnderline: true }, sx: fechaInputSx } }} />"
+     ],
+     "original": [
+      "                <Box component=\"input\" type=\"date\" aria-label=\"Fecha inicial\" value={fechaInicio} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFechaInicio(e.target.value)} sx={fechaInputSx} />"
+     ]
+    },
+    {
+     "at": 657,
+     "migrated": [
+      "                <FechaInput value={fechaFin} onChange={(value) => setFechaFin(value ?? '')} slotProps={{ textField: { variant: 'standard', size: 'small', inputProps: { 'aria-label': 'Fecha final' }, InputProps: { disableUnderline: true }, sx: fechaInputSx } }} />"
+     ],
+     "original": [
+      "                <Box component=\"input\" type=\"date\" aria-label=\"Fecha final\" value={fechaFin} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFechaFin(e.target.value)} sx={fechaInputSx} />"
+     ]
+    },
+    {
+     "at": 792,
+     "migrated": [
+      "              <FechaInput label=\"Fecha inicial\" value={fechaInicio} onChange={(value) => setFechaInicio((value ?? ''))} slotProps={{ textField: { size: 'small', sx: { width: 155 } } }} />",
+      "              <FechaInput label=\"Fecha final\" value={fechaFin} onChange={(value) => setFechaFin((value ?? ''))} slotProps={{ textField: { size: 'small', sx: { width: 155 } } }} />"
+     ],
+     "original": [
+      "              <TextField",
+      "                label=\"Fecha inicial\" type=\"date\" size=\"small\"",
+      "                value={fechaInicio} onChange={(e) => setFechaInicio(e.target.value)}",
+      "                slotProps={{ inputLabel: { shrink: true } }} sx={{ width: 155 }}",
+      "              />",
+      "              <TextField",
+      "                label=\"Fecha final\" type=\"date\" size=\"small\"",
+      "                value={fechaFin} onChange={(e) => setFechaFin(e.target.value)}",
+      "                slotProps={{ inputLabel: { shrink: true } }} sx={{ width: 155 }}",
+      "              />"
+     ]
+    }
+   ]
+  },
+  "pages/informes/OCPendientesPage.tsx": {
+   "beforeSha256": "d261de91d23a3adfbec006e9d414f1b8b3d1af2d5de92344f6525afb37edfc37",
+   "migratedSha256": "35320ec272b1e05418e9f52e3546d2e0cad90300eeb14cb93cae8a713398ebc6",
+   "hunks": [
+    {
+     "at": 39,
+     "migrated": [
+      "import { FechaInput } from '../../shared/dates/DateFields';"
+     ],
+     "original": []
+    },
+    {
+     "at": 415,
+     "migrated": [
+      "          <FechaInput label=\"Fecha de corte\" value={fechaCorte} onChange={(value) => setFechaCorte((value ?? ''))} slotProps={{ textField: { size: 'small', sx: { width: 155 } } }} />"
+     ],
+     "original": [
+      "          <TextField",
+      "            label=\"Fecha de corte\"",
+      "            type=\"date\"",
+      "            size=\"small\"",
+      "            value={fechaCorte}",
+      "            onChange={(e) => setFechaCorte(e.target.value)}",
+      "            InputLabelProps={{ shrink: true }}",
+      "            sx={{ width: 155 }}",
+      "          />"
+     ]
+    }
+   ]
+  },
+  "pages/informes/VolumenComprasPage.tsx": {
+   "beforeSha256": "5b26aee07c8f662c893193af076d21fbf31eec4352834e34c99762df6b0692cb",
+   "migratedSha256": "48136ef438dff1530b857b6715e57ae2773839eb5ee0d44ec996b603a7d4707c",
+   "hunks": [
+    {
+     "at": 50,
+     "migrated": [
+      "import { FechaInput } from '../../shared/dates/DateFields';"
+     ],
+     "original": []
+    },
+    {
+     "at": 522,
+     "migrated": [
+      "          <FechaInput label=\"Fecha inicial\" value={fechaInicio} onChange={(value) => setFechaInicio(value ?? '')} slotProps={{ textField: { size: 'small', sx: { width: esVentas ? { xs: '100%', sm: 155 } : 155, ...campoSx } } }} />",
+      "          <FechaInput label=\"Fecha final\" value={fechaFin} onChange={(value) => setFechaFin(value ?? '')} slotProps={{ textField: { size: 'small', sx: { width: esVentas ? { xs: '100%', sm: 155 } : 155, ...campoSx } } }} />"
+     ],
+     "original": [
+      "          <TextField",
+      "            label=\"Fecha inicial\"",
+      "            type=\"date\"",
+      "            size=\"small\"",
+      "            value={fechaInicio}",
+      "            onChange={(e) => setFechaInicio(e.target.value)}",
+      "            slotProps={{ inputLabel: { shrink: true } }}",
+      "            sx={{ width: esVentas ? { xs: '100%', sm: 155 } : 155, ...campoSx }}",
+      "          />",
+      "          <TextField",
+      "            label=\"Fecha final\"",
+      "            type=\"date\"",
+      "            size=\"small\"",
+      "            value={fechaFin}",
+      "            onChange={(e) => setFechaFin(e.target.value)}",
+      "            slotProps={{ inputLabel: { shrink: true } }}",
+      "            sx={{ width: esVentas ? { xs: '100%', sm: 155 } : 155, ...campoSx }}",
+      "          />"
+     ]
+    }
+   ]
+  },
+  "pages/informes/VolumenProductoPage.tsx": {
+   "beforeSha256": "96ad449d40656ed64ae84273c80fd555c7cefa8b2fe3871fea5a2eeb99f04083",
+   "migratedSha256": "e7903c1d922fcfb1c87a7307c68c690df8afeb41c63e94d56b2e8b1f7ce9f022",
+   "hunks": [
+    {
+     "at": 50,
+     "migrated": [
+      "import { FechaInput } from '../../shared/dates/DateFields';"
+     ],
+     "original": []
+    },
+    {
+     "at": 593,
+     "migrated": [
+      "          <FechaInput label=\"Fecha inicial\" value={fechaInicio} onChange={(value) => setFechaInicio(value ?? '')} slotProps={{ textField: { size: 'small', sx: { width: esVentas ? { xs: '100%', sm: 155 } : 155, ...campoSx } } }} />",
+      "          <FechaInput label=\"Fecha final\" value={fechaFin} onChange={(value) => setFechaFin(value ?? '')} slotProps={{ textField: { size: 'small', sx: { width: esVentas ? { xs: '100%', sm: 155 } : 155, ...campoSx } } }} />"
+     ],
+     "original": [
+      "          <TextField",
+      "            label=\"Fecha inicial\"",
+      "            type=\"date\"",
+      "            size=\"small\"",
+      "            value={fechaInicio}",
+      "            onChange={(e) => setFechaInicio(e.target.value)}",
+      "            slotProps={{ inputLabel: { shrink: true } }}",
+      "            sx={{ width: esVentas ? { xs: '100%', sm: 155 } : 155, ...campoSx }}",
+      "          />",
+      "          <TextField",
+      "            label=\"Fecha final\"",
+      "            type=\"date\"",
+      "            size=\"small\"",
+      "            value={fechaFin}",
+      "            onChange={(e) => setFechaFin(e.target.value)}",
+      "            slotProps={{ inputLabel: { shrink: true } }}",
+      "            sx={{ width: esVentas ? { xs: '100%', sm: 155 } : 155, ...campoSx }}",
+      "          />"
+     ]
+    }
+   ]
+  },
+  "pages/informes/compras/HistorialPreciosCompraPage.tsx": {
+   "beforeSha256": "f4963be3c9601cd7bf3ee783d8733d7a010a4109d74551176f58de3c15f24526",
+   "migratedSha256": "9d8855ec1a6e0e14b1aec226fc0f6b8064827e5eac87c7dd03f7892f43ed44be",
+   "hunks": [
+    {
+     "at": 38,
+     "migrated": [
+      "import { FechaInput } from '../../../shared/dates/DateFields';"
+     ],
+     "original": []
+    },
+    {
+     "at": 284,
+     "migrated": [
+      "          <FechaInput label=\"Fecha inicial\" value={fechaInicio} onChange={(value) => setFechaInicio((value ?? ''))} slotProps={{ textField: { size: 'small', sx: { width: 155 } } }} />",
+      "          <FechaInput label=\"Fecha final\" value={fechaFin} onChange={(value) => setFechaFin((value ?? ''))} slotProps={{ textField: { size: 'small', sx: { width: 155 } } }} />"
+     ],
+     "original": [
+      "          <TextField",
+      "            label=\"Fecha inicial\"",
+      "            type=\"date\"",
+      "            size=\"small\"",
+      "            value={fechaInicio}",
+      "            onChange={(e) => setFechaInicio(e.target.value)}",
+      "            InputLabelProps={{ shrink: true }}",
+      "            sx={{ width: 155 }}",
+      "          />",
+      "          <TextField",
+      "            label=\"Fecha final\"",
+      "            type=\"date\"",
+      "            size=\"small\"",
+      "            value={fechaFin}",
+      "            onChange={(e) => setFechaFin(e.target.value)}",
+      "            InputLabelProps={{ shrink: true }}",
+      "            sx={{ width: 155 }}",
+      "          />"
+     ]
+    }
+   ]
+  },
+  "pages/informes/finanzas/MovimientosNoConciliadosPage.tsx": {
+   "beforeSha256": "2e8b1159432d8bbab6d5034fe4a1e459f2875fd921376f8454c17f7687350b7a",
+   "migratedSha256": "74d9da3358bad54f372c0199ae74e1d4268b16ff222b83421c52686935fd8d0a",
+   "hunks": [
+    {
+     "at": 36,
+     "migrated": [
+      "import { FechaInput } from '../../../shared/dates/DateFields';"
+     ],
+     "original": []
+    },
+    {
+     "at": 358,
+     "migrated": [
+      "          <FechaInput label=\"Desde\" value={fechaInicio} onChange={(value) => setFechaInicio((value ?? ''))} slotProps={{ textField: { size: 'small', sx: { width: 150 } } }} />",
+      "          <FechaInput label=\"Hasta\" value={fechaFin} onChange={(value) => setFechaFin((value ?? ''))} slotProps={{ textField: { size: 'small', sx: { width: 150 } } }} />"
+     ],
+     "original": [
+      "          <TextField",
+      "            label=\"Desde\"",
+      "            type=\"date\"",
+      "            size=\"small\"",
+      "            value={fechaInicio}",
+      "            onChange={(e) => setFechaInicio(e.target.value)}",
+      "            InputLabelProps={{ shrink: true }}",
+      "            sx={{ width: 150 }}",
+      "          />",
+      "          <TextField",
+      "            label=\"Hasta\"",
+      "            type=\"date\"",
+      "            size=\"small\"",
+      "            value={fechaFin}",
+      "            onChange={(e) => setFechaFin(e.target.value)}",
+      "            InputLabelProps={{ shrink: true }}",
+      "            sx={{ width: 150 }}",
+      "          />"
+     ]
+    }
+   ]
+  },
+  "pages/informes/finanzas/VencimientosClientesPage.tsx": {
+   "beforeSha256": "943312a0f778573926332cdbfe49c985e7d302d7d8f5780df76b40f0a3ac38b2",
+   "migratedSha256": "604ac8de05a89a4b4e0710634133b1ef1003473743d884ed9fc6a911be0aea07",
+   "hunks": [
+    {
+     "at": 37,
+     "migrated": [
+      "import { FechaInput } from '../../../shared/dates/DateFields';"
+     ],
+     "original": []
+    },
+    {
+     "at": 244,
+     "migrated": [
+      "          <FechaInput label=\"Fecha de corte\" value={fechaCorte} onChange={(value) => setFechaCorte((value ?? ''))} slotProps={{ textField: { size: 'small', sx: { width: 155 } } }} />"
+     ],
+     "original": [
+      "          <TextField",
+      "            label=\"Fecha de corte\"",
+      "            type=\"date\"",
+      "            size=\"small\"",
+      "            value={fechaCorte}",
+      "            onChange={(e) => setFechaCorte(e.target.value)}",
+      "            InputLabelProps={{ shrink: true }}",
+      "            sx={{ width: 155 }}",
+      "          />"
+     ]
+    }
+   ]
+  },
+  "pages/informes/finanzas/VencimientosProveedoresPage.tsx": {
+   "beforeSha256": "3a84f03a8296ddb7bd70b54f0351f9cbd151557cb8cbb8c63f9e49d976eb238f",
+   "migratedSha256": "44c830816abc41b8a7e8507ed254889150346941aec411ef238d4b403b9eede9",
+   "hunks": [
+    {
+     "at": 41,
+     "migrated": [
+      "import { FechaInput } from '../../../shared/dates/DateFields';"
+     ],
+     "original": []
+    },
+    {
+     "at": 312,
+     "migrated": [
+      "          <FechaInput label=\"Fecha de corte\" value={fechaCorte} onChange={(value) => setFechaCorte((value ?? ''))} slotProps={{ textField: { size: 'small', sx: { width: 155 } } }} />"
+     ],
+     "original": [
+      "          <TextField",
+      "            label=\"Fecha de corte\"",
+      "            type=\"date\"",
+      "            size=\"small\"",
+      "            value={fechaCorte}",
+      "            onChange={(e) => setFechaCorte(e.target.value)}",
+      "            InputLabelProps={{ shrink: true }}",
+      "            sx={{ width: 155 }}",
+      "          />"
+     ]
+    }
+   ]
+  },
+  "pages/informes/inventario/KardexProductoPage.tsx": {
+   "beforeSha256": "838dcc1128d037b1acbac2fe5a26595047d94ebbace70041cacd63526272ad15",
+   "migratedSha256": "86e6cba8e7def5019852fd5e9935f67dea573c54810f06af1f47eecb9bd2632f",
+   "hunks": [
+    {
+     "at": 34,
+     "migrated": [
+      "import { FechaInput } from '../../../shared/dates/DateFields';"
+     ],
+     "original": []
+    },
+    {
+     "at": 209,
+     "migrated": [
+      "          <FechaInput label=\"Fecha inicial\" value={fechaInicio} onChange={(value) => setFechaInicio((value ?? ''))} slotProps={{ textField: { size: 'small', sx: { width: 155 } } }} />",
+      "          <FechaInput label=\"Fecha final\" value={fechaFin} onChange={(value) => setFechaFin((value ?? ''))} slotProps={{ textField: { size: 'small', sx: { width: 155 } } }} />"
+     ],
+     "original": [
+      "          <TextField label=\"Fecha inicial\" type=\"date\" size=\"small\" value={fechaInicio}",
+      "            onChange={(e) => setFechaInicio(e.target.value)} InputLabelProps={{ shrink: true }} sx={{ width: 155 }} />",
+      "          <TextField label=\"Fecha final\" type=\"date\" size=\"small\" value={fechaFin}",
+      "            onChange={(e) => setFechaFin(e.target.value)} InputLabelProps={{ shrink: true }} sx={{ width: 155 }} />"
+     ]
+    }
+   ]
+  },
+  "pages/informes/inventario/MovimientosInventarioPage.tsx": {
+   "beforeSha256": "a7ecd30db81e8b4f1a885761675b18c8657d084e5a70630b6b920c1fb6e009d8",
+   "migratedSha256": "629747af67b7bdf1414faa157202f2e0f9520b93723e7f316dea1d248acfc04f",
+   "hunks": [
+    {
+     "at": 39,
+     "migrated": [
+      "import { FechaInput } from '../../../shared/dates/DateFields';"
+     ],
+     "original": []
+    },
+    {
+     "at": 260,
+     "migrated": [
+      "          <FechaInput label=\"Fecha inicial\" value={fechaInicio} onChange={(value) => setFechaInicio((value ?? ''))} slotProps={{ textField: { size: 'small', sx: { width: 155 } } }} />",
+      "          <FechaInput label=\"Fecha final\" value={fechaFin} onChange={(value) => setFechaFin((value ?? ''))} slotProps={{ textField: { size: 'small', sx: { width: 155 } } }} />"
+     ],
+     "original": [
+      "          <TextField label=\"Fecha inicial\" type=\"date\" size=\"small\" value={fechaInicio}",
+      "            onChange={(e) => setFechaInicio(e.target.value)} InputLabelProps={{ shrink: true }} sx={{ width: 155 }} />",
+      "          <TextField label=\"Fecha final\" type=\"date\" size=\"small\" value={fechaFin}",
+      "            onChange={(e) => setFechaFin(e.target.value)} InputLabelProps={{ shrink: true }} sx={{ width: 155 }} />"
+     ]
+    }
+   ]
+  },
+  "pages/informes/ventas/HistorialPreciosVentaPage.tsx": {
+   "beforeSha256": "75cb4e45a3c4aa98c021bdf6757f028a6240b77a443b32fc2b6e5bdca0faa7e1",
+   "migratedSha256": "d3761571304120b0f89c0a5b2248c7377054461a43d2dcd4e30a2d5f6d620746",
+   "hunks": [
+    {
+     "at": 38,
+     "migrated": [
+      "import { FechaInput } from '../../../shared/dates/DateFields';"
+     ],
+     "original": []
+    },
+    {
+     "at": 284,
+     "migrated": [
+      "          <FechaInput label=\"Fecha inicial\" value={fechaInicio} onChange={(value) => setFechaInicio((value ?? ''))} slotProps={{ textField: { size: 'small', sx: { width: 155 } } }} />",
+      "          <FechaInput label=\"Fecha final\" value={fechaFin} onChange={(value) => setFechaFin((value ?? ''))} slotProps={{ textField: { size: 'small', sx: { width: 155 } } }} />"
+     ],
+     "original": [
+      "          <TextField",
+      "            label=\"Fecha inicial\"",
+      "            type=\"date\"",
+      "            size=\"small\"",
+      "            value={fechaInicio}",
+      "            onChange={(e) => setFechaInicio(e.target.value)}",
+      "            InputLabelProps={{ shrink: true }}",
+      "            sx={{ width: 155 }}",
+      "          />",
+      "          <TextField",
+      "            label=\"Fecha final\"",
+      "            type=\"date\"",
+      "            size=\"small\"",
+      "            value={fechaFin}",
+      "            onChange={(e) => setFechaFin(e.target.value)}",
+      "            InputLabelProps={{ shrink: true }}",
+      "            sx={{ width: 155 }}",
+      "          />"
+     ]
+    }
+   ]
+  }
+ }
+}

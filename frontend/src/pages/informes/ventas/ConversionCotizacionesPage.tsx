@@ -9,6 +9,7 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import { useNavigate } from 'react-router-dom';
 import { fetchVendedores } from '../../../services/contactosService';
 import type { Contacto } from '../../../types/contactos.types';
+import { FechaInput } from '../../../shared/dates/DateFields';
 import {
   fetchConversionCotizaciones,
   type ConversionCotizacionesResult,
@@ -101,8 +102,8 @@ export default function ConversionCotizacionesPage() {
 
       <Box sx={{ position: 'relative', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1, p: 1.25, borderRadius: 2, border: `1px solid ${tokens.content.border}`, bgcolor: tokens.content.elevated, overflow: 'hidden' }}>
         {loading && <LinearProgress sx={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, bgcolor: tokens.metric.track, '& .MuiLinearProgress-bar': { bgcolor: tokens.action.info } }} />}
-        <TextField label="Fecha desde" type="date" size="small" value={fechaDesde} onChange={(e) => setFechaDesde(e.target.value)} slotProps={{ inputLabel: { shrink: true } }} sx={{ width: { xs: '100%', sm: 158 }, ...campoSx }} />
-        <TextField label="Fecha hasta" type="date" size="small" value={fechaHasta} onChange={(e) => setFechaHasta(e.target.value)} slotProps={{ inputLabel: { shrink: true } }} sx={{ width: { xs: '100%', sm: 158 }, ...campoSx }} />
+        <FechaInput label="Fecha desde" value={fechaDesde} onChange={(value) => setFechaDesde(value ?? '')} slotProps={{ textField: { size: 'small', sx: { width: { xs: '100%', sm: 158 }, ...campoSx } } }} />
+        <FechaInput label="Fecha hasta" value={fechaHasta} onChange={(value) => setFechaHasta(value ?? '')} slotProps={{ textField: { size: 'small', sx: { width: { xs: '100%', sm: 158 }, ...campoSx } } }} />
         <Autocomplete
           options={vendedores}
           value={vendedor}

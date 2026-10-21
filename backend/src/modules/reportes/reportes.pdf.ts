@@ -46,7 +46,7 @@ const fmt = (n: number) =>
 const fmtFecha = (iso: string): string => {
   if (!iso || iso.length < 10) return iso;
   const [yr, mo, da] = iso.slice(0, 10).split('-');
-  return `${da}-${mo}-${yr}`;
+  return `${da}/${mo}/${yr}`;
 };
 
 function fmtFolioInv(l: { doc_serie: string | null; doc_numero: number | null; doc_serie_externa: string | null; doc_numero_externo: number | null; doc_tipo: string | null }): string {

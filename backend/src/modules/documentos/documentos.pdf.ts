@@ -521,9 +521,13 @@ const formatCurrency = (value?: number | null) => {
 
 const formatDate = (value?: string | Date | null) => {
   if (!value) return '';
+  if (typeof value === 'string') {
+    const iso = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (iso) return `${iso[3]}/${iso[2]}/${iso[1]}`;
+  }
   const date = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(date.getTime())) return '';
-  return date.toLocaleDateString('es-MX');
+  return date.toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric' });
 };
 
 const formatEstatusDocumento = (value?: string | null): string => {

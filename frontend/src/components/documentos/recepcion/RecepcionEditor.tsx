@@ -29,6 +29,7 @@ import {
 } from '../../../services/documentosService';
 import type { CotizacionDocumento, CotizacionPartida, CotizacionPartidaPayload } from '../../../types/cotizacion';
 import { formatearFolioDocumento } from '../../../utils/documentos.utils';
+import { FechaInput } from '../../../shared/dates/DateFields';
 
 type DocumentoRecepcion = CotizacionDocumento & { cliente_nombre?: string | null };
 
@@ -325,16 +326,7 @@ export default function RecepcionEditor({ documentoId, onClose, onSaved }: Recep
               <TextField {...campoSoloLectura} label="Folio" value={folio} />
               <TextField {...campoSoloLectura} label="Orden de compra origen" value={folioOrigen || 'Sin orden de compra'} />
               <TextField {...campoSoloLectura} label="Proveedor" value={proveedor} />
-              <TextField
-                size="small"
-                fullWidth
-                label="Fecha"
-                type="date"
-                value={fecha}
-                disabled={!listo || !borrador || guardando}
-                onChange={(event) => setFecha(event.target.value)}
-                InputLabelProps={{ shrink: true }}
-              />
+              <FechaInput label="Fecha" value={fecha} onChange={(value) => setFecha((value ?? ''))} disabled={!listo || !borrador || guardando} slotProps={{ textField: { size: 'small', fullWidth: true } }} />
             </Box>
             <TextField
               size="small"
