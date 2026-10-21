@@ -646,6 +646,68 @@ function useLongPress(onLongPress: () => void, delay = 550, moveTolerance = 10):
   return { onPointerDown, onPointerMove, onPointerUp, onPointerCancel, onPointerLeave, onClickCapture, onContextMenu };
 }
 
+type ChatImageViewerProps = {
+  open: boolean;
+  src: string;
+  onClose: () => void;
+};
+
+// Visor de imagen a pantalla completa dentro de la app. Antes la imagen era un
+// <a target="_blank"> al archivo crudo: en la PWA instalada (standalone, sin
+// barra del navegador) eso dejaba al usuario en la imagen sin forma de volver.
+// Al ser un Dialog sobre la conversación, ésta sigue montada y conserva
+// mensajes, scroll y borrador al cerrar.
+function ChatImageViewer({ open, src, onClose }: ChatImageViewerProps) {
+  return (
+    <Dialog
+      open={open}
+      onClose={onClose}
+      fullScreen
+      aria-label="Imagen ampliada"
+      slotProps={{ paper: { sx: { bgcolor: 'common.black', backgroundImage: 'none' } } }}
+    >
+      <IconButton
+        onClick={onClose}
+        aria-label="Cerrar imagen"
+        sx={{
+          position: 'fixed',
+          top: 'calc(8px + env(safe-area-inset-top, 0px))',
+          right: 'calc(8px + env(safe-area-inset-right, 0px))',
+          zIndex: 1,
+          width: 44,
+          height: 44,
+          color: 'common.white',
+          bgcolor: 'rgba(0, 0, 0, 0.55)',
+          '&:hover': { bgcolor: 'rgba(0, 0, 0, 0.75)' },
+        }}
+      >
+        <CloseIcon />
+      </IconButton>
+      <Box
+        onClick={onClose}
+        sx={{
+          flex: 1,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          minHeight: 0,
+          pt: 'env(safe-area-inset-top, 0px)',
+          pb: 'env(safe-area-inset-bottom, 0px)',
+          px: 'env(safe-area-inset-left, 0px)',
+        }}
+      >
+        <Box
+          component="img"
+          src={src}
+          alt="Imagen ampliada"
+          onClick={(event) => event.stopPropagation()}
+          sx={{ display: 'block', maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
+        />
+      </Box>
+    </Dialog>
+  );
+}
+
 type MessageBubbleProps = {
   msg: MobileMessage;
   contactName: string;
@@ -671,9 +733,19 @@ function MessageBubble({
   }, [msg.id, onInitialMediaReady]);
   const longPress = useLongPress(React.useCallback(() => onLongPressMessage(msg), [msg, onLongPressMessage]));
   const isHighlighted = highlightedMessageId === msg.id;
+  const [imageViewerOpen, setImageViewerOpen] = React.useState(false);
 
   return (
     <Box sx={{ display: 'flex', justifyContent: isMine ? 'flex-end' : 'flex-start' }}>
+      {msg.tipoContenido === 'image' && msg.mediaUrl && (
+        // Hermano de la burbuja (no hijo) para que los eventos del portal no
+        // lleguen a los handlers de pulsación prolongada de la burbuja.
+        <ChatImageViewer
+          open={imageViewerOpen}
+          src={msg.mediaUrl}
+          onClose={() => setImageViewerOpen(false)}
+        />
+      )}
       <Box
         {...longPress}
         data-message-id={msg.id}
@@ -748,7 +820,19 @@ function MessageBubble({
           </Box>
         )}
         {msg.tipoContenido === 'image' && msg.mediaUrl && (
-          <Box component="a" href={msg.mediaUrl} target="_blank" rel="noopener noreferrer" sx={{ display: 'block' }}>
+          <Box
+            role="button"
+            tabIndex={0}
+            aria-label="Ver imagen ampliada"
+            onClick={() => setImageViewerOpen(true)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                setImageViewerOpen(true);
+              }
+            }}
+            sx={{ display: 'block', cursor: 'zoom-in' }}
+          >
             <ChatImage
               src={msg.mediaUrl}
               alt="Imagen enviada"
