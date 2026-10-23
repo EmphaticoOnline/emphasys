@@ -344,7 +344,7 @@ export const obtenerMensajeParaReenvio = async (
         COALESCE(tipo_contenido, 'text') AS tipo_contenido,
         contenido,
         caption,
-        media_url
+        COALESCE(media_url, NULLIF(contenido, '')) AS media_url
       FROM crm.mensajes
       WHERE id = $1
         AND empresa_id = $2
@@ -611,6 +611,7 @@ export const registrarMensajeImagenSalienteWhatsapp = async (
         tipo_contenido,
         caption,
         contenido,
+        media_url,
         fecha_envio,
         id_externo,
         status,
@@ -622,7 +623,7 @@ export const registrarMensajeImagenSalienteWhatsapp = async (
         origen_envio,
         creado_en
       )
-      VALUES ($1,$2,(SELECT c.contacto_id FROM crm.conversaciones c WHERE c.id=$2 AND c.empresa_id=$1),$3,$4,$5,$6,$7,$8,NOW(),$9,$10,$11,$12::jsonb,$13,$14,$15,$16,NOW())
+      VALUES ($1,$2,(SELECT c.contacto_id FROM crm.conversaciones c WHERE c.id=$2 AND c.empresa_id=$1),$3,$4,$5,$6,$7,$8,$8,NOW(),$9,$10,$11,$12::jsonb,$13,$14,$15,$16,NOW())
       `,
     [
       empresaId,
@@ -654,11 +655,11 @@ export const registrarMensajeVideoSalienteWhatsapp = async (
   await pool.query(
     `INSERT INTO crm.mensajes (
        empresa_id, conversacion_id, contacto_id, telefono, tipo_mensaje, canal, tipo_contenido,
-       caption, contenido, fecha_envio, id_externo, status, mensaje_respuesta_id,
+       media_url, caption, contenido, fecha_envio, id_externo, status, mensaje_respuesta_id,
        autor_usuario_id, autor_vendedor_contacto_id, responsabilidad_contacto_id,
        origen_envio, creado_en
      ) VALUES (
-       $1,$2,(SELECT c.contacto_id FROM crm.conversaciones c WHERE c.id=$2 AND c.empresa_id=$1),$3,'saliente','whatsapp','video',$4,$5,NOW(),$6,'sent',$7,$8,$9,$10,$11,NOW()
+       $1,$2,(SELECT c.contacto_id FROM crm.conversaciones c WHERE c.id=$2 AND c.empresa_id=$1),$3,'saliente','whatsapp','video',$5,$4,$5,NOW(),$6,'sent',$7,$8,$9,$10,$11,NOW()
      )`,
     [
       empresaId, conversacionId, telefono, caption, mediaUrl, externalId,
@@ -693,6 +694,7 @@ export const registrarMensajeDocumentoSalienteWhatsapp = async (
         tipo_contenido,
         caption,
         contenido,
+        media_url,
         fecha_envio,
         id_externo,
         status,
@@ -704,7 +706,7 @@ export const registrarMensajeDocumentoSalienteWhatsapp = async (
         origen_envio,
         creado_en
       )
-      VALUES ($1,$2,(SELECT c.contacto_id FROM crm.conversaciones c WHERE c.id=$2 AND c.empresa_id=$1),$3,$4,$5,$6,$7,$8,NOW(),$9,$10,$11,$12::jsonb,$13,$14,$15,$16,NOW())
+      VALUES ($1,$2,(SELECT c.contacto_id FROM crm.conversaciones c WHERE c.id=$2 AND c.empresa_id=$1),$3,$4,$5,$6,$7,$8,$8,NOW(),$9,$10,$11,$12::jsonb,$13,$14,$15,$16,NOW())
       `,
     [
       empresaId,
@@ -750,6 +752,7 @@ export const registrarMensajeAudioSalienteWhatsapp = async (
         canal,
         tipo_contenido,
         contenido,
+        media_url,
         fecha_envio,
         id_externo,
         status,
@@ -761,7 +764,7 @@ export const registrarMensajeAudioSalienteWhatsapp = async (
         origen_envio,
         creado_en
       )
-      VALUES ($1,$2,(SELECT c.contacto_id FROM crm.conversaciones c WHERE c.id=$2 AND c.empresa_id=$1),$3,$4,$5,$6,$7,NOW(),$8,$9,$10,$11::jsonb,$12,$13,$14,$15,NOW())
+      VALUES ($1,$2,(SELECT c.contacto_id FROM crm.conversaciones c WHERE c.id=$2 AND c.empresa_id=$1),$3,$4,$5,$6,$7,$7,NOW(),$8,$9,$10,$11::jsonb,$12,$13,$14,$15,NOW())
       `,
     [
       empresaId,

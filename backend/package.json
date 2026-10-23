@@ -35,7 +35,8 @@
     "test:factura-venta-estandar-transicion": "ts-node src/scripts/testFacturaVentaEstandarTransicion.ts",
     "test:trazabilidad-partidas": "ts-node src/scripts/testTrazabilidadPartidas.ts",
     "test:identidad-visual": "for f in test/identidadVisual.test.ts test/analisisLogo.test.ts test/analisisLogoServicio.test.ts; do ts-node --compiler-options '{\"rootDir\":\".\"}' $f || exit 1; done",
-    "test:conversaciones-lectura": "ts-node --compiler-options '{\"rootDir\":\".\"}' test/conversacionesLectura.test.ts"
+    "test:conversaciones-lectura": "ts-node --compiler-options '{\"rootDir\":\".\"}' test/conversacionesLectura.test.ts",
+    "test:reenvio-multimedia": "ts-node --compiler-options '{\"rootDir\":\".\"}' test/reenvioMultimedia.test.ts"
   },
   "keywords": [],
   "author": "",
