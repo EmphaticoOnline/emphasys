@@ -7,6 +7,7 @@ import type { RolIdentidad } from './contraste';
  */
 
 export type OrigenColor = 'emphasys' | 'analisis' | 'manual';
+export type ModoIdentidad = 'emphasys' | 'personalizado';
 type PorRol<T> = Record<RolIdentidad, T>;
 
 export type ColoresVigentes = {
@@ -14,10 +15,12 @@ export type ColoresVigentes = {
   origen: PorRol<OrigenColor>;
   /** Propuesta del último análisis con estado 'ok'; null si no hay. */
   propuesta: PorRol<string> | null;
+  superficieSecundaria?: string | null;
+  modo?: ModoIdentidad;
 };
 
 export type ResultadoCambios =
-  | { ok: true; colores: PorRol<string | null>; origen: PorRol<OrigenColor>; cambiados: RolIdentidad[] }
+  | { ok: true; colores: PorRol<string | null>; origen: PorRol<OrigenColor>; superficieSecundaria: string | null; modo: ModoIdentidad; cambiados: RolIdentidad[] }
   | { ok: false; conflictos: RolIdentidad[] };
 
 /** Sin fila: todo es Emphasys. */
@@ -25,6 +28,8 @@ export const VIGENTES_EMPHASYS: ColoresVigentes = {
   colores: { primario: null, acento: null, sidebar: null },
   origen: { primario: 'emphasys', acento: 'emphasys', sidebar: 'emphasys' },
   propuesta: null,
+  superficieSecundaria: null,
+  modo: 'emphasys',
 };
 
 /**
@@ -41,6 +46,8 @@ export function aplicarCambios(
   vigentes: ColoresVigentes,
   cambios: Partial<PorRol<string | null>>,
   confirmarSobrescritura: boolean,
+  superficieSecundaria: string | null | undefined = undefined,
+  modo: ModoIdentidad | undefined = undefined,
 ): ResultadoCambios {
   const colores = { ...vigentes.colores };
   const origen = { ...vigentes.origen };
@@ -59,5 +66,12 @@ export function aplicarCambios(
     cambiados.push(rol);
   }
 
-  return conflictos.length ? { ok: false, conflictos } : { ok: true, colores, origen, cambiados };
+  return conflictos.length ? { ok: false, conflictos } : {
+    ok: true,
+    colores,
+    origen,
+    superficieSecundaria: superficieSecundaria === undefined ? (vigentes.superficieSecundaria ?? null) : superficieSecundaria,
+    modo: modo ?? vigentes.modo ?? 'emphasys',
+    cambiados,
+  };
 }

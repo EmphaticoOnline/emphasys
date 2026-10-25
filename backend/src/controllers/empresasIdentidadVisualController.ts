@@ -9,10 +9,13 @@ import {
 } from "../services/empresasIdentidadVisualService";
 import {
   normalizarHex,
+  FONDOS_REFERENCIA,
+  razonContraste,
   ROLES_IDENTIDAD,
   validarContraste,
   type RolIdentidad,
 } from "../shared/identidadVisual/contraste";
+import type { ModoIdentidad } from "../shared/identidadVisual/cambios";
 
 function leerEmpresaId(req: Request): number | null {
   const empresaId = Number(req.params.empresa_id);
@@ -20,12 +23,12 @@ function leerEmpresaId(req: Request): number | null {
 }
 
 type CuerpoValidado =
-  | { ok: true; cambios: Partial<Record<RolIdentidad, string | null>>; confirmarSobrescritura: boolean }
+  | { ok: true; cambios: Partial<Record<RolIdentidad, string | null>>; superficieSecundaria?: string | null; modo?: ModoIdentidad; confirmarSobrescritura: boolean }
   | { ok: false; message: string };
 
 /** Valida el cuerpo del PUT: `{ colores: { primario?, acento?, sidebar? }, confirmarSobrescritura? }`. */
 export function validarCuerpoIdentidad(body: unknown): CuerpoValidado {
-  const datos = (body ?? {}) as { colores?: unknown; confirmarSobrescritura?: unknown };
+  const datos = (body ?? {}) as { colores?: unknown; superficie_secundaria?: unknown; modo?: unknown; confirmarSobrescritura?: unknown };
   const colores = datos.colores;
   if (!colores || typeof colores !== "object" || Array.isArray(colores)) {
     return { ok: false, message: "El campo 'colores' es requerido y debe ser un objeto" };
@@ -35,7 +38,7 @@ export function validarCuerpoIdentidad(body: unknown): CuerpoValidado {
   if (desconocidas.length) {
     return { ok: false, message: `Colores no reconocidos: ${desconocidas.join(", ")}` };
   }
-  if (!claves.length) {
+  if (!claves.length && datos.superficie_secundaria === undefined && datos.modo === undefined) {
     return { ok: false, message: "Indica al menos un color: primario, acento o sidebar" };
   }
   if (datos.confirmarSobrescritura !== undefined && typeof datos.confirmarSobrescritura !== "boolean") {
@@ -53,7 +56,18 @@ export function validarCuerpoIdentidad(body: unknown): CuerpoValidado {
     if (!hex) return { ok: false, message: `Color ${rol} inválido: usa el formato #RRGGBB` };
     cambios[rol] = hex;
   }
-  return { ok: true, cambios, confirmarSobrescritura: datos.confirmarSobrescritura === true };
+  let superficieSecundaria: string | null | undefined;
+  if (datos.superficie_secundaria !== undefined) {
+    if (datos.superficie_secundaria === null) superficieSecundaria = null;
+    else {
+      superficieSecundaria = normalizarHex(datos.superficie_secundaria);
+      if (!superficieSecundaria) return { ok: false, message: "Color superficie_secundaria inválido: usa el formato #RRGGBB" };
+      if (razonContraste(superficieSecundaria, FONDOS_REFERENCIA.beige) < 4.5) return { ok: false, message: "Superficie secundaria sin contraste suficiente sobre beige" };
+    }
+  }
+  const modo = datos.modo === undefined ? undefined : datos.modo === 'emphasys' || datos.modo === 'personalizado' ? datos.modo : null;
+  if (datos.modo !== undefined && modo === null) return { ok: false, message: "Modo inválido" };
+  return { ok: true, cambios, superficieSecundaria, modo: modo ?? undefined, confirmarSobrescritura: datos.confirmarSobrescritura === true };
 }
 
 export async function obtenerIdentidadVisualController(req: Request, res: Response) {
@@ -130,7 +144,9 @@ export async function actualizarIdentidadVisualController(req: Request, res: Res
       empresaId,
       cuerpo.cambios,
       cuerpo.confirmarSobrescritura,
-      auth.userId
+      auth.userId,
+      cuerpo.superficieSecundaria,
+      cuerpo.modo
     );
     if (!resultado.ok) {
       return res.status(409).json({

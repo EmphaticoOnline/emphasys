@@ -1,5 +1,5 @@
 import { apiFetch, type ApiFetchError } from "./apiFetch";
-import type { ColoresEmpresa } from "../theme/brand/empresaBrand";
+import type { ColoresEmpresa, ModoIdentidad } from "../theme/brand/empresaBrand";
 
 export type RolIdentidad = keyof ColoresEmpresa;
 export type OrigenColor = "emphasys" | "analisis" | "manual";
@@ -7,7 +7,9 @@ export type OrigenColor = "emphasys" | "analisis" | "manual";
 /** Respuesta de GET/PUT/POST analizar de /api/empresas/:id/identidad-visual. */
 export type IdentidadVisualEmpresa = {
   empresa_id: number;
-  colores: ColoresEmpresa;
+  colores: Omit<ColoresEmpresa, 'superficie_secundaria'> & { superficie_secundaria?: string | null };
+  modo?: ModoIdentidad;
+  superficie_secundaria?: string | null;
   origen?: Record<RolIdentidad, OrigenColor>;
   propuesta?: {
     estado: "ok" | "sin_colores_utiles" | "error";
@@ -30,7 +32,7 @@ export type ResultadoGuardarIdentidad =
 
 /** Evento para que la app aplique enseguida los colores recién guardados. */
 export const EVENTO_IDENTIDAD_ACTUALIZADA = "emphasys:identidad-visual-actualizada";
-export type DetalleIdentidadActualizada = { empresaId: number; colores: ColoresEmpresa };
+export type DetalleIdentidadActualizada = { empresaId: number; colores: ColoresEmpresa; modo: ModoIdentidad };
 
 export async function fetchIdentidadVisual(empresaId: number): Promise<IdentidadVisualEmpresa> {
   return apiFetch<IdentidadVisualEmpresa>(`/api/empresas/${empresaId}/identidad-visual`);
@@ -40,15 +42,17 @@ export async function fetchIdentidadVisual(empresaId: number): Promise<Identidad
 export async function guardarIdentidadVisual(
   empresaId: number,
   colores: Partial<ColoresEmpresa>,
-  confirmarSobrescritura: boolean
+  confirmarSobrescritura: boolean,
+  modo: ModoIdentidad = 'personalizado'
 ): Promise<ResultadoGuardarIdentidad> {
   try {
+    const { superficie_secundaria, ...roles } = colores;
     const identidad = await apiFetch<IdentidadVisualEmpresa>(`/api/empresas/${empresaId}/identidad-visual`, {
       method: "PUT",
-      body: { colores, confirmarSobrescritura },
+      body: { colores: roles, superficie_secundaria, modo, confirmarSobrescritura },
     });
     window.dispatchEvent(
-      new CustomEvent<DetalleIdentidadActualizada>(EVENTO_IDENTIDAD_ACTUALIZADA, { detail: { empresaId, colores: identidad.colores } })
+      new CustomEvent<DetalleIdentidadActualizada>(EVENTO_IDENTIDAD_ACTUALIZADA, { detail: { empresaId, colores: { ...identidad.colores, superficie_secundaria: identidad.superficie_secundaria ?? identidad.colores.superficie_secundaria ?? null }, modo: identidad.modo ?? modo } })
     );
     return { ok: true, identidad };
   } catch (error) {

@@ -42,7 +42,10 @@ import {
   SIN_COLORES,
   type Colores,
   type Origen,
+  ETIQUETA_SUPERFICIE,
+  SUPERFICIE_SECUNDARIA_EMPHASYS,
 } from './identidadVisualEdicion';
+import { emphasysBrand } from '../../theme/brand/emphasys';
 
 type RolIdentidad = (typeof ROLES)[number];
 
@@ -183,6 +186,16 @@ function FilaColor({
   );
 }
 
+function FilaSuperficie({ valor, editable, onCambiar }: { valor: string | null; editable: boolean; onCambiar: (valor: string | null) => void }) {
+  const [ancla, setAncla] = useState<HTMLElement | null>(null);
+  const efectivo = valor ?? SUPERFICIE_SECUNDARIA_EMPHASYS;
+  return <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} alignItems={{ sm: 'center' }} sx={{ py: 1 }}>
+    <Box sx={{ width: { sm: 170 }, flexShrink: 0 }}><Typography sx={{ fontWeight: 700, fontSize: 14 }}>{ETIQUETA_SUPERFICIE.titulo}</Typography><Typography variant="caption" color="text.secondary">{ETIQUETA_SUPERFICIE.uso}</Typography></Box>
+    <Stack direction="row" spacing={1} alignItems="center"><Box component="button" type="button" aria-label="Elegir color Superficie secundaria" disabled={!editable} onClick={(e: React.MouseEvent<HTMLElement>) => setAncla(e.currentTarget)} sx={(theme) => ({ ...muestraSx(efectivo)(theme), cursor: editable ? 'pointer' : 'default', p: 0 })} /><TextField size="small" value={valor ?? ''} placeholder="Emphasys" disabled={!editable} onChange={(e) => { const hex = leerHex(e.target.value.trim()); if (hex) onCambiar(hex); }} sx={{ width: 130 }} inputProps={{ 'aria-label': 'Hex Superficie secundaria', spellCheck: false }} /><Chip size="small" variant="outlined" label="Texto beige" />{editable && valor !== null && <Button size="small" sx={botonSecundarioSx} onClick={() => onCambiar(null)}>Emphasys</Button>}</Stack>
+    <Popover open={Boolean(ancla)} anchorEl={ancla} onClose={() => setAncla(null)} anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}><Box sx={{ p: 1.5 }}><HexColorPicker color={efectivo} onChange={(hex) => onCambiar(hex.toLowerCase())} /></Box></Popover>
+  </Stack>;
+}
+
 /**
  * Identidad visual de una empresa: análisis del logo, colores sugeridos,
  * edición manual, vista previa en ambos temas y guardado con confirmación.
@@ -194,6 +207,7 @@ export default function IdentidadVisualEmpresaSection({ empresaId, tieneLogo, lo
   const editable = Boolean(session.user?.es_superadmin);
   const [identidad, setIdentidad] = useState<IdentidadVisualEmpresa | null>(null);
   const [borrador, setBorrador] = useState<Colores>(SIN_COLORES);
+  const [modo, setModo] = useState<'emphasys' | 'personalizado'>('emphasys');
   const [cargando, setCargando] = useState(false);
   const [analizando, setAnalizando] = useState(false);
   const [guardando, setGuardando] = useState(false);
@@ -210,7 +224,10 @@ export default function IdentidadVisualEmpresaSection({ empresaId, tieneLogo, lo
 
   const aplicar = useCallback((datos: IdentidadVisualEmpresa) => {
     setIdentidad(datos);
-    setBorrador(datos.colores);
+    setBorrador((datos.modo ?? 'emphasys') === 'emphasys'
+      ? { primario: emphasysBrand.colors.blue.base, acento: emphasysBrand.colors.accent, sidebar: emphasysBrand.colors.graphite.chrome, superficie_secundaria: emphasysBrand.colors.graphite.raised }
+      : { ...datos.colores, superficie_secundaria: datos.superficie_secundaria ?? datos.colores.superficie_secundaria ?? null });
+    setModo(datos.modo ?? 'emphasys');
   }, []);
 
   const cargar = useCallback(async () => {
@@ -266,7 +283,7 @@ export default function IdentidadVisualEmpresaSection({ empresaId, tieneLogo, lo
     setGuardando(true);
     setError(null);
     try {
-      const r = await guardarIdentidadVisual(empresaId, cuerpoCambios(guardados, borrador), confirmarSobrescritura);
+      const r = await guardarIdentidadVisual(empresaId, { ...cuerpoCambios(guardados, borrador), superficie_secundaria: borrador.superficie_secundaria }, confirmarSobrescritura, modo);
       if (!r.ok) {
         setConfirmar({ conflictos: r.conflictos });
         return;
@@ -281,7 +298,7 @@ export default function IdentidadVisualEmpresaSection({ empresaId, tieneLogo, lo
     }
   };
 
-  const marcaPrevia = useMemo(() => getEmpresaBrand(borrador), [borrador]);
+  const marcaPrevia = useMemo(() => getEmpresaBrand(borrador, undefined, modo), [borrador, modo]);
   const temasPrevios = useMemo(
     () => (['classic', 'experimental'] as ThemeId[]).map((id) => ({ id, tema: getThemeById(id, marcaPrevia) })),
     [marcaPrevia]
@@ -309,6 +326,7 @@ export default function IdentidadVisualEmpresaSection({ empresaId, tieneLogo, lo
         {!editable && <Alert severity="info">Solo un superadministrador puede modificar la identidad visual.</Alert>}
 
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} alignItems={{ sm: 'center' }}>
+          <Button variant={modo === 'emphasys' ? 'contained' : 'outlined'} sx={botonPrimarioSx} disabled={!editable} onClick={() => { setModo('emphasys'); setBorrador({ primario: emphasysBrand.colors.blue.base, acento: emphasysBrand.colors.accent, sidebar: emphasysBrand.colors.graphite.chrome, superficie_secundaria: emphasysBrand.colors.graphite.raised }); }}>Emphasys original</Button>
           <Button variant="outlined" sx={botonSecundarioSx} onClick={analizar} disabled={!editable || !tieneLogo || analizando}>
             {analizando ? 'Analizando…' : 'Analizar logo'}
           </Button>
@@ -356,9 +374,10 @@ export default function IdentidadVisualEmpresaSection({ empresaId, tieneLogo, lo
                 origenGuardado={origen[rol]}
                 propuesta={propuesta?.estado === 'ok' ? propuesta[rol] : null}
                 editable={editable}
-                onCambiar={(valor) => setBorrador((previo) => ({ ...previo, [rol]: valor }))}
+                onCambiar={(valor) => { setModo('personalizado'); setBorrador((previo) => ({ ...previo, [rol]: valor })); }}
               />
             ))}
+            <FilaSuperficie valor={borrador.superficie_secundaria} editable={editable} onCambiar={(valor) => { setModo('personalizado'); setBorrador((previo) => ({ ...previo, superficie_secundaria: valor })); }} />
           </Box>
         )}
 

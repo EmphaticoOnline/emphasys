@@ -36,7 +36,7 @@ function responder(sql: string, params: unknown[] = []) {
     return { rows: fila ? [fila] : [] };
   }
   if (texto.includes("INSERT INTO core.empresas_identidad_visual")) {
-    const [empresaId, primario, acento, sidebar, oPrimario, oAcento, oSidebar, usuario] = params;
+    const [empresaId, primario, acento, sidebar, superficie, modo, oPrimario, oAcento, oSidebar, usuario] = params;
     const previa = estado.identidad[empresaId as number] ?? {};
     const fila = {
       ...filaVacia(empresaId as number),
@@ -44,6 +44,8 @@ function responder(sql: string, params: unknown[] = []) {
       color_primario: primario,
       color_acento: acento,
       color_sidebar: sidebar,
+      color_superficie_secundaria: superficie,
+      modo,
       origen_primario: oPrimario,
       origen_acento: oAcento,
       origen_sidebar: oSidebar,
@@ -85,6 +87,8 @@ function filaVacia(empresaId: number): Record<string, unknown> {
     color_primario: null,
     color_acento: null,
     color_sidebar: null,
+    color_superficie_secundaria: null,
+    modo: "emphasys",
     origen_primario: "emphasys",
     origen_acento: "emphasys",
     origen_sidebar: "emphasys",
@@ -321,7 +325,7 @@ test("PUT: guarda normalizado, con origen del servidor, usuario y transacción",
   assert.match(sqls[inicio + 1]!, /FOR UPDATE$/);
   assert.match(sqls[inicio + 2]!, /^INSERT INTO core\.empresas_identidad_visual .* ON CONFLICT \(empresa_id\) DO UPDATE .* updated_at = now\(\)/);
   assert.equal(sqls[inicio + 3], "COMMIT");
-  assert.deepEqual(escrituras()[0]!.params, [3, "#7a1f2b", null, "#2a1d22", "manual", "emphasys", "analisis", 1]);
+  assert.deepEqual(escrituras()[0]!.params, [3, "#7a1f2b", null, "#2a1d22", null, "emphasys", "manual", "emphasys", "analisis", 1]);
   // Lo que escribe (antes de RETURNING) no toca la propuesta; RETURNING sí la lee.
   assert.doesNotMatch(sqls[inicio + 2]!.split(" RETURNING ")[0]!, /propuesta_/, "el PUT no escribe la propuesta");
 });

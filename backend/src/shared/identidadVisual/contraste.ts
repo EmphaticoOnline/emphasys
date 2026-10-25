@@ -18,6 +18,8 @@ export const IDENTIDAD_EMPHASYS: Readonly<Record<RolIdentidad, string>> = {
   sidebar: '#2c3344',
 };
 
+export const SUPERFICIE_SECUNDARIA_EMPHASYS = '#3c4149';
+
 /**
  * Colores fijos contra los que se mide cada rol. `marfil` y `beige` son
  * ivory.surface y beige.base de Emphasys (la prueba del frontend lo verifica).

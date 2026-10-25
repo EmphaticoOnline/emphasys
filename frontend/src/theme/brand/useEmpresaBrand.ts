@@ -25,7 +25,7 @@ export function useEmpresaBrand(): BrandDefinition {
   const { session } = useSession();
   const { pathname } = useLocation();
   const empresaId = empresaParaMarca({ pathname, token: session.token, empresaActivaId: session.empresaActivaId });
-  const [confirmados, setConfirmados] = useState<Record<number, ColoresEmpresa>>({});
+  const [confirmados, setConfirmados] = useState<Record<number, { colores: ColoresEmpresa; modo: 'emphasys' | 'personalizado' }>>({});
 
   useEffect(() => {
     if (!session.token) return undefined;
@@ -36,10 +36,13 @@ export function useEmpresaBrand(): BrandDefinition {
     (async () => {
       for (const id of ids) {
         try {
-          const { colores } = await fetchIdentidadVisual(id);
+          const datos = await fetchIdentidadVisual(id);
+          const { colores } = datos;
           if (!vigente) return;
-          guardarColoresCache(id, colores);
-          setConfirmados((previos) => ({ ...previos, [id]: colores }));
+          const modo = datos.modo ?? 'emphasys';
+          const normalizados = { ...colores, superficie_secundaria: datos.superficie_secundaria ?? colores.superficie_secundaria ?? null };
+          guardarColoresCache(id, normalizados, modo);
+          setConfirmados((previos) => ({ ...previos, [id]: { colores: normalizados, modo } }));
         } catch {
           /* sin acceso o sin endpoint: se conserva la caché o Emphasys */
         }
@@ -54,16 +57,18 @@ export function useEmpresaBrand(): BrandDefinition {
   // Al guardar en la pantalla de identidad visual, la app aplica los colores sin recargar.
   useEffect(() => {
     const alGuardar = (evento: Event) => {
-      const { empresaId: id, colores } = (evento as CustomEvent<DetalleIdentidadActualizada>).detail;
-      guardarColoresCache(id, colores);
-      setConfirmados((previos) => ({ ...previos, [id]: colores }));
+      const { empresaId: id, colores, modo } = (evento as CustomEvent<DetalleIdentidadActualizada>).detail;
+      guardarColoresCache(id, colores, modo);
+      setConfirmados((previos) => ({ ...previos, [id]: { colores, modo } }));
     };
     window.addEventListener(EVENTO_IDENTIDAD_ACTUALIZADA, alGuardar);
     return () => window.removeEventListener(EVENTO_IDENTIDAD_ACTUALIZADA, alGuardar);
   }, []);
 
-  const colores = empresaId === null ? null : (confirmados[empresaId] ?? leerColoresCache(empresaId));
-  const clave = colores ? `${colores.primario}|${colores.acento}|${colores.sidebar}` : '';
+  const identidad = empresaId === null ? null : (confirmados[empresaId] ?? leerColoresCache(empresaId));
+  const colores = identidad?.colores ?? null;
+  const modo = identidad?.modo ?? 'emphasys';
+  const clave = colores ? `${modo}|${colores.primario}|${colores.acento}|${colores.sidebar}|${colores.superficie_secundaria}` : '';
   // getEmpresaBrand ya devuelve la misma instancia para los mismos colores.
-  return useMemo(() => getEmpresaBrand(colores), [empresaId, clave]); // eslint-disable-line react-hooks/exhaustive-deps
+  return useMemo(() => getEmpresaBrand(colores, undefined, modo), [empresaId, clave, modo]);
 }

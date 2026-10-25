@@ -8,22 +8,25 @@ import {
   type FondoReferencia,
   type RolIdentidad,
 } from '../../../../backend/src/shared/identidadVisual/contraste.ts';
+import { SUPERFICIE_SECUNDARIA_EMPHASYS } from '../../../../backend/src/shared/identidadVisual/contraste.ts';
+import type { ColoresEmpresa } from '../../theme/brand/empresaBrand';
 
 /**
  * Lógica de la pantalla de identidad visual (sin React): qué cambió, qué
  * colores manuales se sobrescribirían y cómo queda el contraste de cada rol.
  */
-export type Colores = Record<RolIdentidad, string | null>;
+export type Colores = ColoresEmpresa;
 export type Origen = Record<RolIdentidad, 'emphasys' | 'analisis' | 'manual'>;
 
 export const ROLES = ROLES_IDENTIDAD;
-export const SIN_COLORES: Colores = { primario: null, acento: null, sidebar: null };
+export const SIN_COLORES: Colores = { primario: null, acento: null, sidebar: null, superficie_secundaria: null };
 
 export const ETIQUETAS: Record<RolIdentidad, { titulo: string; uso: string }> = {
   primario: { titulo: 'Primario', uso: 'Botones principales, enlaces y títulos.' },
   acento: { titulo: 'Acento', uso: 'Indicadores y detalles sobre fondos claros.' },
   sidebar: { titulo: 'Sidebar', uso: 'Menú lateral y encabezados oscuros.' },
 };
+export const ETIQUETA_SUPERFICIE = { titulo: 'Superficie secundaria', uso: 'Rieles de Workspace, botones y encabezados elevados.' };
 
 export const ETIQUETA_FONDO: Record<FondoReferencia, string> = { blanco: 'blanco', marfil: 'marfil', beige: 'beige' };
 
@@ -61,3 +64,4 @@ export function cuerpoCambios(guardados: Colores, borrador: Colores): Partial<Co
 }
 
 export const describirColor = (valor: string | null) => valor ?? 'Emphasys';
+export { SUPERFICIE_SECUNDARIA_EMPHASYS };

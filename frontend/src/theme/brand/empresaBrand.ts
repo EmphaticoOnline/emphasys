@@ -4,6 +4,7 @@ import {
   type RolIdentidad,
 } from '../../../../backend/src/shared/identidadVisual/contraste.ts';
 import { activeBrand } from './active.ts';
+import { emphasysBrand } from './emphasys.ts';
 import type { BrandDefinition } from './types.ts';
 
 /**
@@ -18,7 +19,8 @@ import type { BrandDefinition } from './types.ts';
  * Un color en null conserva la familia de la base. Sin ningún color devuelve el
  * mismo objeto base, así que los temas de Emphasys se reutilizan sin cambios.
  */
-export type ColoresEmpresa = Record<RolIdentidad, string | null>;
+export type ColoresEmpresa = Record<RolIdentidad, string | null> & { superficie_secundaria: string | null };
+export type ModoIdentidad = 'emphasys' | 'personalizado';
 
 const cache = new Map<string, BrandDefinition>();
 
@@ -49,12 +51,13 @@ export function coloresValidos(colores: Partial<ColoresEmpresa> | null | undefin
     primario: hex(colores?.primario),
     acento: hex(colores?.acento),
     sidebar: hex(colores?.sidebar),
+    superficie_secundaria: hex(colores?.superficie_secundaria),
   };
   for (const { color } of validarContraste(limpios)) limpios[color] = null;
   return limpios;
 }
 
-function derivar(base: BrandDefinition, { primario, acento, sidebar }: ColoresEmpresa): BrandDefinition {
+function derivar(base: BrandDefinition, { primario, acento, sidebar, superficie_secundaria }: ColoresEmpresa): BrandDefinition {
   const { ivory, beige } = base.colors;
   const blue = primario
     ? {
@@ -64,18 +67,18 @@ function derivar(base: BrandDefinition, { primario, acento, sidebar }: ColoresEm
         wash: mezclar(primario, '#ffffff', 0.9),
       }
     : base.colors.blue;
-  const graphite = sidebar
+  const graphite = sidebar || superficie_secundaria
     ? {
-        chrome: sidebar,
+        chrome: sidebar ?? base.colors.graphite.chrome,
         // Botón primario y encabezados del experimental: texto beige encima.
-        raised: oscurecerHastaContraste(mezclar(sidebar, '#ffffff', 0.07), beige.base, 4.5),
-        deep: mezclar(sidebar, '#000000', 0.1),
+        raised: superficie_secundaria ?? (sidebar ? oscurecerHastaContraste(mezclar(sidebar, '#ffffff', 0.07), beige.base, 4.5) : base.colors.graphite.raised),
+        deep: sidebar ? mezclar(sidebar, '#000000', 0.1) : base.colors.graphite.deep,
         // Selección del menú: texto marfil encima.
-        selection: oscurecerHastaContraste(mezclar(sidebar, '#ffffff', 0.22), ivory.selected, 4.5),
+        selection: sidebar ? oscurecerHastaContraste(mezclar(sidebar, '#ffffff', 0.22), ivory.selected, 4.5) : base.colors.graphite.selection,
         itemForeground:
-          razonContraste(base.colors.graphite.itemForeground, sidebar) >= 4.5 ? base.colors.graphite.itemForeground : ivory.surface,
+          sidebar && razonContraste(base.colors.graphite.itemForeground, sidebar) < 4.5 ? ivory.surface : base.colors.graphite.itemForeground,
         // Acento claro dentro del sidebar (decisión E3: se deriva del sidebar).
-        accent: mezclar(ivory.surface, sidebar, 0.15),
+          accent: sidebar ? mezclar(ivory.surface, sidebar, 0.15) : base.colors.graphite.accent,
       }
     : base.colors.graphite;
   return {
@@ -86,10 +89,11 @@ function derivar(base: BrandDefinition, { primario, acento, sidebar }: ColoresEm
 }
 
 /** Marca para los colores de una empresa; misma instancia para los mismos colores. */
-export function getEmpresaBrand(colores: Partial<ColoresEmpresa> | null | undefined, base: BrandDefinition = activeBrand): BrandDefinition {
+export function getEmpresaBrand(colores: Partial<ColoresEmpresa> | null | undefined, base: BrandDefinition = activeBrand, modo: ModoIdentidad = 'personalizado'): BrandDefinition {
+  if (modo === 'emphasys') return emphasysBrand;
   const limpios = coloresValidos(colores);
-  if (!limpios.primario && !limpios.acento && !limpios.sidebar) return base;
-  const clave = `${base.id}|${limpios.primario}|${limpios.acento}|${limpios.sidebar}`;
+  if (!limpios.primario && !limpios.acento && !limpios.sidebar && !limpios.superficie_secundaria) return base;
+  const clave = `${base.id}|${limpios.primario}|${limpios.acento}|${limpios.sidebar}|${limpios.superficie_secundaria}`;
   let marca = cache.get(clave);
   if (!marca) {
     marca = derivar(base, limpios);

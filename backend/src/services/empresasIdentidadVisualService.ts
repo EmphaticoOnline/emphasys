@@ -3,6 +3,7 @@ import {
   aplicarCambios,
   VIGENTES_EMPHASYS,
   type ColoresVigentes,
+  type ModoIdentidad,
   type OrigenColor,
 } from "../shared/identidadVisual/cambios";
 import type { RolIdentidad } from "../shared/identidadVisual/contraste";
@@ -13,6 +14,8 @@ export type IdentidadVisualRow = {
   color_primario: string | null;
   color_acento: string | null;
   color_sidebar: string | null;
+  color_superficie_secundaria: string | null;
+  modo: ModoIdentidad;
   origen_primario: OrigenColor;
   origen_acento: OrigenColor;
   origen_sidebar: OrigenColor;
@@ -34,6 +37,8 @@ export type IdentidadVisualRow = {
 export type IdentidadVisualRespuesta = {
   empresa_id: number;
   colores: Record<RolIdentidad, string | null>;
+  superficie_secundaria?: string | null;
+  modo?: ModoIdentidad;
   origen: Record<RolIdentidad, OrigenColor>;
   propuesta: {
     estado: "ok" | "sin_colores_utiles" | "error";
@@ -55,7 +60,7 @@ export type ResultadoGuardar =
   | { ok: true; identidad: IdentidadVisualRow | null }
   | { ok: false; conflictos: RolIdentidad[] };
 
-const COLUMNAS = `empresa_id, color_primario, color_acento, color_sidebar,
+const COLUMNAS = `empresa_id, color_primario, color_acento, color_sidebar, color_superficie_secundaria, modo,
        origen_primario, origen_acento, origen_sidebar,
        propuesta_primario, propuesta_acento, propuesta_sidebar,
        propuesta_estado, propuesta_confianza, propuesta_detalle, propuesta_asset_id,
@@ -83,6 +88,8 @@ export function vigentesDeFila(row: IdentidadVisualRow | null): ColoresVigentes 
     colores: { primario: row.color_primario, acento: row.color_acento, sidebar: row.color_sidebar },
     origen: { primario: row.origen_primario, acento: row.origen_acento, sidebar: row.origen_sidebar },
     propuesta,
+    superficieSecundaria: row.color_superficie_secundaria ?? null,
+    modo: row.modo ?? (row.color_primario || row.color_acento || row.color_sidebar || row.color_superficie_secundaria ? 'personalizado' : 'emphasys'),
   };
 }
 
@@ -92,7 +99,7 @@ export function aRespuesta(
   row: IdentidadVisualRow | null,
   esSuperadmin: boolean
 ): IdentidadVisualRespuesta {
-  const { colores, origen } = vigentesDeFila(row);
+  const { colores, origen, superficieSecundaria, modo } = vigentesDeFila(row);
   const propuesta =
     row && row.propuesta_estado
       ? {
@@ -110,6 +117,8 @@ export function aRespuesta(
   return {
     empresa_id: empresaId,
     colores,
+    ...(row?.color_superficie_secundaria !== undefined ? { superficie_secundaria: superficieSecundaria ?? null } : {}),
+    ...(row?.modo !== undefined ? { modo: modo ?? 'emphasys' } : {}),
     origen,
     propuesta,
     updated_at: row?.updated_at ?? null,
@@ -127,7 +136,9 @@ export async function guardarColoresIdentidad(
   empresaId: number,
   cambios: Partial<Record<RolIdentidad, string | null>>,
   confirmarSobrescritura: boolean,
-  usuarioId: number
+  usuarioId: number,
+  superficieSecundaria?: string | null,
+  modo?: ModoIdentidad
 ): Promise<ResultadoGuardar> {
   const client = await pool.connect();
   try {
@@ -139,12 +150,12 @@ export async function guardarColoresIdentidad(
         FOR UPDATE`,
       [empresaId]
     );
-    const resultado = aplicarCambios(vigentesDeFila(rows[0] ?? null), cambios, confirmarSobrescritura);
+    const resultado = aplicarCambios(vigentesDeFila(rows[0] ?? null), cambios, confirmarSobrescritura, superficieSecundaria, modo);
     if (!resultado.ok) {
       await client.query("ROLLBACK");
       return { ok: false, conflictos: resultado.conflictos };
     }
-    if (resultado.cambiados.length === 0) {
+    if (resultado.cambiados.length === 0 && resultado.superficieSecundaria === (rows[0]?.color_superficie_secundaria ?? null) && resultado.modo === (rows[0]?.modo ?? 'emphasys')) {
       // Nada cambia: no se crea ni se toca la fila.
       await client.query("ROLLBACK");
       return { ok: true, identidad: rows[0] ?? null };
@@ -152,13 +163,15 @@ export async function guardarColoresIdentidad(
     const { colores, origen } = resultado;
     const guardado = await client.query<IdentidadVisualRow>(
       `INSERT INTO core.empresas_identidad_visual
-              (empresa_id, color_primario, color_acento, color_sidebar,
+              (empresa_id, color_primario, color_acento, color_sidebar, color_superficie_secundaria, modo,
                origen_primario, origen_acento, origen_sidebar, actualizado_por)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        ON CONFLICT (empresa_id) DO UPDATE
           SET color_primario  = EXCLUDED.color_primario,
               color_acento    = EXCLUDED.color_acento,
               color_sidebar   = EXCLUDED.color_sidebar,
+              color_superficie_secundaria = EXCLUDED.color_superficie_secundaria,
+              modo            = EXCLUDED.modo,
               origen_primario = EXCLUDED.origen_primario,
               origen_acento   = EXCLUDED.origen_acento,
               origen_sidebar  = EXCLUDED.origen_sidebar,
@@ -170,6 +183,8 @@ export async function guardarColoresIdentidad(
         colores.primario,
         colores.acento,
         colores.sidebar,
+        resultado.superficieSecundaria,
+        resultado.modo,
         origen.primario,
         origen.acento,
         origen.sidebar,
