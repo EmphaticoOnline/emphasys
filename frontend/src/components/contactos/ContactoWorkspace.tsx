@@ -1,8 +1,6 @@
 import * as React from 'react';
-import { useNavigate } from 'react-router-dom';
 import {
   Box,
-  Chip,
   CircularProgress,
   IconButton,
   Stack,
@@ -22,8 +20,9 @@ import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined';
 import UpdateOutlinedIcon from '@mui/icons-material/UpdateOutlined';
 import PersonOutlineOutlinedIcon from '@mui/icons-material/PersonOutlineOutlined';
 import { getContacto } from '../../services/contactos.api';
-import { getDocumentosPaginados } from '../../services/documentosService';
-import type { CotizacionListado } from '../../types/cotizacion';
+import { MOVIMIENTOS_CONTACTO } from '../documentos/movimientos/movimientosContacto.config';
+import { useMovimientosContacto } from '../documentos/movimientos/useMovimientosContacto';
+import DocumentosMovimientoLista from '../documentos/movimientos/DocumentosMovimientoLista';
 import type { ContactoDetalle } from '../../types/contactos.types';
 import type { ContactoRow } from './ContactosView.types';
 import { formatearTelefonoParaMostrar } from '../../utils/telefono';
@@ -38,6 +37,9 @@ type ContactoWorkspaceProps = {
   /** Solo en móvil: regresa a la lista de contactos. */
   onVolver?: () => void;
 };
+
+/** Pestañas fijas; las de documentos usan el tipoDocumento como clave. */
+type TabFija = 'datos' | 'domicilios' | 'contactos' | 'compras' | 'ventas';
 
 const currencyFormatter = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' });
 const dateFormatter = new Intl.DateTimeFormat('es-MX', { year: 'numeric', month: '2-digit', day: '2-digit' });
@@ -118,108 +120,19 @@ function StatCard({ icon, label, value }: { icon: React.ReactNode; label: string
   );
 }
 
-function EstatusChip({ estatus }: { estatus?: string | null }) {
-  if (!estatus) return null;
-  return <Chip size="small" label={estatus} sx={{ fontWeight: 600 }} />;
-}
-
-function DocumentosMiniLista({
-  loading,
-  documentos,
-  emptyLabel,
-  codigo,
-}: {
-  loading: boolean;
-  documentos: CotizacionListado[];
-  emptyLabel: string;
-  codigo: string;
-}) {
-  const navigate = useNavigate();
-
-  if (loading) {
-    return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
-        <CircularProgress size={22} />
-      </Box>
-    );
-  }
-
-  if (documentos.length === 0) {
-    return (
-      <Box sx={{ py: 4, textAlign: 'center' }}>
-        <Typography variant="body2" sx={{ color: (theme) => theme.emphasys.content.muted }}>
-          {emptyLabel}
-        </Typography>
-      </Box>
-    );
-  }
-
-  return (
-    <Stack spacing={1}>
-      {documentos.map((doc) => (
-        <Box
-          key={doc.id}
-          role="button"
-          tabIndex={0}
-          onClick={() => navigate(`/ventas/${codigo}/${doc.id}`)}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter' || event.key === ' ') {
-              event.preventDefault();
-              navigate(`/ventas/${codigo}/${doc.id}`);
-            }
-          }}
-          sx={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: 1.5,
-            border: (theme) => `1px solid ${theme.emphasys.content.border}`,
-            borderRadius: 1.5,
-            px: 1.5,
-            py: 1,
-            cursor: 'pointer',
-            color: 'inherit',
-            '&:hover': { backgroundColor: (theme) => theme.emphasys.content.elevated },
-          }}
-        >
-          <Box sx={{ minWidth: 0 }}>
-            <Typography variant="body2" fontWeight={700} sx={{ color: (theme) => theme.emphasys.content.foreground }}>
-              {doc.serie ? `${doc.serie}-${doc.numero ?? ''}` : `#${doc.numero ?? doc.id}`}
-            </Typography>
-            <Typography variant="caption" sx={{ color: (theme) => theme.emphasys.content.muted }}>
-              {formatDate(doc.fecha_documento) || ''}
-            </Typography>
-          </Box>
-          <Stack direction="row" spacing={1} alignItems="center">
-            <EstatusChip estatus={doc.estatus_documento} />
-            <Typography variant="body2" fontWeight={700} sx={{ color: (theme) => theme.emphasys.content.foreground }}>
-              {formatCurrency(doc.total) || ''}
-            </Typography>
-          </Stack>
-        </Box>
-      ))}
-    </Stack>
-  );
-}
-
 export default function ContactoWorkspace({ contactoId, vendedorNombre, onEditar, onEliminar, onVerActividades, onVolver }: ContactoWorkspaceProps) {
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [detalle, setDetalle] = React.useState<ContactoDetalle | null>(null);
-  const [tab, setTab] = React.useState(0);
-  const [cotizaciones, setCotizaciones] = React.useState<CotizacionListado[]>([]);
-  const [cotizacionesTotal, setCotizacionesTotal] = React.useState<number | null>(null);
-  const [cotizacionesLoading, setCotizacionesLoading] = React.useState(false);
-  const [facturas, setFacturas] = React.useState<CotizacionListado[]>([]);
-  const [facturasTotal, setFacturasTotal] = React.useState<number | null>(null);
-  const [facturasLoading, setFacturasLoading] = React.useState(false);
+  const [tab, setTab] = React.useState<string>('datos' satisfies TabFija);
+  const movimientos = useMovimientosContacto(contactoId);
   const [historialDesde, setHistorialDesde] = React.useState('');
   const [historialHasta, setHistorialHasta] = React.useState('');
   const [offsetCompras, setOffsetCompras] = React.useState(0);
   const [offsetVentas, setOffsetVentas] = React.useState(0);
 
   React.useEffect(() => {
-    setTab(0);
+    setTab('datos');
     if (!contactoId) {
       setDetalle(null);
       return;
@@ -251,77 +164,12 @@ export default function ContactoWorkspace({ contactoId, vendedorNombre, onEditar
     };
   }, [contactoId]);
 
-  const cotizacionesLoadedForRef = React.useRef<number | null>(null);
-  const facturasLoadedForRef = React.useRef<number | null>(null);
-
   React.useEffect(() => {
-    setCotizaciones([]);
-    setCotizacionesTotal(null);
-    setFacturas([]);
-    setFacturasTotal(null);
-    cotizacionesLoadedForRef.current = null;
-    facturasLoadedForRef.current = null;
     setHistorialDesde('');
     setHistorialHasta('');
     setOffsetCompras(0);
     setOffsetVentas(0);
   }, [contactoId]);
-
-  React.useEffect(() => {
-    if (!contactoId) return;
-    if (tab === 3 && cotizacionesLoadedForRef.current !== contactoId) {
-      let active = true;
-      setCotizacionesLoading(true);
-      getDocumentosPaginados('cotizacion', { page: 1, limit: 8, clienteId: contactoId })
-        .then((response) => {
-          if (!active) return;
-          cotizacionesLoadedForRef.current = contactoId;
-          setCotizaciones(response.data as unknown as CotizacionListado[]);
-          setCotizacionesTotal(response.total);
-        })
-        .catch(() => {
-          if (!active) return;
-          cotizacionesLoadedForRef.current = null;
-          setCotizaciones([]);
-          setCotizacionesTotal(0);
-        })
-        .finally(() => {
-          if (active) setCotizacionesLoading(false);
-        });
-      return () => {
-        active = false;
-      };
-    }
-    return undefined;
-  }, [contactoId, tab]);
-
-  React.useEffect(() => {
-    if (!contactoId) return;
-    if (tab === 4 && facturasLoadedForRef.current !== contactoId) {
-      let active = true;
-      setFacturasLoading(true);
-      getDocumentosPaginados('factura', { page: 1, limit: 8, clienteId: contactoId })
-        .then((response) => {
-          if (!active) return;
-          facturasLoadedForRef.current = contactoId;
-          setFacturas(response.data as unknown as CotizacionListado[]);
-          setFacturasTotal(response.total);
-        })
-        .catch(() => {
-          if (!active) return;
-          facturasLoadedForRef.current = null;
-          setFacturas([]);
-          setFacturasTotal(0);
-        })
-        .finally(() => {
-          if (active) setFacturasLoading(false);
-        });
-      return () => {
-        active = false;
-      };
-    }
-    return undefined;
-  }, [contactoId, tab]);
 
   if (!contactoId) {
     return (
@@ -375,7 +223,11 @@ export default function ContactoWorkspace({ contactoId, vendedorNombre, onEditar
 
   const { contacto, domicilio_principal, datos_fiscales } = detalle;
   const vendedorAsignado = contacto.vendedor_id ? vendedorNombre.get(Number(contacto.vendedor_id)) : null;
-  const historialComercial = tab === 5 || tab === 6;
+  const historialComercial = tab === 'compras' || tab === 'ventas';
+  const cotizacionesTotal = movimientos.estado.cotizacion?.total ?? null;
+  // Sólo se muestran pestañas de documentos con al menos un movimiento.
+  const movimientosVisibles = MOVIMIENTOS_CONTACTO.filter((config) => (movimientos.estado[config.tipoDocumento]?.total ?? 0) > 0);
+  const movimientoActivo = MOVIMIENTOS_CONTACTO.find((config) => config.tipoDocumento === tab) ?? null;
   const tieneDomicilio = Boolean(
     domicilio_principal &&
       (domicilio_principal.calle || domicilio_principal.colonia || domicilio_principal.ciudad || domicilio_principal.cp)
@@ -456,17 +308,18 @@ export default function ContactoWorkspace({ contactoId, vendedorNombre, onEditar
 
       <Box sx={(theme) => ({ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', mx: { xs: 1, md: 1.75 }, mb: { xs: 1, md: 1.75 }, bgcolor: theme.emphasys.content.well, borderRadius: 3, border: `1px solid ${theme.emphasys.content.border}`, overflow: 'hidden' })}>
         <Tabs value={tab} onChange={(_, value) => setTab(value)} variant="scrollable" scrollButtons="auto" sx={catalogoTabsSx}>
-          <Tab label="Datos generales" />
-          <Tab label={`Domicilios${tieneDomicilio ? ' (1)' : ''}`} />
+          <Tab value="datos" label="Datos generales" />
+          <Tab value="domicilios" label={`Domicilios${tieneDomicilio ? ' (1)' : ''}`} />
           <Tooltip title="Función en desarrollo">
             <span>
-              <Tab label="Contactos adicionales" disabled />
+              <Tab value="contactos" label="Contactos adicionales" disabled />
             </span>
           </Tooltip>
-          <Tab label={cotizacionesTotal !== null ? `Cotizaciones (${cotizacionesTotal})` : 'Cotizaciones'} />
-          <Tab label={facturasTotal !== null ? `Facturas (${facturasTotal})` : 'Facturas'} />
-          <Tab label="Últimas compras" />
-          <Tab label="Últimas ventas" />
+          {movimientosVisibles.map((config) => (
+            <Tab key={config.tipoDocumento} value={config.tipoDocumento} label={`${config.etiqueta} (${movimientos.estado[config.tipoDocumento]?.total ?? 0})`} />
+          ))}
+          <Tab value="compras" label="Últimas compras" />
+          <Tab value="ventas" label="Últimas ventas" />
         </Tabs>
       <Box
         sx={{
@@ -477,7 +330,7 @@ export default function ContactoWorkspace({ contactoId, vendedorNombre, onEditar
           display: historialComercial ? 'flex' : 'block',
         }}
       >
-        {tab === 0 && (
+        {tab === 'datos' && (
           <Stack spacing={2.5}>
             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5 }}>
               {limiteCredito ? (
@@ -556,7 +409,7 @@ export default function ContactoWorkspace({ contactoId, vendedorNombre, onEditar
           </Stack>
         )}
 
-        {tab === 1 && (
+        {tab === 'domicilios' && (
           <Box>
             {tieneDomicilio ? (
               <Box sx={{ border: (theme) => `1px solid ${theme.emphasys.content.border}`, borderRadius: 1.5, p: 2, maxWidth: 480 }}>
@@ -575,28 +428,28 @@ export default function ContactoWorkspace({ contactoId, vendedorNombre, onEditar
           </Box>
         )}
 
-        {tab === 2 && (
+        {tab === 'contactos' && (
           <Typography variant="body2" sx={{ color: (theme) => theme.emphasys.content.muted }}>
             La gestión de contactos adicionales estará disponible próximamente.
           </Typography>
         )}
 
-        {tab === 3 && (
-          <DocumentosMiniLista loading={cotizacionesLoading} documentos={cotizaciones} emptyLabel="Sin cotizaciones registradas." codigo="cotizacion" />
-        )}
-
-        {tab === 4 && (
-          <DocumentosMiniLista loading={facturasLoading} documentos={facturas} emptyLabel="Sin facturas registradas." codigo="factura" />
+        {movimientoActivo && (
+          <DocumentosMovimientoLista
+            config={movimientoActivo}
+            estado={movimientos.estado[movimientoActivo.tipoDocumento]}
+            onCargarMas={() => movimientos.cargarMas(movimientoActivo.tipoDocumento)}
+          />
         )}
 
         {historialComercial && (
           <ProductoHistorialComercial
             entidad="contacto"
             entidadId={contacto.id}
-            modo={tab === 5 ? 'compras' : 'ventas'}
+            modo={tab === 'compras' ? 'compras' : 'ventas'}
             desde={historialDesde}
             hasta={historialHasta}
-            offset={tab === 5 ? offsetCompras : offsetVentas}
+            offset={tab === 'compras' ? offsetCompras : offsetVentas}
             onDesde={(valor) => {
               setHistorialDesde(valor);
               setOffsetCompras(0);
@@ -607,7 +460,7 @@ export default function ContactoWorkspace({ contactoId, vendedorNombre, onEditar
               setOffsetCompras(0);
               setOffsetVentas(0);
             }}
-            onOffset={tab === 5 ? setOffsetCompras : setOffsetVentas}
+            onOffset={tab === 'compras' ? setOffsetCompras : setOffsetVentas}
           />
         )}
       </Box>
