@@ -1847,7 +1847,7 @@ export default function ProductoWorkspace({
 
           {(tab === 'compras' || tab === 'ventas') && (
             <ProductoHistorialComercial
-              productoId={producto.id}
+              entidadId={producto.id}
               modo={tab}
               desde={historialDesde}
               hasta={historialHasta}

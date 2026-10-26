@@ -11,11 +11,13 @@ import {
   normalizarHex,
   FONDOS_REFERENCIA,
   razonContraste,
+  textoSobreSuperficieSecundaria,
   ROLES_IDENTIDAD,
   validarContraste,
   type RolIdentidad,
 } from "../shared/identidadVisual/contraste";
 import type { ModoIdentidad } from "../shared/identidadVisual/cambios";
+import type { ModoPresentacionLogo } from "../services/empresasIdentidadVisualService";
 
 function leerEmpresaId(req: Request): number | null {
   const empresaId = Number(req.params.empresa_id);
@@ -23,12 +25,12 @@ function leerEmpresaId(req: Request): number | null {
 }
 
 type CuerpoValidado =
-  | { ok: true; cambios: Partial<Record<RolIdentidad, string | null>>; superficieSecundaria?: string | null; modo?: ModoIdentidad; confirmarSobrescritura: boolean }
+  | { ok: true; cambios: Partial<Record<RolIdentidad, string | null>>; superficieSecundaria?: string | null; modo?: ModoIdentidad; modoPresentacionLogo: ModoPresentacionLogo; confirmarSobrescritura: boolean }
   | { ok: false; message: string };
 
 /** Valida el cuerpo del PUT: `{ colores: { primario?, acento?, sidebar? }, confirmarSobrescritura? }`. */
 export function validarCuerpoIdentidad(body: unknown): CuerpoValidado {
-  const datos = (body ?? {}) as { colores?: unknown; superficie_secundaria?: unknown; modo?: unknown; confirmarSobrescritura?: unknown };
+  const datos = (body ?? {}) as { colores?: unknown; superficie_secundaria?: unknown; modo?: unknown; modo_presentacion_logo?: unknown; confirmarSobrescritura?: unknown };
   const colores = datos.colores;
   if (!colores || typeof colores !== "object" || Array.isArray(colores)) {
     return { ok: false, message: "El campo 'colores' es requerido y debe ser un objeto" };
@@ -38,7 +40,7 @@ export function validarCuerpoIdentidad(body: unknown): CuerpoValidado {
   if (desconocidas.length) {
     return { ok: false, message: `Colores no reconocidos: ${desconocidas.join(", ")}` };
   }
-  if (!claves.length && datos.superficie_secundaria === undefined && datos.modo === undefined) {
+  if (!claves.length && datos.superficie_secundaria === undefined && datos.modo === undefined && datos.modo_presentacion_logo === undefined) {
     return { ok: false, message: "Indica al menos un color: primario, acento o sidebar" };
   }
   if (datos.confirmarSobrescritura !== undefined && typeof datos.confirmarSobrescritura !== "boolean") {
@@ -62,12 +64,15 @@ export function validarCuerpoIdentidad(body: unknown): CuerpoValidado {
     else {
       superficieSecundaria = normalizarHex(datos.superficie_secundaria);
       if (!superficieSecundaria) return { ok: false, message: "Color superficie_secundaria inválido: usa el formato #RRGGBB" };
-      if (razonContraste(superficieSecundaria, FONDOS_REFERENCIA.beige) < 4.5) return { ok: false, message: "Superficie secundaria sin contraste suficiente sobre beige" };
+      const primerPlano = textoSobreSuperficieSecundaria(superficieSecundaria);
+      if (razonContraste(superficieSecundaria, primerPlano) < 4.5) return { ok: false, message: "Superficie secundaria sin contraste suficiente con su primer plano" };
     }
   }
   const modo = datos.modo === undefined ? undefined : datos.modo === 'emphasys' || datos.modo === 'personalizado' ? datos.modo : null;
   if (datos.modo !== undefined && modo === null) return { ok: false, message: "Modo inválido" };
-  return { ok: true, cambios, superficieSecundaria, modo: modo ?? undefined, confirmarSobrescritura: datos.confirmarSobrescritura === true };
+  const modoPresentacionLogo = datos.modo_presentacion_logo === undefined ? 'automatico' : datos.modo_presentacion_logo === 'automatico' || datos.modo_presentacion_logo === 'fondo_blanco' || datos.modo_presentacion_logo === 'logo_blanco' ? datos.modo_presentacion_logo : null;
+  if (datos.modo_presentacion_logo !== undefined && modoPresentacionLogo === null) return { ok: false, message: "Modo de presentación del logotipo inválido" };
+  return { ok: true, cambios, superficieSecundaria, modo: modo ?? undefined, modoPresentacionLogo: modoPresentacionLogo ?? 'automatico', confirmarSobrescritura: datos.confirmarSobrescritura === true };
 }
 
 export async function obtenerIdentidadVisualController(req: Request, res: Response) {
@@ -146,7 +151,8 @@ export async function actualizarIdentidadVisualController(req: Request, res: Res
       cuerpo.confirmarSobrescritura,
       auth.userId,
       cuerpo.superficieSecundaria,
-      cuerpo.modo
+      cuerpo.modo,
+      cuerpo.modoPresentacionLogo
     );
     if (!resultado.ok) {
       return res.status(409).json({

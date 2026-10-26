@@ -36,8 +36,9 @@ type ContactosListaCompactaProps = {
   exportLoading: boolean;
   filtrosActivos: number;
   panelFiltros: ReactNode;
-  viewMode: 'lista' | 'tabla';
-  onViewModeChange: (mode: 'lista' | 'tabla') => void;
+  /** Sin cambio de vista (móvil) solo se muestra la ayuda. */
+  viewMode?: 'lista' | 'tabla';
+  onViewModeChange?: (mode: 'lista' | 'tabla') => void;
   helpHref: string;
 };
 
@@ -89,7 +90,7 @@ export default function ContactosListaCompacta({
         minHeight: 0,
         display: 'flex',
         flexDirection: 'column',
-        bgcolor: theme.emphasys.navigation.background,
+        bgcolor: theme.emphasys.workspaceRail.background,
         color: theme.emphasys.navigation.foreground,
         borderRight: `1px solid ${theme.emphasys.navigation.border}`,
       })}
@@ -143,7 +144,7 @@ export default function ContactosListaCompacta({
               ) : null}
             </Box>
           </Tooltip>
-          <CatalogoRailVistaAyuda viewMode={viewMode} onViewModeChange={onViewModeChange} helpHref={helpHref} />
+          <CatalogoRailVistaAyuda viewMode={viewMode ?? 'lista'} onViewModeChange={onViewModeChange} helpHref={helpHref} />
           <Tooltip title="Nuevo contacto" arrow>
             <IconButton
               aria-label="Nuevo contacto"
@@ -259,6 +260,7 @@ export default function ContactosListaCompacta({
                     <Chip label={contacto.tipo_contacto} size="small" sx={(theme) => ({ fontWeight: 600, flexShrink: 0, bgcolor: theme.emphasys.navigation.summary, color: theme.emphasys.navigation.foreground })} />
                   ) : null}
                 </Stack>
+                <Box sx={(theme) => ({ mt: 0.55, height: 3, borderRadius: 99, bgcolor: theme.emphasys.navigation.track })} />
               </Box>
             );
           })

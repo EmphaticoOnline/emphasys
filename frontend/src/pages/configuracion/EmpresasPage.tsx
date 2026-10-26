@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Autocomplete,
@@ -30,7 +30,7 @@ import type { Empresa, EmpresaPayload } from '../../types/empresa';
 import { apiFetch } from '../../services/apiFetch';
 import type { Theme } from '@mui/material/styles';
 import { ConfigPageFrame, ConfigPageHeader } from '../../components/configuracion/configVisual';
-import IdentidadVisualEmpresaSection from '../../components/configuracion/IdentidadVisualEmpresaSection';
+import IdentidadVisualEmpresaSection, { type IdentidadVisualEmpresaHandle } from '../../components/configuracion/IdentidadVisualEmpresaSection';
 import { catalogoOutlinedButtonSx, catalogoPrimaryButtonSx, catalogoSearchSx } from '../../components/catalogo/catalogoSurfaces';
 import { Section, actionIconSx, dialogPaperSx, editorialTableSx, panelBarSx, wellSx } from '../../components/transporte/transporteVisual';
 
@@ -47,10 +47,21 @@ const requiredFields: Array<keyof EmpresaPayload> = [
   'rfc',
   'regimen_fiscal_id',
   'codigo_postal_id',
-  'colonia_id',
   'calle',
   'pais',
 ];
+
+/* La colonia SAT no es obligatoria: el CP puede no existir en el catálogo SAT local y el CFDI no la usa. */
+const etiquetasCampo: Partial<Record<keyof EmpresaPayload, string>> = {
+  identificador: 'Identificador',
+  nombre: 'Nombre',
+  razon_social: 'Razón social',
+  rfc: 'RFC',
+  regimen_fiscal_id: 'Régimen fiscal',
+  codigo_postal_id: 'Código postal SAT',
+  calle: 'Calle',
+  pais: 'País',
+};
 
 const emptyForm: EmpresaPayload = {
   identificador: '',
@@ -107,6 +118,7 @@ export default function EmpresasPage() {
   const [csdSuccess, setCsdSuccess] = useState<string | null>(null);
   const [csdAssignment, setCsdAssignment] = useState<EmpresaCfdiPacAssignment | null>(null);
   const [csdAssignmentLoading, setCsdAssignmentLoading] = useState(false);
+  const identidadVisualRef = useRef<IdentidadVisualEmpresaHandle>(null);
 
   const resetLogoState = () => {
     setLogoLoading(false);
@@ -314,12 +326,20 @@ export default function EmpresasPage() {
 
   const handleSubmit = async () => {
     if (faltantes.length > 0) {
-      setFormError(`Faltan campos obligatorios: ${faltantes.join(', ')}`);
+      setFormError(`Faltan campos obligatorios: ${faltantes.map((campo) => etiquetasCampo[campo] ?? campo).join(', ')}`);
       return;
     }
 
     setSaving(true);
+    setFormError(null);
     try {
+      if (editId && identidadVisualRef.current) {
+        const identidadGuardada = await identidadVisualRef.current.guardarPendientes();
+        if (!identidadGuardada) {
+          setFormError('No se pudo guardar la identidad visual. Revisa el mensaje de validación y vuelve a intentarlo.');
+          return;
+        }
+      }
       if (editId) {
         await updateEmpresa(editId, form);
       } else {
@@ -957,7 +977,7 @@ export default function EmpresasPage() {
             </Box>
           </Section>
 
-          <IdentidadVisualEmpresaSection empresaId={editId ? Number(editId) : null} tieneLogo={Boolean(logoAsset)} logoVersion={logoVersion} />
+          <IdentidadVisualEmpresaSection ref={identidadVisualRef} empresaId={editId ? Number(editId) : null} tieneLogo={Boolean(logoAsset)} logoVersion={logoVersion} />
           </Box>
         </DialogContent>
       </Dialog>

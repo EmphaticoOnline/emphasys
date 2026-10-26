@@ -1,6 +1,10 @@
 import {
+  luminanciaRelativa,
   razonContraste,
   validarContraste,
+  textoSobreSuperficieSecundaria,
+  textoSobrePrimario,
+  textoSobreSidebar,
   type RolIdentidad,
 } from '../../../../backend/src/shared/identidadVisual/contraste.ts';
 import { activeBrand } from './active.ts';
@@ -44,6 +48,15 @@ export function oscurecerHastaContraste(color: string, texto: string, minimo: nu
   return actual;
 }
 
+/** Fondo de selección sobre un Sidebar con texto oscuro: lo oscurece sin perder 4.5:1 con ese texto. */
+function ajustarSeleccion(sidebar: string, texto: string): string {
+  for (let peso = 0.2; peso > 0; peso -= 0.04) {
+    const candidato = mezclar(sidebar, texto, peso);
+    if (razonContraste(candidato, texto) >= 4.5) return candidato;
+  }
+  return sidebar;
+}
+
 /** Descarta los colores que no cumplen las reglas del servidor (dato viejo o alterado): ese rol queda en la base. */
 export function coloresValidos(colores: Partial<ColoresEmpresa> | null | undefined): ColoresEmpresa {
   const hex = (valor: unknown) => (typeof valor === 'string' && /^#[0-9a-f]{6}$/.test(valor) ? valor : null);
@@ -59,26 +72,38 @@ export function coloresValidos(colores: Partial<ColoresEmpresa> | null | undefin
 
 function derivar(base: BrandDefinition, { primario, acento, sidebar, superficie_secundaria }: ColoresEmpresa): BrandDefinition {
   const { ivory, beige } = base.colors;
+  const textoPrimario = primario ? textoSobrePrimario(primario) : null;
   const blue = primario
     ? {
         base: primario,
-        hover: mezclar(primario, '#000000', 0.22),
+        foreground: textoPrimario!,
+        // Con texto oscuro el hover aclara: oscurecerlo restaría contraste.
+        hover: textoPrimario === '#ffffff' ? mezclar(primario, '#000000', 0.22) : mezclar(primario, '#ffffff', 0.18),
         tint: mezclar(primario, '#ffffff', 0.93),
         wash: mezclar(primario, '#ffffff', 0.9),
       }
     : base.colors.blue;
+  const textoSidebar = sidebar ? textoSobreSidebar(sidebar) : null;
+  // Sidebar claro: su texto es oscuro y las derivaciones (raised, selección, acento) oscurecen en lugar de aclarar.
+  const sidebarClaro = Boolean(textoSidebar) && luminanciaRelativa(textoSidebar!) < 0.3;
+  // La superficie secundaria solo cambia con su propio color; sin él es la de Emphasys, no se deriva del Sidebar.
+  const raised = superficie_secundaria ?? base.colors.graphite.raised;
   const graphite = sidebar || superficie_secundaria
     ? {
         chrome: sidebar ?? base.colors.graphite.chrome,
-        // Botón primario y encabezados del experimental: texto beige encima.
-        raised: superficie_secundaria ?? (sidebar ? oscurecerHastaContraste(mezclar(sidebar, '#ffffff', 0.07), beige.base, 4.5) : base.colors.graphite.raised),
-        deep: sidebar ? mezclar(sidebar, '#000000', 0.1) : base.colors.graphite.deep,
-        // Selección del menú: texto marfil encima.
-        selection: sidebar ? oscurecerHastaContraste(mezclar(sidebar, '#ffffff', 0.22), ivory.selected, 4.5) : base.colors.graphite.selection,
+        // Sin Sidebar propio el cromado conserva el texto beige de la base.
+        chromeForeground: textoSidebar ?? base.colors.graphite.raisedForeground,
+        // Botón primario y encabezados del experimental: texto automático encima.
+        raised,
+        raisedForeground: textoSobreSuperficieSecundaria(raised),
+        // Hover de la superficie elevada: sigue a la superficie efectiva, no al Sidebar.
+        deep: superficie_secundaria ? mezclar(superficie_secundaria, '#000000', 0.25) : base.colors.graphite.deep,
+        // Selección del menú: texto automático encima.
+        selection: sidebar ? (sidebarClaro ? ajustarSeleccion(sidebar, textoSidebar!) : oscurecerHastaContraste(mezclar(sidebar, '#ffffff', 0.22), ivory.selected, 4.5)) : base.colors.graphite.selection,
         itemForeground:
-          sidebar && razonContraste(base.colors.graphite.itemForeground, sidebar) < 4.5 ? ivory.surface : base.colors.graphite.itemForeground,
+          sidebar && razonContraste(base.colors.graphite.itemForeground, sidebar) < 4.5 ? textoSidebar! : base.colors.graphite.itemForeground,
         // Acento claro dentro del sidebar (decisión E3: se deriva del sidebar).
-          accent: sidebar ? mezclar(ivory.surface, sidebar, 0.15) : base.colors.graphite.accent,
+        accent: sidebar ? mezclar(textoSidebar!, sidebar, 0.15) : base.colors.graphite.accent,
       }
     : base.colors.graphite;
   return {

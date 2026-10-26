@@ -4,11 +4,15 @@ import {
   normalizarHex,
   razonContraste,
   REGLAS_CONTRASTE,
+  ROLES_CON_TEXTO_AUTOMATICO,
+  textoSobrePrimario,
+  textoSobreSidebar,
   ROLES_IDENTIDAD,
   type FondoReferencia,
   type RolIdentidad,
 } from '../../../../backend/src/shared/identidadVisual/contraste.ts';
 import { SUPERFICIE_SECUNDARIA_EMPHASYS } from '../../../../backend/src/shared/identidadVisual/contraste.ts';
+import { textoSobreSuperficieSecundaria } from '../../../../backend/src/shared/identidadVisual/contraste.ts';
 import type { ColoresEmpresa } from '../../theme/brand/empresaBrand';
 
 /**
@@ -28,7 +32,7 @@ export const ETIQUETAS: Record<RolIdentidad, { titulo: string; uso: string }> = 
 };
 export const ETIQUETA_SUPERFICIE = { titulo: 'Superficie secundaria', uso: 'Rieles de Workspace, botones y encabezados elevados.' };
 
-export const ETIQUETA_FONDO: Record<FondoReferencia, string> = { blanco: 'blanco', marfil: 'marfil', beige: 'beige' };
+export const ETIQUETA_FONDO: Record<FondoReferencia | 'texto', string> = { blanco: 'blanco', marfil: 'marfil', beige: 'beige', texto: 'su texto automático' };
 
 /** Color que se verá: el de la empresa o, si es null, el de Emphasys. */
 export const colorEfectivo = (rol: RolIdentidad, valor: string | null) => valor ?? IDENTIDAD_EMPHASYS[rol];
@@ -46,11 +50,16 @@ export function manualesAfectados(guardados: Colores, origen: Origen, borrador: 
   return rolesCambiados(guardados, borrador).filter((rol) => origen[rol] === 'manual');
 }
 
-export type ContrasteRol = { ok: boolean; ratio: number; minimo: number; contra: FondoReferencia };
+export type ContrasteRol = { ok: boolean; ratio: number; minimo: number; contra: FondoReferencia | 'texto' };
 
 /** Peor contraste del color efectivo del rol contra sus fondos de referencia. */
 export function contrasteRol(rol: RolIdentidad, valor: string | null): ContrasteRol {
   const color = colorEfectivo(rol, valor);
+  // Primario y Sidebar son fondos: el texto se calcula, así que siempre hay un primer plano legible.
+  if (ROLES_CON_TEXTO_AUTOMATICO.includes(rol)) {
+    const texto = rol === 'primario' ? textoSobrePrimario(color) : textoSobreSidebar(color);
+    return { ok: true, ratio: Math.round(razonContraste(color, texto) * 100) / 100, minimo: 4.5, contra: 'texto' };
+  }
   const { contra, minimo } = REGLAS_CONTRASTE[rol];
   const peor = contra
     .map((fondo) => ({ contra: fondo, ratio: razonContraste(color, FONDOS_REFERENCIA[fondo]) }))
@@ -65,3 +74,4 @@ export function cuerpoCambios(guardados: Colores, borrador: Colores): Partial<Co
 
 export const describirColor = (valor: string | null) => valor ?? 'Emphasys';
 export { SUPERFICIE_SECUNDARIA_EMPHASYS };
+export { textoSobreSuperficieSecundaria };

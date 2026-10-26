@@ -19,6 +19,32 @@ export const IDENTIDAD_EMPHASYS: Readonly<Record<RolIdentidad, string>> = {
 };
 
 export const SUPERFICIE_SECUNDARIA_EMPHASYS = '#3c4149';
+export const SUPERFICIE_SECUNDARIA_TEXTO_OSCURO = '#1f2937';
+
+/**
+ * Primer plano legible (WCAG AA, 4.5:1) sobre un fondo cualquiera: el primero de `preferidos` que cumple;
+ * si ninguno, blanco, texto oscuro o negro, en ese orden. Siempre existe uno que cumple.
+ */
+export function textoSobreFondo(fondo: string, preferidos: readonly string[] = []): string {
+  const candidatos = [...preferidos, '#ffffff', SUPERFICIE_SECUNDARIA_TEXTO_OSCURO, '#000000'];
+  const legible = candidatos.find((texto) => razonContraste(fondo, texto) >= 4.5);
+  if (legible) return legible;
+  return candidatos.reduce((mejor, texto) => (razonContraste(fondo, texto) > razonContraste(fondo, mejor) ? texto : mejor));
+}
+
+/** Primer plano sobre la superficie secundaria: conserva el beige canónico cuando cumple. */
+export function textoSobreSuperficieSecundaria(superficie: string): string {
+  return textoSobreFondo(superficie, [FONDOS_REFERENCIA.beige]);
+}
+
+/** Texto sobre el primario: blanco cuando cumple (botones, mensajes enviados). */
+export const textoSobrePrimario = (primario: string) => textoSobreFondo(primario, ['#ffffff']);
+
+/** Texto sobre el Sidebar: marfil cuando cumple. */
+export const textoSobreSidebar = (sidebar: string) => textoSobreFondo(sidebar, [FONDOS_REFERENCIA.marfil]);
+
+/** Roles que se usan como fondo: su texto se calcula, así que el color es libre. */
+export const ROLES_CON_TEXTO_AUTOMATICO: readonly RolIdentidad[] = ['primario', 'sidebar'];
 
 /**
  * Colores fijos contra los que se mide cada rol. `marfil` y `beige` son
@@ -79,7 +105,7 @@ export function validarContraste(colores: Partial<Record<RolIdentidad, string | 
   const errores: ErrorContraste[] = [];
   for (const color of ROLES_IDENTIDAD) {
     const valor = colores[color];
-    if (!valor) continue;
+    if (!valor || ROLES_CON_TEXTO_AUTOMATICO.includes(color)) continue;
     const { contra, minimo } = REGLAS_CONTRASTE[color];
     for (const fondo of contra) {
       const ratio = razonContraste(valor, FONDOS_REFERENCIA[fondo]);

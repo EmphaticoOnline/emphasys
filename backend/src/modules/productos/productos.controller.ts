@@ -27,7 +27,7 @@ import {
   filtrarCamposEconomicosDeEntrada,
   excluirColumnasEconomicas,
 } from './productos.economic-fields';
-import { listarHistorialProducto, type ProductoHistorialModo } from './producto-historial.repository';
+import { listarHistorialContacto, listarHistorialProducto, type ProductoHistorialModo } from './producto-historial.repository';
 
 async function resolverEsAdmin(req: Request, empresaId: number): Promise<boolean> {
   const { esAdmin } = await resolverContextoScopeComercial(
@@ -147,24 +147,29 @@ function leerFechaProducto(query: Request['query'], nombre: string): string | un
   return value;
 }
 
-async function getHistorialProducto(req: Request, res: Response, modo: ProductoHistorialModo) {
-  const empresaId = Number(req.context?.empresaId); const productoId = Number(req.params.id);
-  if (!empresaId || !Number.isInteger(productoId)) return res.status(400).json({ error: 'Producto o empresa inválidos' });
+async function getHistorialComercial(req: Request, res: Response, modo: ProductoHistorialModo, entidad: 'producto' | 'contacto') {
+  const empresaId = Number(req.context?.empresaId); const entidadId = Number(req.params.id);
+  if (!empresaId || !Number.isInteger(entidadId)) return res.status(400).json({ error: entidad === 'producto' ? 'Producto o empresa inválidos' : 'Contacto o empresa inválidos' });
   try {
     const fechaInicio = leerFechaProducto(req.query, 'fecha_inicio'); const fechaFin = leerFechaProducto(req.query, 'fecha_fin');
     if (fechaInicio && fechaFin && fechaInicio > fechaFin) return res.status(400).json({ error: 'fecha_inicio no puede ser posterior a fecha_fin' });
     const limit = req.query.limit === undefined ? 50 : Number(req.query.limit); const offset = req.query.offset === undefined ? 0 : Number(req.query.offset);
     if (!Number.isInteger(limit) || limit < 1 || limit > 200 || !Number.isInteger(offset) || offset < 0) return res.status(400).json({ error: 'limit debe estar entre 1 y 200; offset debe ser un entero no negativo' });
-    return res.json(await listarHistorialProducto(modo, { empresaId, productoId, fechaInicio, fechaFin, limit, offset }));
+    const params = { empresaId, fechaInicio, fechaFin, limit, offset };
+    return res.json(entidad === 'producto'
+      ? await listarHistorialProducto(modo, { ...params, productoId: entidadId })
+      : await listarHistorialContacto(modo, { ...params, contactoId: entidadId }));
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Error al obtener historial';
     if (message.includes('debe tener formato')) return res.status(400).json({ error: message });
-    console.error(`Error al obtener historial de ${modo} del producto`, error); return res.status(500).json({ error: `Error al obtener últimas ${modo} del producto` });
+    console.error(`Error al obtener historial de ${modo} del ${entidad}`, error); return res.status(500).json({ error: `Error al obtener últimas ${modo} del ${entidad}` });
   }
 }
 
-export const getUltimasComprasProducto = (req: Request, res: Response) => getHistorialProducto(req, res, 'compras');
-export const getUltimasVentasProducto = (req: Request, res: Response) => getHistorialProducto(req, res, 'ventas');
+export const getUltimasComprasProducto = (req: Request, res: Response) => getHistorialComercial(req, res, 'compras', 'producto');
+export const getUltimasVentasProducto = (req: Request, res: Response) => getHistorialComercial(req, res, 'ventas', 'producto');
+export const getUltimasComprasContacto = (req: Request, res: Response) => getHistorialComercial(req, res, 'compras', 'contacto');
+export const getUltimasVentasContacto = (req: Request, res: Response) => getHistorialComercial(req, res, 'ventas', 'contacto');
 
 export async function getImpuestosProducto(req: Request, res: Response) {
   try {

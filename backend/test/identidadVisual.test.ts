@@ -169,17 +169,29 @@ test("contraste: razón WCAG en los extremos y simétrica", () => {
   assert.equal(contraste.razonContraste("#777777", "#777777"), 1);
 });
 
-test("contraste: rechaza colores claros en cada rol, con el fondo y la razón", () => {
+test("contraste: solo el acento (texto sobre claro) se valida; primario y sidebar son fondos con texto automático", () => {
   const errores = contraste.validarContraste({ primario: "#ffd84d", acento: "#7fd0c8", sidebar: "#cccccc" });
   assert.deepEqual(
     errores.map((e) => `${e.color}/${e.contra}`),
-    ["primario/blanco", "acento/blanco", "acento/marfil", "acento/beige", "sidebar/marfil"]
+    ["acento/blanco", "acento/marfil", "acento/beige"]
   );
   for (const error of errores) {
     assert.ok(error.ratio < error.minimo);
     assert.equal(error.minimo, 4.5);
   }
   assert.deepEqual(contraste.validarContraste({ primario: null }), []);
+});
+
+test("contraste: texto automático AA sobre cualquier fondo; Emphasys conserva sus textos", () => {
+  for (const fondo of ["#b47716", "#808080", "#ffd84d", "#777777", "#000000", "#ffffff"]) {
+    for (const texto of [contraste.textoSobrePrimario(fondo), contraste.textoSobreSidebar(fondo), contraste.textoSobreSuperficieSecundaria(fondo)]) {
+      assert.ok(contraste.razonContraste(fondo, texto) >= 4.5, `${fondo} → ${texto}`);
+    }
+  }
+  assert.equal(contraste.textoSobrePrimario("#1d2f68"), "#ffffff");
+  assert.equal(contraste.textoSobreSidebar("#2c3344"), "#f7f4ee");
+  assert.equal(contraste.textoSobreSuperficieSecundaria("#3c4149"), "#f4f0e8");
+  assert.deepEqual(contraste.validarContraste({ primario: "#b47716", sidebar: "#b47716" }), []);
 });
 
 test("contraste: normalizarHex solo acepta #RRGGBB y lo pasa a minúsculas", () => {
@@ -291,11 +303,11 @@ test("PUT: valida el cuerpo antes de consultar la base (400)", async () => {
   }
 });
 
-test("PUT: rechaza contraste insuficiente con el detalle por color (400)", async () => {
+test("PUT: rechaza acento sin contraste con el detalle por color (400)", async () => {
   reiniciar();
-  const r = await llamar(controlador.actualizarIdentidadVisualController, { auth: SUPER, empresaId: "3", body: { colores: { primario: "#FFD84D" } } });
+  const r = await llamar(controlador.actualizarIdentidadVisualController, { auth: SUPER, empresaId: "3", body: { colores: { acento: "#7FD0C8" } } });
   assert.equal(r.status, 400);
-  assert.deepEqual(r.body.errores.map((e: { color: string; contra: string }) => `${e.color}/${e.contra}`), ["primario/blanco"]);
+  assert.deepEqual(r.body.errores.map((e: { color: string; contra: string }) => `${e.color}/${e.contra}`), ["acento/blanco", "acento/marfil", "acento/beige"]);
   assert.deepEqual(consultas, []);
 });
 
@@ -325,7 +337,7 @@ test("PUT: guarda normalizado, con origen del servidor, usuario y transacción",
   assert.match(sqls[inicio + 1]!, /FOR UPDATE$/);
   assert.match(sqls[inicio + 2]!, /^INSERT INTO core\.empresas_identidad_visual .* ON CONFLICT \(empresa_id\) DO UPDATE .* updated_at = now\(\)/);
   assert.equal(sqls[inicio + 3], "COMMIT");
-  assert.deepEqual(escrituras()[0]!.params, [3, "#7a1f2b", null, "#2a1d22", null, "emphasys", "manual", "emphasys", "analisis", 1]);
+  assert.deepEqual(escrituras()[0]!.params, [3, "#7a1f2b", null, "#2a1d22", null, "emphasys", "manual", "emphasys", "analisis", 1, "automatico"]);
   // Lo que escribe (antes de RETURNING) no toca la propuesta; RETURNING sí la lee.
   assert.doesNotMatch(sqls[inicio + 2]!.split(" RETURNING ")[0]!, /propuesta_/, "el PUT no escribe la propuesta");
 });

@@ -1,5 +1,7 @@
 import { activeBrand } from './brand/active.ts';
+import { luminanciaRelativa, razonContraste, textoSobreFondo } from '../../../backend/src/shared/identidadVisual/contraste.ts';
 import { rgbaFromHex } from './color.ts';
+import { mezclar, oscurecerHastaContraste } from './brand/empresaBrand.ts';
 import type { BrandDefinition } from './brand/types.ts';
 import { classicFunctionalTokens, experimentalFunctionalTokens } from './functional.ts';
 
@@ -37,6 +39,7 @@ export type EmphasysTokens = {
   };
   workspaceRail: {
     background: string;
+      foreground: string;
   };
   documentNav: {
     background: string;
@@ -127,21 +130,27 @@ export type EmphasysTokens = {
  * (destructivo, info, métricas, estados) vienen de `functional.ts` y no
  * dependen de la marca. Los neutrales del clásico siguen fijos aquí.
  */
+/** Canales de las capas translúcidas sobre el cromado: blancas con texto claro, negras con texto oscuro (Sidebar claro). */
+const capaCromado = (textoCromado: string | undefined) =>
+  textoCromado && luminanciaRelativa(textoCromado) < 0.3 ? '0,0,0' : '255,255,255';
+
 function buildStructuralFrame(brand: BrandDefinition) {
   const { graphite, ivory } = brand.colors;
+  const texto = graphite.chromeForeground ?? ivory.surface;
+  const capa = capaCromado(graphite.chromeForeground);
   return {
     background: graphite.chrome,
-    foreground: ivory.surface,
-    muted: rgbaFromHex(ivory.surface, '0.62', 'compact'),
-    subtle: rgbaFromHex(ivory.surface, '0.42', 'compact'),
-    border: 'rgba(255,255,255,0.08)',
-    selection: 'rgba(255,255,255,0.10)',
-    selectionForeground: ivory.selected,
-    hover: 'rgba(255,255,255,0.06)',
+    foreground: texto,
+    muted: rgbaFromHex(texto, '0.62', 'compact'),
+    subtle: rgbaFromHex(texto, '0.42', 'compact'),
+    border: `rgba(${capa},0.08)`,
+    selection: `rgba(${capa},0.10)`,
+    selectionForeground: graphite.chromeForeground ?? ivory.selected,
+    hover: `rgba(${capa},0.06)`,
     accent: graphite.accent,
-    control: 'rgba(255,255,255,0.08)',
-    controlForeground: ivory.surface,
-    controlBorder: rgbaFromHex(ivory.surface, '0.35', 'compact'),
+    control: `rgba(${capa},0.08)`,
+    controlForeground: texto,
+    controlBorder: rgbaFromHex(texto, '0.35', 'compact'),
     logoFilter: 'none',
     itemForeground: graphite.itemForeground,
   };
@@ -170,7 +179,11 @@ export function buildClassicTokens(brand: BrandDefinition): EmphasysTokens {
    * Cromado del tema experimental. Fondo del sidebar y de la barra superior
    * en todas las rutas. No es el texto de contenido (ink.primary).
    */
-  const chrome = graphite.chrome;
+  const chromeFondo = graphite.chrome;
+  // Texto o detalle del cromado sobre blanco: si el Sidebar es claro, se oscurece solo para leerse (no es el color elegido).
+  const chrome = razonContraste(chromeFondo, '#ffffff') >= 4.5 ? chromeFondo : oscurecerHastaContraste(chromeFondo, '#ffffff', 4.5);
+  const textoCromado = graphite.chromeForeground ?? '#ffffff';
+  const textoPrimario = blue.foreground ?? '#ffffff';
   return {
     frame: buildStructuralFrame(brand),
     navigation: {
@@ -183,14 +196,15 @@ export function buildClassicTokens(brand: BrandDefinition): EmphasysTokens {
       selectionForeground: chrome,
       hover: 'rgba(15, 23, 42, 0.04)',
       accent: chrome,
-      control: chrome,
-      controlForeground: '#ffffff',
+      control: chromeFondo,
+      controlForeground: textoCromado,
       summary: '#f8fafc',
       track: '#e5e7eb',
       progress: blue.base,
     },
     workspaceRail: {
       background: '#ffffff',
+      foreground: '#1f2937',
     },
     documentNav: {
       background: '#f6f8fa',
@@ -222,7 +236,7 @@ export function buildClassicTokens(brand: BrandDefinition): EmphasysTokens {
     },
     action: {
       primary: blue.base,
-      primaryForeground: '#ffffff',
+      primaryForeground: textoPrimario,
       primaryHover: blue.hover,
       tint: blue.tint,
       wash: blue.wash,
@@ -239,8 +253,8 @@ export function buildClassicTokens(brand: BrandDefinition): EmphasysTokens {
       muted: '#94a3b8',
     },
     grid: {
-      header: chrome,
-      headerForeground: '#ffffff',
+      header: chromeFondo,
+      headerForeground: textoCromado,
       stripe: 'rgba(0, 120, 70, 0.05)',
       hover: 'rgba(15, 23, 42, 0.04)',
       selected: rgbaFromHex(chrome, '0.08'),
@@ -254,7 +268,7 @@ export function buildClassicTokens(brand: BrandDefinition): EmphasysTokens {
       received: '#f3f4f6',
       receivedForeground: '#1f2937',
       sent: blue.base,
-      sentForeground: '#ffffff',
+      sentForeground: textoPrimario,
       selection: rgbaFromHex(blue.base, '0.12'),
       selectionBar: blue.base,
       reply: blue.tint,
@@ -265,26 +279,33 @@ export function buildClassicTokens(brand: BrandDefinition): EmphasysTokens {
 export function buildExperimentalTokens(brand: BrandDefinition): EmphasysTokens {
   const { graphite, beige, ivory, ink } = brand.colors;
   const functional = experimentalFunctionalTokens;
+  // Los rieles pintan sobre la superficie secundaria: su texto y sus capas siguen a `raisedForeground`.
+  // El Sidebar conserva el suyo en `frame` y la selección sigue al Sidebar.
+  const capa = capaCromado(graphite.raisedForeground);
+  const superficieClara = capa === '0,0,0';
+  // Con texto claro sobre la superficie el hover oscurece (deep); con texto oscuro aclara para no perder contraste.
+  const hoverSuperficie = luminanciaRelativa(graphite.raisedForeground) < 0.3 ? mezclar(graphite.raised, '#ffffff', 0.12) : graphite.deep;
   return {
     frame: buildStructuralFrame(brand),
     navigation: {
       background: graphite.chrome,
-      foreground: beige.base,
-      muted: rgbaFromHex(beige.base, '0.62', 'compact'),
-      subtle: rgbaFromHex(beige.base, '0.42', 'compact'),
-      border: 'rgba(255,255,255,0.08)',
+      foreground: graphite.raisedForeground,
+      muted: rgbaFromHex(graphite.raisedForeground, '0.62', 'compact'),
+      subtle: rgbaFromHex(graphite.raisedForeground, '0.42', 'compact'),
+      border: `rgba(${capa},0.08)`,
       selection: graphite.selection,
-      selectionForeground: ivory.selected,
-      hover: 'rgba(255,255,255,0.06)',
-      accent: beige.base,
+      selectionForeground: graphite.chromeForeground ?? ivory.selected,
+      hover: `rgba(${capa},0.06)`,
+      accent: superficieClara ? graphite.raisedForeground : beige.base,
       control: beige.base,
-      controlForeground: graphite.deep,
-      summary: 'rgba(255,255,255,0.08)',
-      track: 'rgba(255,255,255,0.16)',
+      controlForeground: textoSobreFondo(beige.base, [graphite.deep]),
+      summary: `rgba(${capa},0.08)`,
+      track: `rgba(${capa},0.16)`,
       progress: '#a9c0d6',
     },
     workspaceRail: {
       background: graphite.raised,
+      foreground: graphite.raisedForeground,
     },
     documentNav: {
       background: beige.base,
@@ -316,8 +337,8 @@ export function buildExperimentalTokens(brand: BrandDefinition): EmphasysTokens 
     },
     action: {
       primary: graphite.raised,
-      primaryForeground: beige.base,
-      primaryHover: graphite.deep,
+      primaryForeground: graphite.raisedForeground,
+      primaryHover: hoverSuperficie,
       tint: beige.tint,
       wash: beige.hover,
       hoverTint: rgbaFromHex(ink.primary, '0.08'),
@@ -334,7 +355,7 @@ export function buildExperimentalTokens(brand: BrandDefinition): EmphasysTokens 
     },
     grid: {
       header: graphite.raised,
-      headerForeground: beige.base,
+      headerForeground: graphite.raisedForeground,
       stripe: rgbaFromHex(ink.primary, '0.04'),
       hover: rgbaFromHex(ink.primary, '0.06'),
       selected: rgbaFromHex(ink.primary, '0.08'),
@@ -346,9 +367,9 @@ export function buildExperimentalTokens(brand: BrandDefinition): EmphasysTokens 
       well: '#f7f3ec',
       header: '#f3f6f5',
       received: '#e2dfd6',
-      receivedForeground: graphite.deep,
+      receivedForeground: textoSobreFondo('#e2dfd6', [graphite.deep]),
       sent: graphite.raised,
-      sentForeground: beige.base,
+      sentForeground: graphite.raisedForeground,
       selection: '#e4eef4',
       selectionBar: '#3d5f86',
       reply: '#e8f0f8',

@@ -98,7 +98,9 @@ export type ProductoHistorialFila = {
   contacto_tipo: string | null;
   fecha_documento: string;
   folio: string;
-  producto_id: number;
+  producto_id: number | null;
+  producto_clave: string | null;
+  producto_descripcion: string | null;
   cantidad: number;
   unidad: string | null;
   cantidad_inventariable: number | null;
@@ -113,7 +115,8 @@ export type ProductoHistorialFila = {
 
 export type ProductoHistorialResultado = {
   modo: 'ventas' | 'compras';
-  producto_id: number;
+  producto_id: number | null;
+  contacto_id: number | null;
   fecha_inicio: string | null;
   fecha_fin: string | null;
   total_filas: number;
@@ -129,21 +132,21 @@ export type ProductoHistorialConsulta = {
   offset: number;
 };
 
-function consultaHistorial(productoId: number, ruta: 'ultimas-compras' | 'ultimas-ventas', consulta: ProductoHistorialConsulta) {
+export function consultaHistorialComercial(baseUrl: string, entidadId: number, ruta: 'ultimas-compras' | 'ultimas-ventas', consulta: ProductoHistorialConsulta) {
   const params = new URLSearchParams();
   if (consulta.fecha_inicio) params.set('fecha_inicio', consulta.fecha_inicio);
   if (consulta.fecha_fin) params.set('fecha_fin', consulta.fecha_fin);
   params.set('limit', String(consulta.limit));
   params.set('offset', String(consulta.offset));
-  return apiFetch<ProductoHistorialResultado>(`${BASE_URL}/${productoId}/${ruta}?${params.toString()}`);
+  return apiFetch<ProductoHistorialResultado>(`${baseUrl}/${entidadId}/${ruta}?${params.toString()}`);
 }
 
 export function fetchUltimasComprasProducto(productoId: number, consulta: ProductoHistorialConsulta) {
-  return consultaHistorial(productoId, 'ultimas-compras', consulta);
+  return consultaHistorialComercial(BASE_URL, productoId, 'ultimas-compras', consulta);
 }
 
 export function fetchUltimasVentasProducto(productoId: number, consulta: ProductoHistorialConsulta) {
-  return consultaHistorial(productoId, 'ultimas-ventas', consulta);
+  return consultaHistorialComercial(BASE_URL, productoId, 'ultimas-ventas', consulta);
 }
 
 export async function fetchProductos(): Promise<Producto[]> {

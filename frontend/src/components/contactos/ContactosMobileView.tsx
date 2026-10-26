@@ -1,34 +1,11 @@
 import * as React from 'react';
-import AssignmentOutlinedIcon from '@mui/icons-material/AssignmentOutlined';
-import { Box, Card, CardContent, CircularProgress, Fab, IconButton, InputAdornment, Menu, MenuItem, Stack, TablePagination, TextField, Typography } from '@mui/material';
-import AddIcon from '@mui/icons-material/Add';
-import EditIcon from '@mui/icons-material/Edit';
-import DeleteIcon from '@mui/icons-material/DeleteOutline';
-import MoreVertIcon from '@mui/icons-material/MoreVert';
-import SearchIcon from '@mui/icons-material/Search';
-import ClearIcon from '@mui/icons-material/Clear';
+import { Box } from '@mui/material';
 import type { ContactosMobileViewProps } from './ContactosView.types';
 import ContactosAdvancedFilters from './ContactosAdvancedFilters';
-import { formatearTelefonoParaMostrar } from '../../utils/telefono';
-import { neutralColors, whiteSurfaces } from '../../theme/structural';
-import { elevation } from '../../theme/elevation';
-import { useBrand } from '../../theme/brand/useBrand';
+import ContactosListaCompacta from './ContactosListaCompacta';
+import ContactoWorkspace from './ContactoWorkspace';
 
-function hasValue(value?: string | number | null) {
-  return value != null && String(value).trim() !== '';
-}
-
-function renderValue(value?: string | number | null) {
-  return hasValue(value) ? String(value) : '';
-}
-
-function getPrimarySubtitle(email?: string | null, telefono?: string | null, telefonoSecundario?: string | null) {
-  if (hasValue(email)) return renderValue(email);
-  if (hasValue(telefono)) return formatearTelefonoParaMostrar(telefono);
-  if (hasValue(telefonoSecundario)) return formatearTelefonoParaMostrar(telefonoSecundario);
-  return '';
-}
-
+/** Móvil: misma lista y workspace de escritorio; el detalle reemplaza a la lista, como en Cotizaciones. */
 export default function ContactosMobileView({
   contactos,
   rowCount,
@@ -40,6 +17,8 @@ export default function ContactosMobileView({
   onEditContacto,
   onViewActividades,
   onDeleteContacto,
+  onExport,
+  exportLoading,
   searchTerm,
   onSearchTermChange,
   onClearSearch,
@@ -59,222 +38,71 @@ export default function ContactosMobileView({
   onObservacionesChange,
   onClearAdvancedFilters,
   onCreateContacto,
+  vendedorNombre,
 }: ContactosMobileViewProps) {
-  const { brandElevation } = useBrand();
-  const [menuAnchorEl, setMenuAnchorEl] = React.useState<null | HTMLElement>(null);
-  const [menuContactoId, setMenuContactoId] = React.useState<number | string | null>(null);
-  const [menuContacto, setMenuContacto] = React.useState<ContactosMobileViewProps['contactos'][number] | null>(null);
-
-  const handleOpenMenu = (event: React.MouseEvent<HTMLElement>, contacto: ContactosMobileViewProps['contactos'][number]) => {
-    setMenuAnchorEl(event.currentTarget);
-    setMenuContactoId(contacto.id);
-    setMenuContacto(contacto);
-  };
-
-  const handleCloseMenu = () => {
-    setMenuAnchorEl(null);
-    setMenuContactoId(null);
-    setMenuContacto(null);
-  };
-
-  const handleEditSelected = () => {
-    if (menuContactoId == null) return;
-    onEditContacto(menuContactoId);
-    handleCloseMenu();
-  };
-
-  const handleDeleteSelected = () => {
-    if (menuContactoId == null) return;
-    onDeleteContacto(menuContactoId);
-    handleCloseMenu();
-  };
-
-  const handleViewActividadesSelected = () => {
-    if (!menuContacto) return;
-    onViewActividades(menuContacto);
-    handleCloseMenu();
-  };
+  const [detalleContactoId, setDetalleContactoId] = React.useState<number | null>(null);
 
   return (
-    <Box sx={{ width: '100%', px: 2, py: 0, display: 'flex', justifyContent: 'center' }}>
-      <Box sx={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 1.5, pb: 10 }}>
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25, position: 'sticky', top: 72, zIndex: 2, py: 1, backgroundColor: (theme) => theme.emphasys.canvas.page }}>
-          <Box>
-            <Typography variant="h5" fontWeight={600} sx={{ color: (theme) => theme.emphasys.content.foreground }}>Contactos</Typography>
-            <Typography variant="body2" sx={{ color: (theme) => theme.emphasys.content.secondary }}>Gestiona y consulta tus contactos registrados.</Typography>
-          </Box>
-          <TextField
-            size="small"
-            fullWidth
-            placeholder="Buscar por empresa, contacto, email, teléfono, interés u observaciones"
-            value={searchTerm}
-            onChange={(event) => onSearchTermChange(event.target.value)}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <SearchIcon fontSize="small" />
-                </InputAdornment>
-              ),
-              endAdornment: searchTerm ? (
-                <InputAdornment position="end">
-                  <IconButton aria-label="Borrar búsqueda" size="small" onClick={onClearSearch} edge="end">
-                    <ClearIcon fontSize="small" />
-                  </IconButton>
-                </InputAdornment>
-              ) : null,
-            }}
-          />
-          <ContactosAdvancedFilters
-            rowCount={rowCount}
-            vendedores={vendedores}
-            origenOptions={origenOptions}
-            tiposOpciones={tiposOpciones}
-            filters={advancedFilters}
-            activeFiltersCount={advancedFiltersCount}
-            onToggleFilters={onToggleFilters}
-            onSelectedTiposChange={onSelectedTiposChange}
-            onOrigenContactoIdChange={onOrigenContactoIdChange}
-            onVendedorIdChange={onVendedorIdChange}
-            onActivoChange={onActivoChange}
-            onFechaAltaDesdeChange={onFechaAltaDesdeChange}
-            onFechaAltaHastaChange={onFechaAltaHastaChange}
-            onInteresInicialChange={onInteresInicialChange}
-            onObservacionesChange={onObservacionesChange}
-            onClearAdvancedFilters={onClearAdvancedFilters}
-          />
-        </Box>
-
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-          {loading ? (
-            <Box sx={{ py: 6, display: 'flex', justifyContent: 'center' }}>
-              <CircularProgress size={28} />
-            </Box>
-          ) : contactos.length === 0 ? (
-            <Box sx={{ border: `1px solid ${neutralColors.gray[200]}`, borderRadius: 2, backgroundColor: whiteSurfaces.mobileEmptyState, px: 2, py: 4, textAlign: 'center' }}>
-              <Typography variant="body2" sx={{ color: (theme) => theme.emphasys.content.secondary }}>No hay contactos para mostrar.</Typography>
-            </Box>
-          ) : (
-            contactos.map((contacto) => {
-              const detailItems = [
-                { label: 'Contacto', value: contacto.nombre_contacto },
-                { label: 'Tipo', value: contacto.tipo_contacto },
-                { label: 'Clasificación', value: contacto.clasificacion },
-                { label: 'Teléfono', value: formatearTelefonoParaMostrar(contacto.telefono || contacto.telefono_secundario) },
-                { label: 'Vendedor', value: contacto.vendedor_nombre },
-              ].filter((item) => hasValue(item.value));
-
-              const subtitle = getPrimarySubtitle(contacto.email, contacto.telefono, contacto.telefono_secundario);
-
-              return (
-                <Card
-                  key={contacto.id}
-                  variant="outlined"
-                  sx={{
-                    borderColor: neutralColors.gray[200],
-                    borderRadius: 2.5,
-                    backgroundColor: whiteSurfaces.mobileListCard,
-                    boxShadow: elevation.card,
-                  }}
-                >
-                  <CardContent sx={{ display: 'flex', flexDirection: 'column', gap: 1, p: 1.5, '&:last-child': { pb: 1.5 } }}>
-                    <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1 }}>
-                      <Box sx={{ minWidth: 0, pr: 0.5 }}>
-                        <Typography variant="subtitle1" fontWeight={700} sx={{ lineHeight: 1.2, color: (theme) => theme.emphasys.content.foreground }}>
-                          {renderValue(contacto.nombre)}
-                        </Typography>
-                        {hasValue(contacto.nombre_contacto) ? (
-                          <Typography variant="body2" color={neutralColors.gray[700]} sx={{ mt: 0.25, lineHeight: 1.3 }}>
-                            {renderValue(contacto.nombre_contacto)}
-                          </Typography>
-                        ) : null}
-                        {subtitle ? (
-                          <Typography variant="body2" sx={{ mt: 0.25, wordBreak: 'break-word', lineHeight: 1.3, color: (theme) => theme.emphasys.content.secondary }}>
-                            {subtitle}
-                          </Typography>
-                        ) : null}
-                      </Box>
-                      <IconButton
-                        size="small"
-                        aria-label="Abrir acciones"
-                        onClick={(event) => handleOpenMenu(event, contacto)}
-                        sx={{ mt: -0.25, mr: -0.5 }}
-                      >
-                        <MoreVertIcon fontSize="small" />
-                      </IconButton>
-                    </Box>
-
-                    {detailItems.length > 0 ? (
-                      <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 0.75 }}> 
-                        {detailItems.map((item) => (
-                          <Box key={`${contacto.id}-${item.label}`} sx={{ minWidth: 0 }}>
-                            <Typography variant="caption" color={neutralColors.gray[500]} sx={{ display: 'block', lineHeight: 1.1 }}>
-                              {item.label}
-                            </Typography>
-                            <Typography variant="body2" color={neutralColors.gray[900]} sx={{ lineHeight: 1.25, wordBreak: 'break-word' }}>
-                              {renderValue(item.value)}
-                            </Typography>
-                          </Box>
-                        ))}
-                      </Box>
-                    ) : null}
-                  </CardContent>
-                </Card>
-              );
-            })
-          )}
-        </Box>
-
-        <Box sx={{ border: `1px solid ${neutralColors.gray[200]}`, borderRadius: 2, backgroundColor: whiteSurfaces.mobileList, overflow: 'hidden' }}>
-          <TablePagination
-            component="div"
-            count={rowCount}
-            page={page}
-            onPageChange={(_, nextPage) => onPageChange(nextPage)}
-            rowsPerPage={pageSize}
-            onRowsPerPageChange={(event) => onPageSizeChange(Number(event.target.value))}
-            rowsPerPageOptions={[25, 50, 100]}
-            labelRowsPerPage="Filas por página"
-          />
-        </Box>
-
-        <Fab
-          color="primary"
-          aria-label="Nuevo contacto"
-          onClick={onCreateContacto}
-          sx={{
-            position: 'fixed',
-            right: 20,
-            bottom: 20,
-            backgroundColor: (theme) => theme.emphasys.action.primary,
-            color: (theme) => theme.emphasys.action.primaryForeground,
-            boxShadow: brandElevation.floating,
-            '&:hover': { backgroundColor: (theme) => theme.emphasys.action.primaryHover },
+    <Box sx={{ flex: 1, minHeight: 'calc(100dvh - 112px)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      {detalleContactoId == null ? (
+        <ContactosListaCompacta
+          contactos={contactos}
+          rowCount={rowCount}
+          loading={loading}
+          paginationModel={{ page, pageSize }}
+          onPaginationModelChange={(model) => {
+            if (model.pageSize !== pageSize) onPageSizeChange(model.pageSize);
+            else onPageChange(model.page);
           }}
-        >
-          <AddIcon />
-        </Fab>
-
-        <Menu
-          anchorEl={menuAnchorEl}
-          open={Boolean(menuAnchorEl)}
-          onClose={handleCloseMenu}
-          anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-          transformOrigin={{ vertical: 'top', horizontal: 'right' }}
-        >
-          <MenuItem onClick={handleViewActividadesSelected}>
-            <AssignmentOutlinedIcon fontSize="small" />
-            <Typography component="span" sx={{ ml: 1 }}>Ver actividades</Typography>
-          </MenuItem>
-          <MenuItem onClick={handleEditSelected}>
-            <EditIcon fontSize="small" />
-            <Typography component="span" sx={{ ml: 1 }}>Editar</Typography>
-          </MenuItem>
-          <MenuItem onClick={handleDeleteSelected} sx={{ color: 'error.main' }}>
-            <DeleteIcon fontSize="small" />
-            <Typography component="span" sx={{ ml: 1 }}>Eliminar</Typography>
-          </MenuItem>
-        </Menu>
-      </Box>
+          selectedContactoId={null}
+          onSelectContacto={setDetalleContactoId}
+          onEditContacto={onEditContacto}
+          onDeleteContacto={onDeleteContacto}
+          onViewActividades={onViewActividades}
+          vendedorNombre={vendedorNombre}
+          searchTerm={searchTerm}
+          onSearchTermChange={onSearchTermChange}
+          onClearSearch={onClearSearch}
+          onCreate={onCreateContacto}
+          onExport={onExport}
+          exportLoading={Boolean(exportLoading)}
+          filtrosActivos={advancedFiltersCount}
+          panelFiltros={(
+            <ContactosAdvancedFilters
+              rowCount={rowCount}
+              vendedores={vendedores}
+              origenOptions={origenOptions}
+              tiposOpciones={tiposOpciones}
+              filters={advancedFilters}
+              activeFiltersCount={advancedFiltersCount}
+              onToggleFilters={onToggleFilters}
+              onSelectedTiposChange={onSelectedTiposChange}
+              onOrigenContactoIdChange={onOrigenContactoIdChange}
+              onVendedorIdChange={onVendedorIdChange}
+              onActivoChange={onActivoChange}
+              onFechaAltaDesdeChange={onFechaAltaDesdeChange}
+              onFechaAltaHastaChange={onFechaAltaHastaChange}
+              onInteresInicialChange={onInteresInicialChange}
+              onObservacionesChange={onObservacionesChange}
+              onClearAdvancedFilters={onClearAdvancedFilters}
+              soloPanel
+            />
+          )}
+          helpHref="/docs/guia-contactos.html"
+        />
+      ) : (
+        <ContactoWorkspace
+          contactoId={detalleContactoId}
+          vendedorNombre={vendedorNombre}
+          onVolver={() => setDetalleContactoId(null)}
+          onEditar={onEditContacto}
+          onEliminar={(contactoId) => {
+            setDetalleContactoId(null);
+            onDeleteContacto(contactoId);
+          }}
+          onVerActividades={onViewActividades}
+        />
+      )}
     </Box>
   );
 }

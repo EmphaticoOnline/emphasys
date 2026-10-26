@@ -25,7 +25,7 @@ export function useEmpresaBrand(): BrandDefinition {
   const { session } = useSession();
   const { pathname } = useLocation();
   const empresaId = empresaParaMarca({ pathname, token: session.token, empresaActivaId: session.empresaActivaId });
-  const [confirmados, setConfirmados] = useState<Record<number, { colores: ColoresEmpresa; modo: 'emphasys' | 'personalizado' }>>({});
+  const [confirmados, setConfirmados] = useState<Record<number, { colores: ColoresEmpresa; modo: 'emphasys' | 'personalizado'; modoPresentacionLogo: import('../../services/identidadVisualService').ModoPresentacionLogo }>>({});
 
   useEffect(() => {
     if (!session.token) return undefined;
@@ -41,8 +41,8 @@ export function useEmpresaBrand(): BrandDefinition {
           if (!vigente) return;
           const modo = datos.modo ?? 'emphasys';
           const normalizados = { ...colores, superficie_secundaria: datos.superficie_secundaria ?? colores.superficie_secundaria ?? null };
-          guardarColoresCache(id, normalizados, modo);
-          setConfirmados((previos) => ({ ...previos, [id]: { colores: normalizados, modo } }));
+          guardarColoresCache(id, normalizados, modo, datos.modo_presentacion_logo);
+          setConfirmados((previos) => ({ ...previos, [id]: { colores: normalizados, modo, modoPresentacionLogo: datos.modo_presentacion_logo ?? 'automatico' } }));
         } catch {
           /* sin acceso o sin endpoint: se conserva la caché o Emphasys */
         }
@@ -57,9 +57,9 @@ export function useEmpresaBrand(): BrandDefinition {
   // Al guardar en la pantalla de identidad visual, la app aplica los colores sin recargar.
   useEffect(() => {
     const alGuardar = (evento: Event) => {
-      const { empresaId: id, colores, modo } = (evento as CustomEvent<DetalleIdentidadActualizada>).detail;
-      guardarColoresCache(id, colores, modo);
-      setConfirmados((previos) => ({ ...previos, [id]: { colores, modo } }));
+      const { empresaId: id, colores, modo, modoPresentacionLogo } = (evento as CustomEvent<DetalleIdentidadActualizada>).detail;
+      guardarColoresCache(id, colores, modo, modoPresentacionLogo);
+      setConfirmados((previos) => ({ ...previos, [id]: { colores, modo, modoPresentacionLogo } }));
     };
     window.addEventListener(EVENTO_IDENTIDAD_ACTUALIZADA, alGuardar);
     return () => window.removeEventListener(EVENTO_IDENTIDAD_ACTUALIZADA, alGuardar);

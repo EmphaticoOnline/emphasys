@@ -13,6 +13,7 @@ import {
 } from '@mui/material';
 import { catalogoTabsSx } from '../catalogo/catalogoSurfaces';
 import EditIcon from '@mui/icons-material/Edit';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import EventNoteOutlinedIcon from '@mui/icons-material/EventNoteOutlined';
 import CreditCardOutlinedIcon from '@mui/icons-material/CreditCardOutlined';
@@ -26,6 +27,7 @@ import type { CotizacionListado } from '../../types/cotizacion';
 import type { ContactoDetalle } from '../../types/contactos.types';
 import type { ContactoRow } from './ContactosView.types';
 import { formatearTelefonoParaMostrar } from '../../utils/telefono';
+import ProductoHistorialComercial from '../productos/ProductoHistorialComercial';
 
 type ContactoWorkspaceProps = {
   contactoId: number | null;
@@ -33,6 +35,8 @@ type ContactoWorkspaceProps = {
   onEditar: (contactoId: number) => void;
   onEliminar: (contactoId: number) => void;
   onVerActividades: (contacto: ContactoRow) => void;
+  /** Solo en móvil: regresa a la lista de contactos. */
+  onVolver?: () => void;
 };
 
 const currencyFormatter = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' });
@@ -198,7 +202,7 @@ function DocumentosMiniLista({
   );
 }
 
-export default function ContactoWorkspace({ contactoId, vendedorNombre, onEditar, onEliminar, onVerActividades }: ContactoWorkspaceProps) {
+export default function ContactoWorkspace({ contactoId, vendedorNombre, onEditar, onEliminar, onVerActividades, onVolver }: ContactoWorkspaceProps) {
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [detalle, setDetalle] = React.useState<ContactoDetalle | null>(null);
@@ -209,6 +213,10 @@ export default function ContactoWorkspace({ contactoId, vendedorNombre, onEditar
   const [facturas, setFacturas] = React.useState<CotizacionListado[]>([]);
   const [facturasTotal, setFacturasTotal] = React.useState<number | null>(null);
   const [facturasLoading, setFacturasLoading] = React.useState(false);
+  const [historialDesde, setHistorialDesde] = React.useState('');
+  const [historialHasta, setHistorialHasta] = React.useState('');
+  const [offsetCompras, setOffsetCompras] = React.useState(0);
+  const [offsetVentas, setOffsetVentas] = React.useState(0);
 
   React.useEffect(() => {
     setTab(0);
@@ -253,6 +261,10 @@ export default function ContactoWorkspace({ contactoId, vendedorNombre, onEditar
     setFacturasTotal(null);
     cotizacionesLoadedForRef.current = null;
     facturasLoadedForRef.current = null;
+    setHistorialDesde('');
+    setHistorialHasta('');
+    setOffsetCompras(0);
+    setOffsetVentas(0);
   }, [contactoId]);
 
   React.useEffect(() => {
@@ -363,6 +375,7 @@ export default function ContactoWorkspace({ contactoId, vendedorNombre, onEditar
 
   const { contacto, domicilio_principal, datos_fiscales } = detalle;
   const vendedorAsignado = contacto.vendedor_id ? vendedorNombre.get(Number(contacto.vendedor_id)) : null;
+  const historialComercial = tab === 5 || tab === 6;
   const tieneDomicilio = Boolean(
     domicilio_principal &&
       (domicilio_principal.calle || domicilio_principal.colonia || domicilio_principal.ciudad || domicilio_principal.cp)
@@ -373,12 +386,22 @@ export default function ContactoWorkspace({ contactoId, vendedorNombre, onEditar
 
   return (
     <Box sx={(theme) => ({ flex: 1, minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column', bgcolor: theme.emphasys.content.background, overflow: 'hidden' })}>
-      <Box sx={{ px: { xs: 1.5, md: 2.75 }, pt: 1.6, pb: 1.4, display: 'flex', gap: 1.5, justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap' }}>
+      {onVolver ? (
+        <Box
+          component="button"
+          type="button"
+          onClick={onVolver}
+          sx={(theme) => ({ display: 'inline-flex', alignSelf: 'flex-start', alignItems: 'center', gap: 0.5, border: 0, bgcolor: 'transparent', color: theme.emphasys.content.foreground, font: 'inherit', cursor: 'pointer', mx: 1.5, mt: 1, p: 0 })}
+        >
+          <ArrowBackIcon fontSize="small" /> Contactos
+        </Box>
+      ) : null}
+      <Box sx={{ px: { xs: 1.5, md: 2.75 }, pt: onVolver ? 0.5 : 1.6, pb: 1.4, display: 'flex', gap: 1.5, justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap' }}>
         <Box sx={{ minWidth: 0 }}>
           <Typography sx={(theme) => ({ fontSize: 11, letterSpacing: '0.14em', fontWeight: 700, color: theme.emphasys.content.muted })}>
             CONTACTO SELECCIONADO
           </Typography>
-          <Typography variant="figure" sx={(theme) => ({ display: 'block', mt: 0.35, fontSize: 32, letterSpacing: '-0.02em', lineHeight: 1, color: theme.emphasys.content.foreground })}>
+          <Typography variant="figure" sx={(theme) => ({ display: 'block', mt: 0.35, fontSize: { xs: 26, md: 32 }, letterSpacing: '-0.02em', lineHeight: 1, color: theme.emphasys.content.foreground })}>
             {contacto.nombre}
           </Typography>
           <Typography variant="figure" sx={(theme) => ({ display: 'block', mt: 0.7, fontSize: 15, lineHeight: 1.3, color: theme.emphasys.content.foreground })}>
@@ -442,8 +465,18 @@ export default function ContactoWorkspace({ contactoId, vendedorNombre, onEditar
           </Tooltip>
           <Tab label={cotizacionesTotal !== null ? `Cotizaciones (${cotizacionesTotal})` : 'Cotizaciones'} />
           <Tab label={facturasTotal !== null ? `Facturas (${facturasTotal})` : 'Facturas'} />
+          <Tab label="Últimas compras" />
+          <Tab label="Últimas ventas" />
         </Tabs>
-      <Box sx={{ p: { xs: 1.5, md: 2.25 }, overflowY: 'auto', flex: 1 }}>
+      <Box
+        sx={{
+          p: historialComercial ? 0 : { xs: 1.5, md: 2.25 },
+          overflowY: 'auto',
+          flex: 1,
+          minHeight: 0,
+          display: historialComercial ? 'flex' : 'block',
+        }}
+      >
         {tab === 0 && (
           <Stack spacing={2.5}>
             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5 }}>
@@ -554,6 +587,28 @@ export default function ContactoWorkspace({ contactoId, vendedorNombre, onEditar
 
         {tab === 4 && (
           <DocumentosMiniLista loading={facturasLoading} documentos={facturas} emptyLabel="Sin facturas registradas." codigo="factura" />
+        )}
+
+        {historialComercial && (
+          <ProductoHistorialComercial
+            entidad="contacto"
+            entidadId={contacto.id}
+            modo={tab === 5 ? 'compras' : 'ventas'}
+            desde={historialDesde}
+            hasta={historialHasta}
+            offset={tab === 5 ? offsetCompras : offsetVentas}
+            onDesde={(valor) => {
+              setHistorialDesde(valor);
+              setOffsetCompras(0);
+              setOffsetVentas(0);
+            }}
+            onHasta={(valor) => {
+              setHistorialHasta(valor);
+              setOffsetCompras(0);
+              setOffsetVentas(0);
+            }}
+            onOffset={tab === 5 ? setOffsetCompras : setOffsetVentas}
+          />
         )}
       </Box>
       </Box>

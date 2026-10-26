@@ -41,6 +41,8 @@ import WarehouseIcon from '@mui/icons-material/Warehouse';
 import { useBrand } from '../../theme/brand/useBrand';
 import { brandLogos } from '../../theme/brand/logos';
 import { useEmpresaLogo } from '../../theme/brand/useEmpresaLogo';
+import { useEmpresaLogoContrast } from '../../theme/brand/useEmpresaLogoContrast';
+import { useEmpresaLogoPresentation } from '../../theme/brand/useEmpresaLogoPresentation';
 import EmpresaSelector from '../EmpresaSelector';
 import RuntimeEnvironmentIndicator from '../RuntimeEnvironmentIndicator';
 import { MOBILE_APPBAR_HEIGHT, SIDEBAR_COLLAPSED_WIDTH, SIDEBAR_WIDTH, TOPBAR_HEIGHT } from '../layoutConstants';
@@ -91,8 +93,6 @@ function toBoolean(value: unknown): boolean {
 
 // emphasys-w.png: WebP 765×205 (ratio 3.73) — logo completo horizontal
 // emphasys-colibri-w.png: PNG 1536×1024 (ratio 1.5) — isotipo solo centrado
-const LOGO_HEIGHT = 40;    // expanded: logo completo con presencia visual clara
-const COLIBRI_HEIGHT = 80; // collapsed: colibrí — 158×159px recortado ajustado, cabe en sidebar 100px
 
 type NavItem = { label: string; path: string; icon: SvgIconComponent };
 
@@ -168,7 +168,6 @@ interface SidebarNavProps {
   onLogout: () => void;
   onChangePassword: () => void;
   onOpenNotifications: () => void;
-  logo: string;
 }
 
 function SidebarNav({
@@ -182,7 +181,6 @@ function SidebarNav({
   onLogout,
   onChangePassword,
   onOpenNotifications,
-  logo,
 }: SidebarNavProps) {
   const { activeBrand } = useBrand();
   const frame = useTheme().emphasys.frame;
@@ -191,59 +189,6 @@ function SidebarNav({
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
-
-      {/* Logo / header — clicking the collapsed isotipo expands the sidebar */}
-      <Box
-        onClick={!isMobile && collapsed ? onToggleCollapse : undefined}
-        sx={{
-          // Cuando está colapsado, la altura se adapta al colibrí; expandido, alineado con el topbar
-          height: collapsed ? 'auto' : TOPBAR_HEIGHT,
-          minHeight: TOPBAR_HEIGHT,
-          py: collapsed ? 1.5 : 0,
-          display: 'flex',
-          alignItems: 'center',
-          px: collapsed ? 0 : 1.5,
-          justifyContent: collapsed ? 'center' : 'space-between',
-          borderBottom: `1px solid ${frame.border}`,
-          flexShrink: 0,
-          cursor: !isMobile && collapsed ? 'pointer' : 'default',
-          transition: 'background 0.15s',
-          '&:hover': !isMobile && collapsed ? { background: frame.hover } : {},
-        }}
-      >
-        {collapsed ? (
-          // Isotipo dedicado — sin recortes, sin overflow hidden
-          <img
-            src={logo}
-            alt={activeBrand.name}
-            style={{ height: 'auto', maxHeight: COLIBRI_HEIGHT, maxWidth: `calc(${SIDEBAR_COLLAPSED_WIDTH}px - 16px)`, width: 'auto', objectFit: 'contain', filter: frame.logoFilter }}
-          />
-        ) : (
-          <>
-            <Box sx={{ flex: 1, overflow: 'hidden', display: 'flex', alignItems: 'center', pl: 0.5 }}>
-              <img
-                src={logo}
-                alt={activeBrand.name}
-                style={{ height: LOGO_HEIGHT, width: 'auto', maxWidth: '100%', filter: frame.logoFilter }}
-              />
-            </Box>
-            {!isMobile && (
-              <IconButton
-                onClick={onToggleCollapse}
-                size="small"
-                sx={{
-                  color: frame.subtle,
-                  flexShrink: 0,
-                  ml: 0.5,
-                  '&:hover': { color: frame.foreground, background: frame.hover },
-                }}
-              >
-                <ChevronLeftIcon sx={{ fontSize: 18 }} />
-              </IconButton>
-            )}
-          </>
-        )}
-      </Box>
 
       {/* Nav items */}
       <Box sx={{
@@ -382,9 +327,12 @@ export default function SidebarLayout() {
 
   const sidebarWidth = collapsed ? SIDEBAR_COLLAPSED_WIDTH : SIDEBAR_WIDTH;
   const userName = session.user?.nombre || 'Usuario';
-  const breadcrumbs = getBreadcrumbs(location.pathname);
   const empresaId = session.empresaActivaId;
   const logo = useEmpresaLogo(empresaId, brandLogos.logo);
+  const protectLogo = useEmpresaLogoContrast(logo, activeBrand.colors.graphite.chrome, brandLogos.logo);
+  const logoPresentation = useEmpresaLogoPresentation(empresaId);
+  // La placa blanca solo va con 'fondo_blanco' o, en 'automatico', cuando el contraste lo pide; 'logo_blanco' nunca lleva placa.
+  const logoConPlaca = logoPresentation === 'fondo_blanco' || (logoPresentation === 'automatico' && protectLogo);
 
   const [ventasTabs, setVentasTabs] = React.useState<DocumentoTabDef[]>([]);
   const [comprasTabs, setComprasTabs] = React.useState<DocumentoTabDef[]>([]);
@@ -578,7 +526,6 @@ export default function SidebarLayout() {
     onLogout: handleLogout,
     onChangePassword: () => setChangePasswordOpen(true),
     onOpenNotifications: () => setNotificationsOpen(true),
-    logo,
   };
 
   if (isMobile) {
@@ -589,7 +536,7 @@ export default function SidebarLayout() {
             <IconButton color="inherit" edge="start" onClick={() => setMobileOpen(true)} sx={{ p: 0.75 }} aria-label="Abrir menú">
               <MenuIcon sx={{ fontSize: 22 }} />
             </IconButton>
-            <Box sx={{ display: 'flex', alignItems: 'center', minWidth: 0 }}><img src={logo} alt={activeBrand.name} style={{ height: 16, maxWidth: '100%', width: 'auto', objectFit: 'contain', filter: frame.logoFilter }} /></Box>
+            <Box sx={{ display: 'flex', alignItems: 'center', minWidth: 0, maxWidth: '45vw', ...(logoConPlaca ? { background: '#fff', padding: '3px 5px', borderRadius: '5px' } : {}) }}><img src={logo} alt={activeBrand.name} style={{ height: 42, maxWidth: '100%', width: 'auto', objectFit: 'contain', filter: logoPresentation === 'logo_blanco' ? 'brightness(0) invert(1)' : frame.logoFilter }} /></Box>
             <Box sx={{ flex: 1 }} />
             <EmpresaSelector compact />
           </Toolbar>
@@ -610,19 +557,25 @@ export default function SidebarLayout() {
 
   return (
     <>
-    <Box sx={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
-      <Box sx={{ width: sidebarWidth, flexShrink: 0, background: frame.background, height: '100vh', position: 'fixed', left: 0, top: 0, zIndex: 1200, transition: 'width 0.2s ease', overflow: 'hidden' }}>
+    <Box sx={{ height: '100vh', overflow: 'hidden' }}>
+      <Box sx={{ position: 'fixed', left: 0, right: 0, top: 0, zIndex: 1300, height: TOPBAR_HEIGHT, display: 'flex', alignItems: 'center', px: 1.5, background: frame.background, color: frame.foreground, borderBottom: `1px solid ${frame.border}`, gap: 1 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', minWidth: 0, maxWidth: 'calc(100vw - 360px)', flexShrink: 1 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', minWidth: 0, maxWidth: '100%', ...(logoConPlaca ? { background: '#fff', padding: '2px 5px', borderRadius: '6px' } : {}) }}>
+            <img src={logo} alt={activeBrand.name} style={{ display: 'block', height: 64, maxWidth: '100%', width: 'auto', objectFit: 'contain', filter: logoPresentation === 'logo_blanco' ? 'brightness(0) invert(1)' : frame.logoFilter }} />
+          </Box>
+          <IconButton onClick={handleToggleCollapse} size="small" aria-label={collapsed ? 'Expandir menú' : 'Contraer menú'} sx={{ width: 32, height: 32, ml: 1, flexShrink: 0, color: frame.subtle, '&:hover': { color: frame.foreground, background: frame.hover } }}>
+            {collapsed ? <ChevronRightIcon sx={{ fontSize: 20 }} /> : <ChevronLeftIcon sx={{ fontSize: 20 }} />}
+          </IconButton>
+        </Box>
+        <Box sx={{ flex: 1, minWidth: 8 }} />
+        <RuntimeEnvironmentIndicator email={session.user?.email} />
+        <EmpresaSelector />
+      </Box>
+      <Box sx={{ width: sidebarWidth, flexShrink: 0, background: frame.background, height: `calc(100vh - ${TOPBAR_HEIGHT}px)`, position: 'fixed', left: 0, top: TOPBAR_HEIGHT, zIndex: 1200, transition: 'width 0.2s ease', overflow: 'hidden' }}>
         <SidebarNav {...navProps} />
       </Box>
 
-      <Box sx={{ flex: 1, ml: `${sidebarWidth}px`, display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden', transition: 'margin-left 0.2s ease', minWidth: 0 }}>
-        <Box sx={{ height: TOPBAR_HEIGHT, background: frame.background, color: frame.foreground, borderBottom: `1px solid ${frame.border}`, display: 'flex', alignItems: 'center', px: 3, gap: 2, flexShrink: 0 }}>
-            <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', gap: 0.5 }}>
-              {breadcrumbs.map((crumb, index) => <React.Fragment key={crumb}>{index > 0 && <Typography sx={{ color: frame.subtle, fontSize: 13, lineHeight: 1, mx: 0.25 }}>›</Typography>}<Typography sx={{ fontSize: 13, fontWeight: index === breadcrumbs.length - 1 ? 600 : 400, color: index === breadcrumbs.length - 1 ? frame.foreground : frame.muted, lineHeight: 1 }}>{crumb}</Typography></React.Fragment>)}
-            </Box>
-            <RuntimeEnvironmentIndicator email={session.user?.email} />
-            <EmpresaSelector />
-          </Box>
+      <Box sx={{ flex: 1, ml: `${sidebarWidth}px`, pt: `${TOPBAR_HEIGHT}px`, display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden', transition: 'margin-left 0.2s ease', minWidth: 0 }}>
         {documentTabBar}
         {inventarioTabBar}
         <Box sx={{ flex: 1, overflow: canvas.inset ? 'auto' : 'hidden', background: canvas.page, py: canvas.inset, px: canvas.inset, minHeight: 0, display: canvas.inset ? 'block' : 'flex', flexDirection: 'column' }}>

@@ -1,5 +1,6 @@
 import type { Contacto, ContactoDetalle, ContactoDomicilio } from '../types/contactos.types';
 import { apiFetch, apiFetchBlob, triggerBlobDownload } from './apiFetch';
+import { consultaHistorialComercial, type ProductoHistorialConsulta } from './productosService';
 
 export type CatalogoConfigurablesRespuesta = {
   entidad_tipo_id: number;
@@ -22,6 +23,14 @@ const BASE_URL = '/api/contactos';
 
 export async function getContactos(): Promise<Contacto[]> {
   return apiFetch(BASE_URL);
+}
+
+export function fetchUltimasComprasContacto(contactoId: number, consulta: ProductoHistorialConsulta) {
+  return consultaHistorialComercial(BASE_URL, contactoId, 'ultimas-compras', consulta);
+}
+
+export function fetchUltimasVentasContacto(contactoId: number, consulta: ProductoHistorialConsulta) {
+  return consultaHistorialComercial(BASE_URL, contactoId, 'ultimas-ventas', consulta);
 }
 
 export async function getContacto(id: number): Promise<ContactoDetalle | Contacto> {

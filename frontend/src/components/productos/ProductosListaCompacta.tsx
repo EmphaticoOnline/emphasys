@@ -301,6 +301,7 @@ export default function ProductosListaCompacta({
                       {subtitle}
                     </Typography>
                   ) : null}
+                  <Box sx={(theme) => ({ mt: 0.55, height: 3, borderRadius: 99, bgcolor: theme.emphasys.navigation.track })} />
                 </Box>
               </Box>
             );

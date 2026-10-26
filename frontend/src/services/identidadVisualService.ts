@@ -1,6 +1,8 @@
 import { apiFetch, type ApiFetchError } from "./apiFetch";
 import type { ColoresEmpresa, ModoIdentidad } from "../theme/brand/empresaBrand";
 
+export type ModoPresentacionLogo = 'automatico' | 'fondo_blanco' | 'logo_blanco';
+
 export type RolIdentidad = keyof ColoresEmpresa;
 export type OrigenColor = "emphasys" | "analisis" | "manual";
 
@@ -9,6 +11,7 @@ export type IdentidadVisualEmpresa = {
   empresa_id: number;
   colores: Omit<ColoresEmpresa, 'superficie_secundaria'> & { superficie_secundaria?: string | null };
   modo?: ModoIdentidad;
+  modo_presentacion_logo?: ModoPresentacionLogo;
   superficie_secundaria?: string | null;
   origen?: Record<RolIdentidad, OrigenColor>;
   propuesta?: {
@@ -32,7 +35,7 @@ export type ResultadoGuardarIdentidad =
 
 /** Evento para que la app aplique enseguida los colores recién guardados. */
 export const EVENTO_IDENTIDAD_ACTUALIZADA = "emphasys:identidad-visual-actualizada";
-export type DetalleIdentidadActualizada = { empresaId: number; colores: ColoresEmpresa; modo: ModoIdentidad };
+export type DetalleIdentidadActualizada = { empresaId: number; colores: ColoresEmpresa; modo: ModoIdentidad; modoPresentacionLogo: ModoPresentacionLogo };
 
 export async function fetchIdentidadVisual(empresaId: number): Promise<IdentidadVisualEmpresa> {
   return apiFetch<IdentidadVisualEmpresa>(`/api/empresas/${empresaId}/identidad-visual`);
@@ -43,16 +46,17 @@ export async function guardarIdentidadVisual(
   empresaId: number,
   colores: Partial<ColoresEmpresa>,
   confirmarSobrescritura: boolean,
-  modo: ModoIdentidad = 'personalizado'
+  modo: ModoIdentidad = 'personalizado',
+  modoPresentacionLogo: ModoPresentacionLogo = 'automatico'
 ): Promise<ResultadoGuardarIdentidad> {
   try {
     const { superficie_secundaria, ...roles } = colores;
     const identidad = await apiFetch<IdentidadVisualEmpresa>(`/api/empresas/${empresaId}/identidad-visual`, {
       method: "PUT",
-      body: { colores: roles, superficie_secundaria, modo, confirmarSobrescritura },
+      body: { colores: roles, superficie_secundaria, modo, modo_presentacion_logo: modoPresentacionLogo, confirmarSobrescritura },
     });
     window.dispatchEvent(
-      new CustomEvent<DetalleIdentidadActualizada>(EVENTO_IDENTIDAD_ACTUALIZADA, { detail: { empresaId, colores: { ...identidad.colores, superficie_secundaria: identidad.superficie_secundaria ?? identidad.colores.superficie_secundaria ?? null }, modo: identidad.modo ?? modo } })
+      new CustomEvent<DetalleIdentidadActualizada>(EVENTO_IDENTIDAD_ACTUALIZADA, { detail: { empresaId, colores: { ...identidad.colores, superficie_secundaria: identidad.superficie_secundaria ?? identidad.colores.superficie_secundaria ?? null }, modo: identidad.modo ?? modo, modoPresentacionLogo: identidad.modo_presentacion_logo ?? modoPresentacionLogo } })
     );
     return { ok: true, identidad };
   } catch (error) {

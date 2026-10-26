@@ -23,9 +23,10 @@ export function CatalogoRailVistaAyuda({
   viewMode,
   onViewModeChange,
   helpHref,
-}: Pick<CatalogoModuloToolbarProps, 'viewMode' | 'onViewModeChange' | 'helpHref'>) {
+}: Pick<CatalogoModuloToolbarProps, 'viewMode' | 'helpHref'> & { onViewModeChange?: CatalogoModuloToolbarProps['onViewModeChange'] | undefined }) {
   return (
     <>
+      {onViewModeChange ? (
       <ToggleButtonGroup
         size="small"
         exclusive
@@ -59,6 +60,7 @@ export function CatalogoRailVistaAyuda({
           </Tooltip>
         </ToggleButton>
       </ToggleButtonGroup>
+      ) : null}
       <Tooltip title="Ayuda" arrow>
         <IconButton
           aria-label="Ayuda"

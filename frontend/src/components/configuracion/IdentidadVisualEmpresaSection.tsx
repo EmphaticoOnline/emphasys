@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useState } from 'react';
 import {
   Alert,
   Box,
@@ -12,6 +12,10 @@ import {
   Popover,
   Stack,
   TextField,
+  FormControl,
+  InputLabel,
+  MenuItem,
+  Select,
   Typography,
 } from '@mui/material';
 import { ThemeProvider, useTheme, type Theme } from '@mui/material/styles';
@@ -44,8 +48,13 @@ import {
   type Origen,
   ETIQUETA_SUPERFICIE,
   SUPERFICIE_SECUNDARIA_EMPHASYS,
+  textoSobreSuperficieSecundaria,
 } from './identidadVisualEdicion';
 import { emphasysBrand } from '../../theme/brand/emphasys';
+import { brandLogos } from '../../theme/brand/logos';
+import { useEmpresaLogo } from '../../theme/brand/useEmpresaLogo';
+import { razonContraste } from '../../../../backend/src/shared/identidadVisual/contraste';
+import type { ModoPresentacionLogo } from '../../services/identidadVisualService';
 
 type RolIdentidad = (typeof ROLES)[number];
 
@@ -101,6 +110,7 @@ function VistaPreviaTema({ titulo }: { titulo: string }) {
           </Button>
         </Box>
       </Box>
+      <Box sx={{ width: 34, bgcolor: theme.emphasys.workspaceRail.background, color: theme.emphasys.workspaceRail.foreground, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10 }}>R</Box>
     </Box>
   );
 }
@@ -191,7 +201,7 @@ function FilaSuperficie({ valor, editable, onCambiar }: { valor: string | null; 
   const efectivo = valor ?? SUPERFICIE_SECUNDARIA_EMPHASYS;
   return <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} alignItems={{ sm: 'center' }} sx={{ py: 1 }}>
     <Box sx={{ width: { sm: 170 }, flexShrink: 0 }}><Typography sx={{ fontWeight: 700, fontSize: 14 }}>{ETIQUETA_SUPERFICIE.titulo}</Typography><Typography variant="caption" color="text.secondary">{ETIQUETA_SUPERFICIE.uso}</Typography></Box>
-    <Stack direction="row" spacing={1} alignItems="center"><Box component="button" type="button" aria-label="Elegir color Superficie secundaria" disabled={!editable} onClick={(e: React.MouseEvent<HTMLElement>) => setAncla(e.currentTarget)} sx={(theme) => ({ ...muestraSx(efectivo)(theme), cursor: editable ? 'pointer' : 'default', p: 0 })} /><TextField size="small" value={valor ?? ''} placeholder="Emphasys" disabled={!editable} onChange={(e) => { const hex = leerHex(e.target.value.trim()); if (hex) onCambiar(hex); }} sx={{ width: 130 }} inputProps={{ 'aria-label': 'Hex Superficie secundaria', spellCheck: false }} /><Chip size="small" variant="outlined" label="Texto beige" />{editable && valor !== null && <Button size="small" sx={botonSecundarioSx} onClick={() => onCambiar(null)}>Emphasys</Button>}</Stack>
+    <Stack direction="row" spacing={1} alignItems="center"><Box component="button" type="button" aria-label="Elegir color Superficie secundaria" disabled={!editable} onClick={(e: React.MouseEvent<HTMLElement>) => setAncla(e.currentTarget)} sx={(theme) => ({ ...muestraSx(efectivo)(theme), cursor: editable ? 'pointer' : 'default', p: 0 })} /><TextField size="small" value={valor ?? ''} placeholder="Emphasys" disabled={!editable} onChange={(e) => { const hex = leerHex(e.target.value.trim()); if (hex) onCambiar(hex); }} sx={{ width: 130 }} inputProps={{ 'aria-label': 'Hex Superficie secundaria', spellCheck: false }} /><Chip size="small" variant="outlined" label={`Texto ${{ "#f4f0e8": "beige", "#ffffff": "blanco" }[textoSobreSuperficieSecundaria(efectivo)] ?? "oscuro"} (automático)`} />{editable && valor !== null && <Button size="small" sx={botonSecundarioSx} onClick={() => onCambiar(null)}>Emphasys</Button>}</Stack>
     <Popover open={Boolean(ancla)} anchorEl={ancla} onClose={() => setAncla(null)} anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}><Box sx={{ p: 1.5 }}><HexColorPicker color={efectivo} onChange={(hex) => onCambiar(hex.toLowerCase())} /></Box></Popover>
   </Stack>;
 }
@@ -202,25 +212,39 @@ function FilaSuperficie({ valor, editable, onCambiar }: { valor: string | null; 
  * Login y selección de empresa siguen con Emphasys; sin colores guardados, la
  * empresa se ve exactamente como Emphasys.
  */
-export default function IdentidadVisualEmpresaSection({ empresaId, tieneLogo, logoVersion }: { empresaId: number | null; tieneLogo: boolean; logoVersion: number }) {
+export type IdentidadVisualEmpresaHandle = { guardarPendientes: () => Promise<boolean> };
+
+const IdentidadVisualEmpresaSection = forwardRef<IdentidadVisualEmpresaHandle, { empresaId: number | null; tieneLogo: boolean; logoVersion: number }>(function IdentidadVisualEmpresaSection({ empresaId, tieneLogo, logoVersion }, ref) {
   const { session } = useSession();
   const editable = Boolean(session.user?.es_superadmin);
   const [identidad, setIdentidad] = useState<IdentidadVisualEmpresa | null>(null);
   const [borrador, setBorrador] = useState<Colores>(SIN_COLORES);
   const [modo, setModo] = useState<'emphasys' | 'personalizado'>('emphasys');
+  const [modoPresentacionLogo, setModoPresentacionLogo] = useState<ModoPresentacionLogo>('automatico');
   const [cargando, setCargando] = useState(false);
   const [analizando, setAnalizando] = useState(false);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [exito, setExito] = useState<string | null>(null);
   const [confirmar, setConfirmar] = useState<{ conflictos: RolIdentidad[] } | null>(null);
+  const logoPreview = useEmpresaLogo(empresaId, brandLogos.logo);
 
   const guardados = identidad?.colores ?? SIN_COLORES;
+  const superficieGuardada = identidad?.superficie_secundaria ?? guardados.superficie_secundaria ?? null;
   const origen = identidad?.origen ?? ORIGEN_EMPHASYS;
   const propuesta = identidad?.propuesta ?? null;
-  const cambiados = rolesCambiados(guardados, borrador);
-  const manuales = manualesAfectados(guardados, origen, borrador);
+  // En modo Emphasys los colores son los de Emphasys (null en BD): el preset visual del borrador no cuenta como cambio.
+  const borradorEfectivo = modo === 'emphasys' ? SIN_COLORES : borrador;
+  const cambiados = rolesCambiados(guardados, borradorEfectivo);
+  const cambioSuperficie = superficieGuardada !== borradorEfectivo.superficie_secundaria;
+  const cambioModo = (identidad?.modo ?? 'emphasys') !== modo;
+  const cambioPresentacionLogo = (identidad?.modo_presentacion_logo ?? 'automatico') !== modoPresentacionLogo;
+  const hayCambios = cambiados.length > 0 || cambioSuperficie || cambioModo || cambioPresentacionLogo;
+  const manuales = manualesAfectados(guardados, origen, borradorEfectivo);
   const sinContraste = ROLES.filter((rol) => borrador[rol] !== null && !contrasteRol(rol, borrador[rol]).ok);
+  const superficieEfectiva = borrador.superficie_secundaria ?? SUPERFICIE_SECUNDARIA_EMPHASYS;
+  const superficiePrimerPlano = textoSobreSuperficieSecundaria(superficieEfectiva);
+  const superficieSinContraste = razonContraste(superficieEfectiva, superficiePrimerPlano) < 4.5;
 
   const aplicar = useCallback((datos: IdentidadVisualEmpresa) => {
     setIdentidad(datos);
@@ -228,6 +252,7 @@ export default function IdentidadVisualEmpresaSection({ empresaId, tieneLogo, lo
       ? { primario: emphasysBrand.colors.blue.base, acento: emphasysBrand.colors.accent, sidebar: emphasysBrand.colors.graphite.chrome, superficie_secundaria: emphasysBrand.colors.graphite.raised }
       : { ...datos.colores, superficie_secundaria: datos.superficie_secundaria ?? datos.colores.superficie_secundaria ?? null });
     setModo(datos.modo ?? 'emphasys');
+    setModoPresentacionLogo(datos.modo_presentacion_logo ?? 'automatico');
   }, []);
 
   const cargar = useCallback(async () => {
@@ -278,25 +303,34 @@ export default function IdentidadVisualEmpresaSection({ empresaId, tieneLogo, lo
     }
   };
 
-  const guardar = async (confirmarSobrescritura: boolean) => {
-    if (!empresaId) return;
+  const guardar = async (confirmarSobrescritura: boolean): Promise<boolean> => {
+    if (!empresaId) return false;
     setGuardando(true);
     setError(null);
     try {
-      const r = await guardarIdentidadVisual(empresaId, { ...cuerpoCambios(guardados, borrador), superficie_secundaria: borrador.superficie_secundaria }, confirmarSobrescritura, modo);
+      const r = await guardarIdentidadVisual(empresaId, { ...cuerpoCambios(guardados, borradorEfectivo), superficie_secundaria: borradorEfectivo.superficie_secundaria }, confirmarSobrescritura, modo, modoPresentacionLogo);
       if (!r.ok) {
         setConfirmar({ conflictos: r.conflictos });
-        return;
+        return false;
       }
       aplicar(r.identidad);
       setConfirmar(null);
       setExito('Identidad visual guardada.');
+      return true;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo guardar la identidad visual');
+      return false;
     } finally {
       setGuardando(false);
     }
   };
+
+  useImperativeHandle(ref, () => ({
+    guardarPendientes: async () => {
+      if (!editable || !hayCambios) return true;
+      return guardar(false);
+    },
+  }), [editable, hayCambios, guardar]);
 
   const marcaPrevia = useMemo(() => getEmpresaBrand(borrador, undefined, modo), [borrador, modo]);
   const temasPrevios = useMemo(
@@ -326,7 +360,7 @@ export default function IdentidadVisualEmpresaSection({ empresaId, tieneLogo, lo
         {!editable && <Alert severity="info">Solo un superadministrador puede modificar la identidad visual.</Alert>}
 
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} alignItems={{ sm: 'center' }}>
-          <Button variant={modo === 'emphasys' ? 'contained' : 'outlined'} sx={botonPrimarioSx} disabled={!editable} onClick={() => { setModo('emphasys'); setBorrador({ primario: emphasysBrand.colors.blue.base, acento: emphasysBrand.colors.accent, sidebar: emphasysBrand.colors.graphite.chrome, superficie_secundaria: emphasysBrand.colors.graphite.raised }); }}>Emphasys original</Button>
+          <Button variant={modo === 'emphasys' ? 'contained' : 'outlined'} sx={botonPrimarioSx} disabled={!editable} onClick={() => { setModo('emphasys'); setModoPresentacionLogo('automatico'); setBorrador({ primario: emphasysBrand.colors.blue.base, acento: emphasysBrand.colors.accent, sidebar: emphasysBrand.colors.graphite.chrome, superficie_secundaria: emphasysBrand.colors.graphite.raised }); }}>Emphasys original</Button>
           <Button variant="outlined" sx={botonSecundarioSx} onClick={analizar} disabled={!editable || !tieneLogo || analizando}>
             {analizando ? 'Analizando…' : 'Analizar logo'}
           </Button>
@@ -358,6 +392,30 @@ export default function IdentidadVisualEmpresaSection({ empresaId, tieneLogo, lo
             </Stack>
           )}
         </Stack>
+
+        <FormControl size="small" sx={{ maxWidth: 310 }} disabled={!editable}>
+          <InputLabel id="modo-presentacion-logo-label">Presentación del logotipo</InputLabel>
+          <Select
+            labelId="modo-presentacion-logo-label"
+            value={modoPresentacionLogo}
+            label="Presentación del logotipo"
+            onChange={(event) => setModoPresentacionLogo(event.target.value as ModoPresentacionLogo)}
+          >
+            <MenuItem value="automatico">Automático</MenuItem>
+            <MenuItem value="fondo_blanco">Original sobre blanco</MenuItem>
+            <MenuItem value="logo_blanco">Logotipo blanco</MenuItem>
+          </Select>
+        </FormControl>
+        <Typography variant="caption" color="text.secondary">
+          {modoPresentacionLogo === 'automatico'
+            ? 'El fondo protector se agrega solo cuando el contraste del logotipo lo requiere.'
+            : modoPresentacionLogo === 'fondo_blanco'
+              ? 'Conserva los colores originales sobre una superficie blanca discreta.'
+              : 'Convierte visualmente el logotipo a blanco sobre el Sidebar; los fondos sólidos integrados pueden requerir un archivo con transparencia.'}
+        </Typography>
+        <Box sx={{ width: 'fit-content', maxWidth: '100%', p: modoPresentacionLogo === 'fondo_blanco' ? 1 : 0.75, borderRadius: 1.5, bgcolor: modoPresentacionLogo === 'logo_blanco' ? (getEmpresaBrand(borrador, undefined, modo).colors.graphite.chrome) : modoPresentacionLogo === 'fondo_blanco' ? '#fff' : 'transparent', border: '1px solid', borderColor: 'divider' }}>
+          <img src={logoPreview} alt="Vista previa del logotipo" style={{ display: 'block', height: 42, maxWidth: 'min(260px, 70vw)', width: 'auto', objectFit: 'contain', filter: modoPresentacionLogo === 'logo_blanco' ? 'brightness(0) invert(1)' : 'none' }} />
+        </Box>
 
         {cargando ? (
           <Stack direction="row" spacing={1} alignItems="center">
@@ -397,20 +455,21 @@ export default function IdentidadVisualEmpresaSection({ empresaId, tieneLogo, lo
             {sinContraste.map((rol) => ETIQUETAS[rol].titulo).join(', ')} no tiene contraste suficiente; ajústalo antes de guardar.
           </Alert>
         )}
+        {superficieSinContraste && <Alert severity="warning">Superficie secundaria sin contraste suficiente con su color de texto calculado; elige otro color.</Alert>}
 
         {editable && (
           <Stack direction="row" spacing={1} justifyContent="flex-end" flexWrap="wrap" rowGap={1}>
-            <Button sx={botonSecundarioSx} onClick={() => setBorrador(SIN_COLORES)} disabled={ROLES.every((rol) => borrador[rol] === null)}>
+            <Button sx={botonSecundarioSx} onClick={() => { setModo('emphasys'); setBorrador(SIN_COLORES); }} disabled={modo === 'emphasys' || guardando}>
               Restablecer Emphasys
             </Button>
-            <Button sx={botonSecundarioSx} onClick={() => setBorrador(guardados)} disabled={!cambiados.length}>
+            <Button sx={botonSecundarioSx} onClick={() => { setModo(identidad?.modo ?? 'emphasys'); setModoPresentacionLogo(identidad?.modo_presentacion_logo ?? 'automatico'); setBorrador({ ...guardados, superficie_secundaria: superficieGuardada }); }} disabled={!hayCambios}>
               Descartar cambios
             </Button>
             <Button
               variant="contained"
               disableElevation
               sx={botonPrimarioSx}
-              disabled={!cambiados.length || sinContraste.length > 0 || guardando}
+              disabled={!hayCambios || sinContraste.length > 0 || superficieSinContraste || guardando}
               onClick={() => setConfirmar({ conflictos: manuales })}
             >
               Guardar identidad
@@ -455,4 +514,6 @@ export default function IdentidadVisualEmpresaSection({ empresaId, tieneLogo, lo
       </Dialog>
     </Section>
   );
-}
+});
+
+export default IdentidadVisualEmpresaSection;

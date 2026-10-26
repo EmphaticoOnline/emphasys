@@ -16,6 +16,7 @@ export type IdentidadVisualRow = {
   color_sidebar: string | null;
   color_superficie_secundaria: string | null;
   modo: ModoIdentidad;
+  modo_presentacion_logo: ModoPresentacionLogo;
   origen_primario: OrigenColor;
   origen_acento: OrigenColor;
   origen_sidebar: OrigenColor;
@@ -39,6 +40,7 @@ export type IdentidadVisualRespuesta = {
   colores: Record<RolIdentidad, string | null>;
   superficie_secundaria?: string | null;
   modo?: ModoIdentidad;
+  modo_presentacion_logo?: ModoPresentacionLogo;
   origen: Record<RolIdentidad, OrigenColor>;
   propuesta: {
     estado: "ok" | "sin_colores_utiles" | "error";
@@ -56,11 +58,13 @@ export type IdentidadVisualRespuesta = {
   actualizado_por: number | null;
 };
 
+export type ModoPresentacionLogo = 'automatico' | 'fondo_blanco' | 'logo_blanco';
+
 export type ResultadoGuardar =
   | { ok: true; identidad: IdentidadVisualRow | null }
   | { ok: false; conflictos: RolIdentidad[] };
 
-const COLUMNAS = `empresa_id, color_primario, color_acento, color_sidebar, color_superficie_secundaria, modo,
+const COLUMNAS = `empresa_id, color_primario, color_acento, color_sidebar, color_superficie_secundaria, modo, modo_presentacion_logo,
        origen_primario, origen_acento, origen_sidebar,
        propuesta_primario, propuesta_acento, propuesta_sidebar,
        propuesta_estado, propuesta_confianza, propuesta_detalle, propuesta_asset_id,
@@ -119,6 +123,7 @@ export function aRespuesta(
     colores,
     ...(row?.color_superficie_secundaria !== undefined ? { superficie_secundaria: superficieSecundaria ?? null } : {}),
     ...(row?.modo !== undefined ? { modo: modo ?? 'emphasys' } : {}),
+    ...(row?.modo_presentacion_logo !== undefined ? { modo_presentacion_logo: row.modo_presentacion_logo ?? 'automatico' } : {}),
     origen,
     propuesta,
     updated_at: row?.updated_at ?? null,
@@ -138,7 +143,8 @@ export async function guardarColoresIdentidad(
   confirmarSobrescritura: boolean,
   usuarioId: number,
   superficieSecundaria?: string | null,
-  modo?: ModoIdentidad
+  modo?: ModoIdentidad,
+  modoPresentacionLogo: ModoPresentacionLogo = 'automatico'
 ): Promise<ResultadoGuardar> {
   const client = await pool.connect();
   try {
@@ -155,7 +161,7 @@ export async function guardarColoresIdentidad(
       await client.query("ROLLBACK");
       return { ok: false, conflictos: resultado.conflictos };
     }
-    if (resultado.cambiados.length === 0 && resultado.superficieSecundaria === (rows[0]?.color_superficie_secundaria ?? null) && resultado.modo === (rows[0]?.modo ?? 'emphasys')) {
+    if (resultado.cambiados.length === 0 && resultado.superficieSecundaria === (rows[0]?.color_superficie_secundaria ?? null) && resultado.modo === (rows[0]?.modo ?? 'emphasys') && modoPresentacionLogo === (rows[0]?.modo_presentacion_logo ?? 'automatico')) {
       // Nada cambia: no se crea ni se toca la fila.
       await client.query("ROLLBACK");
       return { ok: true, identidad: rows[0] ?? null };
@@ -164,8 +170,8 @@ export async function guardarColoresIdentidad(
     const guardado = await client.query<IdentidadVisualRow>(
       `INSERT INTO core.empresas_identidad_visual
               (empresa_id, color_primario, color_acento, color_sidebar, color_superficie_secundaria, modo,
-               origen_primario, origen_acento, origen_sidebar, actualizado_por)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+               origen_primario, origen_acento, origen_sidebar, actualizado_por, modo_presentacion_logo)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
        ON CONFLICT (empresa_id) DO UPDATE
           SET color_primario  = EXCLUDED.color_primario,
               color_acento    = EXCLUDED.color_acento,
@@ -176,6 +182,7 @@ export async function guardarColoresIdentidad(
               origen_acento   = EXCLUDED.origen_acento,
               origen_sidebar  = EXCLUDED.origen_sidebar,
               actualizado_por = EXCLUDED.actualizado_por,
+              modo_presentacion_logo = EXCLUDED.modo_presentacion_logo,
               updated_at      = now()
        RETURNING ${COLUMNAS}`,
       [
@@ -189,6 +196,7 @@ export async function guardarColoresIdentidad(
         origen.acento,
         origen.sidebar,
         usuarioId,
+        modoPresentacionLogo,
       ]
     );
     await client.query("COMMIT");

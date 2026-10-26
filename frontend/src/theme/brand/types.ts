@@ -15,16 +15,21 @@ export type BrandDefinition = {
       hover: string;
       tint: string;
       wash: string;
+      /** Texto sobre `base`; solo lo definen las marcas de empresa (Emphasys usa blanco). */
+      foreground?: string;
     };
     /** Grafitos del cromado (sidebar, topbar, encabezados de grid). */
     graphite: {
       chrome: string;
       raised: string;
+      raisedForeground: string;
       deep: string;
       selection: string;
       /** Texto e iconos de las opciones del menú principal. */
       itemForeground: string;
       accent: string;
+      /** Texto sobre `chrome`; solo lo definen las marcas de empresa con Sidebar propio. */
+      chromeForeground?: string;
     };
     /** Beige del tema experimental: página, hover, bordes. */
     beige: {

@@ -104,6 +104,9 @@ function sanitizePayload(payload: EmpresaPayload): EmpresaPayload {
     }
   });
 
+  // La colonia SAT es opcional: vacío se guarda como NULL.
+  if (clean.colonia_id === "") clean.colonia_id = null;
+
   if (payload.rfc !== undefined) {
     clean.rfc = normalizeRFC(payload.rfc) ?? undefined;
   }

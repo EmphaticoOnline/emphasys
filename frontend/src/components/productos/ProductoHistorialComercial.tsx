@@ -3,14 +3,14 @@ import { FechaInput } from '../../shared/dates/DateFields';
 import { Box, IconButton, Tooltip, Typography, useMediaQuery } from '@mui/material';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
-import type { TipoDocumento } from '../../types/documentos.types';
-import { getDocumentoTypeConfig } from '../../modules/documentos/documentoTypeConfig';
+import { folioVisualDesdeSerieYFolio } from '../../utils/documentos.utils';
 import {
   fetchUltimasComprasProducto,
   fetchUltimasVentasProducto,
   type ProductoHistorialFila,
   type ProductoHistorialResultado,
 } from '../../services/productosService';
+import { fetchUltimasComprasContacto, fetchUltimasVentasContacto } from '../../services/contactos.api';
 import { amountSignColor } from '../../theme/sign';
 
 const LIMITE = 25;
@@ -55,16 +55,13 @@ function formatImporte(value: number): string {
   return importeFormatter.format(value);
 }
 
-function etiquetaTipo(tipo: string): string | null {
-  return getDocumentoTypeConfig(tipo as TipoDocumento)?.label ?? null;
-}
-
 function signoDe(fila: ProductoHistorialFila): -1 | 1 {
   return fila.signo_comercial === -1 ? -1 : 1;
 }
 
 export default function ProductoHistorialComercial({
-  productoId,
+  entidad = 'producto',
+  entidadId,
   modo,
   desde,
   hasta,
@@ -73,7 +70,9 @@ export default function ProductoHistorialComercial({
   onHasta,
   onOffset,
 }: {
-  productoId: number;
+  /** En contactos la columna de contraparte se sustituye por el producto de la partida. */
+  entidad?: 'producto' | 'contacto';
+  entidadId: number;
   modo: 'compras' | 'ventas';
   desde: string;
   hasta: string;
@@ -88,6 +87,7 @@ export default function ProductoHistorialComercial({
   const [error, setError] = React.useState<string | null>(null);
   const rangoInvalido = Boolean(desde && hasta && desde > hasta);
   const contactoLabel = modo === 'compras' ? 'Proveedor' : 'Cliente';
+  const columnaLabel = entidad === 'contacto' ? 'Producto' : contactoLabel;
 
   React.useEffect(() => {
     if (rangoInvalido) {
@@ -106,9 +106,9 @@ export default function ProductoHistorialComercial({
       limit: LIMITE,
       offset,
     };
-    const pedido = modo === 'compras'
-      ? fetchUltimasComprasProducto(productoId, consulta)
-      : fetchUltimasVentasProducto(productoId, consulta);
+    const pedido = entidad === 'contacto'
+      ? (modo === 'compras' ? fetchUltimasComprasContacto(entidadId, consulta) : fetchUltimasVentasContacto(entidadId, consulta))
+      : (modo === 'compras' ? fetchUltimasComprasProducto(entidadId, consulta) : fetchUltimasVentasProducto(entidadId, consulta));
     pedido
       .then((data) => {
         if (!activo) return;
@@ -125,7 +125,7 @@ export default function ProductoHistorialComercial({
     return () => {
       activo = false;
     };
-  }, [productoId, modo, desde, hasta, offset, rangoInvalido]);
+  }, [entidad, entidadId, modo, desde, hasta, offset, rangoInvalido]);
 
   const filas = resultado?.filas ?? [];
   const total = resultado?.total_filas ?? 0;
@@ -200,7 +200,7 @@ export default function ProductoHistorialComercial({
             {modo === 'compras' ? 'Sin compras para esta consulta.' : 'Sin ventas para esta consulta.'}
           </Typography>
         ) : compacto ? (
-          filas.map((fila) => <PartidaCompacta key={fila.partida_id} fila={fila} contactoLabel={contactoLabel} />)
+          filas.map((fila) => <PartidaCompacta key={fila.partida_id} fila={fila} entidad={entidad} columnaLabel={columnaLabel} />)
         ) : (
           <>
             <Box
@@ -226,7 +226,7 @@ export default function ProductoHistorialComercial({
               })}
             >
               <span>Fecha</span>
-              <span>{contactoLabel}</span>
+              <span>{columnaLabel}</span>
               <span>Documento</span>
               <span style={{ textAlign: 'right' }}>Cantidad</span>
               <span style={{ textAlign: 'right' }}>Precio</span>
@@ -237,7 +237,7 @@ export default function ProductoHistorialComercial({
               <span>Observaciones</span>
             </Box>
             {filas.map((fila, index) => (
-              <PartidaEscritorio key={fila.partida_id} fila={fila} index={index} />
+              <PartidaEscritorio key={fila.partida_id} fila={fila} index={index} entidad={entidad} />
             ))}
           </>
         )}
@@ -328,7 +328,7 @@ function CampoFecha({ etiqueta, value, onChange }: { etiqueta: string; value: st
   );
 }
 
-function datosPartida(fila: ProductoHistorialFila) {
+function datosPartida(fila: ProductoHistorialFila, entidad: 'producto' | 'contacto') {
   const signo = signoDe(fila);
   const esNota = signo === -1;
   const cantidad = numero(fila.cantidad);
@@ -338,15 +338,29 @@ function datosPartida(fila: ProductoHistorialFila) {
   const cantidadComercial = cantidad == null ? null : cantidad * signo;
   const importeComercial = subtotal == null ? null : subtotal * signo;
   const observaciones = (fila.observaciones ?? '').trim();
-  const folio = (fila.folio ?? '').trim() || '—';
-  const tipo = etiquetaTipo(fila.tipo_documento);
+  const folioCrudo = (fila.folio ?? '').trim();
+  const separador = folioCrudo.match(/^(.*)-(\d+)$/);
+  const serie = separador?.[1] ?? '';
+  const numeroFolio = separador?.[2] ?? folioCrudo;
+  const folio = folioCrudo ? folioVisualDesdeSerieYFolio(serie, numeroFolio, fila.tipo_documento) || folioCrudo : '—';
   const contacto = (fila.contacto_nombre ?? '').trim() || '—';
+  const productoClave = (fila.producto_clave ?? '').trim();
+  const productoDescripcion = (fila.producto_descripcion ?? '').trim();
+  const producto = [productoClave, productoDescripcion].filter(Boolean).join(' · ') || '—';
+  const columna = entidad === 'contacto' ? producto : contacto;
   const unidad = (fila.unidad ?? '').trim();
-  return { esNota, cantidadComercial, precio, descuento, importeComercial, observaciones, folio, tipo, contacto, unidad };
+  return { esNota, cantidadComercial, precio, descuento, importeComercial, observaciones, folio, columna, unidad };
 }
 
-function PartidaEscritorio({ fila, index }: { fila: ProductoHistorialFila; index: number }) {
-  const datos = datosPartida(fila);
+const CELDA_FECHA_SX = {
+  fontSize: 12,
+  lineHeight: 1.2,
+  color: (theme: any) => theme.emphasys.content.secondary,
+  fontVariantNumeric: 'tabular-nums',
+};
+
+function PartidaEscritorio({ fila, index, entidad }: { fila: ProductoHistorialFila; index: number; entidad: 'producto' | 'contacto' }) {
+  const datos = datosPartida(fila, entidad);
   return (
     <Box
       sx={(theme) => ({
@@ -358,6 +372,7 @@ function PartidaEscritorio({ fila, index }: { fila: ProductoHistorialFila; index
         width: '100%',
         minWidth: ANCHO_MINIMO,
         px: 1.5,
+        py: 0.5,
         boxSizing: 'border-box',
         backgroundColor: index % 2 === 0 ? theme.emphasys.content.elevated : theme.emphasys.action.wash,
         borderBottom: `1px solid ${theme.emphasys.content.border}`,
@@ -367,27 +382,28 @@ function PartidaEscritorio({ fila, index }: { fila: ProductoHistorialFila; index
       <Typography noWrap sx={{ fontSize: 12, lineHeight: 1.2, color: (theme) => theme.emphasys.content.secondary, fontVariantNumeric: 'tabular-nums' }}>
         {formatFecha(fila.fecha_documento)}
       </Typography>
-      <Typography noWrap sx={{ fontSize: 12.5, lineHeight: 1.2, fontWeight: 650, color: (theme) => theme.emphasys.content.foreground }}>
-        {datos.contacto}
-      </Typography>
+      {entidad === 'contacto' ? (
+        <Typography sx={{ ...CELDA_FECHA_SX, overflowWrap: 'anywhere' }}>
+          {datos.columna}
+        </Typography>
+      ) : (
+        <Typography noWrap sx={CELDA_FECHA_SX}>
+          {datos.columna}
+        </Typography>
+      )}
       <Documento fila={datos} />
       <Cantidad datos={datos} />
-      <Typography sx={(theme) => ({ textAlign: 'right', fontFamily: theme.typography.figure?.fontFamily, fontSize: 13, lineHeight: 1.2, fontVariantNumeric: 'tabular-nums', color: datos.precio == null ? theme.emphasys.table.muted : theme.emphasys.content.foreground })}>
+      <Typography sx={(theme) => ({ ...CELDA_FECHA_SX, textAlign: 'right', color: datos.precio == null ? theme.emphasys.table.muted : theme.emphasys.content.secondary })}>
         {datos.precio == null ? '—' : formatPrecio(datos.precio)}
       </Typography>
-      <Typography sx={(theme) => ({ textAlign: 'right', fontFamily: theme.typography.figure?.fontFamily, fontSize: 13, lineHeight: 1.2, fontVariantNumeric: 'tabular-nums', color: datos.descuento == null ? theme.emphasys.table.muted : theme.emphasys.content.secondary })}>
+      <Typography sx={(theme) => ({ ...CELDA_FECHA_SX, textAlign: 'right', color: datos.descuento == null ? theme.emphasys.table.muted : theme.emphasys.content.secondary })}>
         {datos.descuento == null ? '—' : `${formatCantidad(datos.descuento)}%`}
       </Typography>
       <Typography
         sx={(theme) => ({
           textAlign: 'right',
-          fontFamily: theme.typography.figure?.fontFamily,
-          fontWeight: 700,
-          fontSize: 15,
-          lineHeight: 1.1,
-          letterSpacing: '-0.02em',
-          fontVariantNumeric: 'tabular-nums',
-          color: datos.esNota ? amountSignColor(theme.emphasys, 'negative') : theme.emphasys.action.primary,
+          ...CELDA_FECHA_SX,
+          color: datos.esNota ? amountSignColor(theme.emphasys, 'negative') : theme.emphasys.content.secondary,
           borderLeft: `1px solid ${theme.emphasys.content.border}`,
           pl: 1.1,
         })}
@@ -399,8 +415,8 @@ function PartidaEscritorio({ fila, index }: { fila: ProductoHistorialFila; index
   );
 }
 
-function PartidaCompacta({ fila, contactoLabel }: { fila: ProductoHistorialFila; contactoLabel: string }) {
-  const datos = datosPartida(fila);
+function PartidaCompacta({ fila, entidad, columnaLabel }: { fila: ProductoHistorialFila; entidad: 'producto' | 'contacto'; columnaLabel: string }) {
+  const datos = datosPartida(fila, entidad);
   return (
     <Box
       sx={(theme) => ({
@@ -413,14 +429,9 @@ function PartidaCompacta({ fila, contactoLabel }: { fila: ProductoHistorialFila;
     >
       <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, alignItems: 'baseline' }}>
         <Typography sx={{ fontSize: 12, color: (theme) => theme.emphasys.content.secondary }}>{formatFecha(fila.fecha_documento)}</Typography>
-        {datos.tipo ? (
-          <Typography sx={(theme) => ({ fontSize: 11, fontWeight: 700, color: datos.esNota ? theme.emphasys.metric.blocked.foreground : theme.emphasys.content.muted })}>
-            {datos.tipo}
-          </Typography>
-        ) : null}
       </Box>
-      <Typography sx={{ mt: 0.2, fontSize: 13.5, fontWeight: 700, color: (theme) => theme.emphasys.content.foreground }}>{datos.contacto}</Typography>
-      <Typography sx={{ fontSize: 11, color: (theme) => theme.emphasys.content.muted }}>{contactoLabel}</Typography>
+      <Typography sx={{ mt: 0.2, fontSize: 13.5, fontWeight: 700, overflowWrap: 'anywhere', color: (theme) => theme.emphasys.content.foreground }}>{datos.columna}</Typography>
+      <Typography sx={{ fontSize: 11, color: (theme) => theme.emphasys.content.muted }}>{columnaLabel}</Typography>
       <Typography noWrap sx={(theme) => ({ mt: 0.35, fontFamily: theme.typography.figure?.fontFamily, fontSize: 15, color: theme.emphasys.content.foreground })}>
         {datos.folio}
       </Typography>
@@ -439,27 +450,22 @@ function PartidaCompacta({ fila, contactoLabel }: { fila: ProductoHistorialFila;
 
 function Documento({ fila }: { fila: ReturnType<typeof datosPartida> }) {
   return (
-    <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.7, minWidth: 0 }}>
-      <Typography noWrap sx={(theme) => ({ fontFamily: theme.typography.figure?.fontFamily, fontSize: 13.5, lineHeight: 1.15, color: theme.emphasys.content.foreground })}>
+    <Box sx={{ minWidth: 0 }}>
+      <Typography noWrap sx={CELDA_FECHA_SX}>
         {fila.folio}
       </Typography>
-      {fila.tipo ? (
-        <Typography noWrap sx={(theme) => ({ fontSize: 11, lineHeight: 1, fontWeight: fila.esNota ? 700 : 500, color: fila.esNota ? theme.emphasys.metric.blocked.foreground : theme.emphasys.content.muted })}>
-          {fila.tipo}
-        </Typography>
-      ) : null}
     </Box>
   );
 }
 
 function Cantidad({ datos }: { datos: ReturnType<typeof datosPartida> }) {
   return (
-    <Typography noWrap sx={(theme) => ({ textAlign: 'right', fontSize: 14, lineHeight: 1.15, fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: datos.esNota ? amountSignColor(theme.emphasys, 'negative') : theme.emphasys.content.foreground })}>
-      <Box component="span" sx={(theme) => ({ fontFamily: theme.typography.figure?.fontFamily })}>
+    <Typography noWrap sx={(theme) => ({ ...CELDA_FECHA_SX, textAlign: 'right', color: datos.esNota ? amountSignColor(theme.emphasys, 'negative') : theme.emphasys.content.secondary })}>
+      <Box component="span">
         {datos.cantidadComercial == null ? '—' : formatCantidad(datos.cantidadComercial)}
       </Box>
       {datos.unidad && datos.cantidadComercial != null ? (
-        <Box component="span" sx={(theme) => ({ ml: 0.45, fontWeight: 550, fontSize: 11, color: theme.emphasys.content.muted })}>
+        <Box component="span" sx={(theme) => ({ ml: 0.45, ...CELDA_FECHA_SX, color: theme.emphasys.content.secondary })}>
           {datos.unidad}
         </Box>
       ) : null}
@@ -469,11 +475,11 @@ function Cantidad({ datos }: { datos: ReturnType<typeof datosPartida> }) {
 
 function Observacion({ texto }: { texto: string }) {
   if (!texto) {
-    return <Typography sx={{ fontSize: 12, lineHeight: 1.2, color: (theme) => theme.emphasys.table.muted }}>—</Typography>;
+    return <Typography sx={(theme) => ({ ...CELDA_FECHA_SX, color: theme.emphasys.table.muted })}>—</Typography>;
   }
   return (
     <Tooltip title={texto} placement="top-start">
-      <Typography noWrap sx={{ fontSize: 12, lineHeight: 1.2, color: (theme) => theme.emphasys.content.secondary }}>
+      <Typography noWrap sx={CELDA_FECHA_SX}>
         {texto}
       </Typography>
     </Tooltip>

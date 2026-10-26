@@ -637,6 +637,9 @@ export default function ContactosPage() {
       }}
       onEditContacto={handleEditarContacto}
       onViewActividades={handleVerActividades}
+      vendedorNombre={vendedorNombre}
+      onExport={handleExport}
+      exportLoading={exportLoading}
       onDeleteContacto={(contactoId) => {
         void handleEliminarContacto(contactoId);
       }}

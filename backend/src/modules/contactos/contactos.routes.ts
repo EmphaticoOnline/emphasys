@@ -9,6 +9,7 @@ import { listarCatalogosConfigurablesDeContacto, guardarCatalogosConfigurables }
 import { getDomicilios, postDomicilio, putDomicilio, deleteDomicilio } from './contactos-domicilios.controller';
 import { getOperador, putOperador, patchOperador } from './contactos-operador.controller';
 import contactosDocumentacionRouter from './contactos-documentacion.routes';
+import { getUltimasComprasContacto, getUltimasVentasContacto } from '../productos/productos.controller';
 
 const router = Router();
 router.use('/', contactosDocumentacionRouter);
@@ -17,6 +18,8 @@ router.use('/', contactosDocumentacionRouter);
 // GET /
 router.get("/", requireAuth, requireEmpresaActiva, getContactos);
 router.get('/:id/domicilios', requireAuth, requireEmpresaActiva, getDomicilios);
+router.get('/:id/ultimas-compras', requireAuth, requireEmpresaActiva, getUltimasComprasContacto);
+router.get('/:id/ultimas-ventas', requireAuth, requireEmpresaActiva, getUltimasVentasContacto);
 router.get('/:id/operador', requireAuth, requireEmpresaActiva, getOperador);
 router.put('/:id/operador', requireAuth, requireEmpresaActiva, putOperador);
 router.patch('/:id/operador/desactivar', requireAuth, requireEmpresaActiva, patchOperador);

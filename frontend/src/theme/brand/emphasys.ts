@@ -17,6 +17,7 @@ export const emphasysBrand: BrandDefinition = {
     graphite: {
       chrome: '#2c3344',
       raised: '#3c4149',
+      raisedForeground: '#f4f0e8',
       deep: '#2c3138',
       selection: '#5e6672',
       itemForeground: '#efe6d8',

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
-import { razonContraste } from '../../../backend/src/shared/identidadVisual/contraste.ts';
+import { luminanciaRelativa, razonContraste } from '../../../backend/src/shared/identidadVisual/contraste.ts';
 import { activeBrand } from './brand/active.ts';
 import { getEmpresaBrand, mezclar } from './brand/empresaBrand.ts';
 import { guardarColoresCache, leerColoresCache } from './brand/identidadVisualCache.ts';
@@ -76,31 +76,41 @@ test('los temas de una empresa aplican sus colores y conservan los colores funci
   }
 });
 
-test('los derivados del sidebar mantienen contraste legible para cualquier sidebar válido', () => {
+test('los derivados del sidebar mantienen contraste legible con su texto automático para cualquier sidebar', () => {
   const { beige, ivory } = activeBrand.colors;
   let probados = 0;
-  for (let r = 0; r <= 0x80; r += 0x10) {
-    for (let g = 0; g <= 0x80; g += 0x10) {
-      for (let b = 0; b <= 0x80; b += 0x10) {
+  for (let r = 0; r <= 0xff; r += 0x33) {
+    for (let g = 0; g <= 0xff; g += 0x33) {
+      for (let b = 0; b <= 0xff; b += 0x33) {
         const sidebar = `#${[r, g, b].map((c) => c.toString(16).padStart(2, '0')).join('')}`;
         const marca = getEmpresaBrand({ primario: null, acento: null, sidebar });
-        if (marca === activeBrand) continue; // no pasa la regla del servidor: se ignora
         probados += 1;
         const { graphite } = marca.colors;
-        assert.ok(razonContraste(beige.base, graphite.raised) >= 4.5, `${sidebar}: botón del experimental`);
-        assert.ok(razonContraste(ivory.selected, graphite.selection) >= 4.5, `${sidebar}: selección del menú`);
+        const texto = graphite.chromeForeground!;
+        const claro = luminanciaRelativa(texto) >= 0.3;
+        assert.ok(razonContraste(texto, graphite.chrome) >= 4.5, `${sidebar}: texto del cromado`);
+        assert.ok(razonContraste(graphite.raisedForeground, graphite.raised) >= 4.5, `${sidebar}: botón del experimental`);
+        assert.ok(razonContraste(claro ? ivory.selected : texto, graphite.selection) >= 4.5, `${sidebar}: selección del menú`);
         assert.ok(razonContraste(graphite.itemForeground, graphite.chrome) >= 4.5, `${sidebar}: texto del menú`);
-        assert.ok(razonContraste('#ffffff', marca.colors.blue.hover) >= razonContraste('#ffffff', marca.colors.blue.base));
+        if (claro) assert.ok(razonContraste(beige.base, graphite.raised) >= 4.5, `${sidebar}: beige sobre raised`);
       }
     }
   }
-  assert.ok(probados > 500, `solo ${probados} sidebars válidos`);
+  assert.ok(probados > 200, `solo ${probados} sidebars`);
+});
+
+test('el primario es libre: su texto se calcula y el hover conserva contraste', () => {
+  for (const primario of ['#b47716', '#ffd84d', '#1d2f68', '#808080']) {
+    const { blue } = getEmpresaBrand({ primario, acento: null, sidebar: null }).colors;
+    assert.ok(razonContraste(blue.foreground!, blue.base) >= 4.5, primario);
+    assert.ok(razonContraste(blue.foreground!, blue.hover) >= 4.5, `${primario}: hover`);
+  }
 });
 
 test('colores inválidos o sin contraste se ignoran y ese rol queda en Emphasys', () => {
-  assert.equal(getEmpresaBrand({ primario: '#ffd84d', acento: null, sidebar: null }), activeBrand);
+  assert.equal(getEmpresaBrand({ primario: null, acento: '#7fd0c8', sidebar: null }), activeBrand);
   assert.equal(getEmpresaBrand({ primario: '#7A1F2B', acento: null, sidebar: null }), activeBrand, 'el servidor siempre envía minúsculas');
-  assert.equal(getEmpresaBrand({ primario: 'rojo', acento: null, sidebar: '#cccccc' } as never), activeBrand);
+  assert.equal(getEmpresaBrand({ primario: 'rojo', acento: null, sidebar: 'azul' } as never), activeBrand);
   const mixto = getEmpresaBrand({ primario: '#7a1f2b', acento: '#7fd0c8', sidebar: null });
   assert.equal(mixto.colors.blue.base, '#7a1f2b');
   assert.equal(mixto.colors.accent, activeBrand.colors.accent);

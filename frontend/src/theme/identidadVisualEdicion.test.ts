@@ -23,10 +23,16 @@ test('sin color se muestra y se mide el de Emphasys, y cumple el contraste', () 
 });
 
 test('contraste: informa el peor fondo y el mínimo', () => {
-  const claro = contrasteRol('primario', '#ffd84d');
+  const claro = contrasteRol('acento', '#7fd0c8');
   assert.equal(claro.ok, false);
-  assert.equal(claro.contra, 'blanco');
+  assert.equal(claro.contra, 'beige');
   assert.equal(claro.minimo, 4.5);
+  // Primario y Sidebar son fondos: se aceptan siempre, medidos contra su texto automático.
+  for (const rol of ['primario', 'sidebar'] as const) {
+    const libre = contrasteRol(rol, '#b47716');
+    assert.equal(libre.ok, true);
+    assert.equal(libre.contra, 'texto');
+  }
   assert.equal(contrasteRol('acento', '#006261').contra, 'beige');
 });
 

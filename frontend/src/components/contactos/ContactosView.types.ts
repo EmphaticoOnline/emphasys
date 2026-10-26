@@ -113,4 +113,7 @@ export interface ContactosMobileViewProps extends ContactosViewCommonProps {
   onEditContacto: (contactoId: GridRowId) => void;
   onViewActividades: (contacto: ContactoRow) => void;
   onDeleteContacto: (contactoId: GridRowId) => void;
+  onExport: () => void;
+  exportLoading?: boolean;
+  vendedorNombre: Map<number, string>;
 }
