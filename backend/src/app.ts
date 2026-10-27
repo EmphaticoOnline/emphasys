@@ -23,6 +23,7 @@ import satCatalogosRouter from "./modules/catalogos/sat/sat.routes";
 import catalogosRouter from "./modules/catalogos/catalogos.routes";
 import impuestosRouter from "./modules/impuestos/impuestos.routes";
 import authRoutes from "./modules/auth/auth.routes";
+import { restringirRolProduccion } from "./modules/auth/rol-produccion";
 import configuracionCatalogosRouter from "./modules/configuracion/catalogos/catalogos-configurables.routes";
 import camposConfiguracionRouter from "./modules/campos-configuracion/campos-configuracion.routes";
 import entidadesTiposRouter from "./modules/entidades/entidades-tipos.routes";
@@ -77,6 +78,8 @@ const app = express();
 
 app.disable("x-powered-by");
 app.use(express.json());
+// Usuarios cuyo único rol es "Producción": sólo endpoints del módulo de Producción.
+app.use(restringirRolProduccion);
 console.log(`[version] Emphasys Web build: ${FRONTEND_BUILD_VERSION}`);
 
 // Static uploads (logos, etc.)

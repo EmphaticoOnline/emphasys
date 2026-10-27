@@ -280,6 +280,8 @@ const getPartidaTaxSummary = (impuestos: Array<ImpuestoEntrada | ImpuestoPartida
 
 const compactEditableInputFontSize = { xs: 16, md: 13 } as const;
 
+const ordenarPorClave = new Intl.Collator('es', { numeric: true, sensitivity: 'base' });
+
 const campoEncabezadoSx = {
   '& .MuiOutlinedInput-root': {
     display: 'flex',
@@ -1177,10 +1179,14 @@ export default function DocumentosFormPage({
   const productosDisponibles = useMemo(() => {
     const tiposPermitidos = new Set(productoTiposPermitidos.map((tipo) => tipo.toLowerCase()));
 
-    return productos.filter((producto) => {
-      const tipoProducto = String(producto.tipo_producto ?? productoDefaultTipoProducto).trim().toLowerCase();
-      return tiposPermitidos.has(tipoProducto);
-    });
+    // El dropdown de partidas se muestra ordenado por clave (A–Z), igual que
+    // la lista de productos; las claves con números se comparan por su valor.
+    return productos
+      .filter((producto) => {
+        const tipoProducto = String(producto.tipo_producto ?? productoDefaultTipoProducto).trim().toLowerCase();
+        return tiposPermitidos.has(tipoProducto);
+      })
+      .sort((a, b) => ordenarPorClave.compare(a.clave ?? '', b.clave ?? '') || a.id - b.id);
   }, [productoDefaultTipoProducto, productoTiposPermitidos, productos]);
 
   const productosAutocompleteOptions = useMemo<ProductoAutocompleteOption[]>(() => {
@@ -3667,6 +3673,21 @@ export default function DocumentosFormPage({
       cancelado = true;
     };
   }, [form.contacto_principal_id, esDocumentoMonetario]);
+
+  // Opciones de "Atención": primero el nombre_contacto del cliente y después
+  // sus contactos adicionales activos (sin repetir nombres).
+  const opcionesAtencion = useMemo(() => {
+    const cliente = contactos.find((item) => item.id === form.contacto_principal_id);
+    const opciones: Array<{ nombre: string; detalle: string }> = [];
+    const agregar = (nombre: string | null | undefined, detalle: string) => {
+      const limpio = nombre?.trim();
+      if (!limpio || opciones.some((op) => op.nombre.toLowerCase() === limpio.toLowerCase())) return;
+      opciones.push({ nombre: limpio, detalle });
+    };
+    agregar(cliente?.nombre_contacto, 'Contacto principal');
+    contactosAdicionalesCliente.forEach((item) => agregar(item.nombre, item.puesto || 'Contacto adicional'));
+    return opciones;
+  }, [contactos, contactosAdicionalesCliente, form.contacto_principal_id]);
 
   useEffect(() => {
     if (!['cotizacion', 'orden_servicio', 'factura'].includes(tipoDocumento)) {
@@ -6737,17 +6758,26 @@ export default function DocumentosFormPage({
                   <Grid size={{ xs: 12, md: 3 }}>
                     <Autocomplete
                       freeSolo
-                      options={contactosAdicionalesCliente.map((item) => item.nombre)}
+                      forcePopupIcon
+                      openOnFocus
+                      options={opcionesAtencion.map((item) => item.nombre)}
+                      // Con un valor ya elegido se muestran todas las opciones;
+                      // mientras se escribe, solo las que coinciden.
+                      filterOptions={(options, state) => {
+                        const texto = state.inputValue.trim().toLowerCase();
+                        if (!texto || options.some((op) => op.toLowerCase() === texto)) return options;
+                        return options.filter((op) => op.toLowerCase().includes(texto));
+                      }}
                       inputValue={form.atencion || ''}
                       onInputChange={(_, value) => setForm((prev) => ({ ...prev, atencion: value }))}
                       renderOption={(props, option) => {
                         const { key, ...optionProps } = props as typeof props & { key: React.Key };
-                        const puesto = contactosAdicionalesCliente.find((item) => item.nombre === option)?.puesto;
+                        const detalle = opcionesAtencion.find((item) => item.nombre === option)?.detalle;
                         return (
                           <li key={key} {...optionProps}>
                             <Box>
                               <Typography sx={{ fontSize: 13 }}>{option}</Typography>
-                              {puesto && <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>{puesto}</Typography>}
+                              {detalle && <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>{detalle}</Typography>}
                             </Box>
                           </li>
                         );

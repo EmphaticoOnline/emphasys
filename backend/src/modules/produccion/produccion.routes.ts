@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { requireAuth, requireEmpresaActiva } from '../auth/auth.middleware';
+import { requireAdministradorProduccion, requireAuth, requireEmpresaActiva } from '../auth/auth.middleware';
 import {
   deleteEtapaProduccion,
   getDetalleOperativoProduccion,
@@ -17,9 +17,9 @@ const router = Router();
 router.use(requireAuth, requireEmpresaActiva);
 
 router.get('/etapas', getEtapasProduccion);
-router.post('/etapas', postEtapaProduccion);
-router.put('/etapas/:id', putEtapaProduccion);
-router.delete('/etapas/:id', deleteEtapaProduccion);
+router.post('/etapas', requireAdministradorProduccion, postEtapaProduccion);
+router.put('/etapas/:id', requireAdministradorProduccion, putEtapaProduccion);
+router.delete('/etapas/:id', requireAdministradorProduccion, deleteEtapaProduccion);
 router.get('/seguimientos', getSeguimientosProduccion);
 router.get('/seguimientos/documento/:documentoId', getSeguimientoProduccionPorDocumento);
 router.get('/documentos/:documentoId/detalle', getDetalleOperativoProduccion);

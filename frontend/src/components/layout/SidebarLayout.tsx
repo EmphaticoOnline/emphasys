@@ -54,7 +54,7 @@ import { fetchTiposDocumentoHabilitados } from '../../services/tiposDocumentoSer
 import { fetchParametrosSistema } from '../../services/parametrosService';
 import { apiFetch } from '../../api/apiClient';
 import type { RolResumen } from '../../session/sessionTypes';
-import { esRolAdmin, esRolVendedor } from '../../session/rolScope';
+import { esRolAdmin, esRolVendedor, esSoloRolProduccion } from '../../session/rolScope';
 import { MAIN_NAV_TYPE } from '../../theme/tokens';
 import { moduleTabBarSx, moduleTabStripSx } from './moduleTabBar';
 
@@ -122,6 +122,12 @@ const HIDDEN_NAV_LABELS = new Set(['Autorizaciones']);
 // restricción real de datos vive en backend (ver scope-comercial.ts).
 const ALLOWED_PREFIXES_VENDEDOR = ['/contactos', '/productos', '/crm', '/ventas'];
 const RUTA_DEFAULT_VENDEDOR = '/crm';
+
+// Rol "Producción": sólo Ventas › Producción. Solo UX — el bloqueo real de endpoints
+// vive en backend (ver rol-produccion.ts).
+const RUTA_PRODUCCION = '/ventas/produccion';
+const ALLOWED_PREFIXES_PRODUCCION = [RUTA_PRODUCCION, '/seleccionar-empresa'];
+const PRODUCCION_TAB: DocumentoTabDef = { label: 'Producción', value: 'produccion', icon: 'PlaylistAddCheck' };
 
 function getBreadcrumbs(pathname: string): string[] {
   if (pathname.startsWith('/contactos'))     return ['Catálogos', 'Contactos'];
@@ -364,10 +370,21 @@ export default function SidebarLayout() {
 
   const esVendedorSinAdmin = esRolVendedor(session.roles) && !esRolAdmin(session.roles);
   const esAdministrador = Boolean(session.user?.es_superadmin) || esRolAdmin(session.roles);
-  const visibleNavItems = NAV_ITEMS.filter((item) => {
-    if (HIDDEN_NAV_LABELS.has(item.label)) return false;
-    return !esVendedorSinAdmin || ALLOWED_PREFIXES_VENDEDOR.some((prefix) => item.path.startsWith(prefix));
-  });
+  const esSoloProduccion = !session.user?.es_superadmin && esSoloRolProduccion(session.roles);
+  const visibleNavItems = esSoloProduccion
+    ? NAV_ITEMS.filter((item) => item.label === 'Ventas').map((item) => ({ ...item, path: RUTA_PRODUCCION }))
+    : NAV_ITEMS.filter((item) => {
+        if (HIDDEN_NAV_LABELS.has(item.label)) return false;
+        return !esVendedorSinAdmin || ALLOWED_PREFIXES_VENDEDOR.some((prefix) => item.path.startsWith(prefix));
+      });
+
+  React.useEffect(() => {
+    if (!esSoloProduccion) return;
+    const permitido = ALLOWED_PREFIXES_PRODUCCION.some((prefix) => location.pathname.startsWith(prefix));
+    if (!permitido) {
+      navigate(RUTA_PRODUCCION, { replace: true });
+    }
+  }, [esSoloProduccion, location.pathname, navigate]);
 
   // UX: si un vendedor navega directo por URL a un módulo no permitido, se redirige.
   // La seguridad real de los datos la aplica siempre el backend, no esta redirección.
@@ -429,7 +446,9 @@ export default function SidebarLayout() {
     ? ('compras' as const)
     : null;
   const docTab = docModulo ? (location.pathname.split('/')[2] || '') : '';
-  const documentTabs = docModulo === 'ventas' ? ventasTabs : docModulo === 'compras' ? comprasTabs : [];
+  const documentTabs = docModulo === 'ventas'
+    ? (esSoloProduccion ? [PRODUCCION_TAB] : ventasTabs)
+    : docModulo === 'compras' ? comprasTabs : [];
   // La ceja y las pestañas se montan juntas desde este layout compartido.
   const inventarioModulo = isInventarioRoute(location.pathname);
   const inventarioTabs = esAdministrador ? INVENTARIO_TABS : INVENTARIO_TABS.filter((tab) => tab.value !== 'recalcular');
