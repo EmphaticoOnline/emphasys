@@ -181,6 +181,107 @@ export function classifyWhatsappError(error: unknown): WhatsappErrorInfo {
   return buildWhatsappErrorInfo("ERROR_DESCONOCIDO", detalleTecnico);
 }
 
+export type WhatsappDeliveryErrorInfo = Omit<WhatsappErrorInfo, "httpStatus" | "codigo"> & {
+  codigo: WhatsappErrorCode | "PLANTILLA_INVALIDA" | "ENTREGA_RECHAZADA";
+  codigoWhatsapp: number | null;
+};
+
+// Errores asíncronos que WhatsApp/Meta reporta vía webhook de status
+// (Gupshup los reenvía en `statuses[].errors`). La API ya había aceptado el
+// envío, por lo que aquí no hay HTTP status ni reintento automático.
+// https://developers.facebook.com/docs/whatsapp/cloud-api/support/error-codes
+const ERRORES_ENTREGA: Record<number, Pick<WhatsappDeliveryErrorInfo, "codigo" | "mensajeUsuario" | "accionSugerida">> = {
+  131026: {
+    codigo: "NUMERO_NO_REGISTRADO",
+    mensajeUsuario: "WhatsApp no pudo entregar el mensaje: el número no tiene WhatsApp o no puede recibir mensajes.",
+    accionSugerida: "Verifica el número con el cliente.",
+  },
+  131047: {
+    codigo: "VENTANA_24_HORAS_CERRADA",
+    mensajeUsuario: "Pasaron más de 24 horas desde el último mensaje del cliente.",
+    accionSugerida: "Envía una plantilla autorizada.",
+  },
+  131049: {
+    codigo: "ENTREGA_RECHAZADA",
+    mensajeUsuario: "WhatsApp decidió no entregar este mensaje para cuidar la experiencia del usuario (límite de mensajes de marketing).",
+    accionSugerida: "Intenta más tarde o espera a que el cliente escriba.",
+  },
+  131053: {
+    codigo: "ARCHIVO_NO_PERMITIDO",
+    mensajeUsuario: "WhatsApp no pudo descargar o procesar el archivo adjunto.",
+    accionSugerida: "Revisa que el PDF sea accesible públicamente y no exceda el tamaño permitido.",
+  },
+  132000: {
+    codigo: "PLANTILLA_INVALIDA",
+    mensajeUsuario: "La plantilla de WhatsApp no coincide con el número de datos que envía el sistema.",
+    accionSugerida: "Revisa las variables de la plantilla en Gupshup. Repórtalo al administrador.",
+  },
+  132001: {
+    codigo: "PLANTILLA_INVALIDA",
+    mensajeUsuario: "La plantilla de WhatsApp no existe o no está aprobada en el idioma configurado.",
+    accionSugerida: "Revisa en Gupshup que la plantilla esté aprobada y que el ID configurado sea correcto.",
+  },
+  132005: {
+    codigo: "PLANTILLA_INVALIDA",
+    mensajeUsuario: "El texto de la plantilla con los datos reemplazados excede el largo permitido.",
+    accionSugerida: "Repórtalo al administrador.",
+  },
+  132007: {
+    codigo: "PLANTILLA_INVALIDA",
+    mensajeUsuario: "La plantilla de WhatsApp infringe las políticas de formato de Meta.",
+    accionSugerida: "Revisa la plantilla en Gupshup. Repórtalo al administrador.",
+  },
+  132012: {
+    codigo: "PLANTILLA_INVALIDA",
+    mensajeUsuario: "El formato de los datos no coincide con la plantilla (por ejemplo, la plantilla no tiene encabezado de documento).",
+    accionSugerida: "Revisa en Gupshup que la plantilla tenga encabezado tipo Documento. Repórtalo al administrador.",
+  },
+  132015: {
+    codigo: "PLANTILLA_INVALIDA",
+    mensajeUsuario: "La plantilla de WhatsApp está pausada por baja calidad.",
+    accionSugerida: "Revisa el estado de la plantilla en Gupshup. Repórtalo al administrador.",
+  },
+  132016: {
+    codigo: "PLANTILLA_INVALIDA",
+    mensajeUsuario: "La plantilla de WhatsApp fue deshabilitada por Meta.",
+    accionSugerida: "Crea o reactiva la plantilla en Gupshup. Repórtalo al administrador.",
+  },
+};
+
+/**
+ * Traduce el status `failed` que llega por webhook a un error comprensible.
+ * Conserva el error crudo en `detalleTecnico`; si el código no está
+ * catalogado, muestra el código para que pueda diagnosticarse.
+ */
+export function classifyWhatsappDeliveryError(statusObj: unknown): WhatsappDeliveryErrorInfo {
+  const errores = (statusObj as any)?.errors;
+  const error = Array.isArray(errores) ? errores[0] : null;
+  const codigoWhatsapp = Number(error?.code);
+  const codigo = Number.isFinite(codigoWhatsapp) ? codigoWhatsapp : null;
+  let detalleTecnico: string;
+  try {
+    detalleTecnico = JSON.stringify(errores ?? statusObj ?? null);
+  } catch {
+    detalleTecnico = String(errores);
+  }
+
+  const catalogado = codigo !== null ? ERRORES_ENTREGA[codigo] : undefined;
+  if (catalogado) {
+    return { ...catalogado, codigoWhatsapp: codigo, detalleTecnico, recuperable: false };
+  }
+
+  return {
+    codigo: "ENTREGA_RECHAZADA",
+    codigoWhatsapp: codigo,
+    mensajeUsuario: codigo !== null
+      ? `WhatsApp rechazó el mensaje (código ${codigo}).`
+      : "WhatsApp rechazó el mensaje sin indicar la causa.",
+    accionSugerida: "Repórtalo al administrador con el código mostrado.",
+    detalleTecnico,
+    recuperable: false,
+  };
+}
+
 export type WhatsappTechnicalLogParams = {
   empresaId: number | string | null;
   telefono: string | null;

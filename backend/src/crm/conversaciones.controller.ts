@@ -16,6 +16,7 @@ import {
 } from "../whatsapp/whatsapp.service";
 import {
   buildWhatsappErrorInfo,
+  classifyWhatsappDeliveryError,
   classifyWhatsappError,
   logWhatsappFailureTechnical,
   WhatsappErrorInfo,
@@ -602,13 +603,29 @@ export const whatsappWebhook = async (req: Request, res: Response) => {
           continue;
         }
 
+        // El motivo del fallo solo llega aquí (la API ya había aceptado el
+        // envío); se guarda para poder mostrarlo en el chat.
+        const errorEntrega = estado === "failed" ? classifyWhatsappDeliveryError(statusObj) : null;
+        if (errorEntrega) {
+          console.error("[WhatsApp Webhook] Mensaje rechazado por WhatsApp", {
+            externalId,
+            codigo: errorEntrega.codigo,
+            codigoWhatsapp: errorEntrega.codigoWhatsapp,
+            detalleTecnico: errorEntrega.detalleTecnico,
+          });
+        }
+
         const updateResult = await pool.query(
           `
           UPDATE crm.mensajes
-          SET status = $1
+          SET status = $1,
+              respuesta_json = CASE
+                WHEN $3::jsonb IS NULL THEN respuesta_json
+                ELSE COALESCE(respuesta_json, '{}'::jsonb) || jsonb_build_object('error_entrega', $3::jsonb)
+              END
           WHERE id_externo = $2
           `,
-          [estado, externalId]
+          [estado, externalId, errorEntrega ? JSON.stringify(errorEntrega) : null]
         );
 
         console.log("[WhatsApp Webhook] Status actualizado", {
@@ -1581,6 +1598,26 @@ export const marcarConversacionLeidaWhatsapp = async (req: Request, res: Respons
   return res.json({ marked: (result.rowCount ?? 0) > 0 });
 };
 
+// Estado de entrega de un mensaje saliente por su id de Gupshup. Lo consulta
+// el diálogo de envío de documentos para mostrar el rechazo asíncrono que
+// WhatsApp reporta por webhook segundos después de aceptar el envío.
+export const obtenerEstadoEntregaMensajeWhatsapp = async (req: Request, res: Response) => {
+  const empresaId = Number(req.context?.empresaId);
+  const idExterno = String(req.params.idExterno ?? "").trim();
+  if (!empresaId || !idExterno) return res.status(400).json({ error: "Mensaje inválido" });
+  const result = await pool.query<{ status: string | null; error_entrega: unknown }>(
+    `SELECT status,
+            CASE WHEN status = 'failed' THEN respuesta_json->'error_entrega' END AS error_entrega
+     FROM crm.mensajes
+     WHERE id_externo = $1 AND empresa_id = $2
+     LIMIT 1`,
+    [idExterno, empresaId]
+  );
+  const row = result.rows[0];
+  if (!row) return res.status(404).json({ error: "Mensaje no encontrado" });
+  return res.json({ status: row.status, error_entrega: row.error_entrega ?? null });
+};
+
 export const obtenerReglasSeguimientoWhatsapp = async (req: Request, res: Response) => {
   try {
     const empresaId = req.context?.empresaId ?? getEmpresaActivaId();
@@ -1680,6 +1717,7 @@ export const obtenerConversacionWhatsapp = async (req: Request, res: Response) =
         m.creado_en,
         m.mensaje_respuesta_id,
         COALESCE((m.respuesta_json->>'es_gif')::boolean, false) AS es_gif,
+        CASE WHEN m.status = 'failed' THEN m.respuesta_json->'error_entrega' END AS error_entrega,
         r.tipo_mensaje AS respuesta_tipo_mensaje,
         r.tipo_contenido AS respuesta_tipo_contenido,
         r.contenido AS respuesta_contenido,

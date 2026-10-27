@@ -15,6 +15,7 @@ import {
   listarEtiquetasConversacionWhatsapp as listarEtiquetasConversacionWhatsappHandler,
   listarEtiquetasWhatsapp as listarEtiquetasWhatsappHandler,
   obtenerConversacionWhatsapp as obtenerConversacionWhatsappHandler,
+  obtenerEstadoEntregaMensajeWhatsapp as obtenerEstadoEntregaMensajeWhatsappHandler,
   quitarEtiquetaConversacionWhatsapp as quitarEtiquetaConversacionWhatsappHandler,
   reabrirConversacionWhatsapp as reabrirConversacionWhatsappHandler,
   reaccionarMensajeWhatsapp as reaccionarMensajeWhatsappHandler,
@@ -64,6 +65,7 @@ export const reaccionarMensajeWhatsapp = async (req: Request, res: Response) => 
 
 export const listarConversacionesWhatsapp = async (req: Request, res: Response) => listarConversacionesWhatsappHandler(req, res);
 export const marcarConversacionLeidaWhatsapp = async (req: Request, res: Response) => marcarConversacionLeidaWhatsappHandler(req, res);
+export const obtenerEstadoEntregaMensajeWhatsapp = async (req: Request, res: Response) => obtenerEstadoEntregaMensajeWhatsappHandler(req, res);
 
 export const obtenerReglasSeguimientoWhatsapp = async (req: Request, res: Response) => obtenerReglasSeguimientoWhatsappHandler(req, res);
 

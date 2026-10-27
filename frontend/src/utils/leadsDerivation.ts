@@ -433,5 +433,13 @@ export const mapMessages = (messages: ConversationMessage[]): ConversationView[]
     status: ((msg.status || '').toLowerCase().trim() as 'sending' | 'sent' | 'delivered' | 'read' | 'failed') || 'sent',
     replyTo,
     reactions: msg.reacciones ?? [],
+    errorInfo: msg.error_entrega
+      ? {
+        codigo: msg.error_entrega.codigo,
+        mensajeUsuario: msg.error_entrega.mensajeUsuario,
+        accionSugerida: msg.error_entrega.accionSugerida ?? null,
+        recuperable: Boolean(msg.error_entrega.recuperable),
+      }
+      : null,
   } as ConversationView;
 });

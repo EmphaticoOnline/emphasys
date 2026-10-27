@@ -161,6 +161,13 @@ export type ConversationMessage = {
   // si el <video> se reproduce en loop/autoplay/mute sin controles o como un
   // video normal con controles.
   es_gif?: boolean | null;
+  // Motivo del rechazo reportado por WhatsApp vía webhook (solo si status = 'failed').
+  error_entrega?: {
+    codigo: string;
+    mensajeUsuario: string;
+    accionSugerida: string | null;
+    recuperable: boolean;
+  } | null;
   caption?: string | null;
   fecha_envio: string | null;
   creado_en?: string | null;

@@ -9,6 +9,7 @@ import {
 	whatsappWebhook,
 	listarConversacionesWhatsapp,
 	marcarConversacionLeidaWhatsapp,
+	obtenerEstadoEntregaMensajeWhatsapp,
 	obtenerReglasSeguimientoWhatsapp,
 	obtenerConversacionWhatsapp,
 	actualizarEtapaConversacion,
@@ -59,6 +60,7 @@ router.post("/subir-adjunto-chat", requireAuth, requireEmpresaActiva, (req, res,
 router.post("/webhook", whatsappWebhook);
 router.post("/enviar-mensaje", requireAuth, requireEmpresaActiva, enviarWhatsapp);
 router.post("/reenviar-mensaje", requireAuth, requireEmpresaActiva, reenviarMensajeWhatsapp);
+router.get("/mensaje-externo/:idExterno/estado", requireAuth, requireEmpresaActiva, obtenerEstadoEntregaMensajeWhatsapp);
 router.post("/mensaje/:id/reaccion", requireAuth, requireEmpresaActiva, reaccionarMensajeWhatsapp);
 router.post("/enviar-plantilla", requireAuth, requireEmpresaActiva, enviarWhatsappPlantilla);
 router.get("/conversaciones", requireAuth, requireEmpresaActiva, listarConversacionesWhatsapp);

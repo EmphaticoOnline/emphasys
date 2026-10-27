@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Box,
@@ -29,6 +29,21 @@ type DocumentoWhatsappResumen = {
   total?: number | null;
 };
 
+type EstadoEntregaResponse = {
+  status: string | null;
+  error_entrega: { mensajeUsuario?: string; accionSugerida?: string | null } | null;
+};
+
+type ResultadoEnvio = { severity: 'success' | 'error' | 'info'; message: string; detalle?: string | null; esperando?: boolean };
+
+// Gupshup acepta el envío de inmediato, pero WhatsApp confirma la entrega (o
+// la rechaza) segundos después por webhook. Se consulta el estado durante
+// esta ventana para no reportar como exitoso un mensaje que no llegó.
+const ESPERA_ENTREGA_MS = 30_000;
+const INTERVALO_ENTREGA_MS = 2_500;
+
+const esperar = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 type DocumentoWhatsappDialogProps = {
   open: boolean;
   onClose: () => void;
@@ -51,7 +66,12 @@ export function DocumentoWhatsappDialog({
   const [plantillas, setPlantillas] = useState<WhatsappPlantillaOption[]>([]);
   const [plantillaId, setPlantillaId] = useState<number | null>(null);
   const [enviando, setEnviando] = useState(false);
-  const [resultadoEnvio, setResultadoEnvio] = useState<{ severity: 'success' | 'error'; message: string } | null>(null);
+  const [resultadoEnvio, setResultadoEnvio] = useState<ResultadoEnvio | null>(null);
+  const envioActivoRef = useRef(0);
+
+  useEffect(() => {
+    if (!open) envioActivoRef.current += 1;
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -129,6 +149,35 @@ export function DocumentoWhatsappDialog({
 
   const telefonoVacio = telefono.trim().length === 0;
 
+  const esperarEntrega = async (messageId: string, envioId: number): Promise<ResultadoEnvio | null> => {
+    const limite = Date.now() + ESPERA_ENTREGA_MS;
+    while (Date.now() < limite) {
+      await esperar(INTERVALO_ENTREGA_MS);
+      if (envioId !== envioActivoRef.current) return null;
+      let estado: EstadoEntregaResponse | null = null;
+      try {
+        estado = await apiFetch<EstadoEntregaResponse>(`/api/whatsapp/mensaje-externo/${encodeURIComponent(messageId)}/estado`);
+      } catch {
+        continue;
+      }
+      const status = String(estado?.status ?? '').toLowerCase();
+      if (status === 'delivered' || status === 'read') {
+        return { severity: 'success', message: `${documento?.tipoDocumentoLabel || 'Mensaje'} entregado al cliente por WhatsApp.` };
+      }
+      if (status === 'failed') {
+        return {
+          severity: 'error',
+          message: `WhatsApp no entregó el mensaje. ${estado?.error_entrega?.mensajeUsuario ?? 'No indicó la causa.'}`,
+          detalle: estado?.error_entrega?.accionSugerida ?? null,
+        };
+      }
+    }
+    return {
+      severity: 'info',
+      message: 'WhatsApp aceptó el envío, pero aún no confirma la entrega (el cliente puede no estar conectado). Revisa el estado en el chat del CRM.',
+    };
+  };
+
   const handleEnviar = async () => {
     const telefonoFinal = telefono.trim();
     const esFacturaCfdi = documento?.tipoDocumento === 'factura';
@@ -201,14 +250,27 @@ export function DocumentoWhatsappDialog({
         response,
       });
 
-      setResultadoEnvio({
-        severity: 'success',
-        message: esFacturaCfdi
-          ? 'Template, PDF y XML enviados correctamente por WhatsApp.'
-          : esDocumentoConPDF
-            ? `${documento?.tipoDocumentoLabel || 'Documento'} enviado correctamente por WhatsApp.`
-            : 'Plantilla enviada correctamente por WhatsApp.',
-      });
+      const enviado = esFacturaCfdi
+        ? 'Template, PDF y XML enviados a WhatsApp.'
+        : esDocumentoConPDF
+          ? `${documento?.tipoDocumentoLabel || 'Documento'} enviado a WhatsApp.`
+          : 'Plantilla enviada a WhatsApp.';
+      const messageId = (response as any)?.template?.messageId ?? (response as any)?.messageId ?? null;
+
+      if (!messageId) {
+        setResultadoEnvio({
+          severity: 'info',
+          message: `${enviado} La entrega al cliente se confirma en el chat del CRM.`,
+        });
+        return;
+      }
+
+      const envioId = ++envioActivoRef.current;
+      // Se libera "Cancelar" durante la espera; "Enviar" sigue bloqueado.
+      setEnviando(false);
+      setResultadoEnvio({ severity: 'info', message: `${enviado} Esperando confirmación de entrega...`, esperando: true });
+      const resultado = await esperarEntrega(String(messageId), envioId);
+      if (resultado && envioId === envioActivoRef.current) setResultadoEnvio(resultado);
     } catch (error: any) {
       const message = error?.message || (esFacturaCfdi
         ? 'No se pudo enviar el CFDI por WhatsApp.'
@@ -233,7 +295,15 @@ export function DocumentoWhatsappDialog({
       <DialogContent sx={{ pt: 1 }}>
         <Stack spacing={2.5} sx={{ pt: 1 }}>
           {resultadoEnvio && (
-            <Alert severity={resultadoEnvio.severity}>{resultadoEnvio.message}</Alert>
+            <Alert
+              severity={resultadoEnvio.severity}
+              icon={resultadoEnvio.esperando ? <CircularProgress size={18} color="inherit" /> : undefined}
+            >
+              {resultadoEnvio.message}
+              {resultadoEnvio.detalle && (
+                <Typography variant="body2" sx={{ mt: 0.5, fontWeight: 600 }}>{resultadoEnvio.detalle}</Typography>
+              )}
+            </Alert>
           )}
 
           <Paper variant="outlined" sx={{ borderColor: neutralColors.gray[200], borderRadius: 2, p: 2 }}>
@@ -287,7 +357,7 @@ export function DocumentoWhatsappDialog({
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2, gap: 1 }}>
         <Button onClick={onClose} disabled={enviando}>Cancelar</Button>
-        <Button variant="contained" onClick={() => void handleEnviar()} disabled={enviando}>
+        <Button variant="contained" onClick={() => void handleEnviar()} disabled={enviando || Boolean(resultadoEnvio?.esperando)}>
           {enviando ? (
             <>
               <CircularProgress size={16} color="inherit" sx={{ mr: 1 }} />

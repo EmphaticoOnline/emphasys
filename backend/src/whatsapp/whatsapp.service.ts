@@ -813,7 +813,9 @@ export const sendTemplateDocumentMessage = async (
         empresaId,
         tipoPlantilla,
       });
-      return { error: true, message: 'No hay plantilla activa configurada' };
+      // Se lanza con status para que los controladores respondan error en
+      // lugar de reportar un envío exitoso.
+      throw Object.assign(new Error('No hay plantilla de WhatsApp activa configurada para este documento'), { status: 400 });
     }
 
     const destinoNormalizado = normalizarTelefono(to);
