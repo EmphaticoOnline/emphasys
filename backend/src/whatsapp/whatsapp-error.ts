@@ -236,6 +236,11 @@ const ERRORES_ENTREGA: Record<number, Pick<WhatsappDeliveryErrorInfo, "codigo" |
     mensajeUsuario: "El formato de los datos no coincide con la plantilla (por ejemplo, la plantilla no tiene encabezado de documento).",
     accionSugerida: "Revisa en Gupshup que la plantilla tenga encabezado tipo Documento. Repórtalo al administrador.",
   },
+  132018: {
+    codigo: "PLANTILLA_INVALIDA",
+    mensajeUsuario: "La plantilla de WhatsApp no tiene la estructura que espera el sistema (por ejemplo, no tiene encabezado de documento para adjuntar el PDF).",
+    accionSugerida: "Revisa en Gupshup que la plantilla tenga encabezado tipo Documento y las variables correctas. Repórtalo al administrador.",
+  },
   132015: {
     codigo: "PLANTILLA_INVALIDA",
     mensajeUsuario: "La plantilla de WhatsApp está pausada por baja calidad.",
