@@ -459,6 +459,17 @@ export async function obtenerContactosPaginados(
         OR sat.unaccent(clasificacion.descripcion) ILIKE sat.unaccent($${idx}) ESCAPE '\\'
         OR origen.clave ILIKE $${idx} ESCAPE '\\'
         OR sat.unaccent(origen.descripcion) ILIKE sat.unaccent($${idx}) ESCAPE '\\'
+        OR EXISTS (
+          SELECT 1
+            FROM public.contactos_adicionales ca
+           WHERE ca.empresa_id = contactos.empresa_id
+             AND ca.contacto_id = contactos.id
+             AND ca.activo = true
+             AND (
+               sat.unaccent(ca.nombre) ILIKE sat.unaccent($${idx}) ESCAPE '\\'
+               OR ca.email ILIKE $${idx} ESCAPE '\\'
+             )
+        )
       )`
     );
   }
@@ -972,6 +983,17 @@ export async function obtenerContactosParaExportar(
         OR sat.unaccent(clasificacion.descripcion) ILIKE sat.unaccent($${idx}) ESCAPE '\\'
         OR origen.clave ILIKE $${idx} ESCAPE '\\'
         OR sat.unaccent(origen.descripcion) ILIKE sat.unaccent($${idx}) ESCAPE '\\'
+        OR EXISTS (
+          SELECT 1
+            FROM public.contactos_adicionales ca
+           WHERE ca.empresa_id = contactos.empresa_id
+             AND ca.contacto_id = contactos.id
+             AND ca.activo = true
+             AND (
+               sat.unaccent(ca.nombre) ILIKE sat.unaccent($${idx}) ESCAPE '\\'
+               OR ca.email ILIKE $${idx} ESCAPE '\\'
+             )
+        )
       )`
     );
   }
