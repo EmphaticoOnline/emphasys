@@ -30,7 +30,7 @@ import {
   listarContactosAdicionales,
 } from '../../services/contactos.api';
 import type { ContactoAdicional, ContactoAdicionalInput } from '../../types/contactos.types';
-import { formatearTelefonoParaMostrar } from '../../utils/telefono';
+import { formatearTelefonoParaMostrar, normalizarTelefonoMx } from '../../utils/telefono';
 
 type Props = {
   contactoId: number;
@@ -55,6 +55,16 @@ const FORM_VACIO: ContactoAdicionalInput = {
 /** Mismo orden que el backend: activos primero, luego por nombre. */
 function ordenar(filas: ContactoAdicional[]) {
   return [...filas].sort((a, b) => Number(b.activo) - Number(a.activo) || a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' }) || a.id - b.id);
+}
+
+/** Misma normalización que la captura de contactos; undefined si el número es inválido. */
+function telefonoNormalizado(valor: string | null): string | null | undefined {
+  if (!valor?.trim()) return null;
+  try {
+    return normalizarTelefonoMx(valor);
+  } catch {
+    return undefined;
+  }
 }
 
 function mensajeError(err: unknown, fallback: string) {
@@ -388,8 +398,8 @@ function ContactoAdicionalDialog({ open, contactoId, registro, onClose, onSaved 
             nombre: registro.nombre,
             puesto: registro.puesto,
             email: registro.email,
-            telefono: registro.telefono,
-            telefono_secundario: registro.telefono_secundario,
+            telefono: registro.telefono ? formatearTelefonoParaMostrar(registro.telefono) : null,
+            telefono_secundario: registro.telefono_secundario ? formatearTelefonoParaMostrar(registro.telefono_secundario) : null,
             observaciones: registro.observaciones,
             activo: registro.activo,
           }
@@ -404,17 +414,22 @@ function ContactoAdicionalDialog({ open, contactoId, registro, onClose, onSaved 
 
   const nombreVacio = !form.nombre.trim();
   const emailInvalido = Boolean(form.email?.trim()) && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email!.trim());
+  const telefono = telefonoNormalizado(form.telefono);
+  const telefonoSecundario = telefonoNormalizado(form.telefono_secundario);
+  const telefonoInvalido = telefono === undefined;
+  const telefonoSecundarioInvalido = telefonoSecundario === undefined;
 
   const guardar = async (event: React.FormEvent) => {
     event.preventDefault();
     setIntentoGuardar(true);
-    if (nombreVacio || emailInvalido) return;
+    if (nombreVacio || emailInvalido || telefonoInvalido || telefonoSecundarioInvalido) return;
+    const payload: ContactoAdicionalInput = { ...form, telefono: telefono ?? null, telefono_secundario: telefonoSecundario ?? null };
     setGuardando(true);
     setError(null);
     try {
       const fila = registro
-        ? await actualizarContactoAdicional(contactoId, registro.id, form)
-        : await crearContactoAdicional(contactoId, form);
+        ? await actualizarContactoAdicional(contactoId, registro.id, payload)
+        : await crearContactoAdicional(contactoId, payload);
       onSaved(fila);
     } catch (err) {
       setError(mensajeError(err, 'No se pudo guardar el contacto adicional'));
@@ -450,8 +465,22 @@ function ContactoAdicionalDialog({ open, contactoId, registro, onClose, onSaved 
               helperText={intentoGuardar && emailInvalido ? 'El correo no es válido' : undefined}
               inputProps={{ maxLength: 150 }}
             />
-            <TextField label="Teléfono" value={form.telefono ?? ''} onChange={set('telefono')} inputProps={{ maxLength: 30 }} />
-            <TextField label="Teléfono secundario" value={form.telefono_secundario ?? ''} onChange={set('telefono_secundario')} inputProps={{ maxLength: 30 }} />
+            <TextField
+              label="Teléfono"
+              value={form.telefono ?? ''}
+              onChange={set('telefono')}
+              error={intentoGuardar && telefonoInvalido}
+              helperText={intentoGuardar && telefonoInvalido ? 'El teléfono no es válido' : undefined}
+              inputProps={{ maxLength: 30 }}
+            />
+            <TextField
+              label="Teléfono secundario"
+              value={form.telefono_secundario ?? ''}
+              onChange={set('telefono_secundario')}
+              error={intentoGuardar && telefonoSecundarioInvalido}
+              helperText={intentoGuardar && telefonoSecundarioInvalido ? 'El teléfono secundario no es válido' : undefined}
+              inputProps={{ maxLength: 30 }}
+            />
             <TextField
               label="Observaciones"
               value={form.observaciones ?? ''}

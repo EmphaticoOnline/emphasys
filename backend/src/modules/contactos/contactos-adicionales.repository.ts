@@ -1,4 +1,5 @@
 import pool from '../../config/database';
+import { normalizarTelefono } from '../../utils/telefono';
 
 export type ContactoAdicionalPayload = {
   nombre: string;
@@ -21,6 +22,16 @@ function clean(value: unknown): string | null {
   return s || null;
 }
 
+/** Misma normalización que la captura de contactos; undefined si el número es inválido. */
+function telefonoNormalizado(value: string | null): string | null | undefined {
+  if (!value) return null;
+  try {
+    return normalizarTelefono(value);
+  } catch {
+    return undefined;
+  }
+}
+
 export function validarContactoAdicional(data: any): { payload?: ContactoAdicionalPayload; error?: string } {
   const payload: ContactoAdicionalPayload = {
     nombre: clean(data?.nombre) ?? '',
@@ -37,6 +48,12 @@ export function validarContactoAdicional(data: any): { payload?: ContactoAdicion
     if (typeof value === 'string' && value.length > max) return { error: `El ${ETIQUETAS[field]} no puede exceder ${max} caracteres` };
   }
   if (payload.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payload.email)) return { error: 'El correo no es válido' };
+  const telefono = telefonoNormalizado(payload.telefono);
+  if (telefono === undefined) return { error: 'El teléfono no es válido' };
+  const telefonoSecundario = telefonoNormalizado(payload.telefono_secundario);
+  if (telefonoSecundario === undefined) return { error: 'El teléfono secundario no es válido' };
+  payload.telefono = telefono;
+  payload.telefono_secundario = telefonoSecundario;
   return { payload };
 }
 
