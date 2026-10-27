@@ -5,6 +5,7 @@ import { sanitizarRichTextBasico } from '../../utils/richTextSanitize';
 import {
   getProductosRepository,
   getProductosPaginadosRepository,
+  esProductosOrdenCampo,
   updateProductoRepository,
   deleteProductoRepository,
   insertarProductoRepository,
@@ -92,12 +93,14 @@ export async function getProductos(req: Request, res: Response) {
     const page = typeof pageRaw === 'string' ? Number(pageRaw) : undefined;
     const limit = typeof limitRaw === 'string' ? Number(limitRaw) : undefined;
     const search = typeof req.query.search === 'string' ? req.query.search : undefined;
+    const sort = esProductosOrdenCampo(req.query.sort) ? req.query.sort : 'clave';
+    const dir = req.query.dir === 'desc' ? 'desc' : 'asc';
 
     const esAdmin = await resolverEsAdmin(req, Number(empresaId));
 
     const usingPagination = Number.isFinite(page) && Number.isFinite(limit);
     if (usingPagination && page && page >= 1 && limit && limit >= 1 && limit <= 100) {
-      const result = await getProductosPaginadosRepository(Number(empresaId), { page, limit, search });
+      const result = await getProductosPaginadosRepository(Number(empresaId), { page, limit, search, sort, dir });
       return res.json({ data: omitirCamposEconomicosLista(result.data, esAdmin), total: result.total, page, limit });
     }
 

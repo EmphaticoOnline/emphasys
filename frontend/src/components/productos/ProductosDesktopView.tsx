@@ -14,6 +14,8 @@ export default function ProductosDesktopView({
   rowCount,
   paginationModel,
   onPaginationModelChange,
+  sortModel,
+  onSortModelChange,
   onExport,
   exportLoading,
   searchTerm,
@@ -87,6 +89,8 @@ export default function ProductosDesktopView({
             error={error}
             paginationModel={paginationModel}
             onPaginationModelChange={onPaginationModelChange}
+            sortModel={sortModel}
+            onSortModelChange={onSortModelChange}
             selectedProductoId={selectedProductoId}
             existenciasPorProducto={existenciasPorProducto}
             onSelectProducto={seleccionar}

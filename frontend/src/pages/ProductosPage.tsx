@@ -37,6 +37,7 @@ import {
   resolverProductosOrigen,
   type ProductosOrigenNavegacion,
 } from '../modules/productos/productosOrigenNavegacion';
+import { PRODUCTOS_ORDEN_DEFAULT, resolverOrdenProductos } from '../modules/productos/productosOrden';
 
 function sumarExistenciasPorProducto(lineas: ExistenciaPorAlmacen[]): Record<number, number> {
   const mapa: Record<number, number> = {};
@@ -99,7 +100,7 @@ export default function ProductosPage() {
   } = useGridPreferences<{ searchTerm: string }>({
     pantalla: 'productos.list',
     perfilDispositivo,
-    defaultSortModel: [],
+    defaultSortModel: PRODUCTOS_ORDEN_DEFAULT,
     defaultColumnVisibilityModel: {},
     defaultColumnOrder: [],
     defaultExternalFilters: { searchTerm: '' },
@@ -108,6 +109,9 @@ export default function ProductosPage() {
       setSearch(restaurado ? restaurado.busqueda : String(value.searchTerm ?? ''));
     },
   });
+
+  // Preferencias guardadas antes del selector pueden traer [] o columnas no ordenables en servidor
+  const ordenActivo = useMemo(() => resolverOrdenProductos(sortModel), [sortModel]);
 
   const formatter = useMemo(
     () =>
@@ -128,6 +132,8 @@ export default function ProductosPage() {
           page: page + 1,
           limit: pageSize,
           search: debouncedSearch,
+          sort: ordenActivo.field,
+          dir: ordenActivo.sort,
         }),
         fetchExistenciasPorAlmacen({}).catch(() => null),
       ]);
@@ -165,15 +171,15 @@ export default function ProductosPage() {
     return () => window.clearTimeout(handler);
   }, [search]);
 
-  // Reset page when search changes
+  // Reset page when search or sort changes
   useEffect(() => {
     setPage(0);
-  }, [debouncedSearch]);
+  }, [debouncedSearch, ordenActivo.field, ordenActivo.sort]);
 
   useEffect(() => {
     loadProductos();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, pageSize, debouncedSearch, loadingPreferences]);
+  }, [page, pageSize, debouncedSearch, ordenActivo.field, ordenActivo.sort, loadingPreferences]);
 
   useEffect(() => {
     persistExternalFilters({ searchTerm: search });

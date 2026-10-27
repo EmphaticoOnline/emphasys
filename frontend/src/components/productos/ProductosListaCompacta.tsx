@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { Box, Chip, CircularProgress, IconButton, InputAdornment, TablePagination, TextField, Tooltip, Typography } from '@mui/material';
+import { Box, Chip, CircularProgress, IconButton, InputAdornment, ListItemIcon, ListItemText, Menu, MenuItem, TablePagination, TextField, Tooltip, Typography } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import ClearIcon from '@mui/icons-material/Clear';
 import AddIcon from '@mui/icons-material/Add';
@@ -9,11 +9,14 @@ import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import PowerSettingsNewIcon from '@mui/icons-material/PowerSettingsNew';
 import MenuBookOutlinedIcon from '@mui/icons-material/MenuBookOutlined';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
+import SortIcon from '@mui/icons-material/Sort';
+import CheckIcon from '@mui/icons-material/Check';
 import { WorkspaceRowContextMenu, type WorkspaceContextItem } from '../documentos/WorkspaceRowContextMenu';
-import type { GridPaginationModel } from '@mui/x-data-grid';
+import type { GridPaginationModel, GridSortModel } from '@mui/x-data-grid';
 import type { Producto } from '../../types/producto';
 import { catalogoRailIconButtonSx, catalogoRailSearchSx } from '../catalogo/catalogoSurfaces';
 import { elevation } from '../../theme/elevation';
+import { PRODUCTOS_ORDEN_OPCIONES, resolverOrdenProductos } from '../../modules/productos/productosOrden';
 
 type ProductosListaCompactaProps = {
   productos: Producto[];
@@ -22,6 +25,8 @@ type ProductosListaCompactaProps = {
   error?: string | null;
   paginationModel: GridPaginationModel;
   onPaginationModelChange: (model: GridPaginationModel) => void;
+  sortModel: GridSortModel;
+  onSortModelChange: (model: GridSortModel) => void;
   selectedProductoId: number | null;
   existenciasPorProducto?: Record<number, number> | null;
   onSelectProducto: (productoId: number) => void;
@@ -73,6 +78,8 @@ export default function ProductosListaCompacta({
   error,
   paginationModel,
   onPaginationModelChange,
+  sortModel,
+  onSortModelChange,
   selectedProductoId,
   existenciasPorProducto = null,
   onSelectProducto,
@@ -93,6 +100,9 @@ export default function ProductosListaCompacta({
   onScrollLista,
 }: ProductosListaCompactaProps) {
   const [menuFila, setMenuFila] = React.useState<{ top: number; left: number; rowId: number } | null>(null);
+  const [menuOrden, setMenuOrden] = React.useState<HTMLElement | null>(null);
+  const ordenActivo = resolverOrdenProductos(sortModel);
+  const opcionActiva = PRODUCTOS_ORDEN_OPCIONES.find((opcion) => opcion.field === ordenActivo.field && opcion.sort === ordenActivo.sort);
   const listaRef = React.useRef<HTMLDivElement | null>(null);
   const scrollPendienteRef = React.useRef<number | null>(scrollInicial ?? null);
 
@@ -138,10 +148,20 @@ export default function ProductosListaCompacta({
               PRODUCTOS
             </Typography>
             <Typography noWrap sx={(theme) => ({ mt: 0.25, fontSize: 13, color: theme.emphasys.navigation.subtle })}>
-              {productos.length} de {rowCount.toLocaleString('es-MX')}
+              {productos.length} de {rowCount.toLocaleString('es-MX')}{opcionActiva ? ` · ${opcionActiva.label}` : ''}
             </Typography>
           </Box>
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 0.4, flexWrap: 'wrap', flexShrink: 1, minWidth: 0 }}>
+          <Tooltip title={`Ordenar: ${opcionActiva?.label ?? 'Clave (A–Z)'}`} arrow>
+            <IconButton
+              aria-label="Ordenar productos"
+              aria-haspopup="menu"
+              onClick={(event) => setMenuOrden(event.currentTarget)}
+              sx={[catalogoRailIconButtonSx, { width: 34, height: 34, borderRadius: '10px' }]}
+            >
+              <SortIcon sx={{ fontSize: 16 }} />
+            </IconButton>
+          </Tooltip>
           <Tooltip title="Exportar" arrow>
             <span>
               <IconButton aria-label="Exportar" disabled={exportLoading} onClick={onExport} sx={[catalogoRailIconButtonSx, { width: 34, height: 34, borderRadius: '10px' }]}>
@@ -323,6 +343,24 @@ export default function ProductosListaCompacta({
           sx={{ '& .MuiTablePagination-toolbar': { px: 1.5 } }}
         />
       </Box>
+      <Menu anchorEl={menuOrden} open={Boolean(menuOrden)} onClose={() => setMenuOrden(null)}>
+        {PRODUCTOS_ORDEN_OPCIONES.map((opcion) => {
+          const activa = opcion.id === opcionActiva?.id;
+          return (
+            <MenuItem
+              key={opcion.id}
+              selected={activa}
+              onClick={() => {
+                onSortModelChange([{ field: opcion.field, sort: opcion.sort }]);
+                setMenuOrden(null);
+              }}
+            >
+              <ListItemIcon>{activa ? <CheckIcon fontSize="small" /> : null}</ListItemIcon>
+              <ListItemText>{opcion.label}</ListItemText>
+            </MenuItem>
+          );
+        })}
+      </Menu>
       <WorkspaceRowContextMenu
         anchorPosition={menuFila && productoMenu ? { top: menuFila.top, left: menuFila.left } : null}
         items={itemsMenu}

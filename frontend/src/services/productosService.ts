@@ -164,12 +164,18 @@ export async function fetchProductosPaginados(options: {
   page: number;
   limit: number;
   search?: string;
+  sort?: string;
+  dir?: 'asc' | 'desc';
 }): Promise<ProductosPaginadosResponse> {
   const params = new URLSearchParams();
   params.set('page', String(options.page));
   params.set('limit', String(options.limit));
   if (options.search?.trim()) {
     params.set('search', options.search.trim());
+  }
+  if (options.sort) {
+    params.set('sort', options.sort);
+    params.set('dir', options.dir ?? 'asc');
   }
   return apiFetch(`${BASE_URL}?${params.toString()}`);
 }

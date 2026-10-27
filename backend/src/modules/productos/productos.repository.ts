@@ -394,11 +394,27 @@ export async function getProductosRepository(empresaId: number) {
   return rows;
 }
 
+export type ProductosOrdenCampo = 'clave' | 'descripcion' | 'familia' | 'fecha_creacion';
+export type ProductosOrdenDireccion = 'asc' | 'desc';
+
+// Lista cerrada de columnas ordenables; el valor nunca se interpola desde la petición
+const ORDEN_PRODUCTOS: Record<ProductosOrdenCampo, (dir: string) => string> = {
+  clave: (dir) => `p.clave ${dir}, p.id ${dir}`,
+  descripcion: (dir) => `p.descripcion ${dir} NULLS LAST, p.clave ASC, p.id ASC`,
+  familia: (dir) => `p.familia ${dir} NULLS LAST, p.clave ASC, p.id ASC`,
+  fecha_creacion: (dir) => `p.fecha_creacion ${dir} NULLS LAST, p.id ${dir}`,
+};
+
+export function esProductosOrdenCampo(value: unknown): value is ProductosOrdenCampo {
+  return typeof value === 'string' && Object.prototype.hasOwnProperty.call(ORDEN_PRODUCTOS, value);
+}
+
 export async function getProductosPaginadosRepository(
   empresaId: number,
-  options: { page: number; limit: number; search?: string }
+  options: { page: number; limit: number; search?: string; sort?: ProductosOrdenCampo; dir?: ProductosOrdenDireccion }
 ): Promise<{ data: any[]; total: number }> {
   const { page, limit, search } = options;
+  const orden = ORDEN_PRODUCTOS[options.sort ?? 'clave'](options.dir === 'desc' ? 'DESC' : 'ASC');
   const params: Array<string | number> = [empresaId, PRODUCTO_TECNICO_NC_CLAVE];
   const whereClauses = ['p.empresa_id = $1', 'p.clave <> $2'];
 
@@ -425,7 +441,7 @@ export async function getProductosPaginadosRepository(
     LEFT JOIN unidades uv ON p.unidad_venta_id = uv.id
     LEFT JOIN unidades ui ON p.unidad_inventario_id = ui.id
     WHERE ${whereClauses.join(' AND ')}
-    ORDER BY p.id
+    ORDER BY ${orden}
     LIMIT $${limitIdx} OFFSET $${offsetIdx}
   `;
 
