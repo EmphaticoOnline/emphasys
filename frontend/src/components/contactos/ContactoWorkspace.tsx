@@ -27,6 +27,7 @@ import type { ContactoDetalle } from '../../types/contactos.types';
 import type { ContactoRow } from './ContactosView.types';
 import { formatearTelefonoParaMostrar } from '../../utils/telefono';
 import ProductoHistorialComercial from '../productos/ProductoHistorialComercial';
+import ContactoAdicionalesSection from './ContactoAdicionalesSection';
 
 type ContactoWorkspaceProps = {
   contactoId: number | null;
@@ -130,6 +131,7 @@ export default function ContactoWorkspace({ contactoId, vendedorNombre, onEditar
   const [historialHasta, setHistorialHasta] = React.useState('');
   const [offsetCompras, setOffsetCompras] = React.useState(0);
   const [offsetVentas, setOffsetVentas] = React.useState(0);
+  const [totalAdicionales, setTotalAdicionales] = React.useState<number | null>(null);
 
   React.useEffect(() => {
     setTab('datos');
@@ -169,6 +171,7 @@ export default function ContactoWorkspace({ contactoId, vendedorNombre, onEditar
     setHistorialHasta('');
     setOffsetCompras(0);
     setOffsetVentas(0);
+    setTotalAdicionales(null);
   }, [contactoId]);
 
   if (!contactoId) {
@@ -310,11 +313,7 @@ export default function ContactoWorkspace({ contactoId, vendedorNombre, onEditar
         <Tabs value={tab} onChange={(_, value) => setTab(value)} variant="scrollable" scrollButtons="auto" sx={catalogoTabsSx}>
           <Tab value="datos" label="Datos generales" />
           <Tab value="domicilios" label={`Domicilios${tieneDomicilio ? ' (1)' : ''}`} />
-          <Tooltip title="Función en desarrollo">
-            <span>
-              <Tab value="contactos" label="Contactos adicionales" disabled />
-            </span>
-          </Tooltip>
+          <Tab value="contactos" label={`Contactos adicionales${totalAdicionales ? ` (${totalAdicionales})` : ''}`} />
           {movimientosVisibles.map((config) => (
             <Tab key={config.tipoDocumento} value={config.tipoDocumento} label={`${config.etiqueta} (${movimientos.estado[config.tipoDocumento]?.total ?? 0})`} />
           ))}
@@ -429,9 +428,7 @@ export default function ContactoWorkspace({ contactoId, vendedorNombre, onEditar
         )}
 
         {tab === 'contactos' && (
-          <Typography variant="body2" sx={{ color: (theme) => theme.emphasys.content.muted }}>
-            La gestión de contactos adicionales estará disponible próximamente.
-          </Typography>
+          <ContactoAdicionalesSection contactoId={contacto.id} onTotalChange={setTotalAdicionales} />
         )}
 
         {movimientoActivo && (

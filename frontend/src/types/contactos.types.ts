@@ -43,6 +43,23 @@ export interface ContactoDomicilioPrincipal {
   colonia_sat?: string | null;
 }
 
+export interface ContactoAdicional {
+  id: number;
+  empresa_id: number;
+  contacto_id: number;
+  nombre: string;
+  puesto: string | null;
+  email: string | null;
+  telefono: string | null;
+  telefono_secundario: string | null;
+  observaciones: string | null;
+  activo: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export type ContactoAdicionalInput = Pick<ContactoAdicional, 'nombre' | 'puesto' | 'email' | 'telefono' | 'telefono_secundario' | 'observaciones' | 'activo'>;
+
 export interface ContactoDomicilio {
   id: number;
   contacto_id: number;

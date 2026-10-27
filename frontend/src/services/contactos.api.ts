@@ -1,4 +1,4 @@
-import type { Contacto, ContactoDetalle, ContactoDomicilio } from '../types/contactos.types';
+import type { Contacto, ContactoAdicional, ContactoAdicionalInput, ContactoDetalle, ContactoDomicilio } from '../types/contactos.types';
 import { apiFetch, apiFetchBlob, triggerBlobDownload } from './apiFetch';
 import { consultaHistorialComercial, type ProductoHistorialConsulta } from './productosService';
 
@@ -73,6 +73,12 @@ export const listarDomiciliosContacto = (id: number) => apiFetch<ContactoDomicil
 export const crearDomicilioContacto = (id: number, data: Partial<ContactoDomicilio>) => apiFetch<ContactoDomicilio>(`${BASE_URL}/${id}/domicilios`, { method: 'POST', body: data as any });
 export const actualizarDomicilioContacto = (id: number, domicilioId: number, data: Partial<ContactoDomicilio>) => apiFetch<ContactoDomicilio>(`${BASE_URL}/${id}/domicilios/${domicilioId}`, { method: 'PUT', body: data as any });
 export const eliminarDomicilioContacto = (id: number, domicilioId: number) => apiFetch<void>(`${BASE_URL}/${id}/domicilios/${domicilioId}`, { method: 'DELETE' });
+
+export const listarContactosAdicionales = (id: number) => apiFetch<ContactoAdicional[]>(`${BASE_URL}/${id}/adicionales`);
+export const crearContactoAdicional = (id: number, data: ContactoAdicionalInput) => apiFetch<ContactoAdicional>(`${BASE_URL}/${id}/adicionales`, { method: 'POST', body: data as any });
+export const actualizarContactoAdicional = (id: number, adicionalId: number, data: ContactoAdicionalInput) => apiFetch<ContactoAdicional>(`${BASE_URL}/${id}/adicionales/${adicionalId}`, { method: 'PUT', body: data as any });
+export const cambiarActivoContactoAdicional = (id: number, adicionalId: number, activo: boolean) => apiFetch<ContactoAdicional>(`${BASE_URL}/${id}/adicionales/${adicionalId}/activo`, { method: 'PATCH', body: { activo } as any });
+export const eliminarContactoAdicional = (id: number, adicionalId: number) => apiFetch<void>(`${BASE_URL}/${id}/adicionales/${adicionalId}`, { method: 'DELETE' });
 
 export type ExportContactoColumna = { field: string; headerName: string };
 
