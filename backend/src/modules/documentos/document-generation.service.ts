@@ -38,6 +38,7 @@ import type {
   OpcionGeneracion,
   PrepararGeneracionResponse,
   GenerarDocumentoPartidaInput,
+  DatosEncabezadoGeneracion,
 } from "./document-generation.types.js";
 import { calcularImpuestosPartida } from "../impuestos/impuestos.service";
 import { actualizarTotales, aplicarInventarioPostEmision, asegurarOportunidadParaCotizacion } from "./documentos.service";
@@ -77,6 +78,7 @@ type DocumentoGeneracionRow = {
   agente_id: number | null;
   estatus_documento: string | null;
   observaciones: string | null;
+  atencion: string | null;
 };
 
 type DatosFiscalesGeneracion = {
@@ -402,6 +404,24 @@ async function resolverDatosFiscalesDocumento(
   }
 }
 
+/**
+ * "Atención" se hereda del documento origen solo si el destino conserva el mismo
+ * cliente; con otro cliente la persona del origen ya no aplica.
+ */
+function resolverAtencionDocumento(
+  datosEncabezado: DatosEncabezadoGeneracion | undefined,
+  documentoOrigen: DocumentoGeneracionRow,
+  contactoPrincipalIdDestino: number | null,
+  atencionActual: string | null = null
+): string | null {
+  if (datosEncabezado?.atencion !== undefined) {
+    const texto = String(datosEncabezado.atencion ?? '').trim();
+    return texto ? texto.slice(0, 150) : null;
+  }
+  const mismoContacto = Number(documentoOrigen.contacto_principal_id ?? 0) === Number(contactoPrincipalIdDestino ?? 0);
+  return (mismoContacto ? documentoOrigen.atencion : null) ?? atencionActual;
+}
+
 async function cargarDocumentosOrigen(
   documentoIds: number[],
   empresaId: number,
@@ -426,7 +446,8 @@ async function cargarDocumentosOrigen(
             contacto_entrega_id,
             agente_id,
             estatus_documento,
-            observaciones
+            observaciones,
+            atencion
        FROM documentos
       WHERE empresa_id = $1
         AND id = ANY($2::int[])
@@ -1031,7 +1052,8 @@ export class DocumentGenerationService {
                   tratamiento_impuestos = $23,
                   serie_externa = $24,
                   numero_externo = $25,
-                  fecha_vencimiento = $26
+                  fecha_vencimiento = $26,
+                  atencion = $27
             WHERE id = $1
               AND empresa_id = $2
             RETURNING *`,
@@ -1062,6 +1084,12 @@ export class DocumentGenerationService {
             datos_encabezado?.serie_externa ?? null,
             datos_encabezado?.numero_externo ?? null,
             fechaVencimientoEdicion,
+            resolverAtencionDocumento(
+              datos_encabezado,
+              documentoOrigen,
+              contactoPrincipalIdDestino,
+              documentoDestinoExistente.atencion ?? null
+            ),
           ]
         );
 
@@ -1089,7 +1117,7 @@ export class DocumentGenerationService {
           client
         );
         const columnasCotizacion = camposCotizacion ? ",\n            estado_seguimiento" : "";
-        const valoresCotizacion = camposCotizacion ? ",\n            $30" : "";
+        const valoresCotizacion = camposCotizacion ? ",\n            $31" : "";
 
         const fechaVencimientoInsert = datos_encabezado?.fecha_vencimiento !== undefined
           ? (datos_encabezado.fecha_vencimiento ?? null)
@@ -1135,7 +1163,8 @@ export class DocumentGenerationService {
               usuario_creacion_id,
               serie_externa,
               numero_externo,
-              fecha_vencimiento${columnasCotizacion}
+              fecha_vencimiento,
+              atencion${columnasCotizacion}
             ) VALUES (
               $1, $2, 'Borrador', $3, $4, $5,
               $6, $7, $8, $9,
@@ -1158,7 +1187,8 @@ export class DocumentGenerationService {
               $26,
               $27,
               $28,
-              $29${valoresCotizacion}
+              $29,
+              $30${valoresCotizacion}
             )
             RETURNING *`,
           [
@@ -1191,6 +1221,7 @@ export class DocumentGenerationService {
             datos_encabezado?.serie_externa ?? null,
             datos_encabezado?.numero_externo ?? null,
             fechaVencimientoInsert,
+            resolverAtencionDocumento(datos_encabezado, documentoOrigen, contactoPrincipalIdDestino),
             ...(camposCotizacion ? [camposCotizacion.estado_seguimiento] : []),
           ]
         );

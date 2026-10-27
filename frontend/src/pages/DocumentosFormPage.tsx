@@ -103,7 +103,7 @@ import { uploadArchivo } from '../services/uploadsService';
 import { fetchContactos, fetchVendedores } from '../services/contactosService';
 import { createProducto, fetchConfiguracionEspecificaciones, fetchEspecificacionesBiblioteca, fetchProductoArchivos, fetchProductos, type ProductoArchivo } from '../services/productosService';
 import type { Producto, ProductoBasico } from '../types/producto';
-import type { Contacto, ContactoDetalle } from '../types/contactos.types';
+import type { Contacto, ContactoAdicional, ContactoDetalle } from '../types/contactos.types';
 import { getEmpresaActivaId } from '../utils/empresaUtils';
 import { useSession } from '../session/useSession';
 import type { ImpuestoEntrada, ImpuestoCalculadoUI } from '../utils/impuestos';
@@ -116,7 +116,7 @@ import { FacturaPagosDrawer } from '../modules/finanzas/FacturaPagosDrawer';
 import { OperacionDialog } from '../modules/finanzas/OperacionDialog';
 import { getDocumentoOrigenFinancieroConfig } from '../modules/finanzas/documentoOrigenFinanciero';
 import { DEFAULT_ESTADO_SEGUIMIENTO } from '../modules/cotizaciones/estadoSeguimiento';
-import { crearContacto, getContacto, obtenerCatalogosConfigurablesContacto, type CatalogoConfigurablesRespuesta } from '../services/contactos.api';
+import { crearContacto, getContacto, listarContactosAdicionales, obtenerCatalogosConfigurablesContacto, type CatalogoConfigurablesRespuesta } from '../services/contactos.api';
 import { obtenerTipoOrigenContacto } from '../modules/contactos/catalogosContacto';
 import { fetchAplicacionesDocumento, fetchCuentas, fetchEstadoCuenta, fetchResumenAnticiposDocumento, fetchSaldoDocumento } from '../services/finanzasService';
 import { buildAssetUrl } from '../services/empresasAssetsService';
@@ -640,6 +640,7 @@ export default function DocumentosFormPage({
     cuenta_financiera_id: null,
     finanzas_operacion_id: null,
     observaciones: '',
+    atencion: '',
     subtotal: 0,
     descuento_global: 0,
     iva: 0,
@@ -932,6 +933,11 @@ export default function DocumentosFormPage({
   const partidaImagenPasteAreaRef = useRef<HTMLDivElement | null>(null);
   const prevContactoRef = useRef<number | null | undefined>(undefined);
   const prevPrecioResolverContactoRef = useRef<number | null | undefined>(undefined);
+  // Contactos adicionales activos del cliente: sugerencias para "Atención".
+  const [contactosAdicionalesCliente, setContactosAdicionalesCliente] = useState<ContactoAdicional[]>([]);
+  // Se marca al elegir un cliente sin nombre_contacto: cuando carguen sus
+  // contactos adicionales, si hay uno solo activo se usa para "Atención".
+  const atencionPorContactoAdicionalRef = useRef(false);
   const skipFiscalFetchRef = useRef<boolean>(false);
   const previewTimersRef = useRef<Record<number, ReturnType<typeof setTimeout> | null>>({});
   const previewSeqRef = useRef<Record<number, number>>({});
@@ -1884,6 +1890,7 @@ export default function DocumentosFormPage({
         cuenta_financiera_id: (doc as any).cuenta_financiera_id ?? null,
         finanzas_operacion_id: (doc as any).finanzas_operacion_id ?? null,
         observaciones: doc.observaciones || '',
+        atencion: doc.atencion || '',
         subtotal: doc.subtotal || 0,
         descuento_global: (doc as any).descuento_global || 0,
         descuento: doc.descuento || 0,
@@ -2877,9 +2884,14 @@ export default function DocumentosFormPage({
         metodo_pago: form.metodo_pago?.trim() || null,
         codigo_postal_receptor: form.codigo_postal_receptor?.trim() || null,
         fecha_vencimiento: TIPOS_CON_VENCIMIENTO.has(tipoDocumento) ? (form.fecha_vencimiento || null) : null,
+        atencion: esDocumentoMonetario ? null : (form.atencion?.trim() || null),
       };
       const payload = edicionFacturaTimbradaRestringida
-        ? ({ observaciones: form.observaciones || '', fecha_vencimiento: form.fecha_vencimiento || null } as Partial<CotizacionCrearPayload>)
+        ? ({
+            observaciones: form.observaciones || '',
+            fecha_vencimiento: form.fecha_vencimiento || null,
+            atencion: form.atencion?.trim() || null,
+          } as Partial<CotizacionCrearPayload>)
         : payloadCompleto;
 
       if (isNotaCreditoDevolucion || isNotaCreditoBonificacion) {
@@ -3612,12 +3624,49 @@ export default function DocumentosFormPage({
       setValoresEspecialesNotaCredito({});
       setPreparacionNotaCredito(null);
     }
-    setForm((prev) => ({
-      ...prev,
-      contacto_principal_id: value?.id ?? null,
-      agente_id: prev.agente_id ?? value?.vendedor_id ?? null,
-    }));
+    setForm((prev) => {
+      if ((prev.contacto_principal_id ?? null) === (value?.id ?? null)) {
+        return { ...prev, agente_id: prev.agente_id ?? value?.vendedor_id ?? null };
+      }
+      // Cambio de cliente: "Atención" se predefine con su nombre_contacto; si no
+      // tiene, se intenta con su único contacto adicional activo (ver efecto).
+      const nombreContacto = value?.nombre_contacto?.trim() || '';
+      atencionPorContactoAdicionalRef.current = Boolean(value) && !nombreContacto;
+      return {
+        ...prev,
+        contacto_principal_id: value?.id ?? null,
+        agente_id: prev.agente_id ?? value?.vendedor_id ?? null,
+        atencion: nombreContacto,
+      };
+    });
   };
+
+  useEffect(() => {
+    const contactoId = form.contacto_principal_id ?? null;
+    setContactosAdicionalesCliente([]);
+    if (!contactoId || esDocumentoMonetario) {
+      atencionPorContactoAdicionalRef.current = false;
+      return;
+    }
+    let cancelado = false;
+    listarContactosAdicionales(contactoId)
+      .then((lista) => {
+        if (cancelado) return;
+        const activos = lista.filter((item) => item.activo);
+        setContactosAdicionalesCliente(activos);
+        const unico = activos.length === 1 ? activos[0] : undefined;
+        if (atencionPorContactoAdicionalRef.current && unico) {
+          setForm((prev) => (prev.atencion?.trim() ? prev : { ...prev, atencion: unico.nombre }));
+        }
+      })
+      .catch((err) => console.error('No se pudieron cargar los contactos adicionales', err))
+      .finally(() => {
+        if (!cancelado) atencionPorContactoAdicionalRef.current = false;
+      });
+    return () => {
+      cancelado = true;
+    };
+  }, [form.contacto_principal_id, esDocumentoMonetario]);
 
   useEffect(() => {
     if (!['cotizacion', 'orden_servicio', 'factura'].includes(tipoDocumento)) {
@@ -6681,6 +6730,40 @@ export default function DocumentosFormPage({
                       size="small"
                       InputLabelProps={{ shrink: true, sx: { fontSize: 13 } }}
                       inputProps={{ style: { textAlign: 'right', fontSize: 13 } }}
+                    />
+                  </Grid>
+                )}
+                {!esDocumentoMonetario && (
+                  <Grid size={{ xs: 12, md: 3 }}>
+                    <Autocomplete
+                      freeSolo
+                      options={contactosAdicionalesCliente.map((item) => item.nombre)}
+                      inputValue={form.atencion || ''}
+                      onInputChange={(_, value) => setForm((prev) => ({ ...prev, atencion: value }))}
+                      renderOption={(props, option) => {
+                        const { key, ...optionProps } = props as typeof props & { key: React.Key };
+                        const puesto = contactosAdicionalesCliente.find((item) => item.nombre === option)?.puesto;
+                        return (
+                          <li key={key} {...optionProps}>
+                            <Box>
+                              <Typography sx={{ fontSize: 13 }}>{option}</Typography>
+                              {puesto && <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>{puesto}</Typography>}
+                            </Box>
+                          </li>
+                        );
+                      }}
+                      renderInput={(params) => (
+                        <TextField
+                          {...params}
+                          label="Atención"
+                          placeholder="Persona a quien se dirige"
+                          fullWidth
+                          size="small"
+                          InputLabelProps={{ shrink: true, sx: { fontSize: 13 } }}
+                          inputProps={{ ...params.inputProps, maxLength: 150 }}
+                          sx={campoEncabezadoSx}
+                        />
+                      )}
                     />
                   </Grid>
                 )}

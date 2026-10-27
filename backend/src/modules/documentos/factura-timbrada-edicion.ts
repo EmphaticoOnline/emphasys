@@ -1,6 +1,7 @@
 export const CAMPOS_EDITABLES_FACTURA_TIMBRADA = [
   'observaciones',
   'fecha_vencimiento',
+  'atencion',
 ] as const;
 
 export const esFacturaTimbrada = (documento: { tipo_documento?: unknown; estatus_documento?: unknown; esta_timbrado?: unknown; cfdi_uuid?: unknown }): boolean =>
@@ -11,6 +12,6 @@ export function validarCamposFacturaTimbrada(data: Record<string, unknown>): voi
   const permitidos = new Set<string>(CAMPOS_EDITABLES_FACTURA_TIMBRADA);
   const prohibidos = Object.keys(data).filter((campo) => !permitidos.has(campo));
   if (prohibidos.length > 0) {
-    throw new Error(`VALIDATION_ERROR: Una factura timbrada sólo permite modificar observaciones y fecha_vencimiento. Campos no permitidos: ${prohibidos.join(', ')}`);
+    throw new Error(`VALIDATION_ERROR: Una factura timbrada sólo permite modificar observaciones, fecha_vencimiento y atención. Campos no permitidos: ${prohibidos.join(', ')}`);
   }
 }

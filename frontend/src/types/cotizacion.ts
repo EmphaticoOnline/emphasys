@@ -85,6 +85,7 @@ export interface CotizacionDocumento {
   cuenta_financiera_id?: number | null;
   finanzas_operacion_id?: number | null;
   observaciones?: string | null;
+  atencion?: string | null;
   subtotal: number;
   descuento_global?: number;
   descuento?: number;
@@ -193,6 +194,7 @@ export interface CotizacionCrearPayload {
   cuenta_financiera_id?: number | null;
   finanzas_operacion_id?: number | null;
   observaciones?: string | null;
+  atencion?: string | null;
   subtotal: number;
   descuento_global?: number;
   descuento?: number;

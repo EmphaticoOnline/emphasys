@@ -46,6 +46,7 @@ type DocumentoCotizacion = {
   producto_resumen?: string | null;
   cliente_nombre?: string | null;
   cliente_nombre_contacto?: string | null;
+  atencion?: string | null;
   cliente_email?: string | null;
   cliente_telefono?: string | null;
   cliente_rfc?: string | null;
@@ -1573,6 +1574,9 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
       // Bloque Emisor / Receptor
       const colWidth = (contentWidth - 12) / 2;
       const bloqueY = doc.y;
+      // Persona a la que va dirigido el documento; capturada por documento y
+      // solo se imprime cuando tiene valor.
+      const atencion = documento?.atencion?.trim() || null;
       if (esOrdenServicio) {
         const labelWidth = 62;
         const rowGap = 4;
@@ -1591,6 +1595,7 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
               : []);
         const receptorRowsBase: Array<[string, string | null]> = [
           ['Nombre', documento?.nombre_receptor || documento?.cliente_nombre || null],
+          ['Atención', atencion],
           ['Teléfono', documento?.cliente_telefono ?? null],
           ['Correo', documento?.cliente_email ?? null],
         ];
@@ -1642,7 +1647,7 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
       };
 
       if (esCotizacion) {
-        const clienteNombreContacto = documento?.cliente_nombre_contacto || null;
+        const clienteNombreContacto = atencion;
         const clienteEmpresa = documento?.nombre_receptor || documento?.cliente_nombre || null;
         const clienteTelefono = documento?.cliente_telefono || null;
         const clienteEmail = documento?.cliente_email || null;
@@ -1696,6 +1701,9 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
       receptorY += drawLabelValue('RFC', documento?.rfc_receptor || documento?.cliente_rfc, doc.page.margins.left + colWidth + 12, receptorY);
       receptorY += drawLabelValue('Domicilio Fiscal', documento?.codigo_postal_receptor, doc.page.margins.left + colWidth + 12, receptorY);
       receptorY += drawLabelValue('Régimen Fiscal', mapRegimen(documento?.regimen_fiscal_receptor), doc.page.margins.left + colWidth + 12, receptorY);
+      if (atencion) {
+        receptorY += drawLabelValue('Atención', atencion, doc.page.margins.left + colWidth + 12, receptorY);
+      }
 
       doc.y = Math.max(emisorY, receptorY) + 6;
       doc.moveDown(0.4);

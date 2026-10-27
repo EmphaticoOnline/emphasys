@@ -125,6 +125,7 @@ function construirPayloadDocumentoDuplicado(documentoOrigen: Record<string, any>
     agente_id: documentoOrigen.agente_id ?? null,
     moneda: documentoOrigen.moneda ?? 'MXN',
     observaciones: documentoOrigen.observaciones ?? null,
+    atencion: documentoOrigen.atencion ?? null,
     subtotal: Number(documentoOrigen.subtotal ?? 0),
     descuento_global: Number(documentoOrigen.descuento_global ?? 0),
     descuento: Number(documentoOrigen.descuento ?? 0),

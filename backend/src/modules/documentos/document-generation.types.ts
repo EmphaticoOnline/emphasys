@@ -49,6 +49,7 @@ export interface DatosEncabezadoGeneracion {
   contacto_principal_id?: number | null;
   conversacion_id?: number | null;
   comentarios?: string | null;
+  atencion?: string | null;
   motivo_nc?: 'devolucion' | 'bonificacion' | 'otro' | null;
   concepto_id?: number | null;
   producto_resumen?: string | null;

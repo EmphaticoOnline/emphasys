@@ -79,6 +79,15 @@ function normalizarCamposFiscalesSat(data: Record<string, any>): void {
   }
 }
 
+const ATENCION_MAX = 150;
+
+/** "Atención" es texto libre: vacío se guarda como null y se recorta al largo de la columna. */
+function normalizarAtencion(data: Record<string, any>): void {
+  if (!Object.prototype.hasOwnProperty.call(data, 'atencion')) return;
+  const texto = data.atencion == null ? '' : String(data.atencion).trim();
+  data.atencion = texto ? texto.slice(0, ATENCION_MAX) : null;
+}
+
 export type Documento = {
   id: number;
   empresa_id: number;
@@ -104,6 +113,7 @@ export type Documento = {
   estatus_documento: string;
   moneda: string | null;
   observaciones?: string | null;
+  atencion?: string | null;
   usuario_creacion_id?: number | null;
   producto_resumen?: string | null;
   estado_seguimiento?: string | null;
@@ -190,6 +200,7 @@ const CAMPOS_DOCUMENTO = [
   'tipo_cambio',
   'finanzas_operacion_id',
   'observaciones',
+  'atencion',
   'producto_resumen',
   'estado_seguimiento',
   'comentario_seguimiento',
@@ -371,7 +382,7 @@ function valorDeCampoDocumentoDifiere(actual: unknown, incoming: unknown, tipo: 
 // genérico por campo, pero NO es de edición libre: assertTransicionEstatusDocumentoConTrazabilidad
 // (abajo) solo permite la transición borrador→emitido; cualquier otro valor (revertir a
 // borrador, cancelar, o cualquier otro estatus) se rechaza explícitamente.
-const CAMPOS_HEADER_EDITABLES_CON_TRAZABILIDAD: readonly string[] = ['observaciones', 'estatus_documento'];
+const CAMPOS_HEADER_EDITABLES_CON_TRAZABILIDAD: readonly string[] = ['observaciones', 'atencion', 'estatus_documento'];
 const CAMPOS_FACTURA_BORRADOR_EDITABLES_CON_TRAZABILIDAD: readonly string[] = [
   'fecha_documento', 'fecha_vencimiento', 'rfc_receptor', 'nombre_receptor',
   'regimen_fiscal_receptor', 'uso_cfdi', 'forma_pago', 'metodo_pago',
@@ -460,6 +471,8 @@ function assertSoloObservacionesModificadas(
   for (const campo of CAMPOS_DOCUMENTO) {
     if (CAMPOS_FACTURA_BORRADOR_EDITABLES_CON_TRAZABILIDAD.includes(campo) && esFacturaBorrador(current)) continue;
     if (campo === 'observaciones' && (esFacturaBorrador(current) || esRecepcionBorrador(current))) continue;
+    // "Atención" no afecta importes, inventario ni CFDI: editable aun con trazabilidad.
+    if (campo === 'atencion') continue;
     if (campo === 'fecha_documento' && esRecepcionBorrador(current)) continue;
 
     if (campo === 'estatus_documento') {
@@ -2182,6 +2195,7 @@ export async function crearDocumentoRepository(
   }
 
   normalizarCamposFiscalesSat(dataConDefaults);
+  normalizarAtencion(dataConDefaults);
 
   const serieResuelta = await resolverYReservarSerieDocumento({
     empresaId,
@@ -2396,6 +2410,7 @@ export async function actualizarDocumentoRepository(
 
   let dataToUpdate: DocumentoInput = { ...data };
   normalizarCamposFiscalesSat(dataToUpdate);
+  normalizarAtencion(dataToUpdate);
 
   if (trazabilidadHeader.activa) {
     assertSoloObservacionesModificadas(current, dataToUpdate, trazabilidadHeader.folioRelacionado);
