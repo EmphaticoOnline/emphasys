@@ -40,8 +40,52 @@ export async function aplicarInventarioPostEmision(
   try {
     await aplicarInventarioDesdeDocumentoEnTransaccion(client, documentoId, empresaId, Number(usuarioId));
   } catch (invErr: any) {
-    if (!INVENTARIO_SILENCEABLE.has((invErr as any)?.code)) throw invErr;
+    if (INVENTARIO_SILENCEABLE.has((invErr as any)?.code)) return;
+    const mensaje = await mensajeErrorInventario(invErr, empresaId);
+    if (mensaje) throw new Error(`VALIDATION_ERROR: ${mensaje}`);
+    throw invErr;
   }
+}
+
+/**
+ * Traduce los errores conocidos del inventario a un mensaje para el usuario
+ * (los controladores responden VALIDATION_ERROR como 400 con ese texto). Los
+ * errores del motor SQL llegan como P0001 con el código al inicio del mensaje.
+ * La transacción ya está abortada, por eso la clave del producto se busca con
+ * el pool y no con el client.
+ */
+async function mensajeErrorInventario(error: any, empresaId: number): Promise<string | null> {
+  const mensaje = String(error?.message ?? '');
+  if (error?.code === 'P0001') {
+    const [codigo = '', detalle = ''] = mensaje.split(':').map((parte) => parte.trim());
+    const productoId = Number(detalle.match(/producto\s+(\d+)/)?.[1] ?? 0);
+    let producto = productoId ? `producto ${productoId}` : 'un producto';
+    if (productoId) {
+      const { rows } = await pool
+        .query<{ clave: string | null }>(`SELECT clave FROM productos WHERE id = $1 AND empresa_id = $2`, [productoId, empresaId])
+        .catch(() => ({ rows: [] as Array<{ clave: string | null }> }));
+      if (rows[0]?.clave) producto = rows[0].clave;
+    }
+    const disponible = detalle.match(/disponible\s+(-?[\d.]+)/)?.[1];
+    const solicitado = detalle.match(/solicitado\s+(-?[\d.]+)/)?.[1];
+    switch (codigo) {
+      case 'EXISTENCIA_INSUFICIENTE':
+        return `Existencia insuficiente de ${producto}${disponible ? `: disponible ${Number(disponible)}, solicitado ${Number(solicitado)}` : ''}.`;
+      case 'COSTO_ENTRADA_REQUERIDO':
+        return `La entrada de ${producto} al inventario requiere un costo unitario.`;
+      case 'COSTO_NO_DISPONIBLE':
+        return `No hay costo disponible para la salida de ${producto}: no tiene existencias valuadas en el almacén.`;
+      case 'COSTO_TRANSFERENCIA_NO_DISPONIBLE':
+        return `No hay costo disponible para transferir ${producto}.`;
+      case 'CANTIDAD_INVALIDA':
+        return 'Una de las partidas tiene una cantidad inválida para el inventario.';
+      default:
+        return null;
+    }
+  }
+  // Errores propios del servicio de inventario (buildError): ya traen mensaje en español.
+  if (typeof error?.code === 'string' && /^[A-Z_]+$/.test(error.code) && mensaje) return mensaje;
+  return null;
 }
 
 type DocumentoCrearPayload = Record<string, any> & {
@@ -209,10 +253,17 @@ async function sincronizarDocumentoMonetarioConTesoreria(
     documento.finanzas_operacion_id = operacion.id;
   }
 
+  // El formulario del pago sólo conoce facturas: se reemplazan esas aplicaciones
+  // y se conservan las cancelaciones de saldo a favor, que se registran aparte.
   await client.query(
-    `DELETE FROM aplicaciones_saldo
-      WHERE empresa_id = $1
-        AND documento_origen_id = $2`,
+    `DELETE FROM aplicaciones_saldo a
+      WHERE a.empresa_id = $1
+        AND a.documento_origen_id = $2
+        AND NOT EXISTS (
+          SELECT 1 FROM documentos d
+           WHERE d.id = a.documento_destino_id
+             AND d.tipo_documento IN ('ajuste_favor_cliente', 'ajuste_favor_proveedor')
+        )`,
     [empresaId, documento.id]
   );
 

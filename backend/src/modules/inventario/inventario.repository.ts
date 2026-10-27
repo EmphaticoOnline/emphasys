@@ -15,6 +15,8 @@ export type MovimientoRow = {
   documento_id: number | null;
   documento_serie: string | null;
   documento_numero: number | null;
+  documento_serie_externa: string | null;
+  documento_numero_externo: number | null;
   documento_tipo: string | null;
   documento_estatus: string | null;
   documento_fecha: string | null;
@@ -60,6 +62,8 @@ export async function listarMovimientosRepository(empresaId: number): Promise<Mo
            m.documento_id,
            d.serie   AS documento_serie,
            d.numero  AS documento_numero,
+           d.serie_externa AS documento_serie_externa,
+           d.numero_externo AS documento_numero_externo,
            d.tipo_documento AS documento_tipo,
            d.estatus_documento AS documento_estatus,
            d.fecha_documento AS documento_fecha,
@@ -141,6 +145,8 @@ export async function obtenerMovimientoDetalleRepository(id: number, empresaId: 
            m.documento_id,
            d.serie   AS documento_serie,
            d.numero  AS documento_numero,
+           d.serie_externa AS documento_serie_externa,
+           d.numero_externo AS documento_numero_externo,
            d.tipo_documento AS documento_tipo,
            d.estatus_documento AS documento_estatus,
            d.fecha_documento AS documento_fecha,

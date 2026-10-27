@@ -4,7 +4,7 @@ import type { TipoDocumento } from '../../../types/documentos.types';
 import type { EstadoCuentaItem, FinanzasCuenta } from '../../../types/finanzas';
 import { createDocumento, getDocumento } from '../../../services/documentosService';
 import { fetchCuentas, fetchEstadoCuenta, fetchSaldoDocumento } from '../../../services/finanzasService';
-import { formatearFolioDocumento, resolverFolioVisual } from '../../../utils/documentos.utils';
+import { formatearFolioDocumento, resolverFolioVisual, folioDocumento } from '../../../utils/documentos.utils';
 import { resolveLiquidacionConfig, type LiquidacionConfig } from './liquidacionDocumento.copy';
 import { parseMoneyInput, roundMoney, toCivilDate } from './liquidacionDocumento.money';
 
@@ -339,7 +339,7 @@ export function useLiquidacionDocumento(params: LiquidacionDocumentoParams | nul
 function mapEstadoCuentaToFila(item: EstadoCuentaItem, esOrigen: boolean): LiquidacionFila {
   return {
     id: Number(item.id),
-    folio: formatearFolioDocumento(item.serie || '', item.numero || 0) || `#${item.id}`,
+    folio: folioDocumento(item) || `#${item.id}`,
     fecha: String(item.fecha ?? '').slice(0, 10),
     saldo: roundMoney(Number(item.saldo ?? 0)),
     esOrigen,

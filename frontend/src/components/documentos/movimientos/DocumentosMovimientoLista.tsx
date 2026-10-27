@@ -1,4 +1,3 @@
-import { useNavigate } from 'react-router-dom';
 import { Box, Button, CircularProgress, Stack, Typography } from '@mui/material';
 import DocumentoMovimientoCard from './DocumentoMovimientoCard';
 import type { MovimientoContactoConfig } from './movimientosContacto.config';
@@ -11,7 +10,6 @@ type DocumentosMovimientoListaProps = {
 };
 
 export default function DocumentosMovimientoLista({ config, estado, onCargarMas }: DocumentosMovimientoListaProps) {
-  const navigate = useNavigate();
   const rows = estado?.rows ?? [];
   const total = estado?.total ?? 0;
 
@@ -39,7 +37,7 @@ export default function DocumentosMovimientoLista({ config, estado, onCargarMas 
         {rows.length} de {total} {config.etiqueta.toLocaleLowerCase()}
       </Typography>
       {rows.map((row) => (
-        <DocumentoMovimientoCard key={row.id} row={row} config={config} onAbrir={(doc) => navigate(config.ruta(doc))} />
+        <DocumentoMovimientoCard key={row.id} row={row} config={config} />
       ))}
       {rows.length < total ? (
         <Box sx={{ display: 'flex', justifyContent: 'center', pt: 0.5 }}>

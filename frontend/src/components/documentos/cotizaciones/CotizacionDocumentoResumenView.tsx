@@ -2,6 +2,7 @@
 // No genera el PDF: usa los datos de la lista y el detalle que ya carga el
 // workspace. No muestra saldo ni datos de CFDI.
 import React, { useMemo } from 'react';
+import { HojaFilasDescuentoGlobal, HojaPartidasLista } from '../partidas/HojaPartidas';
 import { Alert, Box, CircularProgress, Stack, Typography, useTheme } from '@mui/material';
 import DocumentoHojaFrame from '../DocumentoHojaFrame';
 import type { CotizacionDocumento, CotizacionListado, CotizacionPartida } from '../../../types/cotizacion';
@@ -55,7 +56,8 @@ export default function CotizacionDocumentoResumenView({
   const folio = resolverFolioVisual(row, 'cotizacion') || String(row.id);
   const estatus = String(row.estatus_documento ?? '').trim().toLowerCase();
   const subtotal = documento?.subtotal ?? row.subtotal;
-  const descuento = documento?.descuento_global ?? documento?.descuento ?? row.descuento_global ?? row.descuento ?? 0;
+  // descuento_global es un porcentaje; su monto se calcula contra la suma de partidas.
+  const descuentoGlobal = documento?.descuento_global ?? row.descuento_global ?? null;
   const iva = documento?.iva ?? row.iva;
   const total = documento?.total ?? row.total ?? 0;
 
@@ -111,42 +113,16 @@ export default function CotizacionDocumentoResumenView({
         ) : !partidas || partidas.length === 0 ? (
           <Typography variant="body2" color="text.secondary" sx={{ flexShrink: 0 }}>Sin partidas.</Typography>
         ) : (
-          <Box sx={{ flex: '1 0 auto', border: `1px solid ${tokens.content.border}`, borderRadius: 1 }}>
-            {partidas.map((partida, index) => (
-              <Stack
-                key={partida.id}
-                direction="row"
-                justifyContent="space-between"
-                alignItems="flex-start"
-                spacing={2}
-                sx={{ px: 1, py: 0.5, borderBottom: index < partidas.length - 1 ? `1px solid ${tokens.content.border}` : 'none' }}
-              >
-                <Box sx={{ minWidth: 0 }}>
-                  <Typography sx={{ fontSize: 12.5 }} noWrap>{partida.producto_descripcion || partida.descripcion_alterna || '—'}</Typography>
-                  <Typography variant="caption" color="text.secondary" noWrap sx={{ display: 'block' }}>
-                    {partida.producto_clave ? `${partida.producto_clave} · ` : ''}Cant. {Number(partida.cantidad || 0)} × {currency.format(Number(partida.precio_unitario || 0))}
-                  </Typography>
-                </Box>
-                <Typography sx={{ fontSize: 12.5, fontWeight: 700, whiteSpace: 'nowrap' }}>
-                  {currency.format(Number(partida.subtotal_partida || 0))}
-                </Typography>
-              </Stack>
-            ))}
-          </Box>
+          <HojaPartidasLista partidas={partidas} />
         )}
       </Box>
 
       <Box sx={{ minWidth: 200, alignSelf: 'flex-end', flexShrink: 0, pt: 1, mt: 1, borderTop: `1px solid ${tokens.content.border}` }}>
+        <HojaFilasDescuentoGlobal partidas={partidas ?? []} totales={{ subtotal, descuento_global: descuentoGlobal }} />
         <Stack direction="row" justifyContent="space-between">
           <Typography variant="caption" color="text.secondary">Subtotal</Typography>
           <Typography variant="caption">{currency.format(Number(subtotal || 0))}</Typography>
         </Stack>
-        {Number(descuento) > 0 ? (
-          <Stack direction="row" justifyContent="space-between">
-            <Typography variant="caption" color="text.secondary">Descuento</Typography>
-            <Typography variant="caption">{currency.format(Number(descuento))}</Typography>
-          </Stack>
-        ) : null}
         <Stack direction="row" justifyContent="space-between">
           <Typography variant="caption" color="text.secondary">IVA</Typography>
           <Typography variant="caption">{currency.format(Number(iva || 0))}</Typography>

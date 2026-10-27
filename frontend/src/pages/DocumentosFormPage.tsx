@@ -122,7 +122,7 @@ import { fetchAplicacionesDocumento, fetchCuentas, fetchEstadoCuenta, fetchResum
 import { buildAssetUrl } from '../services/empresasAssetsService';
 import { resolvePrecioDocumento } from '../services/preciosService';
 import { normalizarTelefonoMx } from '../utils/telefono';
-import { formatearFolioDocumento } from '../utils/documentos.utils';
+import { folioDocumento } from '../utils/documentos.utils';
 import { crearConcepto } from '../services/conceptosService';
 import {
   guardarCamposDocumento,
@@ -900,7 +900,7 @@ export default function DocumentosFormPage({
 
     return partidasNotaCreditoDisponibles.filter((partida) => {
       const documentoOrigen = documentosOrigenPorId[partida.documento_origen_id];
-      const folio = formatearFolioDocumento(documentoOrigen?.serie ?? '', Number(documentoOrigen?.numero ?? 0))
+      const folio = (documentoOrigen ? folioDocumento(documentoOrigen) : '')
         || partida.documento_origen_folio
         || String(partida.documento_origen_id);
       const producto = partida.producto_id ? (productos.find((item) => item.id === partida.producto_id)?.descripcion ?? '') : '';
@@ -5683,7 +5683,7 @@ export default function DocumentosFormPage({
       : null;
     const folioOrigen = origenIdsNotaCredito.length === 1
       ? (preparacionNotaCredito?.documentos_origen.find((doc) => doc.documento_id === origenIdsNotaCredito[0])?.folio
-        ?? (documentoOrigenUnico ? formatearFolioDocumento(documentoOrigenUnico.serie ?? '', Number(documentoOrigenUnico.numero ?? 0)) : null))
+        ?? (documentoOrigenUnico ? folioDocumento(documentoOrigenUnico) : null))
       : null;
     const fiscalNcIncompleto = tipoDocumento === 'nota_credito'
       && form.tratamiento_impuestos !== 'sin_iva'
@@ -6886,7 +6886,7 @@ export default function DocumentosFormPage({
                           <Stack spacing={1.25}>
                             <Box>
                               <Typography variant="figure" sx={{ fontSize: 18, color: tokens.content.foreground }}>
-                                {formatearFolioDocumento(item.serie || '', item.numero || 0) || '—'}
+                                {folioDocumento(item) || '—'}
                               </Typography>
                               <Typography variant="body2" color="text.secondary">
                                 Fecha: {normalizeCivilDate(item.fecha) || '—'}
@@ -6957,7 +6957,7 @@ export default function DocumentosFormPage({
                         >
                           {documentosCargoMonetarios.map((item) => (
                             <TableRow key={item.id} hover>
-                              <TableCell sx={compactTableCellSx}>{formatearFolioDocumento(item.serie || '', item.numero || 0) || '—'}</TableCell>
+                              <TableCell sx={compactTableCellSx}>{folioDocumento(item) || '—'}</TableCell>
                               <TableCell sx={compactTableCellSx}>{normalizeCivilDate(item.fecha) || '—'}</TableCell>
                               <TableCell align="right" sx={compactTableCellSx}>{formatter.format(Number(item.saldo || 0))}</TableCell>
                               <TableCell sx={{ width: 220 }}>
@@ -7133,7 +7133,7 @@ export default function DocumentosFormPage({
                               const documentoOrigen = documentosOrigenPorId[partida.documento_origen_id];
                               const producto = partida.producto_id ? productos.find((item) => item.id === partida.producto_id) : null;
                               const detalle = detallePartidasNotaCreditoEspecial[partida.partida_id] ?? { subtotal: 0, iva: 0, total: 0 };
-                              const folio = formatearFolioDocumento(documentoOrigen?.serie ?? '', Number(documentoOrigen?.numero ?? 0))
+                              const folio = (documentoOrigen ? folioDocumento(documentoOrigen) : '')
                                 || partida.documento_origen_folio
                                 || String(partida.documento_origen_id);
                               const fecha = documentoOrigen?.fecha_documento ? normalizeCivilDate(documentoOrigen.fecha_documento) : '';

@@ -227,6 +227,8 @@ export async function obtenerPrevalidacionComplementoPago(
        JOIN core.empresas e ON e.id = p.empresa_id
        LEFT JOIN documentos_cfdi dc ON dc.documento_id = f.id
       WHERE p.id = $1 AND p.empresa_id = $2 AND p.tipo_documento = 'pago_cliente'
+        -- La cancelación de saldo a favor no es un documento relacionado del CFDI.
+        AND COALESCE(f.tipo_documento, '') NOT IN ('ajuste_favor_cliente', 'ajuste_favor_proveedor')
       ORDER BY a.id`,
     [documentoId, empresaId]
   );
@@ -425,6 +427,8 @@ export async function timbrarComplementoPago(
        LEFT JOIN documentos f ON f.id = a.documento_destino_id
        LEFT JOIN documentos_cfdi dc ON dc.documento_id = f.id
       WHERE a.documento_origen_id = $1 AND a.empresa_id = $2
+        -- La cancelación de saldo a favor no es un documento relacionado del CFDI.
+        AND COALESCE(f.tipo_documento, '') NOT IN ('ajuste_favor_cliente', 'ajuste_favor_proveedor')
       ORDER BY a.id ASC`,
     [documentoId, empresaId]
   );

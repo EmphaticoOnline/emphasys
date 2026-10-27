@@ -50,6 +50,8 @@ import LocalShippingOutlinedIcon from '@mui/icons-material/LocalShippingOutlined
 import NotificationsActiveIcon from '@mui/icons-material/NotificationsActive';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
+import BalanceOutlinedIcon from '@mui/icons-material/BalanceOutlined';
+import RegistrarAjusteDialog from '../aplicaciones/RegistrarAjusteDialog';
 import AssignmentReturnOutlinedIcon from '@mui/icons-material/AssignmentReturnOutlined';
 import type { Contacto } from '../../../types/contactos.types';
 import type { CotizacionListado } from '../../../types/cotizacion';
@@ -62,14 +64,12 @@ import type { GridContextMenuAction, GridContextMenuActionItem } from '../../gri
 import { WorkspaceRowContextMenu, type WorkspaceContextItem } from '../WorkspaceRowContextMenu';
 import FacturaDocumentoResumenView from './FacturaDocumentoResumenView';
 import { DocumentoHojaViewport } from '../DocumentoHojaFrame';
+import PagosAplicacionesTab from '../aplicaciones/PagosAplicacionesTab';
 import FacturaWorkspaceContabilidadTab from './FacturaWorkspaceContabilidadTab';
 import { resolverFolioVisual } from '../../../utils/documentos.utils';
 import {
   useDocumentoDetalleData,
-  ResumenTab,
   PartidasTab,
-  PagosTab,
-  NotasCreditoTab,
   RelacionadosTab,
   InventarioTab,
 } from '../DocumentoDetalleContent';
@@ -341,6 +341,9 @@ export default function FacturasWorkspaceView({
   const [enviarMenuAnchor, setEnviarMenuAnchor] = useState<HTMLElement | null>(null);
   const [menuFila, setMenuFila] = useState<{ top: number; left: number; rowId: number } | null>(null);
   const [previewTab, setPreviewTab] = useState(0);
+  const [ajusteRow, setAjusteRow] = useState<CotizacionListado | null>(null);
+  // Cada ajuste registrado recarga el detalle y la pestaña Pagos y aplicaciones.
+  const [ajustesRegistrados, setAjustesRegistrados] = useState(0);
   const [reconcileSnackbar, setReconcileSnackbar] = useState<{
     open: boolean;
     title: string;
@@ -386,7 +389,7 @@ export default function FacturasWorkspaceView({
   // generación de PDF. El tab "Documento" también lo consume (para
   // partidas/receptor/fiscales), pero pinta el encabezado de inmediato con
   // los datos síncronos de `row` mientras tanto.
-  const detalle = useDocumentoDetalleData(selectedRow?.id ?? null, tipoDocumento, Boolean(selectedRow), documentoDetalleRefreshKey);
+  const detalle = useDocumentoDetalleData(selectedRow?.id ?? null, tipoDocumento, Boolean(selectedRow), documentoDetalleRefreshKey + ajustesRegistrados);
   const handleReconcile = async () => {
     const result = await detalle.handleReconcile();
     if (result) await onRefresh();
@@ -760,6 +763,8 @@ export default function FacturasWorkspaceView({
             setEnviarMenuAnchor={setEnviarMenuAnchor}
             onCartaPorte={onCartaPorte}
             onRegistrarMovimiento={onRegistrarMovimiento}
+            onRegistrarAjuste={setAjusteRow}
+            aplicacionesRefreshKey={documentoDetalleRefreshKey + ajustesRegistrados}
             compacto={compacto}
             onVolver={() => setDetalleMovil(false)}
           />
@@ -796,11 +801,22 @@ export default function FacturasWorkspaceView({
           <Typography sx={{ fontSize: 12 }}>{reconcileSnackbar.message}</Typography>
         </Alert>
       </Snackbar>
+      <RegistrarAjusteDialog
+        open={Boolean(ajusteRow)}
+        factura={ajusteRow}
+        tipoDocumento={tipoDocumento}
+        onClose={() => setAjusteRow(null)}
+        onSaved={async () => {
+          await onRefresh();
+          setAjustesRegistrados((value) => value + 1);
+          setReconcileSnackbar({ open: true, severity: 'success', title: 'Ajuste registrado', message: 'El ajuste se aplicó a la factura.' });
+        }}
+      />
     </Box>
   );
 }
 
-const PREVIEW_TAB_LABELS = ['Documento', 'Resumen', 'Partidas', 'Pagos', 'Contabilidad', 'Notas de crédito', 'Relacionados', 'Inventario'];
+const PREVIEW_TAB_LABELS = ['Documento', 'Partidas', 'Pagos y aplicaciones', 'Contabilidad', 'Relacionados', 'Inventario'];
 
 function FacturaWorkspacePanel({
   row,
@@ -819,6 +835,8 @@ function FacturaWorkspacePanel({
   setEnviarMenuAnchor,
   onCartaPorte,
   onRegistrarMovimiento,
+  onRegistrarAjuste,
+  aplicacionesRefreshKey,
   compacto,
   onVolver,
 }: {
@@ -838,6 +856,8 @@ function FacturaWorkspacePanel({
   setEnviarMenuAnchor: (el: HTMLElement | null) => void;
   onCartaPorte: (row: CotizacionListado) => void;
   onRegistrarMovimiento: ((row: CotizacionListado) => void) | undefined;
+  onRegistrarAjuste: (row: CotizacionListado) => void;
+  aplicacionesRefreshKey: number;
   compacto: boolean;
   onVolver: () => void;
 }) {
@@ -1026,6 +1046,12 @@ function FacturaWorkspacePanel({
                   </span>
                 </Tooltip>
               ) : null}
+              {/* Si la factura no admite ajuste, la ventana avisa el motivo. */}
+              <Tooltip title="Registrar ajuste" arrow>
+                <IconButton size="small" aria-label="Registrar ajuste" onClick={() => onRegistrarAjuste(row)} sx={iconoSx(false)}>
+                  <BalanceOutlinedIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
               {renderActionButton(
                 generarNotaCreditoAction,
                 tipoDocumento === 'factura_compra' ? 'Generar Nota de crédito de compra' : 'Generar Nota de crédito',
@@ -1137,30 +1163,17 @@ function FacturaWorkspacePanel({
             onReconcile={onReconcile}
             reconciling={detalle.reconciling}
           />
-        ) : previewTab === 4 ? (
+        ) : previewTab === 3 ? (
           <FacturaWorkspaceContabilidadTab accounting={indicators?.accounting} />
         ) : detalle.loading ? (
           <Stack alignItems="center" py={6}><CircularProgress size={26} /></Stack>
         ) : detalle.error ? (
           <Alert severity="error">{detalle.error}</Alert>
         ) : !detalle.data ? null : previewTab === 1 ? (
-          <ResumenTab
-            documento={detalle.data.documento}
-            partidas={detalle.data.partidas}
-            formatter={formatterMXN}
-            tipoDocumento={tipoDocumento}
-            folio={folio}
-            reconciling={detalle.reconciling}
-            reconciliationMessage={null}
-            onReconcile={onReconcile}
-          />
+          <PartidasTab partidas={detalle.data.partidas} documento={detalle.data.documento} />
         ) : previewTab === 2 ? (
-          <PartidasTab partidas={detalle.data.partidas} formatter={formatterMXN} />
-        ) : previewTab === 3 ? (
-          <PagosTab pagos={detalle.data.pagos} formatter={formatterMXN} />
-        ) : previewTab === 5 ? (
-          <NotasCreditoTab notasCredito={detalle.data.notasCredito} formatter={formatterMXN} />
-        ) : previewTab === 6 ? (
+          <PagosAplicacionesTab documentoId={Number(row.id)} total={Number(row.total ?? 0)} pagos={detalle.data.pagos} refreshKey={aplicacionesRefreshKey} />
+        ) : previewTab === 4 ? (
           <RelacionadosTab documentosRelacionados={detalle.data.documentosRelacionados} formatter={formatterMXN} />
         ) : (
           <InventarioTab movimientos={detalle.data.movimientosInventario} />

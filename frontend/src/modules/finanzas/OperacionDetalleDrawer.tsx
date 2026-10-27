@@ -34,7 +34,7 @@ import {
   fetchSaldoDocumento,
 } from '../../services/finanzasService';
 import type { AplicacionOperacion, DocumentoSaldo, EstadoCuentaItem, FinanzasOperacion } from '../../types/finanzas';
-import { formatearFolioDocumento } from '../../utils/documentos.utils';
+import { formatearFolioDocumento, folioDocumento } from '../../utils/documentos.utils';
 import { DesaplicarPagoDialog } from './DesaplicarPagoDialog';
 import { loadSession } from '../../session/sessionStorage';
 import { esRolAdmin } from '../../session/rolScope';
@@ -415,7 +415,7 @@ export function OperacionDetalleDrawer({ operacionId, open, onClose }: Operacion
                   </TableRow>
                 )}
                 {(aplicaciones ?? []).map((row, idx) => {
-                  const folio = formatearFolioDocumento(row?.serie || '', row?.numero || 0);
+                  const folio = folioDocumento(row ?? {});
                   const tipo = row?.tipo_documento ? `${row.tipo_documento.charAt(0).toUpperCase()}${row.tipo_documento.slice(1)}` : '';
                   const label = `${tipo} ${folio}`.trim();
                   const backgroundColor = idx % 2 === 0 ? rowStripeColors.treasuryDocuments : whiteSurfaces.treasuryRowAlt;
@@ -513,7 +513,7 @@ export function OperacionDetalleDrawer({ operacionId, open, onClose }: Operacion
                     </TableRow>
                   )}
                   {facturasPendientes.map((row, idx) => {
-                    const folio = formatearFolioDocumento(row?.serie || '', row?.numero || 0);
+                    const folio = folioDocumento(row ?? {});
                     const tipo = row?.tipo ? `${row.tipo.charAt(0).toUpperCase()}${row.tipo.slice(1)}` : '';
                     const label = `${tipo} ${folio}`.trim();
                     const backgroundColor = idx % 2 === 0 ? rowStripeColors.treasuryDocuments : whiteSurfaces.treasuryRowAlt;
@@ -610,7 +610,7 @@ export function OperacionDetalleDrawer({ operacionId, open, onClose }: Operacion
           operacion?.documento_origen_serie || '',
           operacion?.documento_origen_numero || 0
         )}
-        facturaFolio={desaplicarItem ? formatearFolioDocumento(desaplicarItem.serie || '', desaplicarItem.numero || 0) : ''}
+        facturaFolio={desaplicarItem ? folioDocumento(desaplicarItem) : ''}
         importe={formatter.format(Number(desaplicarItem?.monto_moneda_documento ?? 0))}
         loading={desaplicandoId !== null}
         error={desaplicarError}

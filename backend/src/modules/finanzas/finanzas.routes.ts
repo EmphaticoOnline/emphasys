@@ -64,6 +64,8 @@ import {
   subirAdjuntoOperacion,
 } from './finanzas-adjuntos.controller';
 
+import { postCancelarSaldoFavor } from './saldo-favor';
+
 const router = Router();
 const estadoCuentaUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024, files: 1 } }).single('archivo');
 
@@ -75,6 +77,8 @@ router.get('/documentos/:id/saldo', getSaldoDocumento);
 router.get('/documentos/:id/anticipos-resumen', getResumenAnticiposDocumento);
 router.get('/documentos/:id/anticipos-disponibles', getAnticiposDisponiblesDocumento);
 router.post('/documentos/:id/aplicar-anticipos', postAplicarAnticiposDocumento);
+// Cancelar lo por aplicar de un pago o el disponible de una nota de crédito.
+router.post('/documentos/:id/cancelar-saldo-favor', postCancelarSaldoFavor);
 router.get('/contactos/:id/estado-cuenta', getEstadoCuentaContacto);
 router.get('/reportes/aging', getReporteAging);
 router.get('/reportes/aging-resumen', getReporteAgingResumen);

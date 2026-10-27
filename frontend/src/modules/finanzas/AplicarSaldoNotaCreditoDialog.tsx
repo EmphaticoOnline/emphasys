@@ -39,7 +39,7 @@ import {
   omiteConfirmacionQuitarAplicacion,
 } from './omitirConfirmacionQuitarAplicacion';
 import type { AplicacionOperacion, DocumentoSaldo, EstadoCuentaItem } from '../../types/finanzas';
-import { formatearFolioDocumento } from '../../utils/documentos.utils';
+import { folioDocumento } from '../../utils/documentos.utils';
 import {
   filtrarFacturasCandidatas,
   montosAplicacion,
@@ -418,7 +418,7 @@ export function AplicarSaldoNotaCreditoDialog({
       : null;
 
   const confirmacionFolio = confirmacion
-    ? (formatearFolioDocumento(confirmacion.serie || '', confirmacion.numero || 0) || 'la factura')
+    ? (folioDocumento(confirmacion) || 'la factura')
     : '';
   const confirmacionImporte = confirmacion
     ? formatter.format(Number(confirmacion.monto_moneda_documento || confirmacion.monto || 0))
@@ -495,7 +495,7 @@ export function AplicarSaldoNotaCreditoDialog({
               <Table size="small">
                 <TableBody>
                   {aplicacionesPrevias.map((item) => {
-                    const folioFactura = formatearFolioDocumento(item.serie || '', item.numero || 0) || 'Factura';
+                    const folioFactura = folioDocumento(item) || 'Factura';
                     const marcada = pendientesQuitar.has(item.id);
                     return (
                       <TableRow key={item.id} sx={{ bgcolor: marcada ? neutralColors.slate[50] : whiteSurfaces.tableRow }}>
@@ -564,7 +564,7 @@ export function AplicarSaldoNotaCreditoDialog({
                   </TableRow>
                 )}
                 {facturasOperables.map((factura, index) => {
-                  const folioFactura = formatearFolioDocumento(factura.serie || '', factura.numero || 0) || `#${factura.id}`;
+                  const folioFactura = folioDocumento(factura) || `#${factura.id}`;
                   const aplicar = Number(montos[factura.id] ?? 0);
                   const excede = aplicar - Number(factura.saldo ?? 0) > 0.000001;
                   return (

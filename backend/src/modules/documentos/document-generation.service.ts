@@ -31,6 +31,7 @@ async function assertDocumentosSinCancelacionPendiente(
   }
 }
 import type { TipoDocumento } from "../../types/documentos";
+import { resolverFolioVisual } from "../../utils/documentos";
 import type {
   GenerarDocumentoPayload,
   GenerarDocumentoResultado,
@@ -63,6 +64,8 @@ type DocumentoGeneracionRow = {
   tipo_documento: TipoDocumento;
   serie: string | null;
   numero: number | null;
+  serie_externa?: string | null;
+  numero_externo?: number | null;
   tratamiento_impuestos?: string | null;
   contacto_principal_id: number | null;
   fecha_documento: Date | string | null;
@@ -100,12 +103,30 @@ type PartidaGeneracionRow = {
   documento_descuento_global: number | string | null;
   documento_serie: string | null;
   documento_numero: number | null;
+  documento_tipo?: string | null;
+  documento_serie_externa?: string | null;
+  documento_numero_externo?: number | null;
   numero_partida: number | null;
 };
 
 const buildFolio = (serie?: string | null, numero?: number | null) => {
   if (!numero) return null;
   return serie ? `${serie}-${numero}` : `${numero}`;
+};
+
+/** En compras, el folio del proveedor; si no se capturó, el folio interno. */
+const buildFolioVisual = (
+  tipo: string | null | undefined,
+  serie?: string | null,
+  numero?: number | null,
+  serieExterna?: string | null,
+  numeroExterno?: number | null,
+) => {
+  const tieneExterno = Number(numeroExterno ?? 0) > 0 || Boolean(String(serieExterna ?? '').trim());
+  if (tieneExterno && ['factura_compra', 'nota_credito_compra'].includes(String(tipo ?? '').toLowerCase())) {
+    return resolverFolioVisual({ serie_externa: serieExterna, numero_externo: numeroExterno }, tipo);
+  }
+  return buildFolio(serie, numero);
 };
 
 const TIPOS_DOCUMENTO_CON_DATOS_FISCALES = new Set<TipoDocumento>([
@@ -393,6 +414,8 @@ async function cargarDocumentosOrigen(
             tipo_documento,
             serie,
             numero,
+            serie_externa,
+            numero_externo,
           tratamiento_impuestos,
             contacto_principal_id,
             fecha_documento,
@@ -539,6 +562,9 @@ async function cargarPartidasOrigen(documentoIds: number[], client: PoolClient):
             d.descuento_global AS documento_descuento_global,
             d.serie AS documento_serie,
             d.numero AS documento_numero,
+            d.tipo_documento AS documento_tipo,
+            d.serie_externa AS documento_serie_externa,
+            d.numero_externo AS documento_numero_externo,
             dp.numero_partida
        FROM documentos_partidas dp
        JOIN documentos d ON d.id = dp.documento_id
@@ -575,7 +601,7 @@ function construirRespuestaPreparacion(
   const documentos = documentosOrigen.map((documento) => ({
     documento_id: Number(documento.id),
     tipo_documento: documento.tipo_documento,
-    folio: buildFolio(documento.serie, documento.numero),
+    folio: buildFolioVisual(documento.tipo_documento, documento.serie, documento.numero, documento.serie_externa, documento.numero_externo),
     tratamiento_impuestos: normalizarTratamientoImpuestos(documento.tratamiento_impuestos),
   }));
 
@@ -601,7 +627,7 @@ function construirRespuestaPreparacion(
       return {
         partida_id: Number(partida.partida_id),
         documento_origen_id: Number(partida.documento_id),
-        documento_origen_folio: buildFolio(partida.documento_serie, partida.documento_numero),
+        documento_origen_folio: buildFolioVisual(partida.documento_tipo, partida.documento_serie, partida.documento_numero, partida.documento_serie_externa, partida.documento_numero_externo),
         producto_id: partida.producto_id ? Number(partida.producto_id) : null,
         descripcion: partida.descripcion ?? null,
         unidad: partida.unidad ?? null,
@@ -829,7 +855,10 @@ export class DocumentGenerationService {
                 dp.numero_partida,
                 d.descuento_global AS documento_descuento_global,
                 d.serie AS documento_serie,
-                d.numero AS documento_numero
+                d.numero AS documento_numero,
+                d.tipo_documento AS documento_tipo,
+                d.serie_externa AS documento_serie_externa,
+                d.numero_externo AS documento_numero_externo
            FROM documentos_partidas dp
            JOIN documentos d ON d.id = dp.documento_id
           WHERE dp.documento_id = ANY($1::int[])
@@ -1304,7 +1333,7 @@ export class DocumentGenerationService {
             idx + 1,
             partidaOrigen.producto_id ?? null,
             esBonificacion
-              ? (partidaOrigen.descripcion_alterna ?? `Bonificacion sobre ${buildFolio(partidaOrigen.documento_serie, partidaOrigen.documento_numero) ?? 'factura'}`)
+              ? (partidaOrigen.descripcion_alterna ?? `Bonificacion sobre ${buildFolioVisual(partidaOrigen.documento_tipo, partidaOrigen.documento_serie, partidaOrigen.documento_numero, partidaOrigen.documento_serie_externa, partidaOrigen.documento_numero_externo) ?? 'factura'}`)
               : (partidaOrigen.descripcion_alterna ?? null),
             cantidadDestino,
             precioUnitarioDestino,

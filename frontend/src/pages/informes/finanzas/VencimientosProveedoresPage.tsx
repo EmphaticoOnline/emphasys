@@ -110,8 +110,8 @@ function buildColumns(onProgramar: (row: VencimientoProveedor) => void): GridCol
       width: 110,
     },
     {
-      field: 'referencia_proveedor',
-      headerName: 'Ref. Proveedor',
+      field: 'folio_interno',
+      headerName: 'Folio interno',
       width: 120,
       renderCell: (p: GridRenderCellParams<VencimientoProveedor, string>) =>
         p.value ? (

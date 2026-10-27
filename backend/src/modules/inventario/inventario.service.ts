@@ -62,6 +62,7 @@ type PartidaDocumentoRow = {
   costo: number | null;
   precio_unitario: number | null;
   tipo_producto: string;
+  producto_clave: string | null;
 };
 
 type MovimientoPartidaRow = {
@@ -233,7 +234,8 @@ async function obtenerPartidasDocumento(
             dp.almacen_id AS partida_almacen_id,
             dp.costo,
             dp.precio_unitario,
-            COALESCE(p.tipo_producto, '') AS tipo_producto
+            COALESCE(p.tipo_producto, '') AS tipo_producto,
+            p.clave AS producto_clave
        FROM documentos_partidas dp
        JOIN productos p ON p.id = dp.producto_id
       WHERE dp.documento_id = $1
@@ -257,6 +259,114 @@ function resolverCostoDocumento(
 
   if (partida.costo != null) return partida.costo;
   return esEntradaCompra ? partida.precio_unitario : null;
+}
+
+/**
+ * Costo de entrada de una devolución de venta (nota de crédito de venta): el
+ * producto regresa al almacén al costo con el que salió en la venta original.
+ *
+ * Prioridad, por partida de la nota:
+ *  1. Enlace exacto: partida de la nota → partida de la factura
+ *     (documentos_partidas_vinculos) → renglón de salida con ese
+ *     documento_partida_id (guardado desde 20261026_02).
+ *  2. Mismo producto en las salidas de los documentos origen (promedio
+ *     ponderado), para movimientos sin enlace.
+ *  3. Último costo promedio del producto en el almacén.
+ * Ver docs/analisis-enlace-partida-movimientos-inventario.md.
+ */
+async function resolverCostosDevolucionVenta(
+  client: PoolClient,
+  documentoId: number,
+  empresaId: number,
+  partidas: Array<{ documento_partida_id?: number | null; producto_id: number; almacen_id: number }>,
+): Promise<Map<number, number>> {
+  const productos = Array.from(new Set(partidas.map((p) => Number(p.producto_id))));
+  const costos = new Map<number, number>();
+  if (productos.length === 0) return costos;
+
+  const partidaIds = partidas.map((p) => Number(p.documento_partida_id ?? 0)).filter((id) => id > 0);
+  const { rows: exactos } = await client.query<{ partida_id: number; costo: string | null }>(
+    `SELECT v.partida_destino_id AS partida_id,
+            SUM(mp.cantidad * mp.costo_unitario) / NULLIF(SUM(mp.cantidad), 0) AS costo
+       FROM documentos_partidas_vinculos v
+       JOIN inventario.movimientos_partidas mp
+         ON mp.documento_partida_id = v.partida_origen_id AND mp.empresa_id = $1
+       JOIN inventario.movimientos m
+         ON m.id = mp.movimiento_id AND m.empresa_id = mp.empresa_id
+      WHERE v.partida_destino_id = ANY($2::int[])
+        AND COALESCE(m.es_reversion, false) = false
+        AND mp.signo < 0
+        AND mp.costo_unitario IS NOT NULL
+      GROUP BY v.partida_destino_id`,
+    [empresaId, partidaIds]
+  );
+  const costoExacto = new Map<number, number>();
+  for (const row of exactos) {
+    const costo = parseNumeric(row.costo);
+    if (costo != null && costo >= 0) costoExacto.set(Number(row.partida_id), costo);
+  }
+
+  const { rows: venta } = await client.query<{ producto_id: number; costo: string | null }>(
+    `WITH origenes AS (
+       SELECT v.documento_origen_id AS documento_id
+         FROM documentos_partidas_vinculos v
+         JOIN documentos_partidas dp ON dp.id = v.partida_destino_id
+        WHERE dp.documento_id = $1
+       UNION
+       SELECT dr.documento_origen_id
+         FROM documentos_relaciones dr
+        WHERE dr.empresa_id = $2 AND dr.documento_destino_id = $1
+          AND dr.tipo_relacion = 'origen_nota_credito' AND dr.activa = true
+       UNION
+       SELECT d.documento_origen_id
+         FROM documentos d
+        WHERE d.id = $1 AND d.empresa_id = $2 AND d.documento_origen_id IS NOT NULL
+     )
+     SELECT mp.producto_id,
+            SUM(mp.cantidad * mp.costo_unitario) / NULLIF(SUM(mp.cantidad), 0) AS costo
+       FROM inventario.movimientos m
+       JOIN inventario.movimientos_partidas mp
+         ON mp.movimiento_id = m.id AND mp.empresa_id = m.empresa_id
+      WHERE m.empresa_id = $2
+        AND m.documento_id IN (SELECT documento_id FROM origenes)
+        AND COALESCE(m.es_reversion, false) = false
+        AND mp.signo < 0
+        AND mp.costo_unitario IS NOT NULL
+        AND mp.producto_id = ANY($3::int[])
+      GROUP BY mp.producto_id`,
+    [documentoId, empresaId, productos]
+  );
+  const costoVenta = new Map<number, number>();
+  for (const row of venta) {
+    const costo = parseNumeric(row.costo);
+    if (costo != null && costo >= 0) costoVenta.set(Number(row.producto_id), costo);
+  }
+
+  const { rows: promedio } = await client.query<{ producto_id: number; almacen_id: number; costo: string | null }>(
+    `SELECT DISTINCT ON (mp.producto_id, mp.almacen_id)
+            mp.producto_id, mp.almacen_id, mp.costo_promedio_resultante AS costo
+       FROM inventario.movimientos_partidas mp
+       JOIN inventario.movimientos m ON m.id = mp.movimiento_id AND m.empresa_id = mp.empresa_id
+      WHERE mp.empresa_id = $1
+        AND mp.producto_id = ANY($2::int[])
+        AND mp.costo_promedio_resultante IS NOT NULL
+      ORDER BY mp.producto_id, mp.almacen_id, m.fecha DESC, m.id DESC, mp.id DESC`,
+    [empresaId, productos]
+  );
+  const costoPromedio = new Map<string, number>();
+  for (const row of promedio) {
+    const costo = parseNumeric(row.costo);
+    if (costo != null && costo >= 0) costoPromedio.set(`${row.producto_id}:${row.almacen_id}`, costo);
+  }
+
+  for (const partida of partidas) {
+    const partidaId = Number(partida.documento_partida_id ?? 0);
+    const costo = costoExacto.get(partidaId)
+      ?? costoVenta.get(Number(partida.producto_id))
+      ?? costoPromedio.get(`${partida.producto_id}:${partida.almacen_id}`);
+    if (costo != null && partidaId > 0) costos.set(partidaId, costo);
+  }
+  return costos;
 }
 
 async function asegurarMovimientoNoDuplicado(documentoId: number, empresaId: number, client: PoolClient) {
@@ -547,6 +657,25 @@ export async function aplicarInventarioDesdeDocumentoEnTransaccion(
       costo_unitario: resolverCostoDocumento(documento, p),
     };
   });
+
+  // Devolución de venta: sin costo capturado, entra al costo de la venta original.
+  if (String(documento.tipo_documento || '').toLowerCase() === 'nota_credito' && afectaInventario === 'entrada') {
+    const sinCosto = partidas.filter((p) => p.costo_unitario == null);
+    if (sinCosto.length > 0) {
+      const costos = await resolverCostosDevolucionVenta(client, documentoId, empresaId, sinCosto);
+      for (const partida of sinCosto) {
+        const costo = costos.get(Number(partida.documento_partida_id ?? 0));
+        if (costo == null) {
+          const origen = partidasInventariables.find((p) => p.documento_partida_id === partida.documento_partida_id);
+          throw buildError(
+            'COSTO_DEVOLUCION_NO_DISPONIBLE',
+            `No se pudo determinar el costo de entrada de ${origen?.producto_clave || `producto ${partida.producto_id}`}: no hay venta original ni costo promedio en el almacén.`,
+          );
+        }
+        partida.costo_unitario = costo;
+      }
+    }
+  }
 
   const movimientoId = await ejecutarAplicarMovimiento(
     {

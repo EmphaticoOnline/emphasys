@@ -12,7 +12,10 @@ export type PlantillaCliente = {
 };
 
 export type PlantillaDocumento = {
+  /** En compras, folio del proveedor con fallback al interno. */
   folio?: string | null;
+  /** Sólo cuando difiere de `folio` (compras con folio del proveedor). */
+  folio_interno?: string | null;
   fecha?: string | Date | null;
   tipo_documento?: string | null;
   total?: number | null;

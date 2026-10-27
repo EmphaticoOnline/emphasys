@@ -1,11 +1,11 @@
 -- Full schema export
 -- Database: emphasys
--- Generated at: 2026-10-20T18:07:11.904Z
+-- Generated at: 2026-10-27T16:16:29.010Z
 --
 -- PostgreSQL database dump
 --
 
-\restrict QNGb1zIxYsP6iEd59gJ6068Tbr8XmR7ePg0ZZUewXUd05hTrxO54fAPp8ovx2Ff
+\restrict 13B0ahkMFcBEfp7ghySIjUd7KIe5QsAdymZ2YBxG1Wv9vkgIzMIr9KIsS3iSi5i
 
 -- Dumped from database version 14.24 (Ubuntu 14.24-0ubuntu0.22.04.1)
 -- Dumped by pg_dump version 18.0
@@ -62,6 +62,20 @@ CREATE SCHEMA crm;
 --
 
 CREATE SCHEMA documentacion;
+
+
+--
+-- Name: evaluation_analytics; Type: SCHEMA; Schema: -; Owner: -
+--
+
+CREATE SCHEMA evaluation_analytics;
+
+
+--
+-- Name: SCHEMA evaluation_analytics; Type: COMMENT; Schema: -; Owner: -
+--
+
+COMMENT ON SCHEMA evaluation_analytics IS 'Independent, minimized measurement for the public evaluation; never use ERP tables or credentials.';
 
 
 --
@@ -790,6 +804,7 @@ DECLARE
   dest integer;
   qty numeric;
   sentido text;
+  doc_partida integer;
   affected integer[] := '{}';
 BEGIN
   IF jsonb_typeof(p_partidas) <> 'array' OR jsonb_array_length(p_partidas) = 0 THEN
@@ -810,6 +825,8 @@ BEGIN
     dest := nullif(p->>'almacen_destino_id', '')::integer;
     qty := (p->>'cantidad')::numeric;
     sentido := lower(coalesce(p->>'sentido', CASE WHEN (p->>'signo') = '1' THEN 'entrada' ELSE 'salida' END));
+    -- Partida del documento que origina el renglón (NULL en movimientos manuales).
+    doc_partida := nullif(p->>'documento_partida_id', '')::integer;
 
     IF prod IS NULL OR source IS NULL OR qty IS NULL OR qty <= 0 THEN
       RAISE EXCEPTION 'PARTIDA_INVALIDA' USING ERRCODE = 'P0001';
@@ -823,30 +840,34 @@ BEGIN
       -- Una transferencia siempre se representa por las dos partidas.
       INSERT INTO inventario.movimientos_partidas
         (empresa_id, movimiento_id, producto_id, almacen_id, almacen_destino_id,
-         fecha_movimiento, cantidad, signo, tipo_partida, existencia_resultante)
+         fecha_movimiento, cantidad, signo, tipo_partida, existencia_resultante,
+         documento_partida_id)
       VALUES
         (p_empresa_id, mov, prod, source, dest, p_fecha, qty, -1,
-         'salida_transferencia', 0);
+         'salida_transferencia', 0, doc_partida);
 
       INSERT INTO inventario.movimientos_partidas
         (empresa_id, movimiento_id, producto_id, almacen_id, almacen_destino_id,
-         fecha_movimiento, cantidad, signo, tipo_partida, existencia_resultante)
+         fecha_movimiento, cantidad, signo, tipo_partida, existencia_resultante,
+         documento_partida_id)
       VALUES
         (p_empresa_id, mov, prod, dest, source, p_fecha, qty, 1,
-         'entrada_transferencia', 0);
+         'entrada_transferencia', 0, doc_partida);
     ELSIF sentido = 'entrada' THEN
       INSERT INTO inventario.movimientos_partidas
         (empresa_id, movimiento_id, producto_id, almacen_id, fecha_movimiento,
-         cantidad, signo, tipo_partida, costo_unitario, existencia_resultante)
+         cantidad, signo, tipo_partida, costo_unitario, existencia_resultante,
+         documento_partida_id)
       VALUES
         (p_empresa_id, mov, prod, source, p_fecha, qty, 1, 'normal',
-         nullif(p->>'costo_unitario', '')::numeric, 0);
+         nullif(p->>'costo_unitario', '')::numeric, 0, doc_partida);
     ELSIF sentido = 'salida' THEN
       INSERT INTO inventario.movimientos_partidas
         (empresa_id, movimiento_id, producto_id, almacen_id, fecha_movimiento,
-         cantidad, signo, tipo_partida, existencia_resultante)
+         cantidad, signo, tipo_partida, existencia_resultante,
+         documento_partida_id)
       VALUES
-        (p_empresa_id, mov, prod, source, p_fecha, qty, -1, 'normal', 0);
+        (p_empresa_id, mov, prod, source, p_fecha, qty, -1, 'normal', 0, doc_partida);
     ELSE
       RAISE EXCEPTION 'SENTIDO_INVALIDO: %', sentido USING ERRCODE = 'P0001';
     END IF;
@@ -5152,9 +5173,15 @@ CREATE TABLE core.empresas_identidad_visual (
     actualizado_por integer,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    color_superficie_secundaria character(7),
+    modo text DEFAULT 'emphasys'::text NOT NULL,
+    modo_presentacion_logo text DEFAULT 'automatico'::text NOT NULL,
     CONSTRAINT eiv_color_acento_hex CHECK (((color_acento IS NULL) OR (color_acento ~ '^#[0-9a-f]{6}$'::text))),
     CONSTRAINT eiv_color_primario_hex CHECK (((color_primario IS NULL) OR (color_primario ~ '^#[0-9a-f]{6}$'::text))),
     CONSTRAINT eiv_color_sidebar_hex CHECK (((color_sidebar IS NULL) OR (color_sidebar ~ '^#[0-9a-f]{6}$'::text))),
+    CONSTRAINT eiv_color_superficie_secundaria_hex CHECK (((color_superficie_secundaria IS NULL) OR (color_superficie_secundaria ~ '^#[0-9a-f]{6}$'::text))),
+    CONSTRAINT eiv_modo_identidad CHECK ((modo = ANY (ARRAY['emphasys'::text, 'personalizado'::text]))),
+    CONSTRAINT eiv_modo_presentacion_logo CHECK ((modo_presentacion_logo = ANY (ARRAY['automatico'::text, 'fondo_blanco'::text, 'logo_blanco'::text]))),
     CONSTRAINT eiv_origen_acento CHECK (((origen_acento = ANY (ARRAY['emphasys'::text, 'analisis'::text, 'manual'::text])) AND ((color_acento IS NULL) = (origen_acento = 'emphasys'::text)))),
     CONSTRAINT eiv_origen_primario CHECK (((origen_primario = ANY (ARRAY['emphasys'::text, 'analisis'::text, 'manual'::text])) AND ((color_primario IS NULL) = (origen_primario = 'emphasys'::text)))),
     CONSTRAINT eiv_origen_sidebar CHECK (((origen_sidebar = ANY (ARRAY['emphasys'::text, 'analisis'::text, 'manual'::text])) AND ((color_sidebar IS NULL) = (origen_sidebar = 'emphasys'::text)))),
@@ -5311,6 +5338,27 @@ COMMENT ON COLUMN core.empresas_identidad_visual.created_at IS 'Fecha de creaci�
 --
 
 COMMENT ON COLUMN core.empresas_identidad_visual.updated_at IS 'Última modificación; la actualiza el servicio en cada escritura.';
+
+
+--
+-- Name: COLUMN empresas_identidad_visual.color_superficie_secundaria; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.empresas_identidad_visual.color_superficie_secundaria IS 'Superficie secundaria elevada (#rrggbb); NULL = derivada del sidebar.';
+
+
+--
+-- Name: COLUMN empresas_identidad_visual.modo; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.empresas_identidad_visual.modo IS 'emphasys = usa la identidad canónica completa; personalizado = usa colores de empresa.';
+
+
+--
+-- Name: COLUMN empresas_identidad_visual.modo_presentacion_logo; Type: COMMENT; Schema: core; Owner: -
+--
+
+COMMENT ON COLUMN core.empresas_identidad_visual.modo_presentacion_logo IS 'Presentación del logotipo: automatico, fondo_blanco o logo_blanco.';
 
 
 --
@@ -7754,6 +7802,140 @@ CREATE SEQUENCE documentacion.documentos_empresa_tipos_id_seq
 --
 
 ALTER SEQUENCE documentacion.documentos_empresa_tipos_id_seq OWNED BY documentacion.documentos_empresa_tipos.id;
+
+
+--
+-- Name: aggregate_daily_counters; Type: TABLE; Schema: evaluation_analytics; Owner: -
+--
+
+CREATE TABLE evaluation_analytics.aggregate_daily_counters (
+    counter_day date DEFAULT CURRENT_DATE NOT NULL,
+    metric_key text NOT NULL,
+    counter_value bigint DEFAULT 0 NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT aggregate_daily_counters_counter_value_check CHECK ((counter_value >= 0)),
+    CONSTRAINT aggregate_daily_counters_metric_key_check CHECK ((metric_key = ANY (ARRAY['visits'::text, 'starts'::text, 'question_answered_1'::text, 'question_answered_2'::text, 'question_answered_3'::text, 'question_answered_4'::text, 'question_answered_5'::text, 'question_answered_6'::text, 'question_answered_7'::text, 'question_answered_8'::text, 'step_advanced_1'::text, 'step_advanced_2'::text, 'step_advanced_3'::text, 'step_advanced_4'::text, 'step_advanced_5'::text, 'step_advanced_6'::text, 'step_advanced_7'::text, 'step_advanced_8'::text, 'completed'::text, 'email_requested'::text, 'email_sent'::text, 'email_failed'::text, 'radiografia_click'::text])))
+);
+
+
+--
+-- Name: TABLE aggregate_daily_counters; Type: COMMENT; Schema: evaluation_analytics; Owner: -
+--
+
+COMMENT ON TABLE evaluation_analytics.aggregate_daily_counters IS 'Operational aggregate counts only; no consent-dependent identity or individual answers.';
+
+
+--
+-- Name: aggregate_event_dedup; Type: TABLE; Schema: evaluation_analytics; Owner: -
+--
+
+CREATE TABLE evaluation_analytics.aggregate_event_dedup (
+    dedupe_key text NOT NULL,
+    expires_at timestamp with time zone NOT NULL
+);
+
+
+--
+-- Name: email_requests; Type: TABLE; Schema: evaluation_analytics; Owner: -
+--
+
+CREATE TABLE evaluation_analytics.email_requests (
+    request_id uuid NOT NULL,
+    evaluation_id uuid,
+    requested_at timestamp with time zone DEFAULT now() NOT NULL,
+    email_hmac text NOT NULL,
+    provider_message_id text,
+    status text NOT NULL,
+    failure_category text,
+    retention_expires_at timestamp with time zone DEFAULT (now() + '90 days'::interval) NOT NULL,
+    CONSTRAINT email_requests_status_check CHECK ((status = ANY (ARRAY['accepted'::text, 'sent'::text, 'failed'::text, 'rate_limited'::text])))
+);
+
+
+--
+-- Name: evaluation_sessions; Type: TABLE; Schema: evaluation_analytics; Owner: -
+--
+
+CREATE TABLE evaluation_analytics.evaluation_sessions (
+    evaluation_id uuid NOT NULL,
+    visit_id uuid,
+    started_at timestamp with time zone,
+    last_activity_at timestamp with time zone DEFAULT now() NOT NULL,
+    completed_at timestamp with time zone,
+    current_step smallint DEFAULT 0 NOT NULL,
+    questions_answered smallint DEFAULT 0 NOT NULL,
+    completion_status text DEFAULT 'started'::text NOT NULL,
+    result_level text,
+    score_bucket text,
+    schema_version text DEFAULT '2026-10-23'::text NOT NULL,
+    CONSTRAINT evaluation_sessions_completion_status_check CHECK ((completion_status = ANY (ARRAY['started'::text, 'abandoned'::text, 'completed'::text, 'restarted'::text]))),
+    CONSTRAINT evaluation_sessions_current_step_check CHECK (((current_step >= 0) AND (current_step <= 8))),
+    CONSTRAINT evaluation_sessions_questions_answered_check CHECK (((questions_answered >= 0) AND (questions_answered <= 8))),
+    CONSTRAINT evaluation_sessions_result_level_check CHECK (((result_level IS NULL) OR (result_level = ANY (ARRAY['encaminado'::text, 'oportunidades'::text, 'atencion'::text])))),
+    CONSTRAINT evaluation_sessions_score_bucket_check CHECK (((score_bucket IS NULL) OR (score_bucket = ANY (ARRAY['0-24'::text, '25-40'::text, '41-54'::text]))))
+);
+
+
+--
+-- Name: events; Type: TABLE; Schema: evaluation_analytics; Owner: -
+--
+
+CREATE TABLE evaluation_analytics.events (
+    event_id uuid NOT NULL,
+    idempotency_key text NOT NULL,
+    visit_id uuid,
+    evaluation_id uuid,
+    event_type text NOT NULL,
+    occurred_at timestamp with time zone DEFAULT now() NOT NULL,
+    step_number smallint,
+    metadata jsonb DEFAULT '{}'::jsonb NOT NULL,
+    bot_status text DEFAULT 'unknown'::text NOT NULL,
+    CONSTRAINT events_bot_status_check CHECK ((bot_status = ANY (ARRAY['unknown'::text, 'human'::text, 'bot'::text, 'suspicious'::text]))),
+    CONSTRAINT events_event_type_check CHECK ((event_type = ANY (ARRAY['visit'::text, 'evaluation_start'::text, 'question_answered'::text, 'step_advanced'::text, 'evaluation_abandoned'::text, 'evaluation_complete'::text, 'results_email_opened'::text, 'results_email_requested'::text, 'results_email_sent'::text, 'results_email_failed'::text, 'commercial_interest'::text, 'evaluation_restart'::text]))),
+    CONSTRAINT events_step_number_check CHECK (((step_number IS NULL) OR ((step_number >= 1) AND (step_number <= 8))))
+);
+
+
+--
+-- Name: site_daily_counters; Type: TABLE; Schema: evaluation_analytics; Owner: -
+--
+
+CREATE TABLE evaluation_analytics.site_daily_counters (
+    counter_day date DEFAULT CURRENT_DATE NOT NULL,
+    metric_key text NOT NULL,
+    page_path text NOT NULL,
+    counter_value bigint DEFAULT 0 NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT site_daily_counters_counter_value_check CHECK ((counter_value >= 0)),
+    CONSTRAINT site_daily_counters_metric_key_check CHECK ((metric_key = ANY (ARRAY['page_view'::text, 'whatsapp_click'::text, 'phone_click'::text, 'email_click'::text, 'contact_form_sent'::text, 'evaluation_cta_click'::text, 'radiografia_click'::text]))),
+    CONSTRAINT site_daily_counters_page_path_check CHECK (((char_length(page_path) >= 1) AND (char_length(page_path) <= 200)))
+);
+
+
+--
+-- Name: TABLE site_daily_counters; Type: COMMENT; Schema: evaluation_analytics; Owner: -
+--
+
+COMMENT ON TABLE evaluation_analytics.site_daily_counters IS 'Aggregate site counters only; no cookies, identity, IP or personal data.';
+
+
+--
+-- Name: visits; Type: TABLE; Schema: evaluation_analytics; Owner: -
+--
+
+CREATE TABLE evaluation_analytics.visits (
+    visit_id uuid NOT NULL,
+    first_seen_at timestamp with time zone DEFAULT now() NOT NULL,
+    last_seen_at timestamp with time zone DEFAULT now() NOT NULL,
+    landing_path text NOT NULL,
+    referrer_category text,
+    consent_state text NOT NULL,
+    bot_status text DEFAULT 'unknown'::text NOT NULL,
+    CONSTRAINT visits_bot_status_check CHECK ((bot_status = ANY (ARRAY['unknown'::text, 'human'::text, 'bot'::text, 'suspicious'::text]))),
+    CONSTRAINT visits_consent_state_check CHECK ((consent_state = ANY (ARRAY['granted'::text, 'denied'::text, 'unknown'::text]))),
+    CONSTRAINT visits_landing_path_check CHECK ((char_length(landing_path) <= 200)),
+    CONSTRAINT visits_referrer_category_check CHECK (((referrer_category IS NULL) OR (char_length(referrer_category) <= 80)))
+);
 
 
 --
@@ -21900,6 +22082,70 @@ ALTER TABLE ONLY documentacion.documentos_empresa_tipos
 
 
 --
+-- Name: aggregate_daily_counters aggregate_daily_counters_pkey; Type: CONSTRAINT; Schema: evaluation_analytics; Owner: -
+--
+
+ALTER TABLE ONLY evaluation_analytics.aggregate_daily_counters
+    ADD CONSTRAINT aggregate_daily_counters_pkey PRIMARY KEY (counter_day, metric_key);
+
+
+--
+-- Name: aggregate_event_dedup aggregate_event_dedup_pkey; Type: CONSTRAINT; Schema: evaluation_analytics; Owner: -
+--
+
+ALTER TABLE ONLY evaluation_analytics.aggregate_event_dedup
+    ADD CONSTRAINT aggregate_event_dedup_pkey PRIMARY KEY (dedupe_key);
+
+
+--
+-- Name: email_requests email_requests_pkey; Type: CONSTRAINT; Schema: evaluation_analytics; Owner: -
+--
+
+ALTER TABLE ONLY evaluation_analytics.email_requests
+    ADD CONSTRAINT email_requests_pkey PRIMARY KEY (request_id);
+
+
+--
+-- Name: evaluation_sessions evaluation_sessions_pkey; Type: CONSTRAINT; Schema: evaluation_analytics; Owner: -
+--
+
+ALTER TABLE ONLY evaluation_analytics.evaluation_sessions
+    ADD CONSTRAINT evaluation_sessions_pkey PRIMARY KEY (evaluation_id);
+
+
+--
+-- Name: events events_idempotency_key_key; Type: CONSTRAINT; Schema: evaluation_analytics; Owner: -
+--
+
+ALTER TABLE ONLY evaluation_analytics.events
+    ADD CONSTRAINT events_idempotency_key_key UNIQUE (idempotency_key);
+
+
+--
+-- Name: events events_pkey; Type: CONSTRAINT; Schema: evaluation_analytics; Owner: -
+--
+
+ALTER TABLE ONLY evaluation_analytics.events
+    ADD CONSTRAINT events_pkey PRIMARY KEY (event_id);
+
+
+--
+-- Name: site_daily_counters site_daily_counters_pkey; Type: CONSTRAINT; Schema: evaluation_analytics; Owner: -
+--
+
+ALTER TABLE ONLY evaluation_analytics.site_daily_counters
+    ADD CONSTRAINT site_daily_counters_pkey PRIMARY KEY (counter_day, metric_key, page_path);
+
+
+--
+-- Name: visits visits_pkey; Type: CONSTRAINT; Schema: evaluation_analytics; Owner: -
+--
+
+ALTER TABLE ONLY evaluation_analytics.visits
+    ADD CONSTRAINT visits_pkey PRIMARY KEY (visit_id);
+
+
+--
 -- Name: existencias existencias_pkey; Type: CONSTRAINT; Schema: inventario; Owner: -
 --
 
@@ -24492,6 +24738,41 @@ CREATE UNIQUE INDEX adjuntos_storage_key_uq ON documentacion.adjuntos USING btre
 --
 
 CREATE INDEX adjuntos_tipo_idx ON documentacion.adjuntos USING btree (tipo_id);
+
+
+--
+-- Name: aggregate_event_dedup_expiry_idx; Type: INDEX; Schema: evaluation_analytics; Owner: -
+--
+
+CREATE INDEX aggregate_event_dedup_expiry_idx ON evaluation_analytics.aggregate_event_dedup USING btree (expires_at);
+
+
+--
+-- Name: email_requests_retention_idx; Type: INDEX; Schema: evaluation_analytics; Owner: -
+--
+
+CREATE INDEX email_requests_retention_idx ON evaluation_analytics.email_requests USING btree (retention_expires_at);
+
+
+--
+-- Name: events_evaluation_idx; Type: INDEX; Schema: evaluation_analytics; Owner: -
+--
+
+CREATE INDEX events_evaluation_idx ON evaluation_analytics.events USING btree (evaluation_id, occurred_at);
+
+
+--
+-- Name: events_occurred_at_idx; Type: INDEX; Schema: evaluation_analytics; Owner: -
+--
+
+CREATE INDEX events_occurred_at_idx ON evaluation_analytics.events USING btree (occurred_at);
+
+
+--
+-- Name: site_daily_counters_lookup_idx; Type: INDEX; Schema: evaluation_analytics; Owner: -
+--
+
+CREATE INDEX site_daily_counters_lookup_idx ON evaluation_analytics.site_daily_counters USING btree (counter_day, metric_key);
 
 
 --
@@ -27862,6 +28143,38 @@ ALTER TABLE ONLY documentacion.adjuntos_tipos_entidades
 
 
 --
+-- Name: email_requests email_requests_evaluation_id_fkey; Type: FK CONSTRAINT; Schema: evaluation_analytics; Owner: -
+--
+
+ALTER TABLE ONLY evaluation_analytics.email_requests
+    ADD CONSTRAINT email_requests_evaluation_id_fkey FOREIGN KEY (evaluation_id) REFERENCES evaluation_analytics.evaluation_sessions(evaluation_id) ON DELETE SET NULL;
+
+
+--
+-- Name: evaluation_sessions evaluation_sessions_visit_id_fkey; Type: FK CONSTRAINT; Schema: evaluation_analytics; Owner: -
+--
+
+ALTER TABLE ONLY evaluation_analytics.evaluation_sessions
+    ADD CONSTRAINT evaluation_sessions_visit_id_fkey FOREIGN KEY (visit_id) REFERENCES evaluation_analytics.visits(visit_id) ON DELETE SET NULL;
+
+
+--
+-- Name: events events_evaluation_id_fkey; Type: FK CONSTRAINT; Schema: evaluation_analytics; Owner: -
+--
+
+ALTER TABLE ONLY evaluation_analytics.events
+    ADD CONSTRAINT events_evaluation_id_fkey FOREIGN KEY (evaluation_id) REFERENCES evaluation_analytics.evaluation_sessions(evaluation_id) ON DELETE SET NULL;
+
+
+--
+-- Name: events events_visit_id_fkey; Type: FK CONSTRAINT; Schema: evaluation_analytics; Owner: -
+--
+
+ALTER TABLE ONLY evaluation_analytics.events
+    ADD CONSTRAINT events_visit_id_fkey FOREIGN KEY (visit_id) REFERENCES evaluation_analytics.visits(visit_id) ON DELETE SET NULL;
+
+
+--
 -- Name: existencias fk_inv_exist_empresa; Type: FK CONSTRAINT; Schema: inventario; Owner: -
 --
 
@@ -29377,5 +29690,5 @@ ALTER TABLE ONLY whatsapp.plantillas
 -- PostgreSQL database dump complete
 --
 
-\unrestrict QNGb1zIxYsP6iEd59gJ6068Tbr8XmR7ePg0ZZUewXUd05hTrxO54fAPp8ovx2Ff
+\unrestrict 13B0ahkMFcBEfp7ghySIjUd7KIe5QsAdymZ2YBxG1Wv9vkgIzMIr9KIsS3iSi5i
 

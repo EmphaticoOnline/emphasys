@@ -114,6 +114,8 @@ export type Documento = {
     tipo_documento: string;
     serie: string | null;
     numero: number | null;
+    serie_externa?: string | null;
+    numero_externo?: number | null;
     fecha_documento: string | Date;
     contacto_principal_id: number | null;
     moneda: string | null;
@@ -1229,7 +1231,7 @@ export async function listarDocumentosRepositoryPaginado(
   search?: string | null,
   additionalFilters?: DocumentosAdditionalFilters,
   agenteIdForzado?: number | null
-): Promise<{ data: any[]; total: number }> {
+): Promise<{ data: any[]; total: number; suma_subtotal: number }> {
   const tieneSaldoDocumental = [
     'factura',
     'factura_compra',
@@ -1567,7 +1569,10 @@ export async function listarDocumentosRepositoryPaginado(
       c.email AS contacto_email,
       c.telefono AS cliente_telefono,
       ${selectSeguimiento}
+      ag.nombre AS agente_nombre,
       d.subtotal,
+      d.descuento_global,
+      d.descuento,
       d.iva,
       d.total,
       d.tratamiento_impuestos,
@@ -1591,7 +1596,10 @@ export async function listarDocumentosRepositoryPaginado(
       COALESCE(d.estado_autorizacion, 'no_requerida') AS estado_autorizacion,
       ${selectSaldo},
       ${selectEstadoRecepcion},
-      COUNT(*) OVER() AS total_count
+      COUNT(*) OVER() AS total_count,
+      -- Suma de todos los documentos filtrados (no sólo la página), sin IVA:
+      -- es lo que cuantifica la venta o compra.
+      SUM(COALESCE(d.subtotal, 0)) OVER() AS suma_subtotal
     FROM documentos d
     ${joinSaldo}
     ${joinCfdi}
@@ -1599,6 +1607,7 @@ export async function listarDocumentosRepositoryPaginado(
     LEFT JOIN contactos c ON d.contacto_principal_id = c.id
     LEFT JOIN contactos ce ON d.contacto_entrega_id = ce.id
     LEFT JOIN contactos_datos_fiscales cdf ON cdf.contacto_id = c.id
+    LEFT JOIN contactos ag ON ag.id = d.agente_id
     LEFT JOIN conceptos con ON con.id = d.concepto_id AND con.empresa_id = d.empresa_id
     WHERE ${whereClauses.join(' AND ')}
     ORDER BY ${resolverOrdenDocumentos(tipoDocumento, additionalFilters?.sortField, additionalFilters?.sortDirection)}
@@ -1607,11 +1616,12 @@ export async function listarDocumentosRepositoryPaginado(
 
   const { rows } = await pool.query(query, values);
   const total = rows.length ? Number(rows[0].total_count) : 0;
+  const sumaSubtotal = rows.length ? Number(rows[0].suma_subtotal) || 0 : 0;
   const data = rows.map((row: any) => {
-    const { total_count, ...rest } = row;
+    const { total_count, suma_subtotal, ...rest } = row;
     return rest;
   });
-  return { data, total };
+  return { data, total, suma_subtotal: sumaSubtotal };
 }
 
 export async function obtenerDocumentoRepository(
@@ -1844,6 +1854,8 @@ export async function obtenerDocumentoRepository(
               origen.tipo_documento,
               origen.serie,
               origen.numero,
+              origen.serie_externa,
+              origen.numero_externo,
               origen.fecha_documento,
               origen.contacto_principal_id,
               origen.moneda,
@@ -1868,7 +1880,7 @@ export async function obtenerDocumentoRepository(
     if (legacyId > 0 && !origenes.some((row: any) => Number(row.id) === legacyId)) {
       const { rows: legacyRows } = await executor.query(
         `SELECT d.id, d.empresa_id, d.tipo_documento, d.serie, d.numero,
-                d.fecha_documento, d.contacto_principal_id, d.moneda, d.total,
+                d.serie_externa, d.numero_externo, d.fecha_documento, d.contacto_principal_id, d.moneda, d.total,
                 d.estatus_documento, d.motivo_nc, d.tratamiento_impuestos, c.nombre AS nombre_cliente
            FROM documentos d
            LEFT JOIN contactos c ON c.id = d.contacto_principal_id
@@ -1888,10 +1900,30 @@ export type DocumentoRelacionado = {
   tipo_documento: string;
   serie: string | null;
   numero: number | null;
+  serie_externa?: string | null;
+  numero_externo?: number | null;
   fecha_documento: string;
   estatus_documento: string;
   total: number;
   relacion: 'origen' | 'destino';
+  /** Subtotal sin IVA: es lo que cuantifica la venta o compra. */
+  subtotal: number;
+  /**
+   * `partida`: hay vínculo directo por partida con el consultado y `partidas`
+   * trae las partidas de este documento que se vincularon (con la cantidad).
+   * `documento`: ligado sólo por origen o por otro documento de la cadena;
+   * `partidas` va vacío.
+   */
+  vinculo: 'partida' | 'documento';
+  partidas: DocumentoRelacionadoPartida[];
+};
+
+export type DocumentoRelacionadoPartida = {
+  partida_id: number;
+  clave: string | null;
+  descripcion: string | null;
+  cantidad: number;
+  unidad: string | null;
 };
 
 export async function obtenerDocumentosRelacionadosRepository(
@@ -1912,8 +1944,25 @@ export async function obtenerDocumentosRelacionadosRepository(
        FROM documentos_partidas dp
        JOIN documentos_partidas_vinculos dpv
          ON dpv.partida_origen_id = dp.id OR dpv.partida_destino_id = dp.id
-       WHERE dp.documento_id = ANY($1::int[])`,
-      [frontier]
+       WHERE dp.documento_id = ANY($1::int[])
+       UNION
+       -- Documentos ligados sólo por documento_origen_id (p. ej. factura de compra
+       -- generada desde la orden sin vínculos por partida). Se omiten los del mismo
+       -- tipo: son duplicados o correcciones, no un paso del flujo.
+       SELECT d.id, d.documento_origen_id, 'origen'
+         FROM documentos d
+         JOIN documentos o ON o.id = d.documento_origen_id
+        WHERE d.id = ANY($1::int[])
+          AND d.empresa_id = $2
+          AND LOWER(o.tipo_documento) <> LOWER(d.tipo_documento)
+       UNION
+       SELECT d.documento_origen_id, d.id, 'destino'
+         FROM documentos d
+         JOIN documentos o ON o.id = d.documento_origen_id
+        WHERE d.documento_origen_id = ANY($1::int[])
+          AND d.empresa_id = $2
+          AND LOWER(o.tipo_documento) <> LOWER(d.tipo_documento)`,
+      [frontier, empresaId]
     );
 
     const siguienteFrontier: number[] = [];
@@ -1935,15 +1984,51 @@ export async function obtenerDocumentosRelacionadosRepository(
     tipo_documento: string;
     serie: string | null;
     numero: number | null;
+    serie_externa: string | null;
+    numero_externo: number | null;
     fecha_documento: string;
     estatus_documento: string;
+    subtotal: string;
     total: string;
   }>(
-    `SELECT id, tipo_documento, serie, numero, fecha_documento, estatus_documento, total
+    `SELECT id, tipo_documento, serie, numero, serie_externa, numero_externo, fecha_documento, estatus_documento, subtotal, total
        FROM documentos
       WHERE empresa_id = $1 AND id = ANY($2::int[])`,
     [empresaId, ids]
   );
+  // Partidas del documento relacionado que se vincularon con el consultado.
+  const { rows: vinculadasRows } = await pool.query<{
+    relacionado_id: number; partida_id: number; clave: string | null; descripcion: string | null; unidad: string | null; cantidad: string;
+  }>(
+    `SELECT CASE WHEN v.documento_origen_id = $1 THEN v.documento_destino_id ELSE v.documento_origen_id END AS relacionado_id,
+            dp.id AS partida_id,
+            p.clave,
+            COALESCE(dp.descripcion_alterna, p.descripcion) AS descripcion,
+            dp.unidad,
+            SUM(v.cantidad) AS cantidad
+       FROM documentos_partidas_vinculos v
+       JOIN documentos_partidas dp
+         ON dp.id = CASE WHEN v.documento_origen_id = $1 THEN v.partida_destino_id ELSE v.partida_origen_id END
+       LEFT JOIN productos p ON p.id = dp.producto_id
+      WHERE v.documento_origen_id = $1 OR v.documento_destino_id = $1
+      GROUP BY 1, dp.id, p.clave, COALESCE(dp.descripcion_alterna, p.descripcion), dp.unidad, dp.numero_partida
+      ORDER BY 1, dp.numero_partida NULLS LAST, dp.id`,
+    [id]
+  );
+  const partidasPorDocumento = new Map<number, DocumentoRelacionadoPartida[]>();
+  const agregarPartida = (documentoId: number, partida: DocumentoRelacionadoPartida) => {
+    const lista = partidasPorDocumento.get(documentoId) ?? [];
+    lista.push(partida);
+    partidasPorDocumento.set(documentoId, lista);
+  };
+  vinculadasRows.forEach((row) => agregarPartida(Number(row.relacionado_id), {
+    partida_id: Number(row.partida_id),
+    clave: row.clave,
+    descripcion: row.descripcion,
+    cantidad: Number(row.cantidad),
+    unidad: row.unidad,
+  }));
+  const conVinculo = new Set(partidasPorDocumento.keys());
 
   return documentosRows
     .map((doc) => ({
@@ -1951,10 +2036,15 @@ export async function obtenerDocumentosRelacionadosRepository(
       tipo_documento: doc.tipo_documento,
       serie: doc.serie,
       numero: doc.numero,
+      serie_externa: doc.serie_externa,
+      numero_externo: doc.numero_externo,
       fecha_documento: doc.fecha_documento,
       estatus_documento: doc.estatus_documento,
+      subtotal: Number(doc.subtotal),
       total: Number(doc.total),
       relacion: visitados.get(doc.id) ?? 'destino',
+      vinculo: conVinculo.has(Number(doc.id)) ? 'partida' as const : 'documento' as const,
+      partidas: partidasPorDocumento.get(Number(doc.id)) ?? [],
     }))
     .sort((a, b) => {
       const timestamp = (value: unknown): number => {
@@ -3024,7 +3114,7 @@ export async function eliminarDocumentoRepository(id: number, empresaId: number,
     etapa = 'DELETE documentos_partidas';
     await client.query(deletePartidasSql, tipoDocumento ? [id, empresaId, tipoDocumento] : [id, empresaId]);
 
-    if (['pago_proveedor', 'ajuste_cliente', 'ajuste_proveedor', 'nota_credito', 'nota_credito_compra'].includes(String(documentoActual?.tipo_documento ?? '').trim().toLowerCase())) {
+    if (['pago_proveedor', 'ajuste_cliente', 'ajuste_proveedor', 'ajuste_favor_cliente', 'ajuste_favor_proveedor', 'nota_credito', 'nota_credito_compra'].includes(String(documentoActual?.tipo_documento ?? '').trim().toLowerCase())) {
       etapa = 'DELETE aplicaciones_saldo';
       await client.query(
         `DELETE FROM aplicaciones_saldo

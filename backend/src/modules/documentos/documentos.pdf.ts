@@ -3,7 +3,7 @@ import PDFDocument from 'pdfkit';
 import fs from 'fs';
 import pool from '../../config/database';
 import { generarImagenQR, DatosQrCfdi } from '../../utils/generarCadenaQR';
-import { formatearFolioDocumento } from '../../utils/documentos';
+import { formatearFolioDocumento, resolverFolioVisual } from '../../utils/documentos';
 import { DOCUMENT_LAYOUTS, type DocumentLayout } from '../../config/document-layouts';
 import { obtenerPlantillaParaDocumento } from '../plantillas/plantillas.service';
 import { renderPlantillaHTML, type PlantillaData } from '../plantillas/plantillas.render.service';
@@ -972,7 +972,9 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
 
     if (usarPlantillas && plantilla) {
       try {
-        const folio = formatearFolioDocumento(documento?.serie ?? '', Number(documento?.numero ?? 0));
+        // En compras, folio del proveedor con fallback al interno.
+        const folio = resolverFolioVisual(documento ?? {}, documento?.tipo_documento);
+        const folioInterno = formatearFolioDocumento(documento?.serie ?? '', Number(documento?.numero ?? 0));
         const plantillaData: PlantillaData = {
           empresa: {
             nombre: (documento as any)?.empresa_nombre ?? null,
@@ -985,6 +987,7 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
           },
           documento: {
             folio,
+            folio_interno: folioInterno !== folio ? folioInterno : null,
             fecha: documento?.fecha_documento ?? null,
             tipo_documento: documento?.tipo_documento ?? null,
             total: documento?.total ?? null,
@@ -1426,7 +1429,9 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
       const rawAltoLogo = Number(layout.altoLogo);
       const logoMaxHeight = Number.isFinite(rawAltoLogo) && rawAltoLogo > 0 ? rawAltoLogo : logoMaxHeightDefault;
 
-      const folio = formatearFolioDocumento(documento?.serie ?? '', Number(documento?.numero ?? 0));
+      // En compras, folio del proveedor con fallback al interno.
+      const folio = resolverFolioVisual(documento ?? {}, documento?.tipo_documento);
+      const folioInterno = formatearFolioDocumento(documento?.serie ?? '', Number(documento?.numero ?? 0));
       const fechaTimbrado = documento?.timbre?.fecha_timbrado ? formatDateTime(documento.timbre.fecha_timbrado) : 'N/D';
       const uuid = documento?.timbre?.uuid || 'N/D';
       const fechaEmision = formatDate(documento?.fecha_documento) || 'N/D';
@@ -1449,6 +1454,7 @@ export async function generarDocumentoPDF(data: DataCotizacion, empresaId?: numb
 
       const boxData: Array<[string, string]> = [
         ['Folio', folio || 'N/D'],
+        ...(folioInterno && folioInterno !== folio ? [['Folio interno', folioInterno] as [string, string]] : []),
         ['Fecha elaboración', fechaEmision],
       ];
       if (esCotizacion && documento?.agente_nombre) {

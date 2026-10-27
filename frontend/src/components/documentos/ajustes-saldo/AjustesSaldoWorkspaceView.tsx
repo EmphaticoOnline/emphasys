@@ -32,7 +32,7 @@ import { workspaceRailContactNameSx } from '../workspaceRailStyles';
 import type { StatusTone } from '../../status/status.types';
 import { desaplicarAplicacionDocumental, fetchAplicacionesDocumento } from '../../../services/finanzasService';
 import { DesaplicarPagoDialog } from '../../../modules/finanzas/DesaplicarPagoDialog';
-import { formatearFolioDocumento } from '../../../utils/documentos.utils';
+import { folioDocumento } from '../../../utils/documentos.utils';
 import type { AplicacionOperacion } from '../../../types/finanzas';
 import type { Contacto } from '../../../types/contactos.types';
 import type { CotizacionDocumento, CotizacionListado } from '../../../types/cotizacion';
@@ -495,7 +495,7 @@ export default function AjustesSaldoWorkspaceView(props: Props) {
                 <Box key={aplicacion.id} sx={{ display: 'flex', gap: 1, alignItems: 'stretch' }}>
                   <Box sx={{ flex: 1 }}>
                     <TarjetaDocumento
-                      folio={formatearFolioDocumento(aplicacion.serie ?? '', aplicacion.numero ?? 0) || 'Documento'}
+                      folio={folioDocumento(aplicacion) || 'Documento'}
                       meta={[formatDate(aplicacion.fecha_aplicacion || aplicacion.fecha_documento), aplicacion.tipo_documento_destino || aplicacion.tipo_documento].filter(Boolean).join(' · ')}
                       monto={currency.format(Number(aplicacion.monto_moneda_documento ?? aplicacion.monto ?? 0))}
                     />
@@ -538,7 +538,7 @@ export default function AjustesSaldoWorkspaceView(props: Props) {
       />
       <DesaplicarPagoDialog
         open={Boolean(desaplicarItem)}
-        pagoFolio={desaplicarItem ? formatearFolioDocumento(desaplicarItem.serie || '', desaplicarItem.numero || 0) : ''}
+        pagoFolio={desaplicarItem ? folioDocumento(desaplicarItem) : ''}
         facturaFolio={desaplicarItem ? `Factura de Compra #${desaplicarItem.documento_destino_id ?? ''}` : ''}
         importe={desaplicarItem ? currency.format(Number(desaplicarItem.monto_moneda_documento ?? desaplicarItem.monto ?? 0)) : ''}
         loading={desaplicando}

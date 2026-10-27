@@ -48,7 +48,7 @@ import { afectarMovimiento, desafectarMovimiento, eliminarMovimiento, exportarMo
 import { fetchParametrosSistema } from '../services/parametrosService';
 import { getDocumentoTypeConfig } from '../modules/documentos/documentoTypeConfig';
 import type { TipoDocumento } from '../types/documentos.types';
-import { formatearFolioDocumento } from '../utils/documentos.utils';
+import { formatearFolioDocumento, resolverFolioVisual } from '../utils/documentos.utils';
 import { amountSignColor } from '../theme/sign';
 import { elevation } from '../theme/elevation';
 import { inventoryAffectationColors } from '../theme/functional';
@@ -165,9 +165,18 @@ function folioDocumento(movimiento: {
   documento_id: number | null;
   documento_serie?: string | null;
   documento_numero?: number | null;
+  documento_serie_externa?: string | null;
+  documento_numero_externo?: number | null;
+  documento_tipo?: string | null;
 }): string | null {
   if (movimiento.documento_id == null) return null;
-  return formatearFolioDocumento(movimiento.documento_serie ?? '', movimiento.documento_numero ?? 0)
+  // En compras, folio del proveedor con fallback al interno.
+  return resolverFolioVisual({
+    serie: movimiento.documento_serie,
+    numero: movimiento.documento_numero,
+    serie_externa: movimiento.documento_serie_externa,
+    numero_externo: movimiento.documento_numero_externo,
+  }, movimiento.documento_tipo ?? '')
     || String(movimiento.documento_id);
 }
 

@@ -284,10 +284,25 @@ export async function listarAplicacionesPorDocumento(documentoId: number, empres
            CASE WHEN a.documento_origen_id = $1 THEN doc_destino.total ELSE doc_origen.total END AS total_documento,
            CASE WHEN a.documento_origen_id = $1 THEN doc_destino.moneda ELSE doc_origen.moneda END AS moneda_documento,
            doc_origen.tipo_documento AS tipo_documento_origen,
-           doc_destino.tipo_documento AS tipo_documento_destino
+           doc_destino.tipo_documento AS tipo_documento_destino,
+           -- Datos del documento contraparte para mostrarlo como en los workspaces.
+           contraparte.id AS documento_contraparte_id,
+           contraparte.estatus_documento,
+           contraparte.serie_externa,
+           contraparte.numero_externo,
+           contraparte.tratamiento_impuestos,
+           contraparte.observaciones AS observaciones_contraparte,
+           dc.uuid AS cfdi_uuid,
+           dc.estado_sat AS cfdi_estado_sat,
+           dc.fecha_cancelacion AS cfdi_fecha_cancelacion,
+           dc.cancelacion_estado AS cfdi_cancelacion_estado
     FROM aplicaciones_saldo a
     LEFT JOIN documentos doc_origen ON doc_origen.id = a.documento_origen_id AND doc_origen.empresa_id = a.empresa_id
     LEFT JOIN documentos doc_destino ON doc_destino.id = a.documento_destino_id AND doc_destino.empresa_id = a.empresa_id
+    LEFT JOIN documentos contraparte
+      ON contraparte.id = CASE WHEN a.documento_origen_id = $1 THEN a.documento_destino_id ELSE a.documento_origen_id END
+     AND contraparte.empresa_id = a.empresa_id
+    LEFT JOIN documentos_cfdi dc ON dc.documento_id = contraparte.id
     WHERE a.empresa_id = $2
       AND (a.documento_destino_id = $1 OR a.documento_origen_id = $1)
     ORDER BY a.fecha_aplicacion, a.id
@@ -318,14 +333,24 @@ export async function listarPagosAplicadosPorDocumento(documentoId: number, empr
            doc_pago.tipo_documento AS documento_pago_tipo_documento,
            doc_pago.estatus_documento AS documento_pago_estatus
     FROM aplicaciones_saldo a
-    JOIN finanzas_operaciones fo ON fo.id = a.finanzas_operacion_id AND fo.empresa_id = a.empresa_id
-    LEFT JOIN documentos doc_pago ON doc_pago.id = fo.documento_origen_id AND doc_pago.empresa_id = fo.empresa_id
+    -- Dos formatos: el de la app (origen = documento de pago, que apunta a su
+    -- operación) y el histórico (origen = operación, cuyo origen es el pago).
+    LEFT JOIN finanzas_operaciones fo_aplicacion
+      ON fo_aplicacion.id = a.finanzas_operacion_id AND fo_aplicacion.empresa_id = a.empresa_id
+    LEFT JOIN documentos doc_pago
+      ON doc_pago.id = COALESCE(a.documento_origen_id, fo_aplicacion.documento_origen_id)
+     AND doc_pago.empresa_id = a.empresa_id
+    LEFT JOIN finanzas_operaciones fo
+      ON fo.id = COALESCE(a.finanzas_operacion_id, doc_pago.finanzas_operacion_id) AND fo.empresa_id = a.empresa_id
     LEFT JOIN finanzas_cuentas fc ON fc.id = fo.cuenta_id AND fc.empresa_id = fo.empresa_id
     LEFT JOIN finanzas_metodos_pago mp ON mp.id = fo.metodo_pago_id AND mp.empresa_id = fo.empresa_id
     LEFT JOIN conceptos ON conceptos.id = fo.concepto_id AND conceptos.empresa_id = fo.empresa_id
     WHERE a.empresa_id = $2
       AND a.documento_destino_id = $1
-      AND a.finanzas_operacion_id IS NOT NULL
+      AND (
+        a.finanzas_operacion_id IS NOT NULL
+        OR doc_pago.tipo_documento IN ('pago_cliente', 'pago_proveedor')
+      )
     ORDER BY a.fecha_aplicacion, a.id
   `;
   const { rows } = await pool.query(sql, [documentoId, empresaId]);
@@ -341,6 +366,8 @@ export async function listarNotasCreditoAplicadasPorDocumento(documentoId: numbe
            doc_nc.id AS documento_nc_id,
            doc_nc.serie AS documento_nc_serie,
            doc_nc.numero AS documento_nc_numero,
+           doc_nc.serie_externa AS documento_nc_serie_externa,
+           doc_nc.numero_externo AS documento_nc_numero_externo,
            doc_nc.tipo_documento AS documento_nc_tipo_documento,
            doc_nc.fecha_documento AS documento_nc_fecha,
            doc_nc.motivo_nc,
@@ -368,6 +395,8 @@ export async function listarEstadoCuentaContacto(contactoId: number, empresaId: 
            d.estatus_documento,
            d.serie,
            d.numero,
+           d.serie_externa,
+           d.numero_externo,
            d.moneda,
            d.tipo_cambio,
            d.total AS monto,
@@ -393,6 +422,8 @@ export async function listarEstadoCuentaContacto(contactoId: number, empresaId: 
      NULL::text AS estatus_documento,
    NULL::text AS serie,
    NULL::int AS numero,
+   NULL::text AS serie_externa,
+   NULL::int AS numero_externo,
      fc.moneda,
      1::numeric(9,4) AS tipo_cambio,
      fo.monto,

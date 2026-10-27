@@ -709,6 +709,8 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(50);
   const [rowCount, setRowCount] = useState(0);
+  // Suma sin IVA de todos los documentos filtrados (la calcula el backend); null si no la envía.
+  const [sumaSubtotalFiltrados, setSumaSubtotalFiltrados] = useState<number | null>(null);
   const [contactos, setContactos] = useState<Contacto[]>([]);
   const [vendedores, setVendedores] = useState<Contacto[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1755,6 +1757,7 @@ export default function DocumentosPage({ tipoDocumento: propTipo }: DocumentosPa
       });
       setRows(result.data);
       setRowCount(result.total);
+      setSumaSubtotalFiltrados(typeof result.suma_subtotal === 'number' ? result.suma_subtotal : null);
       setError(null);
 
       if (result.data && result.data.length > 0 && token && empresaId) {
@@ -3139,7 +3142,8 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
         id: 'emitir',
         label: tipoDocumento === 'factura_compra' ? 'Confirmar' : 'Emitir',
         icon: <CheckCircleIcon fontSize="small" />,
-        hidden: (tipoDocumento !== 'factura' && tipoDocumento !== 'factura_compra')
+        // Notas de crédito: misma emisión explícita que Facturas (antes, selector de estatus).
+        hidden: !['factura', 'factura_compra', 'nota_credito', 'nota_credito_compra'].includes(tipoDocumento)
           || (tipoDocumento === 'factura' && !esFacturaVentaEstandar(contextMenuRow)),
         disabled:
           loading
@@ -3164,7 +3168,9 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
             }));
             setSnackbar({
               open: true,
-              message: tipoDocumento === 'factura_compra' ? 'Factura de Compra confirmada' : 'Documento emitido',
+              message: tipoDocumento === 'factura_compra'
+                ? 'Factura de Compra confirmada'
+                : tipoDocumento === 'nota_credito' || tipoDocumento === 'nota_credito_compra' ? 'Nota de crédito emitida' : 'Documento emitido',
               severity: 'success',
             });
           } catch (err: any) {
@@ -3426,10 +3432,12 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
     );
 
     return {
-      general: sum(filteredRows),
+      // Total de todos los documentos filtrados; el desglose por estado sigue
+      // siendo sólo de la página cargada.
+      general: sumaSubtotalFiltrados ?? sum(filteredRows),
       porEstado,
     };
-  }, [enableFilters, filteredRows, statusField, statusOptions, sumField]);
+  }, [enableFilters, filteredRows, statusField, statusOptions, sumField, sumaSubtotalFiltrados]);
 
   const filtrosActivosCount = useMemo(() => {
     if (!enableFilters) return 0;
@@ -4547,6 +4555,7 @@ const compareNumericGridValues = (value1: unknown, value2: unknown) => {
 
   const notasCreditoWorkspaceView = notasCreditoWorkspaceVisible ? (
     <NotasCreditoWorkspaceView
+      onRefresh={load}
       rows={filteredRows}
       isLoading={loading || loadingPreferences}
       selectedId={focusedDocumentId}

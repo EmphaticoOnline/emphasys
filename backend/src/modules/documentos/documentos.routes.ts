@@ -31,6 +31,7 @@ import {
 } from './documentos.controller';
 import { obtenerCamposDocumento } from './documentos-campos.controller';
 import { obtenerDetalleDocumentoHandler } from './documentos-detalle.controller';
+import { obtenerAvanceDocumentoHandler } from './documentos-avance';
 
 const router = Router();
 
@@ -39,6 +40,9 @@ router.get('/', requireAuth, requireEmpresaActiva, listarCotizaciones);
 
 // GET /api/documentos/:id/recepcion-resumen
 router.get('/:id/recepcion-resumen', requireAuth, requireEmpresaActiva, obtenerRecepcionResumenHandler);
+
+// GET /api/documentos/:id/avance — cuánto pasó a los documentos generados desde él
+router.get('/:id/avance', requireAuth, requireEmpresaActiva, obtenerAvanceDocumentoHandler);
 
 // GET /api/documentos/:id/trazabilidad-orden-compra
 router.get('/:id/trazabilidad-orden-compra', requireAuth, requireEmpresaActiva, obtenerTrazabilidadOrdenCompraHandler);

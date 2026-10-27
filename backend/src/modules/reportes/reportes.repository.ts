@@ -1,5 +1,5 @@
 import pool from '../../config/database';
-import { formatearFolioDocumento } from '../../utils/documentos';
+import { formatearFolioDocumento, resolverFolioVisual } from '../../utils/documentos';
 
 export type AplicacionDetalle = {
   id: number;
@@ -109,6 +109,8 @@ async function _obtenerAplicaciones(
        a.monto,
        d_origen.serie                    AS origen_serie,
        COALESCE(d_origen.numero, 0)::int AS origen_numero,
+       d_origen.serie_externa            AS origen_serie_externa,
+       d_origen.numero_externo           AS origen_numero_externo,
        d_origen.tipo_documento           AS origen_tipo,
        fo.id                             AS operacion_id,
        fc.identificador                  AS cuenta_nombre
@@ -137,7 +139,11 @@ async function _obtenerAplicaciones(
 
     if (row.origen_tipo) {
       const labels = etiquetaAplicacion(row.origen_tipo as string, config);
-      folio = formatearFolioDocumento(row.origen_serie as string, row.origen_numero as number);
+      // En compras, folio del proveedor con fallback al interno.
+      folio = resolverFolioVisual({
+        serie: row.origen_serie, numero: row.origen_numero,
+        serie_externa: row.origen_serie_externa, numero_externo: row.origen_numero_externo,
+      }, row.origen_tipo as string);
       tipoEtiqueta = labels.etiqueta;
       concepto = labels.concepto;
     } else {
@@ -234,6 +240,8 @@ async function _obtenerEstadoCuenta(
        d.tipo_documento                                                      AS tipo,
        COALESCE(d.serie, '')                                                 AS serie,
        COALESCE(d.numero, 0)::int                                           AS numero,
+       d.serie_externa,
+       d.numero_externo,
        d.total::numeric                                                      AS total,
        d.estatus_documento,
        LOWER(COALESCE(d.estatus_documento, '')) IN ('cancelado','cancelada') AS cancelado,
@@ -271,7 +279,7 @@ async function _obtenerEstadoCuenta(
     const mov: MovimientoEstadoCuenta = {
       id: row.id as number,
       fecha: toFecha(row.fecha),
-      folio: formatearFolioDocumento(row.serie as string, row.numero as number),
+      folio: resolverFolioVisual(row, row.tipo as string),
       tipo,
       tipo_etiqueta: config.etiqueta[tipo] ?? tipo,
       concepto: config.concepto[tipo] ?? tipo,
@@ -436,6 +444,8 @@ async function _obtenerVolumen(
          d.fecha_documento                AS fecha,
          COALESCE(d.serie, '')            AS serie,
          COALESCE(d.numero, 0)::int       AS numero,
+         d.serie_externa,
+         d.numero_externo,
          COALESCE(d.subtotal, 0)::numeric AS subtotal,
          COALESCE(d.iva, 0)::numeric      AS iva,
          COALESCE(d.total, 0)::numeric    AS total,
@@ -455,7 +465,7 @@ async function _obtenerVolumen(
       id: r.id,
       contacto_id: r.contacto_id,
       fecha: toFecha(r.fecha),
-      folio: formatearFolioDocumento(r.serie, r.numero),
+      folio: resolverFolioVisual(r, tipoDocumento),
       subtotal: Number(r.subtotal),
       iva: Number(r.iva),
       total: Number(r.total),
@@ -706,6 +716,8 @@ async function _obtenerVolumenProducto(
          d.fecha_documento                      AS fecha,
          COALESCE(d.serie, '')                  AS serie,
          COALESCE(d.numero, 0)::int             AS numero,
+         d.serie_externa,
+         d.numero_externo,
          COALESCE(c.nombre, '—')               AS contacto_nombre,
          dp.cantidad::numeric                   AS cantidad,
          dp.precio_unitario::numeric            AS precio_unitario,
@@ -737,7 +749,7 @@ async function _obtenerVolumenProducto(
       grupo_key:       String(r.grupo_key),
       producto_id:     r.producto_id != null ? (r.producto_id as number) : null,
       fecha:           toFecha(r.fecha),
-      folio:           formatearFolioDocumento(r.serie as string, r.numero as number),
+      folio:           resolverFolioVisual(r, tipoDocumento),
       contacto_nombre: String(r.contacto_nombre ?? '—'),
       cantidad:        Number(r.cantidad ?? 0),
       precio_unitario: Number(r.precio_unitario ?? 0),
@@ -1391,6 +1403,8 @@ async function _obtenerMovimientosPorPeriodo(
        d.fecha_documento                                       AS fecha,
        COALESCE(d.serie, '')                                   AS serie,
        COALESCE(d.numero, 0)::int                             AS numero,
+       d.serie_externa,
+       d.numero_externo,
        COALESCE(c.nombre, '—')                               AS contacto_nombre,
        COALESCE(cant.cantidad_total, 0)::numeric               AS cantidad_total,
        COALESCE(d.subtotal, 0)::numeric                        AS subtotal,
@@ -1425,7 +1439,7 @@ async function _obtenerMovimientosPorPeriodo(
     periodo_key:     String(r.periodo_key ?? ''),
     id:              r.id as number,
     fecha:           toFecha(r.fecha),
-    folio:           formatearFolioDocumento(String(r.serie ?? ''), Number(r.numero ?? 0)),
+    folio:           resolverFolioVisual(r, tipoDocumento),
     contacto_nombre: String(r.contacto_nombre ?? '—'),
     contacto_id: r.contacto_id == null ? null : Number(r.contacto_id),
     cantidad_total:  Number(r.cantidad_total ?? 0),
@@ -1998,7 +2012,10 @@ export type VencimientoProveedor = {
   fecha_vencimiento: string;
   dias: number;
   proveedor_nombre: string;
+  /** Folio del proveedor con fallback al interno. */
   folio: string;
+  folio_interno: string;
+  /** Folio del proveedor tal cual (vacío si no se capturó); lo usa la programación de pagos. */
   referencia_proveedor: string;
   total: number;
   saldo: number;
@@ -2078,7 +2095,8 @@ export async function obtenerVencimientosProveedores(params: {
       fecha_vencimiento:    toFecha(r.fecha_vencimiento),
       dias:                 Number(r.dias),
       proveedor_nombre:     String(r.proveedor_nombre ?? ''),
-      folio:                formatearFolioDocumento(String(r.serie ?? ''), Number(r.numero ?? 0)),
+      folio:                resolverFolioVisual(r, 'factura_compra'),
+      folio_interno:        formatearFolioDocumento(String(r.serie ?? ''), Number(r.numero ?? 0)),
       referencia_proveedor: refProveedor,
       total:                Number(r.total ?? 0),
       saldo:                Number(r.saldo ?? 0),
@@ -2450,6 +2468,8 @@ export async function obtenerCarteraVencida(params: {
        d.tipo_documento,
        COALESCE(d.serie, '')                                              AS serie,
        COALESCE(d.numero, 0)::int                                         AS numero,
+       d.serie_externa,
+       d.numero_externo,
        COALESCE(d.moneda, 'MXN')                                          AS moneda,
        COALESCE(d.total, 0)::numeric                                      AS total,
        COALESCE(d.total, 0)::numeric
@@ -2472,7 +2492,7 @@ export async function obtenerCarteraVencida(params: {
        AND COALESCE(d.fecha_vencimiento, d.fecha_documento)::date <= $2::date
      GROUP BY
        d.id, d.contacto_principal_id, c.nombre,
-       d.fecha_documento, d.fecha_vencimiento, d.tipo_documento, d.serie, d.numero, d.moneda, d.total
+       d.fecha_documento, d.fecha_vencimiento, d.tipo_documento, d.serie, d.numero, d.serie_externa, d.numero_externo, d.moneda, d.total
      HAVING COALESCE(d.total, 0)::numeric
               - COALESCE(SUM(
                   CASE WHEN COALESCE(a.fecha_aplicacion::date, NOW()::date) <= $2::date
@@ -2492,7 +2512,7 @@ export async function obtenerCarteraVencida(params: {
       contacto_nombre: String(r.contacto_nombre ?? ''),
       fecha_documento: toFecha(r.fecha_documento),
       tipo_documento:  String(r.tipo_documento ?? ''),
-      folio:           formatearFolioDocumento(String(r.serie ?? ''), Number(r.numero ?? 0)),
+      folio:           resolverFolioVisual(r, String(r.tipo_documento ?? '')),
       moneda:          String(r.moneda ?? 'MXN'),
       total:           Number(r.total ?? 0),
       saldo:           Number(r.saldo ?? 0),

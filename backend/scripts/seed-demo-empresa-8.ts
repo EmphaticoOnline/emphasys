@@ -498,6 +498,8 @@ async function insertFinanzasOp(c: PoolClient, opts: {
     concepto_id: opts.concepto_id,
     created_by: USUARIO_ID,
   }, EMPRESA_ID);
+  // Igual que la app: el pago apunta a su operación financiera.
+  await c.query(`UPDATE documentos SET finanzas_operacion_id=$1 WHERE id=$2 AND empresa_id=$3`, [op.id, opts.documento_origen_id, EMPRESA_ID]);
   return Number(op.id);
 }
 
@@ -516,12 +518,15 @@ async function insertarTesoreriaIndependiente(c: PoolClient, opts: {
   return Number(op.id);
 }
 
-async function insertAplicacion(c: PoolClient, opId: number, docDestinoId: number, monto: number) {
+// Igual que crearAplicacionTx: el origen es el documento de pago (no la
+// operación). Así la vista documentos_saldo descuenta la aplicación del saldo
+// del pago y el workspace de Pagos la lista.
+async function insertAplicacion(c: PoolClient, pagoDocId: number, docDestinoId: number, monto: number) {
   await c.query(
     `INSERT INTO aplicaciones_saldo
-       (empresa_id, finanzas_operacion_id, documento_destino_id, monto, monto_moneda_documento, created_by)
+       (empresa_id, documento_origen_id, documento_destino_id, monto, monto_moneda_documento, created_by)
      VALUES($1,$2,$3,$4,$4,$5)`,
-    [EMPRESA_ID, opId, docDestinoId, monto, USUARIO_ID],
+    [EMPRESA_ID, pagoDocId, docDestinoId, monto, USUARIO_ID],
   );
 }
 
@@ -917,12 +922,12 @@ async function generarPagosProveedores(c: PoolClient, factIds: number[]) {
       fecha_documento: fechaPago, contacto_id: doc.contacto_principal_id,
       subtotal: monto, iva: 0, total: monto, estatus_documento: 'Pagado', concepto_id: CONCEPTO_COMPRA,
     });
-    const opId = await insertFinanzasOp(c, {
+    await insertFinanzasOp(c, {
       fecha: fechaPago, tipo_movimiento: 'Retiro', monto,
       contacto_id: doc.contacto_principal_id, documento_origen_id: pagoDocId,
       naturaleza_operacion: 'pago_proveedor', concepto_id: CONCEPTO_COMPRA,
     });
-    await insertAplicacion(c, opId, factIds[i], monto);
+    await insertAplicacion(c, pagoDocId, factIds[i], monto);
     pagos++;
   }
   console.log(`    ✓ ${pagos} pagos a proveedor generados`);
@@ -987,12 +992,12 @@ async function generarPagosClientes(c: PoolClient, factIds: number[]) {
       fecha_documento: fechaPago, contacto_id: doc.contacto_principal_id,
       subtotal: monto, iva: 0, total: monto, estatus_documento: 'Cobrado', concepto_id: CONCEPTO_VENTA,
     });
-    const opId = await insertFinanzasOp(c, {
+    await insertFinanzasOp(c, {
       fecha: fechaPago, tipo_movimiento: 'Deposito', monto,
       contacto_id: doc.contacto_principal_id, documento_origen_id: pagoDocId,
       naturaleza_operacion: 'cobro_cliente', concepto_id: CONCEPTO_VENTA,
     });
-    await insertAplicacion(c, opId, factIds[i], monto);
+    await insertAplicacion(c, pagoDocId, factIds[i], monto);
     cobros++;
   }
   console.log(`    ✓ ${cobros} cobros de cliente generados`);

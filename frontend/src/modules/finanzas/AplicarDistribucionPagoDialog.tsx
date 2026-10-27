@@ -5,7 +5,7 @@ import {
 } from '@mui/material';
 import { aplicarDistribucionPago, fetchAplicacionesDocumento, fetchEstadoCuenta, fetchSaldoDocumento } from '../../services/finanzasService';
 import type { AplicacionOperacion, DocumentoSaldo, EstadoCuentaItem } from '../../types/finanzas';
-import { formatearFolioDocumento } from '../../utils/documentos.utils';
+import { folioDocumento } from '../../utils/documentos.utils';
 
 type Props = {
   open: boolean; pagoId: number | null; pagoFolio: string; contactoId?: number | null;
@@ -81,11 +81,11 @@ export function AplicarDistribucionPagoDialog({ open, pagoId, pagoFolio, contact
           <Typography variant="subtitle1" fontWeight={700}>Aplicaciones previas</Typography>
           <Table size="small"><TableHead><TableRow><TableCell>Factura</TableCell><TableCell align="right">Monto</TableCell><TableCell align="right">Acción</TableCell></TableRow></TableHead><TableBody>
             {previas.length === 0 && <TableRow><TableCell colSpan={3}>Sin aplicaciones previas</TableCell></TableRow>}
-            {previas.map((a) => { const folio = formatearFolioDocumento(a.serie || '', a.numero || 0); const marcada = Boolean(quitar[a.id]); return <TableRow key={a.id} sx={marcada ? { opacity: .55 } : undefined}><TableCell>{folio}</TableCell><TableCell align="right">{money.format(Number(a.monto_moneda_documento ?? a.monto))}</TableCell><TableCell align="right"><Button size="small" color="error" onClick={() => confirmarQuitar(a)} disabled={marcada}>{marcada ? 'Marcada para quitar' : `Desaplicar saldo de ${folio}`}</Button></TableCell></TableRow>; })}
+            {previas.map((a) => { const folio = folioDocumento(a); const marcada = Boolean(quitar[a.id]); return <TableRow key={a.id} sx={marcada ? { opacity: .55 } : undefined}><TableCell>{folio}</TableCell><TableCell align="right">{money.format(Number(a.monto_moneda_documento ?? a.monto))}</TableCell><TableCell align="right"><Button size="small" color="error" onClick={() => confirmarQuitar(a)} disabled={marcada}>{marcada ? 'Marcada para quitar' : `Desaplicar saldo de ${folio}`}</Button></TableCell></TableRow>; })}
           </TableBody></Table>
           <Typography variant="subtitle1" fontWeight={700}>Facturas pendientes</Typography>
           <Table size="small"><TableHead><TableRow><TableCell>Documento</TableCell><TableCell align="right">Saldo</TableCell><TableCell align="right">Monto</TableCell></TableRow></TableHead><TableBody>
-            {destinos.map((d) => { const recuperadoDestino = previas.filter((a) => a.documento_destino_id === d.id && quitar[a.id]).reduce((s, a) => s + Number(a.monto_moneda_documento ?? a.monto), 0); const saldoDestino = Number(d.saldo ?? 0) + recuperadoDestino; return <TableRow key={d.id}><TableCell>{formatearFolioDocumento(d.serie || '', d.numero || 0)}</TableCell><TableCell align="right">{money.format(saldoDestino)}</TableCell><TableCell align="right"><TextField size="small" type="number" value={montos[d.id] ?? ''} onChange={(e) => setMontos((p) => ({ ...p, [d.id]: e.target.value }))} inputProps={{ min: 0, step: .01 }} /></TableCell></TableRow>; })}
+            {destinos.map((d) => { const recuperadoDestino = previas.filter((a) => a.documento_destino_id === d.id && quitar[a.id]).reduce((s, a) => s + Number(a.monto_moneda_documento ?? a.monto), 0); const saldoDestino = Number(d.saldo ?? 0) + recuperadoDestino; return <TableRow key={d.id}><TableCell>{folioDocumento(d)}</TableCell><TableCell align="right">{money.format(saldoDestino)}</TableCell><TableCell align="right"><TextField size="small" type="number" value={montos[d.id] ?? ''} onChange={(e) => setMontos((p) => ({ ...p, [d.id]: e.target.value }))} inputProps={{ min: 0, step: .01 }} /></TableCell></TableRow>; })}
           </TableBody></Table>
           {totalNuevo > disponible && <Alert severity="warning">La distribución excede el disponible recuperado del pago.</Alert>}
         </Stack>}

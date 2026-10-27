@@ -28,6 +28,8 @@ export interface NotaCreditoAplicada {
   documento_nc_id: number;
   documento_nc_serie: string | null;
   documento_nc_numero: number | null;
+  documento_nc_serie_externa?: string | null;
+  documento_nc_numero_externo?: number | null;
   documento_nc_tipo_documento: string;
   documento_nc_fecha: string;
   motivo_nc: 'devolucion' | 'bonificacion' | 'otro' | null;
@@ -40,10 +42,28 @@ export interface DocumentoRelacionado {
   tipo_documento: string;
   serie: string | null;
   numero: number | null;
+  serie_externa?: string | null;
+  numero_externo?: number | null;
   fecha_documento: string;
   estatus_documento: string;
   total: number;
   relacion: 'origen' | 'destino';
+  /** Subtotal sin IVA. */
+  subtotal?: number;
+  /**
+   * `partida`: `partidas` son las que pasaron entre este documento y el consultado.
+   * `documento`: sin vínculo directo por partida; `partidas` son todas las del documento.
+   */
+  vinculo?: 'partida' | 'documento';
+  partidas?: DocumentoRelacionadoPartida[];
+}
+
+export interface DocumentoRelacionadoPartida {
+  partida_id: number;
+  clave: string | null;
+  descripcion: string | null;
+  cantidad: number;
+  unidad: string | null;
 }
 
 export interface MovimientoInventarioDocumento {

@@ -671,7 +671,7 @@ const COLUMNAS_VENCIMIENTOS: ExportColumna[] = [
   { field: 'dias',                 headerName: 'Días'           },
   { field: 'proveedor_nombre',     headerName: 'Proveedor'      },
   { field: 'folio',                headerName: 'Documento'      },
-  { field: 'referencia_proveedor', headerName: 'Ref. Proveedor' },
+  { field: 'folio_interno',        headerName: 'Folio interno'  },
   { field: 'total',                headerName: 'Total'          },
   { field: 'saldo',                headerName: 'Saldo'          },
 ];
@@ -1129,7 +1129,7 @@ export async function getVencimientosClientes(req: Request, res: Response) {
       const buffer = await generarVencimientosProveedoresPDF(
         { fecha_corte: resultado.fecha_corte, vencimientos: resultado.vencimientos.map((v) => ({
             id: v.id, fecha_vencimiento: v.fecha_vencimiento, dias: v.dias,
-            proveedor_nombre: v.cliente_nombre, folio: v.folio,
+            proveedor_nombre: v.cliente_nombre, folio: v.folio, folio_interno: '',
             referencia_proveedor: '', total: v.total, saldo: v.saldo,
             proveedor_id: null, moneda: 'MXN',
           })) },

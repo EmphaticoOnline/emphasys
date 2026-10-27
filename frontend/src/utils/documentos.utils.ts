@@ -1,17 +1,40 @@
 export function resolverFolioVisual(
   row: {
-    serie?: string | null;
-    numero?: number | null;
-    serie_externa?: string | null;
-    numero_externo?: number | null;
+    serie?: string | null | undefined;
+    numero?: number | null | undefined;
+    serie_externa?: string | null | undefined;
+    numero_externo?: number | null | undefined;
   },
   tipoDocumento: string,
 ): string {
-  const esCompra = tipoDocumento === 'factura_compra' || tipoDocumento === 'nota_credito_compra';
-  if (esCompra && (row.serie_externa != null || row.numero_externo != null)) {
+  const tipo = String(tipoDocumento ?? '').toLowerCase();
+  const esCompra = tipo === 'factura_compra' || tipo === 'nota_credito_compra';
+  // Folio del proveedor sólo si realmente se capturó; si no, el folio interno.
+  // Un número 0 cuenta como no capturado.
+  const tieneExterno = Number(row.numero_externo ?? 0) > 0 || Boolean(String(row.serie_externa ?? '').trim());
+  if (esCompra && tieneExterno) {
     return formatearFolioDocumento(row.serie_externa ?? '', row.numero_externo ?? 0);
   }
   return formatearFolioDocumento(row.serie ?? '', row.numero ?? 0);
+}
+
+/**
+ * Folio visible de cualquier documento (propio o contraparte). Toma el tipo de
+ * la fila (`tipo_documento` o `tipo`) salvo que se indique; en compras usa el
+ * folio del proveedor con fallback al interno.
+ */
+export function folioDocumento(
+  row: {
+    serie?: string | null | undefined;
+    numero?: number | null | undefined;
+    serie_externa?: string | null | undefined;
+    numero_externo?: number | null | undefined;
+    tipo_documento?: string | null | undefined;
+    tipo?: string | null | undefined;
+  },
+  tipoDocumento?: string | null,
+): string {
+  return resolverFolioVisual(row, tipoDocumento ?? row.tipo_documento ?? row.tipo ?? '');
 }
 
 export function formatearFolioDocumento(serie: string, numero: number): string {

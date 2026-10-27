@@ -422,7 +422,9 @@ export type VencimientoProveedor = {
   fecha_vencimiento: string;
   dias: number;
   proveedor_nombre: string;
+  /** Folio del proveedor con fallback al interno. */
   folio: string;
+  folio_interno: string;
   referencia_proveedor: string;
   total: number;
   saldo: number;

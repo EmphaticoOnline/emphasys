@@ -1339,7 +1339,7 @@ const VEN_HEADERS: Record<VenCol, string> = {
   dias:        'Días',
   proveedor:   'Proveedor',
   documento:   'Documento',
-  referencia:  'Ref. Prov.',
+  referencia:  'Folio interno',
   total:       'Total',
   saldo:       'Saldo',
 };
@@ -1443,7 +1443,7 @@ export function generarVencimientosProveedoresPDF(
       drawCell(doc, String(v.dias), VEN_COL.dias, y, { bold: v.dias <= 0, color: colorDias });
       drawCell(doc, v.proveedor_nombre, VEN_COL.proveedor, y);
       drawCell(doc, v.folio, VEN_COL.documento, y);
-      drawCell(doc, v.referencia_proveedor, VEN_COL.referencia, y, { color: GRAY_MID });
+      drawCell(doc, v.folio_interno, VEN_COL.referencia, y, { color: GRAY_MID });
       drawCell(doc, fmt(v.total), VEN_COL.total, y);
       drawCell(doc, fmt(v.saldo), VEN_COL.saldo, y, { bold: true, color: v.dias < 0 ? RED : BLACK });
 

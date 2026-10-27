@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "dev-server",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": ["-c", "PORT=7001 npm run dev:server"],
+      "port": 5173
+    }
+  ]
+}

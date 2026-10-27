@@ -28,7 +28,7 @@ export function useMovimientosContacto(contactoId: number | null) {
   const cargar = React.useCallback((tipo: TipoDocumento, page: number) => {
     if (!contactoId) return;
     setEstado((prev) => ({ ...prev, [tipo]: { ...(prev[tipo] ?? ESTADO_INICIAL), loading: true } }));
-    getDocumentosPaginados(tipo, { page: page + 1, limit: PAGE_SIZE, clienteId: contactoId })
+    getDocumentosPaginados(tipo, { page: page + 1, limit: PAGE_SIZE, clienteId: contactoId, sortField: 'fecha_documento', sortDirection: 'desc' })
       .then((response) => {
         if (contactoRef.current !== contactoId) return;
         const nuevos = response.data as unknown as CotizacionListado[];

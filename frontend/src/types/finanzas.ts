@@ -199,6 +199,18 @@ export interface AplicacionOperacion {
   moneda_documento?: string | null;
   tipo_documento_origen?: string | null;
   tipo_documento_destino?: string | null;
+  /** Documento contraparte (para un pago: la factura a la que se aplicó). */
+  documento_contraparte_id?: number | null;
+  estatus_documento?: string | null;
+  serie_externa?: string | null;
+  numero_externo?: number | null;
+  tratamiento_impuestos?: string | null;
+  /** Observaciones del documento contraparte (p. ej. el motivo de una cancelación de saldo a favor). */
+  observaciones_contraparte?: string | null;
+  cfdi_uuid?: string | null;
+  cfdi_estado_sat?: string | null;
+  cfdi_fecha_cancelacion?: string | null;
+  cfdi_cancelacion_estado?: string | null;
 }
 
 export interface DesaplicarPagoResultado {
@@ -284,6 +296,8 @@ export interface EstadoCuentaItem {
   fecha: string;
   serie?: string | null;
   numero?: number | null;
+  serie_externa?: string | null;
+  numero_externo?: number | null;
 }
 
 export interface TransferenciaPayload {

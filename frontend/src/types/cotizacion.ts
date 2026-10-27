@@ -24,6 +24,7 @@ export interface CotizacionListado {
   fecha_vencimiento?: string | null;
   contacto_principal_id: number | null;
   agente_id?: number | null;
+  agente_nombre?: string | null;
   oportunidad_id?: number | null;
   nombre_cliente: string | null;
   cliente_telefono?: string | null;
@@ -78,6 +79,7 @@ export interface CotizacionDocumento {
   fecha_documento: string;
   contacto_principal_id: number | null;
   agente_id?: number | null;
+  agente_nombre?: string | null;
   moneda: string | null;
   tipo_cambio?: number | null;
   cuenta_financiera_id?: number | null;

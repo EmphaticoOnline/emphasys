@@ -30,8 +30,10 @@ import { getStatusToneColor } from '../../status/status.semantics';
 import type { CotizacionDocumento, CotizacionListado, CotizacionPartida } from '../../../types/cotizacion';
 import { useSession } from '../../../session/useSession';
 import { summarizeDocumentTaxes } from '../../../utils/documentTaxSummary';
-import { resolverFolioVisual } from '../../../utils/documentos.utils';
+import { folioDocumento } from '../../../utils/documentos.utils';
 import { descargarAcuseCancelacionXml } from '../../../services/documentosService';
+import { formatDateShort } from '../DocumentoDetalleContent';
+import { HojaFilasDescuentoGlobal, HojaPartidasLista } from '../partidas/HojaPartidas';
 
 type StatusOption = { value: string; label: string; color?: string; textColor?: string };
 
@@ -77,13 +79,15 @@ export default function FacturaDocumentoResumenView({
     [session.empresas, session.empresaActivaId]
   );
 
-  const folio = resolverFolioVisual(row, 'factura') || String(row.id);
+  // En facturas de compra, folio del proveedor con fallback al interno.
+  const folio = folioDocumento(row) || String(row.id);
   const esNotaDeVenta = String(documento?.tratamiento_impuestos ?? row.tratamiento_impuestos ?? 'normal').trim().toLowerCase() === 'sin_iva';
   const timbrado = !esNotaDeVenta && Boolean(row.cfdi_uuid);
   const estatus = String(row.estatus_documento ?? '').toLowerCase();
 
   const subtotal = documento?.subtotal ?? null;
-  const descuento = (documento?.descuento_global ?? documento?.descuento ?? null);
+  // descuento_global es un porcentaje; su monto se calcula contra la suma de partidas.
+  const descuentoGlobal = documento?.descuento_global ?? row.descuento_global ?? null;
   const iva = documento?.iva ?? null;
   const impuestosResumen = useMemo(() => summarizeDocumentTaxes(partidas), [partidas]);
   const retenciones = impuestosResumen.retenciones || Number(documento?.retencion_iva ?? 0) + Number(documento?.retencion_isr ?? 0);
@@ -93,11 +97,19 @@ export default function FacturaDocumentoResumenView({
   });
   const total = documento?.total ?? row.total ?? 0;
   const saldo = Number(row.saldo ?? 0);
+  const agenteNombre = documento?.agente_nombre || row.agente_nombre || null;
   const cancelacionEstado = String(documento?.cfdi_cancelacion_estado ?? row.cfdi_cancelacion_estado ?? '').trim().toLowerCase();
   const cancelacionConfirmada = timbrado && (
     cancelacionEstado === 'cancelada'
     || String(documento?.cfdi_estado_sat ?? row.cfdi_estado_sat ?? '').trim().toLowerCase() === 'cancelado'
   );
+  // Saldo guardado en el documento vs. el calculado con sus aplicaciones. Sólo se
+  // avisa si difieren; durante una cancelación pendiente el saldo se suspende a propósito.
+  const saldoRegistrado = documento?.saldo_registrado;
+  const saldoOperativo = documento?.saldo;
+  const saldoDescuadrado = saldoRegistrado != null && saldoOperativo != null
+    && !['solicitada', 'pendiente'].includes(cancelacionEstado)
+    && Math.abs(Number(saldoRegistrado) - Number(saldoOperativo)) > 0.005;
   const tieneAcuseCancelacion = Boolean(documento?.cfdi_tiene_acuse_cancelacion ?? row.cfdi_tiene_acuse_cancelacion);
   const cancelacionRelevante = cancelacionConfirmada || ['solicitada', 'pendiente', 'error', 'requiere_reconciliacion', 'rechazada'].includes(cancelacionEstado);
   const puedeReconciliar = ['solicitada', 'pendiente', 'error', 'requiere_reconciliacion'].includes(cancelacionEstado);
@@ -119,7 +131,7 @@ export default function FacturaDocumentoResumenView({
           <Stack direction="row" spacing={1} alignItems="baseline" sx={{ minWidth: 0 }}>
             <Typography variant="figure" sx={{ fontSize: 18, color: tokens.content.foreground }} noWrap>{esNotaDeVenta ? `Nota de venta · ${folio}` : folio}</Typography>
             <Typography variant="caption" sx={{ color: tokens.content.muted }} noWrap>
-              {row.fecha_documento ? new Date(row.fecha_documento).toLocaleDateString('es-MX') : '—'}
+              {formatDateShort(row.fecha_documento)}
             </Typography>
           </Stack>
           {statusOption ? (
@@ -140,6 +152,12 @@ export default function FacturaDocumentoResumenView({
           </Alert>
         ) : null}
 
+        {saldoDescuadrado ? (
+          <Alert severity="warning" sx={{ py: 0, mb: 1, flexShrink: 0, '& .MuiAlert-message': { fontSize: 12.5 } }}>
+            El saldo registrado ({currency.format(Number(saldoRegistrado))}) no coincide con el calculado a partir de sus aplicaciones ({currency.format(Number(saldoOperativo))}).
+          </Alert>
+        ) : null}
+
         {/* Datos generales: emisor, receptor y fiscales en una sola cuadrícula compacta */}
         <Box
           sx={{
@@ -157,6 +175,7 @@ export default function FacturaDocumentoResumenView({
           {field('RFC receptor', documento?.rfc_receptor)}
           {field('Régimen fiscal', documento?.regimen_fiscal_receptor)}
           {field('Uso de CFDI', documento?.uso_cfdi)}
+          {agenteNombre ? field('Agente', agenteNombre) : null}
           {!esNotaDeVenta && timbrado ? (
             <>
               {field('Forma de pago', documento?.forma_pago)}
@@ -190,28 +209,7 @@ export default function FacturaDocumentoResumenView({
           ) : !partidas || partidas.length === 0 ? (
             <Typography variant="body2" color="text.secondary" sx={{ flexShrink: 0 }}>Sin partidas.</Typography>
           ) : (
-            <Box sx={{ flex: '1 0 auto', border: `1px solid ${tokens.content.border}`, borderRadius: 1 }}>
-              {partidas.map((p, idx) => (
-                <Stack
-                  key={p.id}
-                  direction="row"
-                  justifyContent="space-between"
-                  alignItems="flex-start"
-                  spacing={2}
-                  sx={{ px: 1, py: 0.5, borderBottom: idx < partidas.length - 1 ? `1px solid ${tokens.content.border}` : 'none' }}
-                >
-                  <Box sx={{ minWidth: 0 }}>
-                    <Typography sx={{ fontSize: 12.5 }} noWrap>{p.producto_descripcion || p.descripcion_alterna || '—'}</Typography>
-                    <Typography variant="caption" color="text.secondary" noWrap sx={{ display: 'block' }}>
-                      {p.producto_clave ? `${p.producto_clave} · ` : ''}Cant. {Number(p.cantidad || 0)} &times; {currency.format(Number(p.precio_unitario || 0))}
-                    </Typography>
-                  </Box>
-                  <Typography sx={{ fontSize: 12.5, fontWeight: 700, whiteSpace: 'nowrap' }}>
-                    {currency.format(Number(p.subtotal_partida || 0))}
-                  </Typography>
-                </Stack>
-              ))}
-            </Box>
+            <HojaPartidasLista partidas={partidas} />
           )}
         </Box>
 
@@ -254,11 +252,9 @@ export default function FacturaDocumentoResumenView({
             ) : null}
           </Box>
           <Box sx={{ minWidth: 200, flexShrink: 0 }}>
+            {partidas ? <HojaFilasDescuentoGlobal partidas={partidas} totales={{ subtotal, descuento_global: descuentoGlobal }} /> : null}
             {subtotal != null ? (
               <Stack direction="row" justifyContent="space-between"><Typography variant="caption" color="text.secondary">Subtotal</Typography><Typography variant="caption">{currency.format(subtotal)}</Typography></Stack>
-            ) : null}
-            {descuento ? (
-              <Stack direction="row" justifyContent="space-between"><Typography variant="caption" color="text.secondary">Descuento</Typography><Typography variant="caption">{currency.format(descuento)}</Typography></Stack>
             ) : null}
             {iva != null ? (
               <Stack direction="row" justifyContent="space-between"><Typography variant="caption" color="text.secondary">IVA trasladado</Typography><Typography variant="caption">{currency.format(iva)}</Typography></Stack>

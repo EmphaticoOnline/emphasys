@@ -171,6 +171,18 @@ export async function fetchAplicacionesDocumento(id: number): Promise<Aplicacion
   return apiFetch(`${BASE}/documentos/${id}/aplicaciones`);
 }
 
+/**
+ * Cancela un saldo a favor que no se quiere seguir arrastrando (lo por aplicar
+ * de un pago o el disponible de una nota de crédito): crea la cancelación y la
+ * aplica en un solo paso.
+ */
+export async function cancelarSaldoFavor(
+  id: number,
+  data: { monto: number; fecha: string; motivo?: string | null },
+): Promise<{ ajuste_id: number; serie: string | null; numero: number | null; monto: number }> {
+  return apiFetch(`${BASE}/documentos/${id}/cancelar-saldo-favor`, { method: 'POST', body: data as any });
+}
+
 export async function fetchSaldoDocumento(id: number): Promise<DocumentoSaldo> {
   return apiFetch(`${BASE}/documentos/${id}/saldo`);
 }

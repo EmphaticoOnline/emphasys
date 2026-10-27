@@ -8,11 +8,10 @@ import {
   useDocumentoDetalleData,
   ResumenTab,
   PartidasTab,
-  PagosTab,
-  NotasCreditoTab,
   RelacionadosTab,
   InventarioTab,
 } from './DocumentoDetalleContent';
+import PagosAplicacionesTab from './aplicaciones/PagosAplicacionesTab';
 import { neutralColors } from '../../theme/structural';
 import { useBrand } from '../../theme/brand/useBrand';
 
@@ -53,7 +52,9 @@ export default function DocumentoDetalleDrawer({ open, documentoId, tipoDocument
   );
 
   const documento = data?.documento as any;
-  const folio = documento ? folioDe(documento.serie, documento.numero) : '—';
+  const folio = documento
+    ? folioDe(documento.serie, documento.numero, { tipo: documento.tipo_documento ?? tipoDocumento, serie_externa: documento.serie_externa, numero_externo: documento.numero_externo })
+    : '—';
   const nombreContacto = documento?.cliente_nombre || documento?.nombre_receptor || '—';
 
   return (
@@ -100,8 +101,7 @@ export default function DocumentoDetalleDrawer({ open, documentoId, tipoDocument
             >
               <Tab label="Resumen" sx={{ minHeight: 36 }} />
               <Tab label="Partidas" sx={{ minHeight: 36 }} />
-              <Tab label="Pagos" sx={{ minHeight: 36 }} />
-              <Tab label="Notas de crédito" sx={{ minHeight: 36 }} />
+              <Tab label="Pagos y aplicaciones" sx={{ minHeight: 36 }} />
               <Tab label="Relacionados" sx={{ minHeight: 36 }} />
               <Tab label="Inventario" sx={{ minHeight: 36 }} />
             </Tabs>
@@ -122,18 +122,15 @@ export default function DocumentoDetalleDrawer({ open, documentoId, tipoDocument
               />
             </TabPanel>
             <TabPanel value={tab} index={1}>
-              <PartidasTab partidas={data.partidas} formatter={formatter} />
+              <PartidasTab partidas={data.partidas} documento={data.documento} />
             </TabPanel>
             <TabPanel value={tab} index={2}>
-              <PagosTab pagos={data.pagos} formatter={formatter} />
+              <PagosAplicacionesTab documentoId={Number(documento?.id ?? documentoId)} total={Number(documento?.total ?? 0)} pagos={data.pagos} />
             </TabPanel>
             <TabPanel value={tab} index={3}>
-              <NotasCreditoTab notasCredito={data.notasCredito} formatter={formatter} />
-            </TabPanel>
-            <TabPanel value={tab} index={4}>
               <RelacionadosTab documentosRelacionados={data.documentosRelacionados} formatter={formatter} />
             </TabPanel>
-            <TabPanel value={tab} index={5}>
+            <TabPanel value={tab} index={4}>
               <InventarioTab movimientos={data.movimientosInventario} />
             </TabPanel>
           </>

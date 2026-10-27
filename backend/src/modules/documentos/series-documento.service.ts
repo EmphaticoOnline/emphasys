@@ -23,6 +23,8 @@ export const SERIES_DEFAULTS: Record<TipoDocumento, string> = {
   factura_compra: 'FCO',
   ajuste_cliente: 'ACL',
   ajuste_proveedor: 'APR',
+  ajuste_favor_cliente: 'ACF',
+  ajuste_favor_proveedor: 'APF',
 };
 
 // Inventario comparte el motor de consecutivos, aunque no sea un documento comercial.

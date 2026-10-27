@@ -19,6 +19,10 @@ import useMediaQuery from '@mui/material/useMediaQuery';
 import AddIcon from '@mui/icons-material/Add';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import ArticleOutlinedIcon from '@mui/icons-material/ArticleOutlined';
+import BalanceOutlinedIcon from '@mui/icons-material/BalanceOutlined';
+import RegistrarAjusteDialog from '../aplicaciones/RegistrarAjusteDialog';
+import { separarAplicaciones } from '../aplicaciones/saldoFavor';
+import { etiquetaTipoDocumento } from '../DocumentoDetalleContent';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import DownloadOutlinedIcon from '@mui/icons-material/DownloadOutlined';
@@ -37,7 +41,7 @@ import { AplicarDistribucionPagoDialog } from '../../../modules/finanzas/Aplicar
 import { prevalidarComplementoPago, type PagoComplementPrevalidacion } from '../../../services/documentosService';
 import { apiFetch } from '../../../services/apiFetch';
 import { getCuentaFinancieraDisplayLabel } from '../../../modules/finanzas/liquidacion-documento/useLiquidacionDocumento';
-import { formatearFolioDocumento } from '../../../utils/documentos.utils';
+import { folioDocumento } from '../../../utils/documentos.utils';
 import type { AplicacionOperacion, FinanzasCuenta } from '../../../types/finanzas';
 import type { Contacto } from '../../../types/contactos.types';
 import type { CotizacionDocumento, CotizacionListado } from '../../../types/cotizacion';
@@ -211,6 +215,7 @@ export default function PagosWorkspaceView({
   const [desaplicarError, setDesaplicarError] = useState<string | null>(null);
   const [desaplicando, setDesaplicando] = useState(false);
   const [aplicacionesVersion, setAplicacionesVersion] = useState(0);
+  const [ajusteOpen, setAjusteOpen] = useState(false);
   const [distribucionOpen, setDistribucionOpen] = useState(false);
 
   const criteriosActivos = filtrosAvanzadosActivos(filtros)
@@ -391,13 +396,18 @@ export default function PagosWorkspaceView({
   };
 
   const verLista = !compacto || !detalleMovil;
-  const aplicadoSeleccion = seleccion ? Math.max(0, Number(seleccion.total ?? 0) - Number(seleccion.saldo ?? 0)) : 0;
+  // Lo cancelado como saldo a favor no es una aplicación: se muestra aparte.
+  const { aplicadas: aplicacionesReales, canceladas: saldoCancelado, montoCancelado } = separarAplicaciones(aplicaciones);
+  const consumidoSeleccion = seleccion ? Math.max(0, Number(seleccion.total ?? 0) - Number(seleccion.saldo ?? 0)) : 0;
+  const aplicadoSeleccion = Math.max(0, consumidoSeleccion - montoCancelado);
   const pctSeleccion = seleccion && Number(seleccion.total) > 0
-    ? Math.min(100, (aplicadoSeleccion / Number(seleccion.total)) * 100)
+    ? Math.min(100, (consumidoSeleccion / Number(seleccion.total)) * 100)
     : 0;
   const agotadaSeleccion = Boolean(seleccion) && Number(seleccion?.saldo ?? 0) <= 0 && !esCancelado(seleccion?.estatus_documento);
   const detalleDisponible = !seleccion
     ? ''
+    : montoCancelado > 0 && !esCancelado(seleccion.estatus_documento)
+      ? `Se canceló ${currency.format(montoCancelado)} de saldo a favor`
     : esCancelado(seleccion.estatus_documento)
       ? 'Pago cancelado'
       : agotadaSeleccion
@@ -793,6 +803,12 @@ export default function PagosWorkspaceView({
                 </IconButton>
               </Tooltip>
             )}
+            {/* Cancelar lo por aplicar (pagado o cobrado de más); si no procede, la ventana avisa el motivo. */}
+            <Tooltip title="Registrar ajuste" arrow>
+              <IconButton size="small" aria-label="Registrar ajuste" onClick={() => setAjusteOpen(true)} sx={iconoSx(false)}>
+                <BalanceOutlinedIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
             {editar && botonAccion(editar)}
             {eliminar && botonAccion(eliminar)}
           </Box>
@@ -800,7 +816,7 @@ export default function PagosWorkspaceView({
 
         <Box sx={{ mt: 1.7, display: 'grid', gridTemplateColumns: compacto ? '1fr' : '1fr 1fr 1.15fr', gap: 0.8 }}>
           <Cifra etiqueta="Importe" valor={currency.format(Number(seleccion.total ?? 0))} detalle={Number(seleccion.iva) > 0 ? `IVA ${currency.format(Number(seleccion.iva))}` : 'Sin IVA'} fondo={tokens.metric.amount.background} tinta={tokens.content.foreground} caption={tokens.metric.caption} />
-          <Cifra etiqueta="Aplicado" valor={currency.format(aplicadoSeleccion)} detalle={cargandoAplicaciones ? '' : aplicaciones.length === 0 ? 'Sin aplicaciones' : `${aplicaciones.length} ${aplicaciones.length === 1 ? 'aplicación' : 'aplicaciones'}`} fondo={tokens.metric.applied.background} tinta={tokens.content.foreground} caption={tokens.metric.caption} />
+          <Cifra etiqueta="Aplicado" valor={currency.format(aplicadoSeleccion)} detalle={cargandoAplicaciones ? '' : aplicacionesReales.length === 0 ? 'Sin aplicaciones' : `${aplicacionesReales.length} ${aplicacionesReales.length === 1 ? 'aplicación' : 'aplicaciones'}`} fondo={tokens.metric.applied.background} tinta={tokens.content.foreground} caption={tokens.metric.caption} />
           <Cifra etiqueta="Disponible" valor={currency.format(Number(seleccion.saldo ?? 0))} detalle={detalleDisponible} fondo={tonoDisponible.background} tinta={tokens.content.foreground} caption={tokens.metric.caption} destacado />
         </Box>
         <Box sx={{ mt: 1.1, height: 4, borderRadius: 99, bgcolor: tokens.metric.track, overflow: 'hidden' }}>
@@ -862,21 +878,38 @@ export default function PagosWorkspaceView({
               <Button variant="contained" onClick={() => setDistribucionOpen(true)} sx={{ justifySelf: 'start', textTransform: 'none' }}>
                 Aplicar saldo / administrar aplicaciones
               </Button>
-              {cargandoAplicaciones ? <CircularProgress size={18} /> : aplicaciones.length === 0 ? (
+              {cargandoAplicaciones ? <CircularProgress size={18} /> : aplicacionesReales.length === 0 ? (
                 <TarjetaQuieta
                   titulo="Sin aplicaciones"
                   texto="Las facturas a las que se aplica este pago aparecen aquí. La captura y la distribución se hacen al editar el pago."
                 />
-              ) : aplicaciones.map((aplicacion) => (
+              ) : aplicacionesReales.map((aplicacion) => (
                 <TarjetaDocumento
                   key={aplicacion.id}
-                  folio={formatearFolioDocumento(aplicacion.serie ?? '', aplicacion.numero ?? 0) || 'Documento'}
-                  meta={[formatDate(aplicacion.fecha_aplicacion || aplicacion.fecha_documento), aplicacion.tipo_documento_destino || aplicacion.tipo_documento].filter(Boolean).join(' · ')}
+                  folio={folioDocumento(aplicacion) || 'Documento'}
+                  meta={[formatDate(aplicacion.fecha_aplicacion || aplicacion.fecha_documento), etiquetaTipoDocumento(aplicacion.tipo_documento_destino || aplicacion.tipo_documento)].filter(Boolean).join(' · ')}
                   monto={currency.format(Number(aplicacion.monto_moneda_documento ?? aplicacion.monto ?? 0))}
                   detalle="Aplicación de saldo"
                     accion={undefined}
                   />
               ))}
+              {saldoCancelado.length > 0 && (
+                <>
+                  <Typography sx={{ mt: 1, fontSize: 11, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: tokens.content.muted }}>
+                    Saldo cancelado
+                  </Typography>
+                  {saldoCancelado.map((cancelacion) => (
+                    <TarjetaDocumento
+                      key={cancelacion.id}
+                      folio={folioDocumento(cancelacion) || 'Cancelación'}
+                      meta={formatDate(cancelacion.fecha_aplicacion)}
+                      monto={currency.format(Number(cancelacion.monto_moneda_documento ?? cancelacion.monto ?? 0))}
+                      detalle={cancelacion.observaciones_contraparte?.trim() || 'Saldo a favor cancelado; no se aplicó a ningún documento.'}
+                      accion={undefined}
+                    />
+                  ))}
+                </>
+              )}
             </Box>
           )}
           {tab === 2 && (
@@ -917,6 +950,13 @@ export default function PagosWorkspaceView({
           contactoId={seleccion?.contacto_principal_id}
           tipoPago={tipoDocumento === 'pago_proveedor' ? 'pago_proveedor' : 'pago_cliente'}
           onClose={() => setDistribucionOpen(false)}
+          onSaved={async () => { setAplicacionesVersion((version) => version + 1); await onRefresh?.(); }}
+        />
+        <RegistrarAjusteDialog
+          open={ajusteOpen}
+          factura={seleccion}
+          tipoDocumento={tipoDocumento}
+          onClose={() => setAjusteOpen(false)}
           onSaved={async () => { setAplicacionesVersion((version) => version + 1); await onRefresh?.(); }}
         />
       </Box>

@@ -55,10 +55,9 @@ import { DocumentoHojaViewport } from '../DocumentoHojaFrame';
 import { SeguimientoActividadCell } from '../../crm/SeguimientoActividadCell';
 import {
   useDocumentoDetalleData,
-  ResumenTab,
+  PartidasTab,
   RelacionadosTab,
 } from '../DocumentoDetalleContent';
-import CotizacionPartidasTab from './CotizacionPartidasTab';
 import { elevation } from '../../../theme/elevation';
 
 type StatusOption = { value: string; label: string; color?: string; textColor?: string };
@@ -122,7 +121,7 @@ const SORT_FIELDS: Array<{ field: string; label: string }> = [
   { field: 'total', label: 'Total' },
 ];
 
-const PREVIEW_TAB_LABELS = ['Documento', 'Resumen', 'Partidas', 'Relacionados'];
+const PREVIEW_TAB_LABELS = ['Documento', 'Partidas', 'Relacionados'];
 
 function tonoEstadoComercial(value: unknown): StatusTone {
   switch (normalizeEstadoSeguimiento(value)) {
@@ -765,10 +764,6 @@ function CotizacionWorkspacePanel({
     );
   };
 
-  const documentoResumen = detalle.data?.documento
-    ? { ...detalle.data.documento, saldo: undefined, saldo_registrado: undefined, saldo_suspendido_cancelacion: undefined }
-    : null;
-
   return (
     <>
       <Box sx={{ px: { xs: 1.5, md: 2.75 }, pt: compacto ? 1 : 1.6, pb: 1.4, flexShrink: 0 }}>
@@ -956,18 +951,7 @@ function CotizacionWorkspacePanel({
           ) : detalle.error ? (
             <Alert severity="error">{detalle.error}</Alert>
           ) : !detalle.data ? null : previewTab === 1 ? (
-            <ResumenTab
-              documento={documentoResumen}
-              partidas={detalle.data.partidas}
-              formatter={currency}
-              tipoDocumento="cotizacion"
-              folio={folio}
-              reconciling={false}
-              reconciliationMessage={null}
-              onReconcile={async () => undefined}
-            />
-          ) : previewTab === 2 ? (
-            <CotizacionPartidasTab partidas={detalle.data.partidas} formatter={currency} />
+            <PartidasTab partidas={detalle.data.partidas} documento={detalle.data.documento} />
           ) : (
             <RelacionadosTab documentosRelacionados={detalle.data.documentosRelacionados} formatter={currency} />
           )}

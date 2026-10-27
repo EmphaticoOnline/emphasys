@@ -89,6 +89,8 @@ const nombreDocumento: Record<TipoDocumento, string> = {
   factura_compra: 'factura de compra',
   ajuste_cliente: 'ajuste de saldo cliente',
   ajuste_proveedor: 'ajuste de saldo proveedor',
+  ajuste_favor_cliente: 'cancelación de saldo a favor',
+  ajuste_favor_proveedor: 'cancelación de saldo a favor',
 };
 
 function mensajeSeguroErrorEliminacion(error: unknown, tipo: TipoDocumento): string {
@@ -593,7 +595,7 @@ const buildListarHandler = (tipoPorDefecto: TipoDocumento, forzarTipo = false) =
         },
         aplicaScopeVentas ? scope.agenteId : null
       );
-      return res.json({ data: result.data, total: result.total, page, limit });
+      return res.json({ data: result.data, total: result.total, suma_subtotal: result.suma_subtotal, page, limit });
     }
 
     const data = await listarDocumentosRepository(

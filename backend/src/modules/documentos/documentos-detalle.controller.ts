@@ -49,6 +49,8 @@ export async function obtenerDetalleDocumentoHandler(req: Request, res: Response
         tipo_documento: origen.tipo_documento,
         serie: origen.serie,
         numero: origen.numero,
+        serie_externa: origen.serie_externa ?? null,
+        numero_externo: origen.numero_externo ?? null,
         fecha_documento: origen.fecha_documento,
         estatus_documento: origen.estatus_documento,
         total: Number(origen.total),

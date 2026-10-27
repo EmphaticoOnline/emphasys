@@ -32,6 +32,8 @@ export interface MovimientoEncabezado {
   documento_id: number | null;
   documento_serie?: string | null;
   documento_numero?: number | null;
+  documento_serie_externa?: string | null;
+  documento_numero_externo?: number | null;
   documento_tipo?: string | null;
   documento_estatus?: string | null;
   documento_fecha?: string | null;

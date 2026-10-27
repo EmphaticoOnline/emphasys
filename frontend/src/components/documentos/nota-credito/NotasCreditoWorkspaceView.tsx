@@ -18,7 +18,6 @@ import { useTheme } from '@mui/material/styles';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import AddIcon from '@mui/icons-material/Add';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import SearchIcon from '@mui/icons-material/Search';
 import FilterAltOutlinedIcon from '@mui/icons-material/FilterAltOutlined';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
@@ -28,8 +27,12 @@ import PrintOutlinedIcon from '@mui/icons-material/PrintOutlined';
 import DownloadOutlinedIcon from '@mui/icons-material/DownloadOutlined';
 import NotificationsActiveIcon from '@mui/icons-material/NotificationsActive';
 import CancelIcon from '@mui/icons-material/Cancel';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+import BalanceOutlinedIcon from '@mui/icons-material/BalanceOutlined';
+import RegistrarAjusteDialog from '../aplicaciones/RegistrarAjusteDialog';
+import { separarAplicaciones } from '../aplicaciones/saldoFavor';
 import type { GridContextMenuAction, GridContextMenuActionItem } from '../../grids/GridContextMenu';
 import { WorkspaceRowContextMenu, type WorkspaceContextItem } from '../WorkspaceRowContextMenu';
 import { workspaceRailContactNameSx } from '../workspaceRailStyles';
@@ -40,7 +43,7 @@ import { fetchContactosPaginados } from '../../../services/contactosService';
 import type { AplicacionOperacion, Concepto } from '../../../types/finanzas';
 import type { CotizacionListado, TratamientoImpuestos } from '../../../types/cotizacion';
 import type { TipoDocumento } from '../../../types/documentos.types';
-import { formatearFolioDocumento } from '../../../utils/documentos.utils';
+import { folioDocumento } from '../../../utils/documentos.utils';
 import { estadoVisualDocumento } from '../estadoVisualDocumento';
 import { getStatusToneColor } from '../../status/status.semantics';
 import { elevation } from '../../../theme/elevation';
@@ -48,6 +51,8 @@ import { useBrand } from '../../../theme/brand/useBrand';
 import { FechaInput } from '../../../shared/dates/DateFields';
 
 type Props = {
+  /** Recarga la lista (p. ej. después de cancelar un saldo a favor). */
+  onRefresh?: () => void | Promise<void>;
   rows: CotizacionListado[];
   isLoading: boolean;
   selectedId: number | null;
@@ -191,6 +196,7 @@ function razonTimbrar(row: CotizacionListado): string | null {
 }
 
 export default function NotasCreditoWorkspaceView({
+  onRefresh,
   rows,
   isLoading,
   selectedId,
@@ -199,7 +205,6 @@ export default function NotasCreditoWorkspaceView({
   onSearch,
   onCreate,
   actions,
-  onOpenEstatus,
   tipoDocumento,
   formatFolio,
   formatDate,
@@ -225,6 +230,8 @@ export default function NotasCreditoWorkspaceView({
   const [menuFila, setMenuFila] = useState<{ top: number; left: number; rowId: number } | null>(null);
   const [conceptos, setConceptos] = useState<Concepto[]>([]);
   const [aplicaciones, setAplicaciones] = useState<AplicacionOperacion[]>([]);
+  const [aplicacionesVersion, setAplicacionesVersion] = useState(0);
+  const [ajusteOpen, setAjusteOpen] = useState(false);
   const [cargandoAplicaciones, setCargandoAplicaciones] = useState(false);
 
   const detalle = useDocumentoDetalleData(seleccion?.id ?? null, tipoDocumento, Boolean(seleccion));
@@ -280,7 +287,7 @@ export default function NotasCreditoWorkspaceView({
     return () => {
       cancelado = true;
     };
-  }, [seleccion]);
+  }, [seleccion, aplicacionesVersion]);
 
   const acciones = useMemo(
     () => actions.filter(esAccion).filter((action) => !action.hidden && action.id !== 'ver-detalle'),
@@ -354,14 +361,19 @@ export default function NotasCreditoWorkspaceView({
     if (!conceptoId) return '';
     return conceptos.find((concepto) => concepto.id === conceptoId)?.nombre_concepto?.trim() || '';
   }, [conceptos, detalle.data?.documento?.concepto_id]);
-  const aplicadoSeleccion = seleccion ? Math.max(0, Number(seleccion.total ?? 0) - Number(seleccion.saldo ?? 0)) : 0;
+  // Lo cancelado como saldo a favor no es una aplicación: se muestra aparte.
+  const { aplicadas: aplicacionesReales, canceladas: saldoCancelado, montoCancelado } = separarAplicaciones(aplicaciones);
+  const consumidoSeleccion = seleccion ? Math.max(0, Number(seleccion.total ?? 0) - Number(seleccion.saldo ?? 0)) : 0;
+  const aplicadoSeleccion = Math.max(0, consumidoSeleccion - montoCancelado);
   const pctSeleccion = seleccion && Number(seleccion.total) > 0
-    ? Math.min(100, (aplicadoSeleccion / Number(seleccion.total)) * 100)
+    ? Math.min(100, (consumidoSeleccion / Number(seleccion.total)) * 100)
     : 0;
   const agotadaSeleccion = Boolean(seleccion) && Number(seleccion?.saldo ?? 0) <= 0 && !esCancelada(seleccion?.estatus_documento);
   const aplicarDeshabilitado = Boolean(porId('aplicar-saldo')?.disabled);
   const detalleDisponible = !seleccion
     ? ''
+    : montoCancelado > 0 && !esCancelada(seleccion.estatus_documento)
+      ? `Se canceló ${currency.format(montoCancelado)} de saldo a favor`
     : esCancelada(seleccion.estatus_documento)
       ? 'Nota cancelada'
       : agotadaSeleccion
@@ -376,9 +388,9 @@ export default function NotasCreditoWorkspaceView({
       : Number(seleccion.iva) > 0
         ? `IVA ${currency.format(Number(seleccion.iva))}`
         : '';
-  const detalleAplicado = aplicaciones.length === 0
+  const detalleAplicado = aplicacionesReales.length === 0
     ? (cargandoAplicaciones ? '' : 'Sin aplicaciones')
-    : `${aplicaciones.length} ${aplicaciones.length === 1 ? 'aplicación' : 'aplicaciones'}`;
+    : `${aplicacionesReales.length} ${aplicacionesReales.length === 1 ? 'aplicación' : 'aplicaciones'}`;
   const tonoDisponible = esCancelada(seleccion?.estatus_documento)
     ? tokens.metric.blocked
     : agotadaSeleccion
@@ -699,13 +711,9 @@ export default function NotasCreditoWorkspaceView({
           )}
           <Box sx={{ display: 'flex', gap: 0.7, mt: 1, flexWrap: 'wrap', alignItems: 'center' }}>
             <Pastilla fondo={tokens.metric.amount.background} tinta={tokens.metric.amount.foreground}>{motivoEtiqueta(seleccion.motivo_nc)}</Pastilla>
-            <Pastilla
-              fondo={tokens.content.elevated}
-              tinta={tokens.content.foreground}
-              onClick={(event) => onOpenEstatus(event, seleccion)}
-            >
+            {/* Sólo informativo: la emisión es el botón con palomita, como en Facturas. */}
+            <Pastilla fondo={tokens.content.elevated} tinta={tokens.content.foreground}>
               {estatusEtiqueta(seleccion.estatus_documento)}
-              <ExpandMoreIcon sx={{ fontSize: 16, ml: 0.2 }} />
             </Pastilla>
             {fiscal && (
               <Pastilla fondo={tokens.metric.available.background} tinta={tokens.metric.available.foreground}>
@@ -721,6 +729,7 @@ export default function NotasCreditoWorkspaceView({
           {botonAccion('aplicar-saldo', <LinkIcon fontSize="small" />, 'neutro', null)}
           {botonAccion('ver-pdf', <PrintOutlinedIcon fontSize="small" />, 'neutro', null)}
           {botonAccion('descargar-pdf', <DownloadOutlinedIcon fontSize="small" />, 'neutro', null)}
+          {botonAccion('emitir', <CheckCircleIcon fontSize="small" />, 'neutro', null)}
           {botonAccion(
             'timbrar',
             porId('timbrar')?.icon ?? <NotificationsActiveIcon fontSize="small" />,
@@ -739,6 +748,12 @@ export default function NotasCreditoWorkspaceView({
             null,
             { tooltip: 'Cancelar', ariaLabel: 'Cancelar' },
           )}
+          {/* Cancelar el disponible; si no procede, la ventana avisa el motivo. */}
+          <Tooltip title="Registrar ajuste" arrow>
+            <IconButton size="small" aria-label="Registrar ajuste" onClick={() => setAjusteOpen(true)} sx={iconoSx('neutro', false)}>
+              <BalanceOutlinedIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
           {botonAccion('editar', <EditOutlinedIcon fontSize="small" />, 'neutro', razonEditar(seleccion))}
           {botonAccion('eliminar', <DeleteOutlineIcon fontSize="small" />, 'destructivo', razonEliminar(seleccion))}
         </Box>
@@ -797,7 +812,7 @@ export default function NotasCreditoWorkspaceView({
             )] : origenes.map((doc) => (
               <TarjetaDocumento
                 key={doc.id}
-                folio={formatearFolioDocumento(doc.serie ?? '', doc.numero ?? 0) || doc.tipo_documento}
+                folio={folioDocumento(doc) || doc.tipo_documento}
                 meta={[formatDate(doc.fecha_documento), estatusEtiqueta(doc.estatus_documento)].filter(Boolean).join(' · ')}
                 monto={currency.format(Number(doc.total ?? 0))}
                 detalle={detalleLineas(partidas, doc.id)}
@@ -808,12 +823,12 @@ export default function NotasCreditoWorkspaceView({
                 muted={tokens.content.muted}
               />
             ))}
-            derecha={aplicaciones.length === 0 ? [(
+            derecha={aplicacionesReales.length === 0 ? [(
               <TarjetaQuieta key="sin-aplicaciones" titulo="Sin aplicaciones" texto="El saldo aplicado a otros documentos aparece aquí." borde={tokens.content.border} fondo={tokens.content.card} tinta={tokens.content.foreground} secundaria={tokens.content.secondary} />
-            )] : aplicaciones.map((aplicacion) => (
+            )] : aplicacionesReales.map((aplicacion) => (
               <TarjetaDocumento
                 key={aplicacion.id}
-                folio={formatearFolioDocumento(aplicacion.serie ?? '', aplicacion.numero ?? 0) || 'Documento'}
+                folio={folioDocumento(aplicacion) || 'Documento'}
                 meta={formatDate(aplicacion.fecha_aplicacion)}
                 monto={currency.format(Number(aplicacion.monto_moneda_documento ?? aplicacion.monto ?? 0))}
                 detalle="Aplicación de saldo"
@@ -826,6 +841,29 @@ export default function NotasCreditoWorkspaceView({
             ))}
           />
         )}
+        {pestanas[Math.min(tab, pestanas.length - 1)] === 'Origen y aplicación' && saldoCancelado.length > 0 && (
+          <Box sx={{ mt: 2 }}>
+            <Typography sx={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: tokens.content.muted, px: 0.3, mb: 0.8 }}>
+              Saldo cancelado
+            </Typography>
+            <Box sx={{ display: 'grid', gap: 1, gridTemplateColumns: compacto ? '1fr' : '1fr 1fr' }}>
+              {saldoCancelado.map((cancelacion) => (
+                <TarjetaDocumento
+                  key={cancelacion.id}
+                  folio={folioDocumento(cancelacion) || 'Cancelación'}
+                  meta={formatDate(cancelacion.fecha_aplicacion)}
+                  monto={currency.format(Number(cancelacion.monto_moneda_documento ?? cancelacion.monto ?? 0))}
+                  detalle={cancelacion.observaciones_contraparte?.trim() || 'Saldo a favor cancelado; no se aplicó a ningún documento.'}
+                  borde={tokens.content.border}
+                  fondo={tokens.content.card}
+                  tinta={tokens.content.foreground}
+                  secundaria={tokens.content.secondary}
+                  muted={tokens.content.muted}
+                />
+              ))}
+            </Box>
+          </Box>
+        )}
 
         {muestraPartidas && pestanas[Math.min(tab, pestanas.length - 1)] === tituloPartidas && (
           <Box sx={{ display: 'grid', gap: 1 }}>
@@ -833,7 +871,7 @@ export default function NotasCreditoWorkspaceView({
               <TarjetaQuieta titulo="Sin partidas" texto="Esta nota no tiene partidas." borde={tokens.content.border} fondo={tokens.content.card} tinta={tokens.content.foreground} secundaria={tokens.content.secondary} />
             ) : partidas.map((partida) => {
               const origen = (detalle.data?.documentosRelacionados ?? []).find((doc) => doc.id === Number(partida.documento_origen_id ?? 0));
-              const folioOrigen = origen ? (formatearFolioDocumento(origen.serie ?? '', origen.numero ?? 0) || origen.tipo_documento) : '';
+              const folioOrigen = origen ? (folioDocumento(origen) || origen.tipo_documento) : '';
               const importe = Number(partida.total_partida ?? (Number(partida.cantidad ?? 0) * Number(partida.precio_unitario ?? 0)));
               return (
                 <TarjetaPartida
@@ -908,6 +946,13 @@ export default function NotasCreditoWorkspaceView({
         anchorPosition={menuFila && seleccion && menuFila.rowId === seleccion.id ? { top: menuFila.top, left: menuFila.left } : null}
         items={itemsMenuNota}
         onClose={() => setMenuFila(null)}
+      />
+      <RegistrarAjusteDialog
+        open={ajusteOpen}
+        factura={seleccion}
+        tipoDocumento={tipoDocumento}
+        onClose={() => setAjusteOpen(false)}
+        onSaved={async () => { setAplicacionesVersion((version) => version + 1); await onRefresh?.(); }}
       />
     </Box>
   );

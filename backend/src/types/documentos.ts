@@ -15,4 +15,7 @@ export type TipoDocumento =
   | 'pago_proveedor'
   | 'factura_compra'
   | 'ajuste_cliente'
-  | 'ajuste_proveedor';
+  | 'ajuste_proveedor'
+  // Cancelación de saldo a favor (lo por aplicar de un pago o NC); naturaleza cargo.
+  | 'ajuste_favor_cliente'
+  | 'ajuste_favor_proveedor';

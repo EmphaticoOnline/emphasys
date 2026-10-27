@@ -28,16 +28,17 @@ import type {
   DocumentoDetalleResponse,
   DocumentoRelacionado,
   MovimientoInventarioDocumento,
-  NotaCreditoAplicada,
-  PagoAplicado,
 } from '../../types/documentoDetalle';
 import type { TipoDocumento } from '../../types/documentos.types';
-import { formatearFolioDocumento } from '../../utils/documentos.utils';
+import { formatearFolioDocumento, resolverFolioVisual } from '../../utils/documentos.utils';
 import { getDocumentoTypeConfig, resolveDocumentoTextos } from '../../modules/documentos/documentoTypeConfig';
 import { summarizeDocumentTaxes } from '../../utils/documentTaxSummary';
 import { alertColors } from '../../theme/functional';
 import { neutralColors } from '../../theme/structural';
 import { useBrand } from '../../theme/brand/useBrand';
+
+import PartidasDocumentoTabla, { type TotalesDocumento } from './partidas/PartidasDocumentoTabla';
+import DocumentoRelacionadoCard from './relacionados/DocumentoRelacionadoCard';
 
 export const formatDateShort = (value?: string | null) => {
   if (!value) return '—';
@@ -53,15 +54,32 @@ export const formatDateShort = (value?: string | null) => {
   return `${day}/${month}/${year}`;
 };
 
-export const etiquetaTipoDocumento = (tipo?: string | null): string => {
-  if (!tipo) return 'Documento';
-  const config = getDocumentoTypeConfig(tipo as TipoDocumento);
-  return resolveDocumentoTextos(tipo as TipoDocumento, config).singular || tipo;
+/** Tipos sin configuración de formulario propia (se generan desde otros workspaces). */
+const ETIQUETAS_TIPO_SIN_CONFIG: Record<string, string> = {
+  ajuste_favor_cliente: 'Cancelación de saldo a favor',
+  ajuste_favor_proveedor: 'Cancelación de saldo a favor',
 };
 
-export const folioDe = (serie?: string | null, numero?: number | null): string => {
+export const etiquetaTipoDocumento = (tipo?: string | null): string => {
+  if (!tipo) return 'Documento';
+  const sinConfig = ETIQUETAS_TIPO_SIN_CONFIG[String(tipo).toLowerCase()];
+  if (sinConfig) return sinConfig;
+  const config = getDocumentoTypeConfig(tipo as TipoDocumento);
+  if (config?.label) return config.label;
+  const singular = resolveDocumentoTextos(tipo as TipoDocumento, config).singular || tipo;
+  return singular.charAt(0).toUpperCase() + singular.slice(1);
+};
+
+export const folioDe = (
+  serie?: string | null,
+  numero?: number | null,
+  externo?: { tipo?: string | null | undefined; serie_externa?: string | null | undefined; numero_externo?: number | null | undefined },
+): string => {
   if (numero === null || numero === undefined) return '—';
-  return formatearFolioDocumento(serie || '', numero);
+  // En compras, folio del proveedor con fallback al interno.
+  return externo
+    ? resolverFolioVisual({ serie: serie ?? null, numero, serie_externa: externo.serie_externa ?? null, numero_externo: externo.numero_externo ?? null }, externo.tipo ?? '')
+    : formatearFolioDocumento(serie || '', numero);
 };
 
 export const headerCellSx = {
@@ -198,10 +216,7 @@ export function ResumenTab({
   ];
 
   if (documento.saldo !== null && documento.saldo !== undefined) {
-    campos.push({ label: 'Saldo operativo', value: formatter.format(Number(documento.saldo || 0)) });
-  }
-  if (documento.saldo_registrado !== null && documento.saldo_registrado !== undefined) {
-    campos.push({ label: 'Saldo registrado', value: formatter.format(Number(documento.saldo_registrado || 0)) });
+    campos.push({ label: 'Saldo', value: formatter.format(Number(documento.saldo || 0)) });
   }
   const cancelacionEstado = String(documento.cfdi_cancelacion_estado ?? '').trim().toLowerCase();
   const cancelacionRelevante = Boolean(
@@ -215,6 +230,11 @@ export function ResumenTab({
       ? cancelacionEstado.replaceAll('_', ' ').replace(/^./, (value: string) => value.toUpperCase())
     : '—';
   const proveedor = String(documento.cfdi_cancelacion_proveedor ?? '').trim();
+  // Saldo guardado vs. calculado con las aplicaciones: sólo se avisa si difieren
+  // (durante una cancelación pendiente el saldo se suspende a propósito).
+  const saldoDescuadrado = documento.saldo != null && documento.saldo_registrado != null
+    && !['solicitada', 'pendiente'].includes(cancelacionEstado)
+    && Math.abs(Number(documento.saldo_registrado) - Number(documento.saldo)) > 0.005;
 
   return (
     <Stack spacing={2}>
@@ -239,6 +259,11 @@ export function ResumenTab({
           </Box>
         ))}
       </Box>
+      {saldoDescuadrado ? (
+        <Alert severity="warning">
+          El saldo registrado ({formatter.format(Number(documento.saldo_registrado))}) no coincide con el calculado a partir de sus aplicaciones ({formatter.format(Number(documento.saldo))}).
+        </Alert>
+      ) : null}
       {cancelacionRelevante ? (
         <Box sx={{ border: `1px solid ${alertColors.warning[500]}`, borderRadius: 2, p: 2, bgcolor: alertColors.warning[50] }}>
           <Typography variant="subtitle2" fontWeight={700} color={alertColors.warning[800]} sx={{ mb: 1 }}>
@@ -312,193 +337,37 @@ export function ResumenTab({
   );
 }
 
-export function PartidasTab({ partidas, formatter }: { partidas: DocumentoDetalleResponse['partidas']; formatter: Intl.NumberFormat }) {
+export function PartidasTab({ partidas, documento }: {
+  partidas: DocumentoDetalleResponse['partidas'];
+  /** Totales del documento para el resumen (descuento global, subtotal, total). */
+  documento?: TotalesDocumento | null;
+  formatter?: Intl.NumberFormat;
+}) {
   if (!partidas || partidas.length === 0) return <EmptyState mensaje="Este documento no tiene partidas." />;
 
   return (
-    <TableContainer sx={{ border: `1px solid ${neutralColors.gray[200]}`, borderRadius: 2 }}>
-      <Table size="small">
-        <TableHead>
-          <TableRow>
-            <TableCell sx={headerCellSx}>Clave / Producto</TableCell>
-            <TableCell sx={headerCellSx}>Descripción</TableCell>
-            <TableCell align="right" sx={headerCellSx}>Cantidad</TableCell>
-            <TableCell sx={headerCellSx}>Unidad</TableCell>
-            <TableCell align="right" sx={headerCellSx}>Precio unitario</TableCell>
-            <TableCell align="right" sx={headerCellSx}>Descuento</TableCell>
-            <TableCell align="right" sx={headerCellSx}>Impuestos</TableCell>
-            <TableCell align="right" sx={headerCellSx}>Total</TableCell>
-          </TableRow>
-        </TableHead>
-        <TableBody>
-          {partidas.map((partida: any) => {
-            return (
-              <TableRow key={partida.id}>
-                <TableCell sx={bodyCellSx}>{partida.producto_clave || '—'}</TableCell>
-                <TableCell sx={bodyCellSx}>
-                  {partida.producto_descripcion || partida.descripcion_alterna || '—'}
-                  {Array.isArray(partida.especificaciones) && partida.especificaciones.length ? (
-                    <Box component="ul" sx={{ my: .5, pl: 2.5 }}>
-                      {partida.especificaciones.map((spec: any, index: number) => (
-                        <Typography component="li" variant="caption" color="text.secondary" key={spec.id ?? index} sx={{ whiteSpace: 'pre-wrap' }}>
-                          {spec.contenido}
-                        </Typography>
-                      ))}
-                    </Box>
-                  ) : null}
-                  {partida.observaciones ? (
-                    <Typography variant="caption" display="block" color="text.secondary">
-                      {partida.observaciones}
-                    </Typography>
-                  ) : null}
-                </TableCell>
-                <TableCell align="right" sx={bodyCellSx}>{Number(partida.cantidad || 0)}</TableCell>
-                <TableCell sx={bodyCellSx}>{partida.unidad || '—'}</TableCell>
-                <TableCell align="right" sx={bodyCellSx}>{formatter.format(Number(partida.precio_unitario || 0))}</TableCell>
-                <TableCell align="right" sx={bodyCellSx}>{formatter.format(Number(partida.descuento || 0))}</TableCell>
-                <TableCell align="right" sx={bodyCellSx}>
-                  {Array.isArray(partida.impuestos) && partida.impuestos.length ? (
-                    <Stack spacing={0.25} alignItems="flex-end">
-                      {partida.impuestos.map((impuesto: any) => (
-                        <Typography key={`${impuesto.tipo}:${impuesto.impuesto_id}`} variant="caption" whiteSpace="nowrap">
-                          {impuesto.nombre || impuesto.impuesto_id}: {String(impuesto.tipo ?? '').toLowerCase() === 'retencion' ? '-' : ''}{formatter.format(Number(impuesto.monto || 0))}
-                        </Typography>
-                      ))}
-                    </Stack>
-                  ) : formatter.format(0)}
-                </TableCell>
-                <TableCell align="right" sx={bodyCellSx}>{formatter.format(Number(partida.total_partida || 0))}</TableCell>
-              </TableRow>
-            );
-          })}
-        </TableBody>
-      </Table>
-    </TableContainer>
-  );
-}
-
-export function PagosTab({ pagos, formatter }: { pagos: PagoAplicado[]; formatter: Intl.NumberFormat }) {
-  if (!pagos || pagos.length === 0) return <EmptyState mensaje="Este documento aún no tiene pagos aplicados." />;
-
-  return (
-    <TableContainer sx={{ border: `1px solid ${neutralColors.gray[200]}`, borderRadius: 2 }}>
-      <Table size="small">
-        <TableHead>
-          <TableRow>
-            <TableCell sx={headerCellSx}>Folio del pago</TableCell>
-            <TableCell sx={headerCellSx}>Fecha</TableCell>
-            <TableCell sx={headerCellSx}>Cuenta</TableCell>
-            <TableCell sx={headerCellSx}>Forma de pago</TableCell>
-            <TableCell align="right" sx={headerCellSx}>Importe aplicado</TableCell>
-            <TableCell align="right" sx={headerCellSx}>Saldo insoluto</TableCell>
-            <TableCell sx={headerCellSx}>Estatus</TableCell>
-          </TableRow>
-        </TableHead>
-        <TableBody>
-          {pagos.map((pago) => (
-            <TableRow key={pago.id}>
-              <TableCell sx={bodyCellSx}>{folioDe(pago.documento_pago_serie, pago.documento_pago_numero)}</TableCell>
-              <TableCell sx={bodyCellSx}>{formatDateShort(pago.fecha_pago || pago.fecha_aplicacion)}</TableCell>
-              <TableCell sx={bodyCellSx}>{pago.cuenta_identificador || '—'}</TableCell>
-              <TableCell sx={bodyCellSx}>{pago.metodo_pago_nombre || '—'}</TableCell>
-              <TableCell align="right" sx={bodyCellSx}>{formatter.format(Number(pago.monto_moneda_documento || 0))}</TableCell>
-              <TableCell align="right" sx={bodyCellSx}>
-                {pago.imp_saldo_insoluto !== null && pago.imp_saldo_insoluto !== undefined
-                  ? formatter.format(Number(pago.imp_saldo_insoluto))
-                  : '—'}
-              </TableCell>
-              <TableCell sx={bodyCellSx}>
-                <Chip size="small" label={pago.documento_pago_estatus || '—'} />
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    </TableContainer>
-  );
-}
-
-export const MOTIVO_NC_LABEL: Record<string, string> = {
-  devolucion: 'Devolución',
-  bonificacion: 'Bonificación',
-  otro: 'Otro',
-};
-
-export function NotasCreditoTab({ notasCredito, formatter }: { notasCredito: NotaCreditoAplicada[]; formatter: Intl.NumberFormat }) {
-  if (!notasCredito || notasCredito.length === 0) {
-    return <EmptyState mensaje="Este documento no tiene notas de crédito asociadas." />;
-  }
-
-  return (
-    <TableContainer sx={{ border: `1px solid ${neutralColors.gray[200]}`, borderRadius: 2 }}>
-      <Table size="small">
-        <TableHead>
-          <TableRow>
-            <TableCell sx={headerCellSx}>Folio</TableCell>
-            <TableCell sx={headerCellSx}>Fecha</TableCell>
-            <TableCell sx={headerCellSx}>Motivo</TableCell>
-            <TableCell align="right" sx={headerCellSx}>Total</TableCell>
-            <TableCell align="right" sx={headerCellSx}>Importe aplicado</TableCell>
-            <TableCell sx={headerCellSx}>Estatus</TableCell>
-          </TableRow>
-        </TableHead>
-        <TableBody>
-          {notasCredito.map((nc) => (
-            <TableRow key={nc.id}>
-              <TableCell sx={bodyCellSx}>{folioDe(nc.documento_nc_serie, nc.documento_nc_numero)}</TableCell>
-              <TableCell sx={bodyCellSx}>{formatDateShort(nc.documento_nc_fecha)}</TableCell>
-              <TableCell sx={bodyCellSx}>{nc.motivo_nc ? MOTIVO_NC_LABEL[nc.motivo_nc] ?? nc.motivo_nc : '—'}</TableCell>
-              <TableCell align="right" sx={bodyCellSx}>{formatter.format(Number(nc.documento_nc_total || 0))}</TableCell>
-              <TableCell align="right" sx={bodyCellSx}>{formatter.format(Number(nc.monto_moneda_documento || 0))}</TableCell>
-              <TableCell sx={bodyCellSx}>
-                <Chip size="small" label={nc.documento_nc_estatus || '—'} />
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    </TableContainer>
+    <Box sx={(theme) => ({ border: `1px solid ${theme.emphasys.content.border}`, borderRadius: 2, bgcolor: theme.emphasys.content.card, px: 2, pt: 1.5, pb: 1 })}>
+      <PartidasDocumentoTabla partidas={partidas} totales={documento ?? null} />
+    </Box>
   );
 }
 
 export function RelacionadosTab({
   documentosRelacionados,
-  formatter,
 }: {
   documentosRelacionados: DocumentoRelacionado[];
-  formatter: Intl.NumberFormat;
+  formatter?: Intl.NumberFormat;
 }) {
   if (!documentosRelacionados || documentosRelacionados.length === 0) {
     return <EmptyState mensaje="Este documento no tiene documentos relacionados." />;
   }
 
+  // Una tarjeta por documento, expandida por default: los relacionados de un
+  // documento son pocos y lo útil es ver sus partidas.
   return (
-    <TableContainer sx={{ border: `1px solid ${neutralColors.gray[200]}`, borderRadius: 2 }}>
-      <Table size="small">
-        <TableHead>
-          <TableRow>
-            <TableCell sx={headerCellSx}>Tipo</TableCell>
-            <TableCell sx={headerCellSx}>Folio</TableCell>
-            <TableCell sx={headerCellSx}>Fecha</TableCell>
-            <TableCell sx={headerCellSx}>Estatus</TableCell>
-            <TableCell align="right" sx={headerCellSx}>Total</TableCell>
-          </TableRow>
-        </TableHead>
-        <TableBody>
-          {documentosRelacionados.map((doc) => (
-            <TableRow key={doc.id}>
-              <TableCell sx={bodyCellSx}>{etiquetaTipoDocumento(doc.tipo_documento)}</TableCell>
-              <TableCell sx={bodyCellSx}>{folioDe(doc.serie, doc.numero)}</TableCell>
-              <TableCell sx={bodyCellSx}>{formatDateShort(doc.fecha_documento)}</TableCell>
-              <TableCell sx={bodyCellSx}>
-                <Chip size="small" label={doc.estatus_documento || '—'} />
-              </TableCell>
-              <TableCell align="right" sx={bodyCellSx}>{formatter.format(Number(doc.total || 0))}</TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    </TableContainer>
+    <Stack spacing={1.25}>
+      {documentosRelacionados.map((doc) => <DocumentoRelacionadoCard key={doc.id} doc={doc} />)}
+    </Stack>
   );
 }
 

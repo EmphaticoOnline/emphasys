@@ -40,7 +40,7 @@ import type {
   EstadoCuentaItem,
 } from '../../types/finanzas';
 import type { TipoDocumento } from '../../types/documentos.types';
-import { formatearFolioDocumento } from '../../utils/documentos.utils';
+import { folioDocumento } from '../../utils/documentos.utils';
 import DocumentosFormPage from '../../pages/DocumentosFormPage';
 import { DesaplicarPagoDialog } from './DesaplicarPagoDialog';
 import { loadSession } from '../../session/sessionStorage';
@@ -212,7 +212,7 @@ export function FacturaPagosDrawer({ open, onClose, documentoId, contactoId, sal
         tipoDocumento ? getDocumento(documentoId, tipoDocumento as TipoDocumento) : Promise.resolve(null),
       ]);
       setDocumentoMeta(documentoData ? {
-        folio: formatearFolioDocumento(documentoData.documento?.serie || '', documentoData.documento?.numero || 0),
+        folio: folioDocumento(documentoData.documento ?? {}, tipoDocumento),
         fechaDocumento: documentoData.documento?.fecha_documento || '',
         contactoNombre: String(
           (documentoData.documento as any)?.nombre_cliente ||
@@ -492,7 +492,7 @@ export function FacturaPagosDrawer({ open, onClose, documentoId, contactoId, sal
                   </TableRow>
                 )}
                 {aplicaciones.map((item) => {
-                  const folio = formatearFolioDocumento(item?.serie || '', item?.numero || 0);
+                  const folio = folioDocumento(item ?? {});
                   const tipoRelacionado = item.tipo_documento || item.tipo_documento_origen || item.tipo_documento_destino || 'Documento';
                   const labelRelacionado = etiquetaTipo(tipoRelacionado);
                   return (
@@ -602,7 +602,7 @@ export function FacturaPagosDrawer({ open, onClose, documentoId, contactoId, sal
                         </TableRow>
                       )}
                       {documentosDisponibles.map((item, idx) => {
-                        const folio = formatearFolioDocumento(item?.serie || '', item?.numero || 0);
+                        const folio = folioDocumento(item ?? {});
                         const label = `${etiquetaTipo(item.tipo || 'documento')} ${folio}`.trim();
                         const backgroundColor = idx % 2 === 0 ? rowStripeColors.treasuryDocuments : 'common.white';
                         return (
@@ -718,7 +718,7 @@ export function FacturaPagosDrawer({ open, onClose, documentoId, contactoId, sal
       </Box>
         <DesaplicarPagoDialog
           open={Boolean(desaplicarItem)}
-          pagoFolio={desaplicarItem ? formatearFolioDocumento(desaplicarItem.serie || '', desaplicarItem.numero || 0) : ''}
+          pagoFolio={desaplicarItem ? folioDocumento(desaplicarItem) : ''}
           facturaFolio={documentoMeta?.folio ?? ''}
           importe={formatter.format(Number(desaplicarItem?.monto_moneda_documento ?? 0))}
           loading={deletingAplicacionId !== null}

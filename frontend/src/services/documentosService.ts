@@ -86,6 +86,8 @@ export function getDocumentos(tipo: TipoDocumento, options?: { search?: string |
 export type DocumentosPaginadosResponse = {
   data: CotizacionListado[];
   total: number;
+  /** Suma del subtotal (sin IVA) de todos los documentos filtrados, no sólo de la página. */
+  suma_subtotal?: number;
   page: number;
   limit: number;
 };
@@ -510,4 +512,20 @@ export type TrazabilidadOrdenCompraResponse = {
 
 export function getTrazabilidadOrdenCompra(documentoId: number): Promise<TrazabilidadOrdenCompraResponse> {
   return apiFetch(`/api/documentos/${documentoId}/trazabilidad-orden-compra`);
+}
+
+/** Cuánto de un documento pasó a los documentos generados desde él (por tipo destino). */
+export type AvanceDocumentoResponse = {
+  documento_id: number;
+  tipo_documento: string;
+  cantidad_total: number;
+  importe_total: number;
+  /** Sin impuestos: lo que cuantifica la venta o compra. */
+  subtotal_total: number;
+  destinos: Array<{ tipo_documento: string; documentos: number; cantidad: number; importe: number; subtotal: number }>;
+  partidas: Array<{ partida_id: number; cantidad: number; por_destino: Record<string, number> }>;
+};
+
+export function getAvanceDocumento(documentoId: number, tipoDocumento: string): Promise<AvanceDocumentoResponse> {
+  return apiFetch(`/api/documentos/${documentoId}/avance?tipo_documento=${encodeURIComponent(tipoDocumento)}`);
 }
