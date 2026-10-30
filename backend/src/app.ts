@@ -8,6 +8,7 @@ logRuntimeConfig();
 console.log("CWD runtime:", process.cwd());
 
 import express from "express";
+import compression from "compression";
 import contactosRouter from "./modules/contactos/contactos.routes";
 import empresaDomiciliosRouter from "./modules/contactos/empresa-domicilios.routes";
 import leadsRouter from "./modules/leads/leads.routes";
@@ -77,6 +78,8 @@ import metaLeadsWebhookRouter from "./webhooks/meta-leads.routes";
 const app = express();
 
 app.disable("x-powered-by");
+// Respuestas JSON comprimidas (gzip): los listados grandes pesan una décima parte.
+app.use(compression());
 app.use(express.json());
 // Usuarios cuyo único rol es "Producción": sólo endpoints del módulo de Producción.
 app.use(restringirRolProduccion);

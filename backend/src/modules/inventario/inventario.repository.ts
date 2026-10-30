@@ -24,6 +24,7 @@ export type MovimientoRow = {
   contacto_id: number | null;
   contacto_nombre: string | null;
   contacto_tipo: string | null;
+  referencia: string | null;
 };
 
 export type MovimientoPartidaDetalle = {
@@ -46,8 +47,21 @@ export type MovimientoDetalle = {
   partidas: MovimientoPartidaDetalle[];
 };
 
-export async function listarMovimientosRepository(empresaId: number): Promise<MovimientoRow[]> {
-  const query = `
+export type FiltrosMovimientos = {
+  /** Periodo: año y, opcionalmente, mes (1-12). Se ignora cuando hay texto de búsqueda. */
+  anio?: number | null;
+  mes?: number | null;
+  /** Búsqueda libre en todos los periodos. */
+  texto?: string | null;
+  /** Solo movimientos capturados en inventario (sin documento y que no son reversión). */
+  soloManuales?: boolean;
+  /** Tamaño de página; sin límite trae todo (exportación). */
+  limite?: number | null;
+  /** Cursor: el último renglón de la página anterior (orden fecha DESC, id DESC). */
+  despues?: { fecha: string; id: number } | null;
+};
+
+const SELECT_MOVIMIENTO = `
     SELECT m.id,
            m.serie,
            m.numero,
@@ -70,16 +84,104 @@ export async function listarMovimientosRepository(empresaId: number): Promise<Mo
            d.documento_origen_id,
            COALESCE(m.contacto_id, d.contacto_principal_id) AS contacto_id,
            c.nombre AS contacto_nombre,
-           c.tipo_contacto AS contacto_tipo
+           c.tipo_contacto AS contacto_tipo,
+           m.referencia
+      FROM inventario.movimientos m
+     LEFT JOIN core.usuarios u ON u.id = m.usuario_id
+     LEFT JOIN public.documentos d ON d.id = m.documento_id
+     LEFT JOIN public.contactos c ON c.id = COALESCE(m.contacto_id, d.contacto_principal_id) AND c.empresa_id = m.empresa_id`;
+
+// Folio escrito como "INV-6883", "INV-006883" o "INV6883": serie y número sin ceros a la izquierda.
+function folioBuscado(texto: string): { serie: string; numero: number } | null {
+  const match = texto.trim().match(/^([A-Za-zÑñ]+)\s*-?\s*0*(\d{1,15})$/);
+  return match ? { serie: match[1].toUpperCase(), numero: Number(match[2]) } : null;
+}
+
+function condicionesMovimientos(empresaId: number, filtros: FiltrosMovimientos) {
+  const condiciones = ['m.empresa_id = $1'];
+  const params: unknown[] = [empresaId];
+  const agregar = (valor: unknown) => {
+    params.push(valor);
+    return `$${params.length}`;
+  };
+
+  const texto = filtros.texto?.trim();
+  if (texto) {
+    const patron = agregar(`%${texto.replace(/[\\%_]/g, (c) => `\\${c}`)}%`);
+    const opciones = [`concat_ws(' ', m.id, m.serie || '-' || m.numero, m.tipo_movimiento, m.observaciones,
+                                 m.referencia, u.nombre, c.nombre, d.tipo_documento, d.serie || '-' || d.numero,
+                                 d.serie_externa || '-' || d.numero_externo) ILIKE ${patron}`];
+    const folio = folioBuscado(texto);
+    if (folio) {
+      const serie = agregar(folio.serie);
+      const numero = agregar(folio.numero);
+      opciones.push(`(upper(m.serie) = ${serie} AND m.numero = ${numero})`);
+      opciones.push(`(upper(d.serie) = ${serie} AND d.numero = ${numero})`);
+    }
+    condiciones.push(`(${opciones.join(' OR ')})`);
+  } else if (filtros.anio) {
+    // Rango de fechas (no extract) para que use el índice por empresa y fecha.
+    const desde = filtros.mes ? `${filtros.anio}-${String(filtros.mes).padStart(2, '0')}-01` : `${filtros.anio}-01-01`;
+    const inicio = agregar(desde);
+    condiciones.push(`m.fecha >= ${inicio}::date`);
+    condiciones.push(`m.fecha < ${inicio}::date + ${filtros.mes ? "interval '1 month'" : "interval '1 year'"}`);
+  }
+
+  if (filtros.soloManuales) {
+    condiciones.push('m.documento_id IS NULL AND NOT COALESCE(m.es_reversion, false)');
+  }
+
+  return { condiciones, params, agregar };
+}
+
+export async function listarMovimientosRepository(
+  empresaId: number,
+  filtros: FiltrosMovimientos = {}
+): Promise<MovimientoRow[]> {
+  const { condiciones, params, agregar } = condicionesMovimientos(empresaId, filtros);
+  if (filtros.despues) {
+    const fecha = agregar(filtros.despues.fecha);
+    const id = agregar(filtros.despues.id);
+    condiciones.push(`(m.fecha, m.id) < (${fecha}::date, ${id}::bigint)`);
+  }
+  const limite = filtros.limite ? `LIMIT ${agregar(filtros.limite)}` : '';
+
+  const query = `${SELECT_MOVIMIENTO}
+     WHERE ${condiciones.join(' AND ')}
+     ORDER BY m.fecha DESC, m.id DESC
+     ${limite}
+  `;
+
+  const { rows } = await pool.query<MovimientoRow>(query, params);
+  return rows;
+}
+
+export async function contarMovimientosRepository(empresaId: number, filtros: FiltrosMovimientos = {}): Promise<number> {
+  const { condiciones, params } = condicionesMovimientos(empresaId, filtros);
+  const query = `
+    SELECT count(*)::int AS total
       FROM inventario.movimientos m
      LEFT JOIN core.usuarios u ON u.id = m.usuario_id
      LEFT JOIN public.documentos d ON d.id = m.documento_id
      LEFT JOIN public.contactos c ON c.id = COALESCE(m.contacto_id, d.contacto_principal_id) AND c.empresa_id = m.empresa_id
-     WHERE m.empresa_id = $1
-     ORDER BY m.fecha DESC, m.id DESC
+     WHERE ${condiciones.join(' AND ')}
   `;
+  const { rows } = await pool.query<{ total: number }>(query, params);
+  return rows[0]?.total ?? 0;
+}
 
-  const { rows } = await pool.query<MovimientoRow>(query, [empresaId]);
+export type PeriodoMovimientosRow = { anio: number; mes: number; total: number };
+
+/** Cuántos movimientos hay por año y mes (para el selector de periodo). */
+export async function listarPeriodosMovimientosRepository(empresaId: number): Promise<PeriodoMovimientosRow[]> {
+  const { rows } = await pool.query<PeriodoMovimientosRow>(
+    `SELECT extract(year FROM fecha)::int AS anio, extract(month FROM fecha)::int AS mes, count(*)::int AS total
+       FROM inventario.movimientos
+      WHERE empresa_id = $1
+      GROUP BY 1, 2
+      ORDER BY 1 DESC, 2 DESC`,
+    [empresaId]
+  );
   return rows;
 }
 
@@ -153,7 +255,8 @@ export async function obtenerMovimientoDetalleRepository(id: number, empresaId: 
            d.documento_origen_id,
            COALESCE(m.contacto_id, d.contacto_principal_id) AS contacto_id,
            c.nombre AS contacto_nombre,
-           c.tipo_contacto AS contacto_tipo
+           c.tipo_contacto AS contacto_tipo,
+           m.referencia
       FROM inventario.movimientos m
      LEFT JOIN core.usuarios u ON u.id = m.usuario_id
      LEFT JOIN public.documentos d ON d.id = m.documento_id

@@ -1,6 +1,9 @@
 import pool from '../../config/database';
 import {
   listarMovimientosRepository,
+  contarMovimientosRepository,
+  listarPeriodosMovimientosRepository,
+  FiltrosMovimientos,
   MovimientoRow,
   obtenerMovimientoDetalleRepository,
   MovimientoDetalle,
@@ -910,8 +913,37 @@ export async function eliminarMovimientoManualDesafectado(movimientoId: number, 
   finally { client.release(); }
 }
 
-export async function listarMovimientos(empresaId: number): Promise<MovimientoRow[]> {
-  return listarMovimientosRepository(empresaId);
+export async function listarMovimientos(empresaId: number, filtros: FiltrosMovimientos = {}): Promise<MovimientoRow[]> {
+  return listarMovimientosRepository(empresaId, filtros);
+}
+
+// pg entrega las columnas date como Date a medianoche local; el cursor necesita la fecha civil AAAA-MM-DD.
+function fechaCivilCursor(valor: unknown): string {
+  if (valor instanceof Date) {
+    const mes = String(valor.getMonth() + 1).padStart(2, '0');
+    const dia = String(valor.getDate()).padStart(2, '0');
+    return `${valor.getFullYear()}-${mes}-${dia}`;
+  }
+  return String(valor).slice(0, 10);
+}
+
+/**
+ * Una página del listado. Se pide un renglón de más para saber si hay otra página; el cursor es el último
+ * renglón entregado. El total solo se calcula en la primera página.
+ */
+export async function listarMovimientosPagina(empresaId: number, filtros: FiltrosMovimientos & { limite: number }) {
+  const filas = await listarMovimientosRepository(empresaId, { ...filtros, limite: filtros.limite + 1 });
+  const items = filas.slice(0, filtros.limite);
+  const ultimo = items[items.length - 1];
+  const siguiente = filas.length > filtros.limite && ultimo
+    ? { fecha: fechaCivilCursor(ultimo.fecha), id: Number(ultimo.id) }
+    : null;
+  const total = filtros.despues ? null : await contarMovimientosRepository(empresaId, filtros);
+  return { items, siguiente, total };
+}
+
+export async function listarPeriodosMovimientos(empresaId: number) {
+  return listarPeriodosMovimientosRepository(empresaId);
 }
 
 export async function obtenerMovimientoDetalle(id: number, empresaId: number): Promise<MovimientoDetalle | null> {

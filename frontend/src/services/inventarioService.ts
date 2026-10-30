@@ -2,8 +2,10 @@ import { apiFetch, apiFetchBlob, triggerBlobDownload } from './apiFetch';
 import type {
   Almacen,
   CrearMovimientoManualPayload,
-  MovimientoListadoItem,
+  FiltrosMovimientos,
+  MovimientosPagina,
   MovimientoDetalle,
+  PeriodoMovimientos,
 } from '../types/inventario';
 
 // Nota: actualmente no existe router de inventario expuesto en backend (no hay /api/inventario en app.ts).
@@ -18,8 +20,25 @@ export async function crearMovimientoManual(payload: CrearMovimientoManualPayloa
   });
 }
 
-export async function listarMovimientos(): Promise<MovimientoListadoItem[]> {
-  return apiFetch(`${BASE_URL}/movimientos`);
+export async function listarMovimientos(filtros: FiltrosMovimientos = {}): Promise<MovimientosPagina> {
+  const qs = new URLSearchParams();
+  const q = filtros.q?.trim();
+  if (q) qs.set('q', q);
+  else if (filtros.anio) {
+    qs.set('anio', String(filtros.anio));
+    if (filtros.mes) qs.set('mes', String(filtros.mes));
+  }
+  if (filtros.soloManuales) qs.set('solo_manuales', '1');
+  if (filtros.limite) qs.set('limite', String(filtros.limite));
+  if (filtros.despues) {
+    qs.set('despues_fecha', filtros.despues.fecha);
+    qs.set('despues_id', String(filtros.despues.id));
+  }
+  return apiFetch(`${BASE_URL}/movimientos?${qs.toString()}`);
+}
+
+export async function listarPeriodosMovimientos(): Promise<PeriodoMovimientos[]> {
+  return apiFetch(`${BASE_URL}/movimientos/periodos`);
 }
 
 export async function obtenerMovimientoDetalle(id: number): Promise<MovimientoDetalle> {

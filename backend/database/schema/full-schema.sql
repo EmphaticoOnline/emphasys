@@ -1,11 +1,11 @@
 -- Full schema export
 -- Database: emphasys
--- Generated at: 2026-10-30T23:18:28.452Z
+-- Generated at: 2026-10-30T23:45:57.391Z
 --
 -- PostgreSQL database dump
 --
 
-\restrict wNsOEXhldGZ9o28yvhPWtZZvtaJhojA4E5fddIScPBIzLae5DTAhp3hLcjuafdx
+\restrict LHxKcf2GkjHlEc3GApzK61CJlKPaI38mQrI5aThZdW9nvEc6GGbM4SfSQi5FEyH
 
 -- Dumped from database version 14.24 (Ubuntu 14.24-0ubuntu0.22.04.1)
 -- Dumped by pg_dump version 18.0
@@ -25239,6 +25239,13 @@ CREATE INDEX ix_inv_mov_empresa_estatus_fecha ON inventario.movimientos USING bt
 
 
 --
+-- Name: ix_inv_mov_empresa_fecha_id; Type: INDEX; Schema: inventario; Owner: -
+--
+
+CREATE INDEX ix_inv_mov_empresa_fecha_id ON inventario.movimientos USING btree (empresa_id, fecha DESC, id DESC);
+
+
+--
 -- Name: ix_inventario_movimientos_contacto_id; Type: INDEX; Schema: inventario; Owner: -
 --
 
@@ -30116,5 +30123,5 @@ ALTER TABLE ONLY whatsapp.plantillas
 -- PostgreSQL database dump complete
 --
 
-\unrestrict wNsOEXhldGZ9o28yvhPWtZZvtaJhojA4E5fddIScPBIzLae5DTAhp3hLcjuafdx
+\unrestrict LHxKcf2GkjHlEc3GApzK61CJlKPaI38mQrI5aThZdW9nvEc6GGbM4SfSQi5FEyH
 

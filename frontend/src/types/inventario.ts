@@ -41,9 +41,35 @@ export interface MovimientoEncabezado {
   contacto_id?: number | null;
   contacto_nombre?: string | null;
   contacto_tipo?: string | null;
+  referencia?: string | null;
 }
 
 export type MovimientoListadoItem = MovimientoEncabezado;
+
+export interface FiltrosMovimientos {
+  anio?: number | null;
+  /** 1-12; vacío = todo el año. */
+  mes?: number | null;
+  /** Búsqueda en todos los periodos (el backend ignora anio y mes). */
+  q?: string | null;
+  soloManuales?: boolean;
+  limite?: number;
+  despues?: { fecha: string; id: number } | null;
+}
+
+export interface MovimientosPagina {
+  items: MovimientoListadoItem[];
+  /** Cursor para pedir la siguiente página; null si ya no hay más. */
+  siguiente: { fecha: string; id: number } | null;
+  /** Total con estos filtros (solo en la primera página). */
+  total: number | null;
+}
+
+export interface PeriodoMovimientos {
+  anio: number;
+  mes: number;
+  total: number;
+}
 
 export interface MovimientoPartidaDetalle {
   id: number;

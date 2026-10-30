@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { memo, useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert,
   Box,
@@ -43,8 +43,10 @@ import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import RemoveCircleOutlineIcon from '@mui/icons-material/RemoveCircleOutline';
 import { useLocation, useNavigate } from 'react-router-dom';
 
-import type { MovimientoDetalle, MovimientoEncabezado, MovimientoListadoItem, MovimientoPartidaDetalle } from '../types/inventario';
-import { afectarMovimiento, desafectarMovimiento, eliminarMovimiento, exportarMovimientos, listarMovimientos, obtenerMovimientoDetalle } from '../services/inventarioService';
+import type { MovimientoDetalle, MovimientoEncabezado, MovimientoListadoItem, MovimientoPartidaDetalle, MovimientosPagina, PeriodoMovimientos } from '../types/inventario';
+import { afectarMovimiento, desafectarMovimiento, eliminarMovimiento, exportarMovimientos, listarMovimientos, listarPeriodosMovimientos, obtenerMovimientoDetalle } from '../services/inventarioService';
+import PeriodoSelector from '../components/PeriodoSelector';
+import { etiquetaPeriodo, periodoActual, ultimoPeriodoConDatos, type Periodo } from '../components/periodoSelector.utils';
 import { fetchParametrosSistema } from '../services/parametrosService';
 import { getDocumentoTypeConfig } from '../modules/documentos/documentoTypeConfig';
 import type { TipoDocumento } from '../types/documentos.types';
@@ -54,20 +56,8 @@ import { elevation } from '../theme/elevation';
 import { inventoryAffectationColors } from '../theme/functional';
 import { useBrand } from '../theme/brand/useBrand';
 
-const MESES = [
-  { value: '01', label: 'Enero' },
-  { value: '02', label: 'Febrero' },
-  { value: '03', label: 'Marzo' },
-  { value: '04', label: 'Abril' },
-  { value: '05', label: 'Mayo' },
-  { value: '06', label: 'Junio' },
-  { value: '07', label: 'Julio' },
-  { value: '08', label: 'Agosto' },
-  { value: '09', label: 'Septiembre' },
-  { value: '10', label: 'Octubre' },
-  { value: '11', label: 'Noviembre' },
-  { value: '12', label: 'Diciembre' },
-] as const;
+// Movimientos por página; al llegar al final de la lista se pide la siguiente.
+const TAMANO_PAGINA = 100;
 
 const EXPORT_COLUMNS = [
   { field: 'fecha', headerName: 'Fecha' },
@@ -210,23 +200,6 @@ function numeroRecibido(value: number | string | null | undefined): number | nul
   return Number.isFinite(numero) ? numero : null;
 }
 
-function textoBusqueda(movimiento: MovimientoListadoItem): string {
-  const folio = folioDocumento(movimiento);
-  return [
-    movimiento.id,
-    movimiento.tipo_movimiento,
-    movimiento.observaciones,
-    movimiento.usuario_nombre,
-    movimiento.usuario_id,
-    movimiento.contacto_nombre,
-    movimiento.documento_id,
-    movimiento.documento_tipo,
-    folio,
-    movimiento.documento_serie,
-    movimiento.documento_numero,
-  ].filter((parte) => parte != null && String(parte).trim() !== '').join(' ').toLowerCase();
-}
-
 function nombreAlmacen(nombre: string | null | undefined, id: number | null | undefined): string | null {
   const limpio = String(nombre ?? '').trim();
   if (limpio) return limpio;
@@ -241,6 +214,95 @@ function celdaAlmacen(partida: MovimientoPartidaDetalle): string {
   return origen ?? destino ?? '—';
 }
 
+// Tarjeta del listado, memorizada: al seleccionar otra solo se vuelven a pintar las dos que cambian.
+const TarjetaMovimiento = memo(function TarjetaMovimiento({
+  movimiento,
+  selected,
+  ultimo,
+  onElegir,
+}: {
+  movimiento: MovimientoListadoItem;
+  selected: boolean;
+  ultimo: boolean;
+  onElegir: (id: number | string) => void;
+}) {
+  const tokens = useTheme().emphasys;
+  const folio = folioDocumento(movimiento);
+  const origen = origenModulo(movimiento);
+  const OrigenIcon = origen ? ORIGEN_VISUAL[origen].Icon : null;
+  return (
+        <Box>
+          <Box
+            data-movimiento-id={movimiento.id}
+            onClick={() => onElegir(movimiento.id)}
+            sx={{
+              minWidth: 0,
+              maxWidth: '100%',
+              overflow: 'hidden',
+              px: 1.15,
+              py: 1.05,
+              borderRadius: 2,
+              cursor: 'pointer',
+              bgcolor: selected ? tokens.navigation.selection : 'transparent',
+              color: selected ? tokens.navigation.selectionForeground : tokens.navigation.foreground,
+              boxShadow: selected ? elevation.railSelection : 'none',
+              '&:hover': { bgcolor: selected ? tokens.navigation.selection : tokens.navigation.hover },
+            }}
+          >
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, alignItems: 'center', minWidth: 0 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.55, minWidth: 0 }}>
+                {origen && OrigenIcon ? (
+                  <Tooltip title={ORIGEN_VISUAL[origen].tooltip}>
+                    <Box component="span" sx={{ display: 'inline-flex', flexShrink: 0, color: 'inherit', lineHeight: 0 }}>
+                      <OrigenIcon sx={{ fontSize: 17 }} aria-label={ORIGEN_VISUAL[origen].tooltip} />
+                    </Box>
+                  </Tooltip>
+                ) : null}
+                <Typography variant="figure" sx={{ fontSize: 16, color: 'inherit', lineHeight: 1.1, minWidth: 0 }}>
+                  {movimiento.serie && movimiento.numero != null ? formatearFolioDocumento(movimiento.serie, Number(movimiento.numero)) : `#${movimiento.id}`}
+                </Typography>
+              </Box>
+              <Typography sx={{ fontSize: 11, flexShrink: 0, color: selected ? tokens.navigation.selectionForeground : tokens.navigation.muted }}>
+                {formatoFecha(movimiento.fecha)}
+              </Typography>
+            </Box>
+            <Typography sx={{ fontSize: 11.5, fontWeight: 700, mt: 0.35, color: 'inherit', lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {etiquetaTipo(movimiento.tipo_movimiento)}
+            </Typography>
+            <Typography variant="figure" sx={{
+              fontSize: 14,
+              mt: 0.25,
+              color: tokens.navigation.foreground,
+              lineHeight: 1.25,
+              display: '-webkit-box',
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: 'vertical',
+              overflow: 'hidden',
+              overflowWrap: 'anywhere',
+              wordBreak: 'break-word',
+              maxWidth: '100%',
+            }}>
+              {lineaTarjeta(movimiento.contacto_nombre, movimiento.observaciones || movimiento.referencia)}
+            </Typography>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 1, mt: 0.45, minWidth: 0 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6, minWidth: 0 }}>
+                <Box component="span" aria-label={movimiento.estatus_afectacion === 1 ? 'Afectada' : 'Desafectada'} sx={{ width: 7, height: 7, borderRadius: '50%', bgcolor: movimiento.estatus_afectacion === 1 ? inventoryAffectationColors.applied : inventoryAffectationColors.reverted, flexShrink: 0 }} />
+                <Typography sx={{ fontSize: 12, color: tokens.navigation.foreground, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {movimiento.usuario_nombre?.trim() || 'Sin usuario'}
+                </Typography>
+              </Box>
+              <Typography sx={{ fontSize: 11, color: tokens.navigation.muted, textAlign: 'right', flexShrink: 0, maxWidth: '46%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {folio ?? ''}
+              </Typography>
+            </Box>
+          </Box>
+          {!ultimo && (
+            <Box aria-hidden sx={{ mx: 1.15, borderTop: `1px solid ${tokens.navigation.track}` }} />
+          )}
+        </Box>
+  );
+});
+
 export default function InventarioMovimientosPage() {
   const { brandElevation } = useBrand();
   const navigate = useNavigate();
@@ -253,6 +315,10 @@ export default function InventarioMovimientosPage() {
   const [listLoading, setListLoading] = useState(false);
   const [listError, setListError] = useState<string | null>(null);
   const [cargaLista, setCargaLista] = useState(0);
+  const [siguiente, setSiguiente] = useState<MovimientosPagina['siguiente']>(null);
+  const [total, setTotal] = useState<number | null>(null);
+  const [cargandoMas, setCargandoMas] = useState(false);
+  const [conteos, setConteos] = useState<PeriodoMovimientos[]>([]);
 
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [detalleMovil, setDetalleMovil] = useState(false);
@@ -261,8 +327,10 @@ export default function InventarioMovimientosPage() {
   const [detalleError, setDetalleError] = useState<string | null>(null);
 
   const [texto, setTexto] = useState('');
-  const [anio, setAnio] = useState('');
-  const [mes, setMes] = useState('');
+  // Texto que ya se mandó al servidor (con una espera para no consultar en cada tecla).
+  const [busqueda, setBusqueda] = useState('');
+  // Por omisión, el mes en curso. La búsqueda ignora el periodo: busca en todos.
+  const [periodo, setPeriodo] = useState<Periodo>(() => periodoActual());
   const [soloAjustes, setSoloAjustes] = useState(false);
   const [anclaFiltro, setAnclaFiltro] = useState<HTMLElement | null>(null);
 
@@ -274,6 +342,12 @@ export default function InventarioMovimientosPage() {
   const [eliminarId, setEliminarId] = useState<number | null>(null);
   const focoPendiente = useRef<number | null>(null);
   const listaRef = useRef<HTMLDivElement | null>(null);
+  const finListaRef = useRef<HTMLDivElement | null>(null);
+  // Cada carga lleva un número; una respuesta vieja (filtros ya cambiados) se descarta.
+  const solicitudRef = useRef(0);
+  // Mientras se ubica el mes de un movimiento recién guardado: número de carga a partir del cual ya es
+  // la lista correcta (Infinity = aún no se sabe el mes). null = no se espera nada.
+  const esperandoPeriodo = useRef<number | null>(null);
 
   useEffect(() => {
     const state = location.state as { snackbar?: { message?: string; severity?: 'success' | 'error' }; movimientoId?: number } | null;
@@ -292,6 +366,23 @@ export default function InventarioMovimientosPage() {
       focoPendiente.current = movimientoId;
       setSelectedId(movimientoId);
       if (compacto) setDetalleMovil(true);
+      // Mostrar el mes del movimiento recién guardado para que aparezca en la lista. Mientras llega,
+      // la selección espera (no salta al primer renglón del mes anterior).
+      esperandoPeriodo.current = Number.POSITIVE_INFINITY;
+      void obtenerMovimientoDetalle(movimientoId).then((data) => {
+        const civil = fechaCivil(data.movimiento.fecha);
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(civil)) {
+          esperandoPeriodo.current = null;
+          return;
+        }
+        // La carga que dispare este cambio de periodo es la primera que cuenta.
+        esperandoPeriodo.current = solicitudRef.current;
+        setTexto('');
+        setBusqueda('');
+        setPeriodo({ anio: Number(civil.slice(0, 4)), mes: Number(civil.slice(5, 7)) });
+      }).catch(() => {
+        esperandoPeriodo.current = null;
+      });
     }
     navigate(location.pathname, { replace: true, state: null });
   }, [compacto, location.pathname, location.state, navigate]);
@@ -314,66 +405,91 @@ export default function InventarioMovimientosPage() {
     return formatted;
   };
 
-  const anios = useMemo(() => {
-    const encontrados = new Set<string>();
-    movimientos.forEach((movimiento) => {
-      const civil = fechaCivil(movimiento.fecha);
-      if (/^\d{4}-\d{2}-\d{2}$/.test(civil)) encontrados.add(civil.slice(0, 4));
-    });
-    return Array.from(encontrados).sort((a, b) => b.localeCompare(a));
-  }, [movimientos]);
+  // La lista ya llega filtrada y ordenada del servidor.
+  const filtrados = movimientos;
+  const buscando = busqueda !== '';
+  const criteriosFiltro = soloAjustes ? 1 : 0;
+  const ultimoConDatos = ultimoPeriodoConDatos(conteos);
 
-  const filtrados = useMemo(() => {
-    const consulta = texto.trim().toLowerCase();
-    return movimientos.filter((movimiento) => {
-      const civil = fechaCivil(movimiento.fecha);
-      if (anio && !civil.startsWith(anio)) return false;
-      if (mes && civil.slice(5, 7) !== mes) return false;
-      if (soloAjustes && String(movimiento.tipo_movimiento ?? '').trim().toLowerCase() !== 'ajuste') return false;
-      if (consulta && !textoBusqueda(movimiento).includes(consulta)) return false;
-      return true;
-    });
-  }, [movimientos, texto, anio, mes, soloAjustes]);
+  useEffect(() => {
+    const espera = window.setTimeout(() => setBusqueda(texto.trim()), 300);
+    return () => window.clearTimeout(espera);
+  }, [texto]);
 
-  const criteriosFiltro = (anio ? 1 : 0) + (mes ? 1 : 0) + (soloAjustes ? 1 : 0);
+  const filtrosActuales = useCallback(() => ({
+    q: busqueda || null,
+    anio: periodo.anio,
+    mes: periodo.mes,
+    soloManuales: soloAjustes,
+    limite: TAMANO_PAGINA,
+  }), [busqueda, periodo, soloAjustes]);
 
-  const cargarMovimientos = async () => {
+  const cargarMovimientos = useCallback(async () => {
+    const solicitud = ++solicitudRef.current;
     try {
       setListLoading(true);
-      const data = await listarMovimientos();
-      setMovimientos(data);
+      const [pagina, periodos] = await Promise.all([listarMovimientos(filtrosActuales()), listarPeriodosMovimientos()]);
+      if (solicitud !== solicitudRef.current) return;
+      setMovimientos(pagina.items);
+      setSiguiente(pagina.siguiente);
+      setTotal(pagina.total);
+      setConteos(periodos);
       setListError(null);
+      if (esperandoPeriodo.current != null && solicitud > esperandoPeriodo.current) esperandoPeriodo.current = null;
       setCargaLista((actual) => actual + 1);
+      listaRef.current?.scrollTo({ top: 0 });
     } catch (err) {
-      setListError(err instanceof Error ? err.message : 'No se pudo cargar el historial');
+      if (solicitud === solicitudRef.current) setListError(err instanceof Error ? err.message : 'No se pudo cargar el historial');
     } finally {
-      setListLoading(false);
+      if (solicitud === solicitudRef.current) setListLoading(false);
     }
-  };
+  }, [filtrosActuales]);
+
+  const cargarMas = useCallback(async () => {
+    if (!siguiente || cargandoMas) return;
+    const solicitud = solicitudRef.current;
+    setCargandoMas(true);
+    try {
+      const pagina = await listarMovimientos({ ...filtrosActuales(), despues: siguiente });
+      if (solicitud !== solicitudRef.current) return;
+      setMovimientos((actuales) => [...actuales, ...pagina.items]);
+      setSiguiente(pagina.siguiente);
+    } catch (err) {
+      setSnackbar({ open: true, message: err instanceof Error ? err.message : 'No se pudieron cargar más movimientos', severity: 'error' });
+    } finally {
+      setCargandoMas(false);
+    }
+  }, [cargandoMas, filtrosActuales, siguiente]);
 
   useEffect(() => {
     void cargarMovimientos();
-  }, []);
+  }, [cargarMovimientos]);
+
+  // Al asomarse el final de la lista, se pide la siguiente página.
+  useEffect(() => {
+    const fin = finListaRef.current;
+    if (!fin || !siguiente) return;
+    const observador = new IntersectionObserver((entradas) => {
+      if (entradas.some((e) => e.isIntersecting)) void cargarMas();
+    }, { root: listaRef.current, rootMargin: '200px' });
+    observador.observe(fin);
+    return () => observador.disconnect();
+  }, [cargarMas, siguiente]);
 
   useEffect(() => {
-    const cargaTerminada = !listLoading && cargaLista > 0;
+    const cargaTerminada = !listLoading && cargaLista > 0 && esperandoPeriodo.current == null;
     const decision = decidirSeleccionMovimiento({
       pendiente: focoPendiente.current,
       selectedId,
       movimientos,
       filtrados,
       cargaTerminada,
-      hayFiltros: Boolean(texto || anio || mes || soloAjustes),
+      // Los filtros ya los aplicó el servidor: lo cargado es lo visible.
+      hayFiltros: false,
     });
     focoPendiente.current = decision.pendiente;
-    if (decision.limpiarFiltros) {
-      setTexto('');
-      setAnio('');
-      setMes('');
-      setSoloAjustes(false);
-    }
     setSelectedId((actual) => (idsIguales(actual, decision.selectedId) ? actual : decision.selectedId));
-  }, [anio, cargaLista, filtrados, listLoading, mes, movimientos, selectedId, soloAjustes, texto]);
+  }, [cargaLista, filtrados, listLoading, movimientos, selectedId]);
 
   useEffect(() => {
     if (listLoading || selectedId == null) return;
@@ -465,10 +581,11 @@ export default function InventarioMovimientosPage() {
   const puedeDesafectar = movimientoManual && encabezado?.estatus_afectacion === 1;
   const verLista = !compacto || !detalleMovil;
 
-  const elegir = (id: number | string) => {
+  // Estable para que las tarjetas memorizadas no se vuelvan a pintar al seleccionar.
+  const elegir = useCallback((id: number | string) => {
     setSelectedId(Number(id));
     if (compacto) setDetalleMovil(true);
-  };
+  }, [compacto]);
 
   const iconoRailSx = {
     width: 34,
@@ -540,11 +657,9 @@ export default function InventarioMovimientosPage() {
                 MOVIMIENTOS
               </Typography>
               <Typography sx={{ mt: 0.35, fontSize: 13, color: tokens.navigation.subtle }} noWrap>
-                {listLoading && movimientos.length === 0
+                {listLoading && total == null
                   ? 'Cargando…'
-                  : filtrados.length === movimientos.length
-                    ? `${filtrados.length} en vista`
-                    : `${filtrados.length} de ${movimientos.length}`}
+                  : `${(total ?? movimientos.length).toLocaleString('es-MX')} ${buscando ? 'en todos los periodos' : `en ${etiquetaPeriodo(periodo)}`}`}
               </Typography>
             </Box>
             <Stack direction="row" spacing={0.6} alignItems="center">
@@ -582,10 +697,20 @@ export default function InventarioMovimientosPage() {
             </Stack>
           </Box>
 
-          <Stack direction="row" spacing={0.7} alignItems="center" sx={{ mt: 1.35 }}>
+          <Box sx={{ mt: 1.35 }}>
+            <PeriodoSelector
+              value={periodo}
+              onChange={setPeriodo}
+              conteos={conteos}
+              disabled={buscando}
+              textoDeshabilitado="Buscando en todos los periodos"
+            />
+          </Box>
+
+          <Stack direction="row" spacing={0.7} alignItems="center" sx={{ mt: 0.9 }}>
             <TextField
               size="small"
-              placeholder="Buscar folio, usuario, motivo…"
+              placeholder="Buscar en todos los periodos…"
               value={texto}
               onChange={(event) => setTexto(event.target.value)}
               InputProps={{
@@ -664,32 +789,6 @@ export default function InventarioMovimientosPage() {
         >
           <Typography sx={{ fontSize: 12, fontWeight: 800, letterSpacing: '0.08em', color: tokens.content.muted }}>FILTROS</Typography>
           <Box sx={{ display: 'grid', gap: 1.1, mt: 1.2 }}>
-            <TextField
-              select
-              size="small"
-              label="Año"
-              value={anio}
-              onChange={(event) => setAnio(event.target.value)}
-              SelectProps={{ native: true }}
-              InputLabelProps={{ shrink: true }}
-              sx={campoFiltroSx}
-            >
-              <option value="">Todos</option>
-              {anios.map((valor) => <option key={valor} value={valor}>{valor}</option>)}
-            </TextField>
-            <TextField
-              select
-              size="small"
-              label="Mes"
-              value={mes}
-              onChange={(event) => setMes(event.target.value)}
-              SelectProps={{ native: true }}
-              InputLabelProps={{ shrink: true }}
-              sx={campoFiltroSx}
-            >
-              <option value="">Todos</option>
-              {MESES.map((valor) => <option key={valor.value} value={valor.value}>{valor.label}</option>)}
-            </TextField>
             <Box
               component="label"
               sx={{ display: 'flex', alignItems: 'center', gap: 0.4, cursor: 'pointer', color: tokens.content.foreground }}
@@ -700,7 +799,7 @@ export default function InventarioMovimientosPage() {
                 onChange={(event) => setSoloAjustes(event.target.checked)}
                 sx={{ p: 0.4, color: tokens.content.muted, '&.Mui-checked': { color: tokens.content.foreground } }}
               />
-              <Typography sx={{ fontSize: 13, fontWeight: 650 }}>Solo ajustes</Typography>
+              <Typography sx={{ fontSize: 13, fontWeight: 650 }}>Solo ajustes manuales</Typography>
             </Box>
           </Box>
         </Popover>
@@ -719,87 +818,39 @@ export default function InventarioMovimientosPage() {
         }}>
           {listLoading && movimientos.length === 0 ? (
             <Stack alignItems="center" py={4}><CircularProgress size={24} sx={{ color: tokens.navigation.foreground }} /></Stack>
-          ) : filtrados.length === 0 ? (
-            <Typography sx={{ px: 1.5, py: 3, fontSize: 13, color: tokens.navigation.muted, textAlign: 'center' }}>
-              {texto || criteriosFiltro > 0 ? 'Ningún movimiento coincide con la búsqueda.' : 'No hay movimientos registrados aún.'}
-            </Typography>
-          ) : filtrados.map((movimiento, indice) => {
-            const selected = idsIguales(movimiento.id, selectedId);
-            const folio = folioDocumento(movimiento);
-            const origen = origenModulo(movimiento);
-            const OrigenIcon = origen ? ORIGEN_VISUAL[origen].Icon : null;
-            return (
-              <Box key={movimiento.id}>
-                <Box
-                  data-movimiento-id={movimiento.id}
-                  onClick={() => elegir(movimiento.id)}
-                  sx={{
-                    minWidth: 0,
-                    maxWidth: '100%',
-                    overflow: 'hidden',
-                    px: 1.15,
-                    py: 1.05,
-                    borderRadius: 2,
-                    cursor: 'pointer',
-                    bgcolor: selected ? tokens.navigation.selection : 'transparent',
-                    color: selected ? tokens.navigation.selectionForeground : tokens.navigation.foreground,
-                    boxShadow: selected ? elevation.railSelection : 'none',
-                    '&:hover': { bgcolor: selected ? tokens.navigation.selection : tokens.navigation.hover },
-                  }}
-                >
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1, alignItems: 'center', minWidth: 0 }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.55, minWidth: 0 }}>
-                      {origen && OrigenIcon ? (
-                        <Tooltip title={ORIGEN_VISUAL[origen].tooltip}>
-                          <Box component="span" sx={{ display: 'inline-flex', flexShrink: 0, color: 'inherit', lineHeight: 0 }}>
-                            <OrigenIcon sx={{ fontSize: 17 }} aria-label={ORIGEN_VISUAL[origen].tooltip} />
-                          </Box>
-                        </Tooltip>
-                      ) : null}
-                      <Typography variant="figure" sx={{ fontSize: 16, color: 'inherit', lineHeight: 1.1, minWidth: 0 }}>
-                        {movimiento.serie && movimiento.numero != null ? formatearFolioDocumento(movimiento.serie, Number(movimiento.numero)) : `#${movimiento.id}`}
-                      </Typography>
-                    </Box>
-                    <Typography sx={{ fontSize: 11, flexShrink: 0, color: selected ? tokens.navigation.selectionForeground : tokens.navigation.muted }}>
-                      {formatoFecha(movimiento.fecha)}
-                    </Typography>
-                  </Box>
-                  <Typography sx={{ fontSize: 11.5, fontWeight: 700, mt: 0.35, color: 'inherit', lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {etiquetaTipo(movimiento.tipo_movimiento)}
-                  </Typography>
-                  <Typography variant="figure" sx={{
-                    fontSize: 14,
-                    mt: 0.25,
-                    color: tokens.navigation.foreground,
-                    lineHeight: 1.25,
-                    display: '-webkit-box',
-                    WebkitLineClamp: 2,
-                    WebkitBoxOrient: 'vertical',
-                    overflow: 'hidden',
-                    overflowWrap: 'anywhere',
-                    wordBreak: 'break-word',
-                    maxWidth: '100%',
-                  }}>
-                    {lineaTarjeta(movimiento.contacto_nombre, movimiento.observaciones)}
-                  </Typography>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 1, mt: 0.45, minWidth: 0 }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6, minWidth: 0 }}>
-                      <Box component="span" aria-label={movimiento.estatus_afectacion === 1 ? 'Afectada' : 'Desafectada'} sx={{ width: 7, height: 7, borderRadius: '50%', bgcolor: movimiento.estatus_afectacion === 1 ? inventoryAffectationColors.applied : inventoryAffectationColors.reverted, flexShrink: 0 }} />
-                      <Typography sx={{ fontSize: 12, color: tokens.navigation.foreground, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {movimiento.usuario_nombre?.trim() || 'Sin usuario'}
-                      </Typography>
-                    </Box>
-                    <Typography sx={{ fontSize: 11, color: tokens.navigation.muted, textAlign: 'right', flexShrink: 0, maxWidth: '46%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {folio ?? ''}
-                    </Typography>
-                  </Box>
+          ) : movimientos.length === 0 ? (
+            <Box sx={{ px: 1.5, py: 3, textAlign: 'center' }}>
+              <Typography sx={{ fontSize: 13, color: tokens.navigation.muted }}>
+                {buscando
+                  ? 'Ningún movimiento coincide con la búsqueda.'
+                  : `Sin movimientos en ${etiquetaPeriodo(periodo)}${soloAjustes ? ' con este filtro' : ''}.`}
+              </Typography>
+              {!buscando && ultimoConDatos && (ultimoConDatos.anio !== periodo.anio || ultimoConDatos.mes !== periodo.mes) && (
+                <Button size="small" onClick={() => setPeriodo(ultimoConDatos)} sx={{ mt: 1, color: tokens.navigation.foreground, textTransform: 'none', fontWeight: 700 }}>
+                  Ir a {etiquetaPeriodo(ultimoConDatos)}
+                </Button>
+              )}
+            </Box>
+          ) : (
+            <>
+              {movimientos.map((movimiento, indice) => (
+                <TarjetaMovimiento
+                  key={movimiento.id}
+                  movimiento={movimiento}
+                  selected={idsIguales(movimiento.id, selectedId)}
+                  ultimo={indice === movimientos.length - 1}
+                  onElegir={elegir}
+                />
+              ))}
+              {siguiente && (
+                <Box ref={finListaRef} sx={{ display: 'flex', justifyContent: 'center', py: 1.5 }}>
+                  {cargandoMas
+                    ? <CircularProgress size={20} sx={{ color: tokens.navigation.foreground }} />
+                    : <Button size="small" onClick={() => void cargarMas()} sx={{ color: tokens.navigation.foreground, textTransform: 'none', fontWeight: 700 }}>Cargar más</Button>}
                 </Box>
-                {indice < filtrados.length - 1 && (
-                  <Box aria-hidden sx={{ mx: 1.15, borderTop: `1px solid ${tokens.navigation.track}` }} />
-                )}
-              </Box>
-            );
-          })}
+              )}
+            </>
+          )}
         </Box>
       </Box>
 

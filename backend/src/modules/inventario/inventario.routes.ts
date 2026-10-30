@@ -5,6 +5,7 @@ import {
   postAplicarDocumento,
   postRevertirDocumento,
   getMovimientos,
+  getPeriodosMovimientos,
   getMovimientoDetalle,
   exportarMovimientos,
   postAfectarMovimiento,
@@ -28,8 +29,9 @@ router.put('/movimientos/:id', putEditarMovimientoManual);
 router.delete('/movimientos/:id', requireAdministradorInventario, deleteMovimientoManual);
 router.post('/documentos/:id/aplicar', postAplicarDocumento);
 router.post('/documentos/:id/revertir', postRevertirDocumento);
+router.get('/movimientos/periodos', getPeriodosMovimientos);
 router.get('/movimientos/:id', getMovimientoDetalle);
-router.get('/movimientos', getMovimientos); // opcional/no implementado
+router.get('/movimientos', getMovimientos);
 router.get('/productos/:productoId/ultimo-costo', async (req, res) => {
   const empresaId = Number((req as any).context?.empresaId);
   const productoId = Number(req.params.productoId);

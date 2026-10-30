@@ -4,6 +4,8 @@ import {
   revertirInventarioDocumento,
   crearMovimientoManual,
   listarMovimientos,
+  listarMovimientosPagina,
+  listarPeriodosMovimientos,
   obtenerMovimientoDetalle,
   afectarMovimientoManual,
   desafectarMovimientoManual,
@@ -231,15 +233,45 @@ export async function deleteMovimientoManual(req: Request, res: Response) {
 }
 
 // Opcional: listado básico si más adelante se implementa en el servicio/repo
-export async function getMovimientos(_req: Request, res: Response) {
-  const empresaId = getEmpresaId(_req);
+function enteroQuery(valor: unknown, min: number, max: number): number | null {
+  const n = Number(valor);
+  return Number.isInteger(n) && n >= min && n <= max ? n : null;
+}
+
+// GET /movimientos?anio=2026&mes=10&q=texto&solo_manuales=1&limite=100&despues_fecha=2026-10-05&despues_id=123
+// Con q se busca en todos los periodos (se ignoran anio y mes). Responde { items, siguiente, total }.
+export async function getMovimientos(req: Request, res: Response) {
+  const empresaId = getEmpresaId(req);
+  if (!empresaId) return res.status(400).json({ message: 'empresaId es requerido' });
+
+  const q = req.query;
+  const despuesFecha = typeof q.despues_fecha === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(q.despues_fecha) ? q.despues_fecha : null;
+  const despuesId = enteroQuery(q.despues_id, 1, Number.MAX_SAFE_INTEGER);
+
+  try {
+    const pagina = await listarMovimientosPagina(empresaId, {
+      anio: enteroQuery(q.anio, 1900, 9999),
+      mes: enteroQuery(q.mes, 1, 12),
+      texto: typeof q.q === 'string' ? q.q.slice(0, 100) : null,
+      soloManuales: q.solo_manuales === '1' || q.solo_manuales === 'true',
+      limite: enteroQuery(q.limite, 1, 500) ?? 100,
+      despues: despuesFecha && despuesId ? { fecha: despuesFecha, id: despuesId } : null,
+    });
+    return res.json(pagina);
+  } catch (error) {
+    const message = (error as any)?.message || 'Error al listar movimientos de inventario';
+    return res.status(500).json({ message });
+  }
+}
+
+export async function getPeriodosMovimientos(req: Request, res: Response) {
+  const empresaId = getEmpresaId(req);
   if (!empresaId) return res.status(400).json({ message: 'empresaId es requerido' });
 
   try {
-    const movimientos = await listarMovimientos(empresaId);
-    return res.json(movimientos);
+    return res.json(await listarPeriodosMovimientos(empresaId));
   } catch (error) {
-    const message = (error as any)?.message || 'Error al listar movimientos de inventario';
+    const message = (error as any)?.message || 'Error al listar periodos de movimientos de inventario';
     return res.status(500).json({ message });
   }
 }
