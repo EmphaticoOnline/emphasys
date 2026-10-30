@@ -1,11 +1,11 @@
 -- Full schema export
 -- Database: emphasys
--- Generated at: 2026-10-30T15:52:36.910Z
+-- Generated at: 2026-10-30T23:18:28.452Z
 --
 -- PostgreSQL database dump
 --
 
-\restrict 5Ogt0CTeq7hrxyyV7NZDKXJZlLQRtxQQ1YU1tvwzB2nk3yp596Cv0hxXc4Oblee
+\restrict wNsOEXhldGZ9o28yvhPWtZZvtaJhojA4E5fddIScPBIzLae5DTAhp3hLcjuafdx
 
 -- Dumped from database version 14.24 (Ubuntu 14.24-0ubuntu0.22.04.1)
 -- Dumped by pg_dump version 18.0
@@ -8141,6 +8141,7 @@ CREATE TABLE inventario.movimientos (
     desafectado_por integer,
     motivo_desafectacion text,
     movimiento_origen_id bigint,
+    referencia character varying(100),
     CONSTRAINT chk_inv_mov_estatus_afectacion CHECK ((estatus_afectacion = ANY (ARRAY[0, 1])))
 );
 
@@ -8227,6 +8228,13 @@ COMMENT ON COLUMN inventario.movimientos.es_reversion IS 'Indica si el movimient
 --
 
 COMMENT ON COLUMN inventario.movimientos.contacto_id IS 'Contacto asociado al movimiento al momento de su registro; NULL para movimientos sin contacto.';
+
+
+--
+-- Name: COLUMN movimientos.referencia; Type: COMMENT; Schema: inventario; Owner: -
+--
+
+COMMENT ON COLUMN inventario.movimientos.referencia IS 'Referencia corta que identifica el origen o motivo del movimiento (por ejemplo, la referencia de la transacción en Clarion).';
 
 
 --
@@ -30108,5 +30116,5 @@ ALTER TABLE ONLY whatsapp.plantillas
 -- PostgreSQL database dump complete
 --
 
-\unrestrict 5Ogt0CTeq7hrxyyV7NZDKXJZlLQRtxQQ1YU1tvwzB2nk3yp596Cv0hxXc4Oblee
+\unrestrict wNsOEXhldGZ9o28yvhPWtZZvtaJhojA4E5fddIScPBIzLae5DTAhp3hLcjuafdx
 
