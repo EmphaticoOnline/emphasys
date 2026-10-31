@@ -343,6 +343,7 @@ export default function InventarioMovimientosPage() {
   const focoPendiente = useRef<number | null>(null);
   const listaRef = useRef<HTMLDivElement | null>(null);
   const finListaRef = useRef<HTMLDivElement | null>(null);
+  const buscadorRef = useRef<HTMLInputElement | null>(null);
   // Cada carga lleva un número; una respuesta vieja (filtros ya cambiados) se descarta.
   const solicitudRef = useRef(0);
   // Mientras se ubica el mes de un movimiento recién guardado: número de carga a partir del cual ya es
@@ -415,6 +416,19 @@ export default function InventarioMovimientosPage() {
     const espera = window.setTimeout(() => setBusqueda(texto.trim()), 300);
     return () => window.clearTimeout(espera);
   }, [texto]);
+
+  // Tecla "/" lleva al buscador, salvo que ya se esté escribiendo en otro campo.
+  useEffect(() => {
+    const alTeclear = (event: KeyboardEvent) => {
+      if (event.key !== '/' || event.ctrlKey || event.metaKey || event.altKey) return;
+      const destino = event.target as HTMLElement | null;
+      if (destino && (destino.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(destino.tagName))) return;
+      event.preventDefault();
+      buscadorRef.current?.focus();
+    };
+    window.addEventListener('keydown', alTeclear);
+    return () => window.removeEventListener('keydown', alTeclear);
+  }, []);
 
   const filtrosActuales = useCallback(() => ({
     q: busqueda || null,
@@ -697,44 +711,38 @@ export default function InventarioMovimientosPage() {
             </Stack>
           </Box>
 
-          <Box sx={{ mt: 1.35 }}>
-            <PeriodoSelector
-              value={periodo}
-              onChange={setPeriodo}
-              conteos={conteos}
-              disabled={buscando}
-              textoDeshabilitado="Buscando en todos los periodos"
-            />
-          </Box>
-
-          <Stack direction="row" spacing={0.7} alignItems="center" sx={{ mt: 0.9 }}>
+          <Stack direction="row" spacing={0.7} alignItems="center" sx={{ mt: 1.35 }}>
             <TextField
               size="small"
-              placeholder="Buscar en todos los periodos…"
+              placeholder="Buscar folio, cliente, referencia…"
+              inputRef={buscadorRef}
               value={texto}
               onChange={(event) => setTexto(event.target.value)}
               InputProps={{
                 startAdornment: (
                   <InputAdornment position="start">
-                    <SearchIcon sx={{ fontSize: 18, color: tokens.navigation.muted }} />
+                    <SearchIcon sx={{ fontSize: 20, color: tokens.navigation.controlForeground }} />
                   </InputAdornment>
                 ),
                 endAdornment: texto ? (
-                  <IconButton size="small" aria-label="Limpiar búsqueda" onClick={() => setTexto('')} sx={{ color: tokens.navigation.muted }}>
+                  <IconButton size="small" aria-label="Limpiar búsqueda" onClick={() => setTexto('')} sx={{ color: tokens.navigation.controlForeground }}>
                     <CloseIcon fontSize="small" />
                   </IconButton>
                 ) : null,
               }}
               sx={{
                 flex: 1,
+                // Control principal del riel: fondo claro y más alto que el resto.
                 '& .MuiOutlinedInput-root': {
-                  color: tokens.navigation.foreground,
-                  bgcolor: tokens.navigation.summary,
+                  color: tokens.navigation.controlForeground,
+                  bgcolor: tokens.navigation.control,
                   borderRadius: 2,
+                  boxShadow: elevation.railControl,
                   '& fieldset': { borderColor: 'transparent' },
+                  '&.Mui-focused fieldset': { borderColor: tokens.navigation.accent, borderWidth: 2 },
                 },
-                '& .MuiOutlinedInput-input': { fontSize: 13, py: 0.9 },
-                '& .MuiOutlinedInput-input::placeholder': { color: tokens.navigation.muted, opacity: 1 },
+                '& .MuiOutlinedInput-input': { fontSize: 14, fontWeight: 600, py: 1.15 },
+                '& .MuiOutlinedInput-input::placeholder': { color: tokens.navigation.controlForeground, opacity: 0.6 },
               }}
             />
             <Tooltip title="Filtros">
@@ -764,6 +772,20 @@ export default function InventarioMovimientosPage() {
               </Box>
             </Tooltip>
           </Stack>
+
+          <Typography sx={{ mt: 0.5, px: 0.5, fontSize: 11, color: tokens.navigation.muted }}>
+            Busca en todos los periodos · tecla <Box component="kbd" sx={{ fontFamily: 'inherit', fontWeight: 800 }}>/</Box>
+          </Typography>
+
+          <Box sx={{ mt: 1.1 }}>
+            <PeriodoSelector
+              value={periodo}
+              onChange={setPeriodo}
+              conteos={conteos}
+              disabled={buscando}
+              textoDeshabilitado="Buscando en todos los periodos"
+            />
+          </Box>
         </Box>
 
         <Popover
