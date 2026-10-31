@@ -25,6 +25,8 @@ export type MovimientoRow = {
   contacto_nombre: string | null;
   contacto_tipo: string | null;
   referencia: string | null;
+  /** Número de partidas del movimiento (los de Clarion pueden no tener ninguna). */
+  partidas: number;
 };
 
 export type MovimientoPartidaDetalle = {
@@ -85,7 +87,8 @@ const SELECT_MOVIMIENTO = `
            COALESCE(m.contacto_id, d.contacto_principal_id) AS contacto_id,
            c.nombre AS contacto_nombre,
            c.tipo_contacto AS contacto_tipo,
-           m.referencia
+           m.referencia,
+           (SELECT count(*) FROM inventario.movimientos_partidas mp WHERE mp.movimiento_id = m.id)::int AS partidas
       FROM inventario.movimientos m
      LEFT JOIN core.usuarios u ON u.id = m.usuario_id
      LEFT JOIN public.documentos d ON d.id = m.documento_id
@@ -256,7 +259,8 @@ export async function obtenerMovimientoDetalleRepository(id: number, empresaId: 
            COALESCE(m.contacto_id, d.contacto_principal_id) AS contacto_id,
            c.nombre AS contacto_nombre,
            c.tipo_contacto AS contacto_tipo,
-           m.referencia
+           m.referencia,
+           (SELECT count(*) FROM inventario.movimientos_partidas mp WHERE mp.movimiento_id = m.id)::int AS partidas
       FROM inventario.movimientos m
      LEFT JOIN core.usuarios u ON u.id = m.usuario_id
      LEFT JOIN public.documentos d ON d.id = m.documento_id

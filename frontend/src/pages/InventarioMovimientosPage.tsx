@@ -127,6 +127,11 @@ function lineaTarjeta(contacto: string | null | undefined, observaciones: string
   return nombre || motivo || 'Sin motivo';
 }
 
+// Un encabezado sin partidas (hay de Clarion) no tiene sentido de movimiento: el tipo guardado no dice nada.
+function etiquetaTipoMovimiento(tipo: string | null | undefined, partidas: number | null | undefined): string {
+  return partidas === 0 ? 'Sin partidas' : etiquetaTipo(tipo);
+}
+
 function etiquetaTipo(tipo: string | null | undefined): string {
   const texto = String(tipo ?? '').trim();
   if (!texto) return 'Sin tipo';
@@ -262,12 +267,12 @@ const TarjetaMovimiento = memo(function TarjetaMovimiento({
                   {movimiento.serie && movimiento.numero != null ? formatearFolioDocumento(movimiento.serie, Number(movimiento.numero)) : `#${movimiento.id}`}
                 </Typography>
               </Box>
-              <Typography sx={{ fontSize: 11, flexShrink: 0, color: selected ? tokens.navigation.selectionForeground : tokens.navigation.muted }}>
+              <Typography sx={{ fontSize: 12.5, fontWeight: 600, fontVariantNumeric: 'tabular-nums', flexShrink: 0, color: selected ? tokens.navigation.selectionForeground : tokens.navigation.subtle }}>
                 {formatoFecha(movimiento.fecha)}
               </Typography>
             </Box>
             <Typography sx={{ fontSize: 11.5, fontWeight: 700, mt: 0.35, color: 'inherit', lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {etiquetaTipo(movimiento.tipo_movimiento)}
+              {etiquetaTipoMovimiento(movimiento.tipo_movimiento, movimiento.partidas)}
             </Typography>
             <Typography variant="figure" sx={{
               fontSize: 14,
@@ -594,6 +599,20 @@ export default function InventarioMovimientosPage() {
   const puedeAfectar = movimientoManual && encabezado?.estatus_afectacion === 0;
   const puedeDesafectar = movimientoManual && encabezado?.estatus_afectacion === 1;
   const verLista = !compacto || !detalleMovil;
+  // Con el detalle cargado se cuentan sus partidas; mientras, lo que trae el listado.
+  const partidasEncabezado = detalle && idsIguales(detalle.movimiento.id, selectedId) ? detalle.partidas.length : encabezado?.partidas;
+  const folioDoc = encabezado ? folioDocumento(encabezado) : null;
+  const contextoDoc = encabezado ? contextoDocumento(encabezado) : null;
+  // Línea compacta bajo el folio, solo con lo que tiene dato. El cliente ya se ve en el riel; en pantalla
+  // angosta el riel se oculta, así que ahí sí se incluye.
+  const datosEncabezado = encabezado
+    ? [
+        encabezado.referencia?.trim(),
+        compacto ? encabezado.contacto_nombre?.trim() : null,
+        folioDoc ? `Documento ${folioDoc}${contextoDoc ? ` (${contextoDoc})` : ''}` : null,
+        encabezado.usuario_nombre?.trim() || 'Sin usuario',
+      ].filter((parte): parte is string => Boolean(parte))
+    : [];
 
   // Estable para que las tarjetas memorizadas no se vuelvan a pintar al seleccionar.
   const elegir = useCallback((id: number | string) => {
@@ -651,6 +670,9 @@ export default function InventarioMovimientosPage() {
     if (normalizado === 'salida' || normalizado === 'venta') return tokens.metric.blocked;
     return { background: tokens.content.elevated, foreground: tokens.content.foreground };
   };
+  const tonoEncabezado = partidasEncabezado === 0
+    ? { background: tokens.content.elevated, foreground: tokens.content.muted }
+    : tonoTipo(encabezado?.tipo_movimiento ?? '');
 
   return (
     <Box sx={{ flex: 1, minHeight: compacto ? 'calc(100dvh - 112px)' : 0, height: compacto ? undefined : '100%', display: 'flex', flexDirection: compacto ? 'column' : 'row', overflow: 'hidden' }}>
@@ -913,12 +935,17 @@ export default function InventarioMovimientosPage() {
                 <Typography sx={{ fontSize: 13, color: tokens.content.muted }}>{formatoFecha(encabezado.fecha)}</Typography>
               </Box>
               <Box sx={{ display: 'flex', gap: 0.7, mt: 1, flexWrap: 'wrap', alignItems: 'center' }}>
-                <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', height: 26, px: 1.05, borderRadius: 99, bgcolor: tonoTipo(encabezado.tipo_movimiento).background, color: tonoTipo(encabezado.tipo_movimiento).foreground, fontSize: 12, fontWeight: 700 }}>
-                  {etiquetaTipo(encabezado.tipo_movimiento)}
+                <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', height: 26, px: 1.05, borderRadius: 99, bgcolor: tonoEncabezado.background, color: tonoEncabezado.foreground, fontSize: 12, fontWeight: 700 }}>
+                  {etiquetaTipoMovimiento(encabezado.tipo_movimiento, partidasEncabezado)}
                 </Box>
                 <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', height: 26, px: 1.05, borderRadius: 99, bgcolor: encabezado.estatus_afectacion === 1 ? tokens.metric.applied.background : tokens.content.elevated, color: encabezado.estatus_afectacion === 1 ? tokens.metric.applied.foreground : tokens.content.muted, fontSize: 12, fontWeight: 700 }}>
                   {encabezado.estatus_afectacion === 1 ? 'Afectada' : 'Desafectada'}
                 </Box>
+                {datosEncabezado.length > 0 && (
+                  <Typography sx={{ fontSize: 13, color: tokens.content.muted, minWidth: 0, flex: '1 1 240px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={datosEncabezado.join(' · ')}>
+                    {datosEncabezado.join(' · ')}
+                  </Typography>
+                )}
                 <Stack direction="row" spacing={0.6} sx={{ ml: 'auto' }}>
                   <Tooltip title={puedeEditar ? 'Editar movimiento' : 'Editar no disponible: requiere un movimiento manual desafectado'} arrow>
                     <span><IconButton size="small" disabled={!puedeEditar} onClick={puedeEditar ? () => navigate(`/inventario/movimientos/${encabezado.id}/editar`) : undefined} sx={accionWorkspaceSx(!puedeEditar)}><EditOutlinedIcon fontSize="small" /></IconButton></span>
@@ -937,6 +964,11 @@ export default function InventarioMovimientosPage() {
                   )}
                 </Stack>
               </Box>
+              {encabezado.observaciones?.trim() && (
+                <Typography sx={{ mt: 0.75, fontSize: 13.5, lineHeight: 1.35, color: tokens.content.foreground, whiteSpace: 'pre-wrap' }}>
+                  {encabezado.observaciones.trim()}
+                </Typography>
+              )}
 
       <Dialog open={eliminarId != null} onClose={() => setEliminarId(null)}>
         <DialogTitle>Eliminar movimiento</DialogTitle>
@@ -946,31 +978,6 @@ export default function InventarioMovimientosPage() {
           <Button color="error" variant="contained" onClick={() => void confirmarEliminacion()}>Eliminar</Button>
         </DialogActions>
       </Dialog>
-            </Box>
-
-            <Box sx={{ px: { xs: 1.5, md: 2.75 }, pb: 1.4, flexShrink: 0 }}>
-              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 0.8 }}>
-                <Dato tokens={tokens} etiqueta="Usuario" valor={encabezado.usuario_nombre?.trim() || '—'} />
-                {encabezado.contacto_nombre?.trim() ? (
-                  <Dato
-                    tokens={tokens}
-                    etiqueta={encabezado.contacto_tipo?.trim() || 'Contacto'}
-                    valor={encabezado.contacto_nombre.trim()}
-                  />
-                ) : null}
-                <Dato
-                  tokens={tokens}
-                  etiqueta="Documento"
-                  valor={folioDocumento(encabezado) ?? ''}
-                  detalle={contextoDocumento(encabezado)}
-                />
-                <Box sx={{ gridColumn: { sm: '1 / -1' }, px: 1.4, py: 1.1, borderRadius: 2, bgcolor: tokens.content.elevated, color: tokens.content.foreground }}>
-                  <Typography sx={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', color: tokens.metric.caption }}>MOTIVO</Typography>
-                  <Typography sx={{ fontSize: 14, lineHeight: 1.35, mt: 0.25, whiteSpace: 'pre-wrap' }}>
-                    {encabezado.observaciones?.trim() || '—'}
-                  </Typography>
-                </Box>
-              </Box>
             </Box>
 
             <Box sx={{
@@ -1102,26 +1109,6 @@ export default function InventarioMovimientosPage() {
           {snackbar.message}
         </Alert>
       </Snackbar>
-    </Box>
-  );
-}
-
-function Dato({
-  tokens,
-  etiqueta,
-  valor,
-  detalle,
-}: {
-  tokens: { content: { elevated: string; foreground: string }; metric: { caption: string } };
-  etiqueta: string;
-  valor: string;
-  detalle?: string | null;
-}) {
-  return (
-    <Box sx={{ px: 1.4, py: 1.1, borderRadius: 2, bgcolor: tokens.content.elevated, color: tokens.content.foreground }}>
-      <Typography sx={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', color: tokens.metric.caption }}>{etiqueta.toUpperCase()}</Typography>
-      <Typography sx={{ fontSize: 15, fontWeight: 650, lineHeight: 1.25, mt: 0.25 }} noWrap>{valor}</Typography>
-      {detalle ? <Typography sx={{ fontSize: 12, color: tokens.metric.caption, mt: 0.15 }}>{detalle}</Typography> : null}
     </Box>
   );
 }

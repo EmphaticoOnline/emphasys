@@ -42,6 +42,8 @@ export interface MovimientoEncabezado {
   contacto_nombre?: string | null;
   contacto_tipo?: string | null;
   referencia?: string | null;
+  /** Número de partidas (los movimientos de Clarion pueden no tener ninguna). */
+  partidas?: number;
 }
 
 export type MovimientoListadoItem = MovimientoEncabezado;
