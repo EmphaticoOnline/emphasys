@@ -741,8 +741,21 @@ export default function InventarioMovimientosPage() {
                   '& fieldset': { borderColor: 'transparent' },
                   '&.Mui-focused fieldset': { borderColor: tokens.navigation.accent, borderWidth: 2 },
                 },
-                '& .MuiOutlinedInput-input': { fontSize: 14, fontWeight: 600, py: 1.15 },
-                '& .MuiOutlinedInput-input::placeholder': { color: tokens.navigation.controlForeground, opacity: 0.6 },
+                // Lo escrito va en la tipografía de los folios (figure); el placeholder, en la funcional del control.
+                '& .MuiOutlinedInput-input': {
+                  fontFamily: theme.typography.figure.fontFamily,
+                  fontVariantNumeric: 'tabular-nums',
+                  fontSize: 15,
+                  fontWeight: 500,
+                  py: 1.1,
+                },
+                '& .MuiOutlinedInput-input::placeholder': {
+                  fontFamily: theme.typography.fontFamily,
+                  fontSize: 14,
+                  fontWeight: 600,
+                  color: tokens.navigation.controlForeground,
+                  opacity: 0.6,
+                },
               }}
             />
             <Tooltip title="Filtros">
